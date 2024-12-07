@@ -1,0 +1,30 @@
+{
+  "name": "tilia",
+  "sources": [
+    {
+      "dir": "src",
+      "public": [
+        "Tilia"
+      ],
+      "subdirs": true
+    },
+    {
+      "dir": "test",
+      "type": "dev"
+    }
+  ],
+  "package-specs": {
+    "module": "esmodule",
+    "in-source": true
+  },
+  "suffix": ".mjs",
+  "bs-dependencies": [
+    "@rescript/core"
+  ],
+  "bs-dev-dependencies": [
+    "@dzakh/rescript-ava"
+  ],
+  "bsc-flags": [
+    "-open RescriptCore"
+  ]
+}

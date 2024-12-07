@@ -1,0 +1,29 @@
+{
+  "name": "tilia",
+  "version": "0.0.0",
+  "scripts": {
+    "res:build": "rescript",
+    "res:clean": "rescript clean",
+    "res:dev": "rescript -w",
+    "test": "ava"
+  },
+  "keywords": [
+    "rescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@rescript/core": "^1.6.1",
+    "rescript": "^11.1.4"
+  },
+  "devDependencies": {
+    "@dzakh/rescript-ava": "^3.0.0",
+    "ava": "5.2.x"
+  },
+  "ava": {
+    "files": [
+      "test/*_test.mjs",
+      "test/**/*_test.mjs"
+    ]
+  }
+}
