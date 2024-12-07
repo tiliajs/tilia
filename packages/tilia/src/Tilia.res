@@ -23,7 +23,7 @@ and root = {
   mutable collecting: option<collector>,
   observers: Map.t<Symbol.t, observer>,
 }
-type t = root
+type t<'a> = (root, 'a)
 exception CoreBug(string)
 
 let clear = (observer: observer) => {
@@ -110,7 +110,7 @@ let proxify = (root: root, target: 'a): 'a => {
   )
 }
 
-let init = (seed: 'a): (t, 'a) => {
+let init = (seed: 'a): t<'a> => {
   let root = {
     collecting: None,
     observers: Map.make(),
@@ -118,7 +118,7 @@ let init = (seed: 'a): (t, 'a) => {
   (root, proxify(root, seed))
 }
 
-let connect = (root, notify) => {
+let connect = ((root, _), notify) => {
   let observer: observer = {
     sym: Symbol.make("obs"),
     notify,

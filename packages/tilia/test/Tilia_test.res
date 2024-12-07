@@ -1,12 +1,13 @@
 open Ava
 open Assert
-type person = {mutable name: string}
+type person = {mutable name: string, mutable username: string}
 type tester = {mutable called: bool}
 
 test("should track leaf changes", t => {
   let m = {called: false}
-  let p = {name: "John"}
-  let (r, x) = Tilia.init(p)
+  let p = {name: "John", username: "jo"}
+  let r = Tilia.init(p)
+  let (_, x) = r
   let o = Tilia.connect(r, () => m.called = true)
   t->is(x.name, "John") // observe 'name'
   t->is(m.called, false)
