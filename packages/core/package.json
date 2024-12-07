@@ -1,5 +1,5 @@
 {
-  "name": "tilia",
+  "name": "@tilia/core",
   "version": "0.0.0",
   "scripts": {
     "res:build": "rescript",
@@ -8,16 +8,20 @@
     "test:watch": "ava --watch",
     "test": "ava"
   },
+  "description": "🍃 State management library, for simple minds.",
   "keywords": [
-    "rescript"
+    "rescript",
+    "state",
+    "state management",
+    "tilia",
+    "frp"
   ],
   "author": "The Midasum Coders",
   "license": "MIT",
-  "dependencies": {
-    "@rescript/core": "^1.6.1",
-    "rescript": "^11.1.4"
-  },
+  "dependencies": {},
   "devDependencies": {
+    "@rescript/core": "^1.6.1",
+    "rescript": "^11.1.4",
     "@dzakh/rescript-ava": "^3.0.0",
     "ava": "5.2.x"
   },

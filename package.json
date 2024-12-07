@@ -5,8 +5,9 @@
   "description": "tilia monorepo",
   "main": "index.js",
   "scripts": {
-    "tilia": "pnpm --filter tilia",
-    "web": "pnpm --filter tilia-website",
+    "core": "pnpm --filter core",
+    "web": "pnpm --filter website",
+    "react": "pnpm --filter react",
     "test": "pnpm -r test"
   },
   "keywords": [],

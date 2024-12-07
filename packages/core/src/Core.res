@@ -4,21 +4,25 @@ module Reflect = {
   external set: ('a, string, 'b) => bool = "Reflect.set"
   external ownKeys: 'a => 'b = "Reflect.ownKeys"
 }
-
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
 module Typeof = {
   external array: 'a => bool = "Array.isArray"
   let object: 'a => bool = %raw(`
-    function(v) {
-      return typeof v === 'object' && v !== null;
-    }
+function(v) {
+  return typeof v === 'object' && v !== null;
+}
   `)
 }
-
-type debug = {mutable c: int}
-let d = {c: 0}
+module Dict = {
+  type t<'a>
+  external has: ('a, string) => bool = "Reflect.has"
+  external get: (t<'a>, string) => 'a = "Reflect.get"
+  external set: (t<'a>, string, 'b) => unit = "Reflect.set"
+  external remove: (t<'a>, string) => unit = "Reflect.deleteProperty"
+}
+type dict<'a> = Dict.t<'a>
 
 // Set of observers observing a given key in an object/array
 type eyes = Set.t<Symbol.t>
@@ -39,11 +43,10 @@ and root = {
   observers: Map.t<Symbol.t, observer>,
 }
 type t<'a> = (root, 'a)
-exception CoreBug(string)
 
 let _connect = ((root, _), notify) => {
   let observer: observer = {
-    sym: Symbol.make("obs"),
+    sym: Symbol.make(""),
     notify,
     collector: [],
     root,
@@ -55,16 +58,15 @@ let _connect = ((root, _), notify) => {
 let _clear = (observer: observer) => {
   let {sym, root} = observer
   if Map.delete(root.observers, sym) {
-    d.c = d.c - 1
     Array.forEach(observer.collector, ((observed, key)) => {
-      switch Dict.get(observed, key) {
-      | Some(eyes) =>
+      if Dict.has(observed, key) {
+        let eyes = Dict.get(observed, key)
         if Set.delete(eyes, sym) {
           if Set.size(eyes) == 0 {
-            ignore(Dict.delete(observed, key))
+            // We want to avoid any external deps.
+            Dict.remove(observed, key)
           }
         }
-      | _ => ()
       }
     })
   }
@@ -72,30 +74,27 @@ let _clear = (observer: observer) => {
 
 let register = (sym: Symbol.t, leaf: (dict<eyes>, string)) => {
   let (observed, key) = leaf
-  let eyes = switch Dict.get(observed, key) {
-  | Some(eyes) => eyes
-  | None => {
-      let eyes = Set.make()
-      Dict.set(observed, key, eyes)
-      eyes
-    }
+  let eyes = if Dict.has(observed, key) {
+    Dict.get(observed, key)
+  } else {
+    let eyes = Set.make()
+    Dict.set(observed, key, eyes)
+    eyes
   }
   Set.add(eyes, sym)
 }
 
 let _flush = (observer: observer) => {
-  d.c = d.c + 1
   let {root, sym, collector} = observer
   switch root.collecting {
-  | Some(c) if c == collector => root.collecting = None
+  | Some(c) if c === collector => root.collecting = None
   | _ => ()
   }
   Map.set(root.observers, sym, observer)
   Array.forEach(observer.collector, register(sym, ...))
 }
 
-// fixme, what should be used as unique key for these index methods ?
-let indexKey = "::"
+let indexKey = %raw(`Symbol()`)
 
 let ownKeys = (root: root, observed: dict<eyes>, target: 'a): 'b => {
   switch root.collecting {
@@ -106,20 +105,18 @@ let ownKeys = (root: root, observed: dict<eyes>, target: 'a): 'b => {
 }
 
 let notify = (root, observed, key) => {
-  switch Dict.get(observed, key) {
-  | Some(eyes) => {
-      Dict.delete(observed, key)
-      Set.forEach(eyes, sym => {
-        switch Map.get(root.observers, sym) {
-        | Some(observer) => {
-            _clear(observer)
-            observer.notify()
-          }
-        | None => raise(CoreBug("Observing sym should always be in root.observers."))
+  if Dict.has(observed, key) {
+    let eyes = Dict.get(observed, key)
+    Dict.remove(observed, key)
+    Set.forEach(eyes, sym => {
+      switch Map.get(root.observers, sym) {
+      | Some(observer) => {
+          _clear(observer)
+          observer.notify()
         }
-      })
-    }
-  | None => ()
+      | None => () // Should never happen
+      }
+    })
   }
 }
 
@@ -143,13 +140,12 @@ let rec get = (
   // is array and get length
   let v = Reflect.get(target, key)
   if Typeof.object(v) {
-    switch Dict.get(proxied, key) {
-    | Some(p) => p
-    | None => {
-        let p = proxify(root, v)
-        Dict.set(proxied, key, p)
-        p
-      }
+    if Dict.has(proxied, key) {
+      Dict.get(proxied, key)
+    } else {
+      let p = proxify(root, v)
+      Dict.set(proxied, key, p)
+      p
     }
   } else {
     v
@@ -166,14 +162,14 @@ and set = (
 ) => {
   let hadKey = Reflect.has(target, key)
   let prev = Reflect.get(target, key)
-  if prev == value {
+  if prev === value {
     true
   } else {
     switch Reflect.set(target, key, value) {
     | false => false
     | true =>
       if Typeof.object(prev) {
-        ignore(Dict.delete(proxied, key))
+        Dict.remove(proxied, key)
       }
       notify(root, observed, key)
       if !hadKey {
@@ -186,8 +182,8 @@ and set = (
 }
 
 and proxify = (root: root, target: 'a): 'a => {
-  let observed: dict<eyes> = Dict.make()
-  let proxied: dict<'b> = Dict.make()
+  let observed: dict<eyes> = %raw(`{}`)
+  let proxied: dict<'b> = %raw(`{}`)
   Proxy.make(
     target,
     {
