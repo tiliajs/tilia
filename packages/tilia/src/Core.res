@@ -5,6 +5,14 @@ module Reflect = {
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
+module Typeof = {
+  // external array: 'a => bool = "Array.isArray"
+  let object: 'a => bool = %raw(`
+    function(v) {
+      return typeof v === 'object' && v !== null;
+    }
+  `)
+}
 
 type debug = {mutable c: int}
 let d = {c: 0}
@@ -83,18 +91,36 @@ let _flush = (observer: observer) => {
   Array.forEach(observer.collector, register(sym, ...))
 }
 
-let get = (root: root, observed: dict<eyes>, _proxied: dict<'c>, target: 'a, key: string): 'b => {
+let rec get = (
+  root: root,
+  observed: dict<eyes>,
+  _proxied: dict<'c>,
+  target: 'a,
+  key: string,
+): 'b => {
   switch root.collecting {
   | Some(c) => Array.push(c, (observed, key))
   | None => ()
   }
-  Reflect.get(target, key)
+  let v = Reflect.get(target, key)
+  if Typeof.object(v) {
+    switch Dict.get(_proxied, key) {
+    | Some(p) => p
+    | None => {
+        let p = proxify(root, v)
+        Dict.set(_proxied, key, p)
+        p
+      }
+    }
+  } else {
+    v
+  }
 }
 
-let set = (
+and set = (
   root: root,
   observed: dict<eyes>,
-  _proxied: dict<'c>,
+  proxied: dict<'c>,
   target: 'a,
   key: string,
   value: 'b,
@@ -106,6 +132,9 @@ let set = (
     switch Reflect.set(target, key, value) {
     | false => false
     | true =>
+      if Typeof.object(prev) {
+        ignore(Dict.delete(proxied, key))
+      }
       switch Dict.get(observed, key) {
       | Some(eyes) => {
           Dict.delete(observed, key)
@@ -126,7 +155,7 @@ let set = (
   }
 }
 
-let proxify = (root: root, target: 'a): 'a => {
+and proxify = (root: root, target: 'a): 'a => {
   let observed: dict<eyes> = Dict.make()
   let proxied: dict<'b> = Dict.make()
   Proxy.make(

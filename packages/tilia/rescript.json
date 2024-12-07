@@ -4,7 +4,7 @@
     {
       "dir": "src",
       "public": [
-        "TiliaCore"
+        "Core"
       ],
       "subdirs": true
     },
