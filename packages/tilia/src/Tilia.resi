@@ -1,8 +1,7 @@
 type observer
 type root
 type t<'a> = (root, 'a)
-let init: 'a => t<'a>
-let connect: (t<'a>, unit => unit) => observer
-let flush: observer => unit
-let clear: observer => unit
-// let observe: (t<'a>, 'a => unit) => observer
+let make: 'a => t<'a>
+let _connect: (t<'a>, unit => unit) => observer
+let _flush: observer => unit
+let observe: (t<'a>, 'a => unit) => unit

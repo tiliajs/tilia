@@ -110,7 +110,7 @@ let proxify = (root: root, target: 'a): 'a => {
   )
 }
 
-let init = (seed: 'a): t<'a> => {
+let make = (seed: 'a): t<'a> => {
   let root = {
     collecting: None,
     observers: Map.make(),
@@ -118,7 +118,7 @@ let init = (seed: 'a): t<'a> => {
   (root, proxify(root, seed))
 }
 
-let connect = ((root, _), notify) => {
+let _connect = ((root, _), notify) => {
   let observer: observer = {
     sym: Symbol.make("obs"),
     notify,
@@ -129,7 +129,7 @@ let connect = ((root, _), notify) => {
   observer
 }
 
-let flush = (observer: observer) => {
+let _flush = (observer: observer) => {
   let {root, sym, collector} = observer
   switch root.collecting {
   | Some(c) if c == collector => root.collecting = None
@@ -137,4 +137,14 @@ let flush = (observer: observer) => {
   }
   Map.set(root.observers, sym, observer)
   Array.forEach(observer.collector, observe(sym, ...))
+}
+
+let observe = (t: t<'a>, callback: 'a => unit) => {
+  let (_, p) = t
+  let rec notify = () => {
+    let o = _connect(t, notify)
+    callback(p)
+    _flush(o)
+  }
+  notify()
 }
