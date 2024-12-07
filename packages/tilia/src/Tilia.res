@@ -9,22 +9,25 @@ module Proxy = {
 type eyes = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
 type collector = array<(dict<eyes>, string)>
-type observer = {
+
+type rec observer = {
   // The symbol that will be added to eyes on flush
   sym: Symbol.t,
   notify: unit => unit,
   // What this observer is observing (a list of eyes)
   collector: collector,
+  // Where this observer is observing (used for clear and flush)
+  root: root,
 }
-type root = {
-  mutable collector: option<collector>,
+and root = {
+  mutable collecting: option<collector>,
   observers: Map.t<Symbol.t, observer>,
 }
 type t = root
 exception CoreBug(string)
 
-let clear = (root: root, observer: observer) => {
-  let {sym} = observer
+let clear = (observer: observer) => {
+  let {sym, root} = observer
   ignore(Map.delete(root.observers, sym))
   Array.forEach(observer.collector, ((observed, key)) => {
     switch Dict.get(observed, key) {
@@ -53,7 +56,7 @@ let observe = (sym: Symbol.t, leaf: (dict<eyes>, string)) => {
 }
 
 let get = (root: root, observed: dict<eyes>, proxied: dict<'c>, target: 'a, key: string): 'b => {
-  switch root.collector {
+  switch root.collecting {
   | Some(c) => Array.push(c, (observed, key))
   | None => ()
   }
@@ -81,7 +84,7 @@ let set = (
           Set.forEach(eyes, sym => {
             switch Map.get(root.observers, sym) {
             | Some(observer) => {
-                clear(root, observer)
+                clear(observer)
                 observer.notify()
               }
             | None => raise(CoreBug("Observing sym should always be in root.observers."))
@@ -109,27 +112,29 @@ let proxify = (root: root, target: 'a): 'a => {
 
 let init = (seed: 'a): (t, 'a) => {
   let root = {
-    collector: None,
+    collecting: None,
     observers: Map.make(),
   }
   (root, proxify(root, seed))
 }
 
 let connect = (root, notify) => {
-  let observer = {
+  let observer: observer = {
     sym: Symbol.make("obs"),
     notify,
     collector: [],
+    root,
   }
-  root.collector = Some(observer.collector)
+  root.collecting = Some(observer.collector)
   observer
 }
 
-let flush = (root: root, observer: observer) => {
-  switch root.collector {
-  | Some(c) if c == observer.collector => root.collector = None
+let flush = (observer: observer) => {
+  let {root, sym, collector} = observer
+  switch root.collecting {
+  | Some(c) if c == collector => root.collecting = None
   | _ => ()
   }
-  Map.set(root.observers, observer.sym, observer)
-  Array.forEach(observer.collector, observe(observer.sym, ...))
+  Map.set(root.observers, sym, observer)
+  Array.forEach(observer.collector, observe(sym, ...))
 }

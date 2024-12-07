@@ -15,7 +15,7 @@ test("should track leaf changes", t => {
   x.name = "One"
   // Callback should not be called
   t->is(m.called, false)
-  Tilia.flush(r, o)
+  Tilia.flush(o)
 
   // Update name with same value after flush
   x.name = "One"

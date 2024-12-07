@@ -10,7 +10,7 @@
   "keywords": [
     "rescript"
   ],
-  "author": "",
+  "author": "The Midasum Coders",
   "license": "MIT",
   "dependencies": {
     "@rescript/core": "^1.6.1",

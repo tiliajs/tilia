@@ -4,9 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "tilia": "pnpm --filter tilia",
+    "test": "pnpm -r test"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC"
+  "author": "The Midasum Coders",
+  "license": "MIT"
 }
