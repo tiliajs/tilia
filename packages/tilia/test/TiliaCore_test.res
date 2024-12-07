@@ -1,5 +1,6 @@
 open Ava
 open Assert
+module Tilia = TiliaCore
 type person = {mutable name: string, mutable username: string}
 type tester = {mutable called: bool}
 

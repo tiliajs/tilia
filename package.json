@@ -1,10 +1,12 @@
 {
-  "name": "midasum",
-  "version": "1.0.0",
-  "description": "",
+  "name": "tilia",
+  "private": true,
+  "version": "0.0.0",
+  "description": "tilia monorepo",
   "main": "index.js",
   "scripts": {
     "tilia": "pnpm --filter tilia",
+    "web": "pnpm --filter tilia-website",
     "test": "pnpm -r test"
   },
   "keywords": [],

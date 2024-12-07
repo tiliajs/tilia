@@ -5,6 +5,7 @@
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
+    "test:watch": "ava --watch",
     "test": "ava"
   },
   "keywords": [
