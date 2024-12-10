@@ -1,6 +1,10 @@
 {
   "name": "@tilia/core",
   "version": "0.0.0",
+  "exports": {
+    "import": "./src/TiliaCore.mjs"
+  },
+  "types": "./src/TiliaCore.d.ts",
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
@@ -16,7 +20,7 @@
     "tilia",
     "frp"
   ],
-  "author": "The Midasum Coders",
+  "author": "Gaspard Anna Bucher",
   "license": "MIT",
   "dependencies": {},
   "devDependencies": {

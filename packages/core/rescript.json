@@ -1,10 +1,10 @@
 {
-  "name": "tilia",
+  "name": "@tilia/core",
   "sources": [
     {
       "dir": "src",
       "public": [
-        "Core"
+        "TiliaCore"
       ],
       "subdirs": true
     },

@@ -1,5 +1,6 @@
 open Ava
 open Assert
+module Core = TiliaCore
 module Object = {
   type t
   let make: unit => t = %raw(`() => ({})`)

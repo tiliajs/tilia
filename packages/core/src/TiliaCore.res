@@ -17,23 +17,22 @@ function(v) {
 }
 module Dict = {
   type t<'a>
-  external has: ('a, string) => bool = "Reflect.has"
-  external get: (t<'a>, string) => 'a = "Reflect.get"
+  external get: (t<'a>, string) => nullable<'a> = "Reflect.get"
   external set: (t<'a>, string, 'b) => unit = "Reflect.set"
   external remove: (t<'a>, string) => unit = "Reflect.deleteProperty"
 }
 type dict<'a> = Dict.t<'a>
 
 // Set of observers observing a given key in an object/array
-type eyes = Set.t<Symbol.t>
+type watchers = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
-type collector = array<(dict<eyes>, string)>
+type collector = array<(dict<watchers>, string)>
 
 type rec observer = {
-  // The symbol that will be added to eyes on flush
-  sym: Symbol.t,
+  // The symbol that will be added to watchers on flush
+  watcher: Symbol.t,
   notify: unit => unit,
-  // What this observer is observing (a list of eyes)
+  // What this observer is observing (a list of watchers)
   collector: collector,
   // Where this observer is observing (used for clear and flush)
   root: root,
@@ -46,7 +45,7 @@ type t<'a> = (root, 'a)
 
 let _connect = ((root, _), notify) => {
   let observer: observer = {
-    sym: Symbol.make(""),
+    watcher: Symbol.make(""),
     notify,
     collector: [],
     root,
@@ -56,47 +55,48 @@ let _connect = ((root, _), notify) => {
 }
 
 let _clear = (observer: observer) => {
-  let {sym, root} = observer
-  if Map.delete(root.observers, sym) {
+  let {watcher, root} = observer
+  if Map.delete(root.observers, watcher) {
     Array.forEach(observer.collector, ((observed, key)) => {
-      if Dict.has(observed, key) {
-        let eyes = Dict.get(observed, key)
-        if Set.delete(eyes, sym) {
-          if Set.size(eyes) == 0 {
+      switch Dict.get(observed, key) {
+      | Value(watchers) =>
+        if Set.delete(watchers, watcher) {
+          if Set.size(watchers) == 0 {
             // We want to avoid any external deps.
             Dict.remove(observed, key)
           }
         }
+      | _ => ()
       }
     })
   }
 }
 
-let register = (sym: Symbol.t, leaf: (dict<eyes>, string)) => {
+let register = (watcher: Symbol.t, leaf: (dict<watchers>, string)) => {
   let (observed, key) = leaf
-  let eyes = if Dict.has(observed, key) {
-    Dict.get(observed, key)
-  } else {
-    let eyes = Set.make()
-    Dict.set(observed, key, eyes)
-    eyes
+  let watchers = switch Dict.get(observed, key) {
+  | Value(watchers) => watchers
+  | _ =>
+    let watchers = Set.make()
+    Dict.set(observed, key, watchers)
+    watchers
   }
-  Set.add(eyes, sym)
+  Set.add(watchers, watcher)
 }
 
 let _flush = (observer: observer) => {
-  let {root, sym, collector} = observer
+  let {root, watcher, collector} = observer
   switch root.collecting {
   | Some(c) if c === collector => root.collecting = None
   | _ => ()
   }
-  Map.set(root.observers, sym, observer)
-  Array.forEach(observer.collector, register(sym, ...))
+  Map.set(root.observers, watcher, observer)
+  Array.forEach(observer.collector, register(watcher, ...))
 }
 
 let indexKey = %raw(`Symbol()`)
 
-let ownKeys = (root: root, observed: dict<eyes>, target: 'a): 'b => {
+let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   switch root.collecting {
   | Some(c) => Array.push(c, (observed, indexKey))
   | None => ()
@@ -105,11 +105,11 @@ let ownKeys = (root: root, observed: dict<eyes>, target: 'a): 'b => {
 }
 
 let notify = (root, observed, key) => {
-  if Dict.has(observed, key) {
-    let eyes = Dict.get(observed, key)
+  switch Dict.get(observed, key) {
+  | Value(watchers) =>
     Dict.remove(observed, key)
-    Set.forEach(eyes, sym => {
-      switch Map.get(root.observers, sym) {
+    Set.forEach(watchers, watcher => {
+      switch Map.get(root.observers, watcher) {
       | Some(observer) => {
           _clear(observer)
           observer.notify()
@@ -117,12 +117,13 @@ let notify = (root, observed, key) => {
       | None => () // Should never happen
       }
     })
+  | _ => ()
   }
 }
 
 let rec get = (
   root: root,
-  observed: dict<eyes>,
+  observed: dict<watchers>,
   proxied: dict<'c>,
   isArray: bool,
   target: 'a,
@@ -140,9 +141,9 @@ let rec get = (
   // is array and get length
   let v = Reflect.get(target, key)
   if Typeof.object(v) {
-    if Dict.has(proxied, key) {
-      Dict.get(proxied, key)
-    } else {
+    switch Dict.get(proxied, key) {
+    | Value(p) => p
+    | _ =>
       let p = proxify(root, v)
       Dict.set(proxied, key, p)
       p
@@ -154,7 +155,7 @@ let rec get = (
 
 and set = (
   root: root,
-  observed: dict<eyes>,
+  observed: dict<watchers>,
   proxied: dict<'c>,
   target: 'a,
   key: string,
@@ -182,7 +183,7 @@ and set = (
 }
 
 and proxify = (root: root, target: 'a): 'a => {
-  let observed: dict<eyes> = %raw(`{}`)
+  let observed: dict<watchers> = %raw(`{}`)
   let proxied: dict<'b> = %raw(`{}`)
   Proxy.make(
     target,
