@@ -1,15 +1,4 @@
 const esbuild = require("esbuild");
-const fs = require("fs");
-const path = require("path");
-
-function copyFile(sourceFile, targetFile) {
-  return {
-    name: "copy-dts",
-    setup(build) {
-      build.onEnd(() => fs.copyFileSync(sourceFile, targetFile));
-    },
-  };
-}
 
 const build = {
   entryPoints: ["src/index.ts"],
@@ -19,7 +8,6 @@ const build = {
   format: "esm",
   target: ["esnext"],
   ignoreAnnotations: true,
-  plugins: [copyFile("./src/TiliaCore.d.ts", "./dist/index.d.ts")],
 };
 
 Promise.all([
