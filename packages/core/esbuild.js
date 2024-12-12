@@ -1,13 +1,23 @@
-const esbuild = require("esbuild");
+import esbuild from "esbuild";
+import { copyFileSync } from "fs";
 
+function copyFile(sourceFile, targetFile) {
+  return {
+    name: "copy-dts",
+    setup(build) {
+      build.onEnd(() => copyFileSync(sourceFile, targetFile));
+    },
+  };
+}
 const build = {
-  entryPoints: ["src/index.ts"],
+  entryPoints: ["src/index.js"],
   bundle: true,
   sourcemap: true,
   minify: true,
   format: "esm",
   target: ["esnext"],
   ignoreAnnotations: true,
+  plugins: [copyFile("./src/index.d.ts", "./dist/index.d.ts")],
 };
 
 Promise.all([

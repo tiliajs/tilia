@@ -1,9 +1,10 @@
 {
   "name": "@tilia/core",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "main": "./dist/index.cjs.js",
   "module": "./dist/index.esm.js",
   "types": "./dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
@@ -11,7 +12,7 @@
     "test:watch": "ava --watch",
     "build": "node esbuild.js",
     "prebuild": "rescript",
-    "prepack": "clean-package",
+    "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
     "test": "ava"
   },
@@ -23,7 +24,7 @@
     "tilia",
     "frp"
   ],
-  "author": "Gaspard Anna Bucher",
+  "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT",
   "devDependencies": {
     "@dzakh/rescript-ava": "^3.0.0",
@@ -32,8 +33,7 @@
     "ava": "5.2.x",
     "clean-package": "^2.2.0",
     "esbuild": "^0.24.0",
-    "rescript": "^11.1.4",
-    "typescript": "^5.7.2"
+    "rescript": "^11.1.4"
   },
   "ava": {
     "files": [
