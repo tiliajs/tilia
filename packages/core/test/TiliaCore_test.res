@@ -19,47 +19,45 @@ type person = {
 }
 type tester = {mutable called: bool}
 
-test("should track leaf changes", t => {
+test("Should track leaf changes", t => {
   let m = {called: false}
   let p = {name: "John", username: "jo"}
-  let r = Core.make(p)
-  let (_, x) = r
-  let o = Core._connect(r, () => m.called = true)
+  let x = Core.make(p)
+  let o = Core._connect(x, () => m.called = true)
   t->is(x.name, "John") // observe 'name'
   t->is(m.called, false)
 
   // Update name before flush
   x.name = "One"
-  // Callback should not be called
+  // Callback Should not be called
   t->is(m.called, false)
   Core._flush(o)
 
   // Update name with same value after flush
   x.name = "One"
-  // Callback should not be called
+  // Callback Should not be called
   t->is(m.called, false)
 
   // Update name with another value after flush
   x.name = "Two"
-  // Callback should be called
+  // Callback Should be called
   t->is(m.called, true)
   m.called = false
 
   // Update again
   x.name = "Three"
-  // Callback should not be called
+  // Callback Should not be called
   t->is(m.called, false)
 })
 
-test("should observe", t => {
+test("Should observe", t => {
   let p = {name: "John", username: "jo"}
-  let r = Core.make(p)
-  Core.observe(r, p => {
+  let p = Core.make(p)
+  Core.observe(p, p => {
     open String
     p.username = p.name->toLowerCase->slice(~start=0, ~end=2)
   })
 
-  let (_, p) = r
   t->is(p.username, "jo")
 
   // Update with same name
@@ -73,15 +71,14 @@ test("should observe", t => {
   t->is(p.username, "ma")
 })
 
-test("should allow mutating observed", t => {
+test("Should allow mutating observed", t => {
   let p = {name: "John", username: "jo"}
-  let r = Core.make(p)
-  Core.observe(r, p => {
+  let p = Core.make(p)
+  Core.observe(p, p => {
     open String
     p.name = p.name->toLowerCase->slice(~start=0, ~end=2)
   })
 
-  let (_, p) = r
   t->is(p.name, "jo")
 
   // Update with same name
@@ -95,7 +92,7 @@ test("should allow mutating observed", t => {
   t->is(p.name, "ma")
 })
 
-test("should proxy sub-objects", t => {
+test("Should proxy sub-objects", t => {
   let m = {called: false}
   let p = {
     name: "John",
@@ -106,36 +103,35 @@ test("should proxy sub-objects", t => {
     passions: [],
     notes: Object.make(),
   }
-  let r = Core.make(p)
-  let (_, x) = r
-  let o = Core._connect(r, () => m.called = true)
-  t->is(x.address.city, "Love") // observe 'address.city'
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(p.address.city, "Love") // observe 'address.city'
   t->is(m.called, false)
 
   // Update name before flush
-  x.address.city = "Passion"
-  // Callback should not be called
+  p.address.city = "Passion"
+  // Callback Should not be called
   t->is(m.called, false)
   Core._flush(o)
 
   // Update name with same value after flush
-  x.address.city = "Passion"
-  // Callback should not be called
+  p.address.city = "Passion"
+  // Callback Should not be called
   t->is(m.called, false)
 
   // Update name with another value after flush
-  x.address.city = "Kindness"
-  // Callback should be called
+  p.address.city = "Kindness"
+  // Callback Should be called
   t->is(m.called, true)
   m.called = false
 
   // Update again
-  x.address.city = "Sorrow"
-  // Callback should not be called
+  p.address.city = "Sorrow"
+  // Callback Should not be called
   t->is(m.called, false)
 })
 
-test("should proxy array", t => {
+test("Should proxy array", t => {
   let m = {called: false}
   let p = {
     name: "John",
@@ -146,19 +142,18 @@ test("should proxy array", t => {
     passions: ["fruits"],
     notes: Object.make(),
   }
-  let r = Core.make(p)
-  let (_, x) = r
-  let o = Core._connect(r, () => m.called = true)
-  t->is(x.passions[0], Some("fruits")) // observe key 0
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(p.passions[0], Some("fruits")) // observe key 0
   Core._flush(o)
 
   // Update entry
-  x.passions[0] = "watercolor"
-  // Callback should be called
+  p.passions[0] = "watercolor"
+  // Callback Should be called
   t->is(m.called, true)
 })
 
-test("should watch array index", t => {
+test("Should watch array index", t => {
   let m = {called: false}
   let p = {
     name: "John",
@@ -169,19 +164,18 @@ test("should watch array index", t => {
     passions: ["fruits"],
     notes: Object.make(),
   }
-  let r = Core.make(p)
-  let (_, x) = r
-  let o = Core._connect(r, () => m.called = true)
-  t->is(Array.length(x.passions), 1) // observe length
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(Array.length(p.passions), 1) // observe length
   Core._flush(o)
 
   // Insert new entry
-  Array.push(x.passions, "watercolor")
-  // Callback should be called
+  Array.push(p.passions, "watercolor")
+  // Callback Should be called
   t->is(m.called, true)
 })
 
-test("should watch object keys", t => {
+test("Should watch object keys", t => {
   let m = {called: false}
   let p = {
     name: "John",
@@ -192,14 +186,21 @@ test("should watch object keys", t => {
     passions: ["fruits"],
     notes: Object.make(),
   }
-  let r = Core.make(p)
-  let (_, x) = r
-  let o = Core._connect(r, () => m.called = true)
-  t->is(Array.length(Object.keys(x.notes)), 0) // observe keys
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(Array.length(Object.keys(p.notes)), 0) // observe keys
   Core._flush(o)
 
   // Insert new entry
-  Object.set(x.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
-  // Callback should be called
+  Object.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
+  // Callback Should be called
   t->is(m.called, true)
+})
+
+test("Should throw on connect to non tilia object", t => {
+  try {
+    ignore(Core._connect({name: "Not a tree", username: "Ho"}, () => ()))
+  } catch {
+  | Exn.Error(obj) => t->is(obj->Exn.message, Some("Observed state is not a tilia proxy."))
+  }
 })

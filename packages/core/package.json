@@ -1,15 +1,20 @@
 {
   "name": "@tilia/core",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "exports": {
-    "import": "./src/TiliaCore.mjs"
+    "require": "./dist/index.cjs.js",
+    "import": "./dist/index.esm.js"
   },
-  "types": "./src/TiliaCore.d.ts",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
     "test:watch": "ava --watch",
+    "build": "node esbuild.js",
+    "prebuild": "rescript",
+    "prepack": "clean-package",
+    "postpack": "clean-package restore",
     "test": "ava"
   },
   "description": "🍃 State management library, for simple minds.",
@@ -22,17 +27,28 @@
   ],
   "author": "Gaspard Anna Bucher",
   "license": "MIT",
-  "dependencies": {},
   "devDependencies": {
-    "@rescript/core": "^1.6.1",
-    "rescript": "^11.1.4",
     "@dzakh/rescript-ava": "^3.0.0",
-    "ava": "5.2.x"
+    "@rescript/core": "^1.6.1",
+    "@types/node": "^22.10.2",
+    "ava": "5.2.x",
+    "clean-package": "^2.2.0",
+    "esbuild": "^0.24.0",
+    "rescript": "^11.1.4",
+    "typescript": "^5.7.2"
   },
   "ava": {
     "files": [
       "test/*_test.mjs",
       "test/**/*_test.mjs"
+    ]
+  },
+  "clean-package": {
+    "remove": [
+      "scripts",
+      "devDependencies",
+      "ava",
+      "clean-package"
     ]
   }
 }

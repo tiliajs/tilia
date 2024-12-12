@@ -1,8 +1,11 @@
 type observer
-type root
-type t<'a> = (root, 'a)
-let make: 'a => t<'a>
-let _connect: (t<'a>, unit => unit) => observer
+let make: 'a => 'a
+let observe: ('a, 'a => unit) => unit
+
+/** Internal types for library developers */
+/** internal */
+let _connect: ('a, unit => unit) => observer
+/** internal */
 let _flush: observer => unit
+/** internal */
 let _clear: observer => unit
-let observe: (t<'a>, 'a => unit) => unit

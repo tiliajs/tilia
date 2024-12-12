@@ -23,6 +23,9 @@ module Dict = {
 }
 type dict<'a> = Dict.t<'a>
 
+let indexKey = %raw(`Symbol()`)
+let rootKey = %raw(`Symbol()`)
+
 // Set of observers observing a given key in an object/array
 type watchers = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
@@ -41,17 +44,23 @@ and root = {
   mutable collecting: option<collector>,
   observers: Map.t<Symbol.t, observer>,
 }
-type t<'a> = (root, 'a)
 
-let _connect = ((root, _), notify) => {
-  let observer: observer = {
-    watcher: Symbol.make(""),
-    notify,
-    collector: [],
-    root,
+let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
+
+let _connect = (p: 'a, notify) => {
+  switch _root(p) {
+  | Value(root) => {
+      let observer: observer = {
+        watcher: Symbol.make(""),
+        notify,
+        collector: [],
+        root,
+      }
+      root.collecting = Some(observer.collector)
+      observer
+    }
+  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
   }
-  root.collecting = Some(observer.collector)
-  observer
 }
 
 let _clear = (observer: observer) => {
@@ -94,8 +103,6 @@ let _flush = (observer: observer) => {
   Array.forEach(observer.collector, register(watcher, ...))
 }
 
-let indexKey = %raw(`Symbol()`)
-
 let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   switch root.collecting {
   | Some(c) => Array.push(c, (observed, indexKey))
@@ -129,27 +136,31 @@ let rec get = (
   target: 'a,
   key: string,
 ): 'b => {
-  switch root.collecting {
-  | Some(c) =>
-    if isArray && key == "length" {
-      Array.push(c, (observed, indexKey))
-    } else {
-      Array.push(c, (observed, key))
-    }
-  | None => ()
-  }
-  // is array and get length
-  let v = Reflect.get(target, key)
-  if Typeof.object(v) {
-    switch Dict.get(proxied, key) {
-    | Value(p) => p
-    | _ =>
-      let p = proxify(root, v)
-      Dict.set(proxied, key, p)
-      p
-    }
+  if key == rootKey {
+    %raw(`root`)
   } else {
-    v
+    switch root.collecting {
+    | Some(c) =>
+      if isArray && key == "length" {
+        Array.push(c, (observed, indexKey))
+      } else {
+        Array.push(c, (observed, key))
+      }
+    | None => ()
+    }
+    // is array and get length
+    let v = Reflect.get(target, key)
+    if Typeof.object(v) {
+      switch Dict.get(proxied, key) {
+      | Value(p) => p
+      | _ =>
+        let p = proxify(root, v)
+        Dict.set(proxied, key, p)
+        p
+      }
+    } else {
+      v
+    }
   }
 }
 
@@ -195,18 +206,17 @@ and proxify = (root: root, target: 'a): 'a => {
   )
 }
 
-let make = (seed: 'a): t<'a> => {
+let make = (seed: 'a): 'a => {
   let root = {
     collecting: None,
     observers: Map.make(),
   }
-  (root, proxify(root, seed))
+  proxify(root, seed)
 }
 
-let observe = (t: t<'a>, callback: 'a => unit) => {
-  let (_, p) = t
+let observe = (p: 'a, callback: 'a => unit) => {
   let rec notify = () => {
-    let o = _connect(t, notify)
+    let o = _connect(p, notify)
     callback(p)
     _flush(o)
   }
