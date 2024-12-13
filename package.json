@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "description": "tilia monorepo",
   "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tiliajs/tilia.git"
+  },
   "scripts": {
     "core": "pnpm --filter core",
     "web": "pnpm --filter website",
@@ -11,6 +15,6 @@
     "test": "pnpm -r test"
   },
   "keywords": [],
-  "author": "The Midasum Coders",
+  "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT"
 }

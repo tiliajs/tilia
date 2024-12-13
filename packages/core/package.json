@@ -5,6 +5,10 @@
   "module": "./dist/index.esm.js",
   "types": "./dist/index.d.ts",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tiliajs/tilia.git"
+  },
   "scripts": {
     "res:build": "rescript",
     "res:clean": "rescript clean",
