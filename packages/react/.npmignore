@@ -1,0 +1,11 @@
+# Exclude everything
+*
+
+# ReScript target: include ReScript source files and compiled js
+!src/*.res
+!src/*.resi
+# Include ReScript configuration
+!rescript.json
+
+# TypeScript target: include build result from esbuild
+!dist/*

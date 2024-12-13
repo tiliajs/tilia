@@ -1,0 +1,70 @@
+{
+  "name": "@tilia/react",
+  "version": "1.0.0",
+  "main": "./dist/index.cjs.js",
+  "module": "./dist/index.esm.js",
+  "types": "./dist/index.d.ts",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tiliajs/tilia.git"
+  },
+  "scripts": {
+    "res:build": "rescript",
+    "res:clean": "rescript clean",
+    "res:dev": "rescript -w",
+    "test:watch": "ava --watch",
+    "build": "node esbuild.js",
+    "prebuild": "rescript",
+    "prepack": "pnpm build && clean-package",
+    "postpack": "clean-package restore",
+    "test": "ava"
+  },
+  "description": "🍃 React State Management with Tilia.",
+  "keywords": [
+    "rescript",
+    "react",
+    "state",
+    "state management",
+    "tilia",
+    "frp"
+  ],
+  "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "*"
+  },
+  "dependencies": {
+    "@tilia/core": "^1.0.0"
+  },
+  "devDependencies": {
+    "@dzakh/rescript-ava": "^3.0.0",
+    "@rescript/core": "^1.6.1",
+    "@rescript/react": "^0.12.2",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "ava": "5.2.0",
+    "clean-package": "^2.2.0",
+    "esbuild": "^0.24.0",
+    "esbuild-node-externals": "^1.15.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "rescript": "^11.1.4",
+    "typescript": "^5.7.2"
+  },
+  "ava": {
+    "files": [
+      "test/*_test.mjs",
+      "test/**/*_test.mjs"
+    ]
+  },
+  "clean-package": {
+    "remove": [
+      "scripts",
+      "devDependencies",
+      "ava",
+      "clean-package"
+    ]
+  }
+}

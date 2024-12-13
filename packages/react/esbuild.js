@@ -1,4 +1,5 @@
 import esbuild from "esbuild";
+import { nodeExternalsPlugin } from "esbuild-node-externals";
 import { copyFileSync } from "fs";
 
 function copyFile(sourceFile, targetFile) {
@@ -18,8 +19,10 @@ const build = {
   format: "esm",
   target: ["esnext"],
   ignoreAnnotations: true,
-  packages: "external",
-  plugins: [copyFile("./src/index.d.ts", "./dist/index.d.ts")],
+  plugins: [
+    nodeExternalsPlugin(),
+    copyFile("./src/index.d.ts", "./dist/index.d.ts"),
+  ],
 };
 
 Promise.all([
