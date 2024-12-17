@@ -25,6 +25,7 @@ type dict<'a> = Dict.t<'a>
 
 let indexKey = %raw(`Symbol()`)
 let rootKey = %raw(`Symbol()`)
+let rawKey = %raw(`Symbol()`)
 
 // Set of observers observing a given key in an object/array
 type watchers = Set.t<Symbol.t>
@@ -46,6 +47,7 @@ and root = {
 }
 
 let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
+let _raw: 'a => 'a = p => Reflect.get(p, rawKey)
 
 let _connect = (p: 'a, notify) => {
   switch _root(p) {
@@ -136,8 +138,10 @@ let rec get = (
   target: 'a,
   key: string,
 ): 'b => {
-  if key == rootKey {
+  if key === rootKey {
     %raw(`root`)
+  } else if key === rawKey {
+    %raw(`target`)
   } else {
     switch root.collecting {
     | Some(c) =>
@@ -196,14 +200,19 @@ and set = (
 and proxify = (root: root, target: 'a): 'a => {
   let observed: dict<watchers> = %raw(`{}`)
   let proxied: dict<'b> = %raw(`{}`)
-  Proxy.make(
-    target,
-    {
-      "set": set(root, observed, proxied, ...),
-      "get": get(root, observed, proxied, Typeof.array(target), ...),
-      "ownKeys": ownKeys(root, observed, ...),
-    },
-  )
+  switch _root(target) {
+  | Value(r) if r === root => target /* same tree, reuse proxy */
+  | Value(_) => proxify(root, _raw(target)) /* external tree: clear */
+  | _ =>
+    Proxy.make(
+      target,
+      {
+        "set": set(root, observed, proxied, ...),
+        "get": get(root, observed, proxied, Typeof.array(target), ...),
+        "ownKeys": ownKeys(root, observed, ...),
+      },
+    )
+  }
 }
 
 let make = (seed: 'a): 'a => {

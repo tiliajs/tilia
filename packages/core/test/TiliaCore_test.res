@@ -14,10 +14,25 @@ type address = {mutable city: string, mutable zip: int}
 type person = {
   mutable name: string,
   mutable address: address,
+  mutable other_address: address,
   mutable passions: array<string>,
   mutable notes: Object.t,
 }
 type tester = {mutable called: bool}
+
+let person = () => {
+  name: "John",
+  address: {
+    city: "Truth",
+    zip: 1234,
+  },
+  other_address: {
+    city: "Beauty",
+    zip: 5678,
+  },
+  passions: ["fruits"],
+  notes: Object.make(),
+}
 
 test("Should track leaf changes", t => {
   let m = {called: false}
@@ -94,18 +109,10 @@ test("Should allow mutating observed", t => {
 
 test("Should proxy sub-objects", t => {
   let m = {called: false}
-  let p = {
-    name: "John",
-    address: {
-      city: "Love",
-      zip: 1234,
-    },
-    passions: [],
-    notes: Object.make(),
-  }
+  let p = person()
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
-  t->is(p.address.city, "Love") // observe 'address.city'
+  t->is(p.address.city, "Truth") // observe 'address.city'
   t->is(m.called, false)
 
   // Update name before flush
@@ -133,15 +140,7 @@ test("Should proxy sub-objects", t => {
 
 test("Should proxy array", t => {
   let m = {called: false}
-  let p = {
-    name: "John",
-    address: {
-      city: "Love",
-      zip: 1234,
-    },
-    passions: ["fruits"],
-    notes: Object.make(),
-  }
+  let p = person()
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(p.passions[0], Some("fruits")) // observe key 0
@@ -155,15 +154,7 @@ test("Should proxy array", t => {
 
 test("Should watch array index", t => {
   let m = {called: false}
-  let p = {
-    name: "John",
-    address: {
-      city: "Love",
-      zip: 1234,
-    },
-    passions: ["fruits"],
-    notes: Object.make(),
-  }
+  let p = person()
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(Array.length(p.passions), 1) // observe length
@@ -177,15 +168,8 @@ test("Should watch array index", t => {
 
 test("Should watch object keys", t => {
   let m = {called: false}
-  let p = {
-    name: "John",
-    address: {
-      city: "Love",
-      zip: 1234,
-    },
-    passions: ["fruits"],
-    notes: Object.make(),
-  }
+  let p = person()
+  p.passions = ["fruits"]
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(Array.length(Object.keys(p.notes)), 0) // observe keys
@@ -203,4 +187,58 @@ test("Should throw on connect to non tilia object", t => {
   } catch {
   | Exn.Error(obj) => t->is(obj->Exn.message, Some("Observed state is not a tilia proxy."))
   }
+})
+
+test("Should not clone added objects", t => {
+  let p = person()
+  let a = {
+    city: "Storm",
+    zip: 9999,
+  }
+  let p = Core.make(p)
+  p.address = a
+
+  t->is(p.address.city, "Storm")
+
+  // Changing sub-object
+  p.address.city = "Rain"
+
+  // Changes original
+  t->is(a.city, "Rain")
+})
+
+test("Should share tracking in same tree", t => {
+  let m = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(p.address.city, "Truth") // observe 'city'
+  Core._flush(o)
+  t->isFalse(m.called)
+  p.other_address = p.address
+  p.other_address.city = "Love"
+  // Should share the same proxy branch
+  t->isTrue(p.address === p.other_address)
+
+  t->isTrue(m.called)
+})
+
+test("Should not share tracking in another tree", t => {
+  let m = {called: false}
+  let p1 = Core.make(person())
+  let p2 = Core.make(person())
+  let o = Core._connect(p1, () => m.called = true)
+  t->is(p1.address.city, "Truth") // observe 'city'
+  Core._flush(o)
+  t->isFalse(m.called)
+
+  // Shares the same target, but not the same proxy
+  p2.other_address = p1.address
+  p2.other_address.city = "Love"
+  // Should not call observer on p1
+  t->isFalse(m.called)
+  // The value changed without proxy call (target is the same).
+  t->is(p1.address.city, "Love")
+  p1.address.city = "Life"
+  t->isTrue(m.called)
 })

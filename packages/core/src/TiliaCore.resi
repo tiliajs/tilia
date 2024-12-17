@@ -1,4 +1,5 @@
 type observer
+type root
 let make: 'a => 'a
 let observe: ('a, 'a => unit) => unit
 

@@ -44,6 +44,14 @@ tree.clouds.evening = "fiery blue";
 
 Will trigger the logging of the cloud color.
 
+## Features
+
+- Objects be can copied from one part of the tree to another and will
+  share state and tracking.
+- Inserted objects are not cloned.
+- Uses a single tracking recorder. This means that tracking can stop
+  in an async function if another part of the app starts recording read operations (on any part of the same tree).
+
 ## Internals
 
 To be used for binding to other frameworks/libraries:

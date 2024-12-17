@@ -10,6 +10,8 @@ var indexKey = (Symbol());
 
 var rootKey = (Symbol());
 
+var rawKey = (Symbol());
+
 function _connect(p, notify) {
   var root = Reflect.get(p, rootKey);
   if (root === null || root === undefined) {
@@ -90,11 +92,24 @@ function notify(root, observed, key) {
       });
 }
 
-function proxify(root, target) {
-  var observed = {};
-  var proxied = {};
-  return new Proxy(target, {
-              set: (function (extra, extra$1, extra$2) {
+function proxify(root, _target) {
+  while(true) {
+    var target = _target;
+    var observed = {};
+    var proxied = {};
+    var r = Reflect.get(target, rootKey);
+    if (r === null || r === undefined) {
+      r === null;
+    } else {
+      if (r === root) {
+        return target;
+      }
+      _target = Reflect.get(target, rawKey);
+      continue ;
+    }
+    return new Proxy(target, {
+                set: (function(observed,proxied){
+                return function (extra, extra$1, extra$2) {
                   var hadKey = Reflect.has(extra, extra$1);
                   var prev = Reflect.get(extra, extra$1);
                   if (prev === extra$2) {
@@ -111,11 +126,16 @@ function proxify(root, target) {
                   } else {
                     return false;
                   }
-                }),
-              get: (function (extra, extra$1) {
+                }
+                }(observed,proxied)),
+                get: (function(target,observed,proxied){
+                return function (extra, extra$1) {
                   var isArray = Array.isArray(target);
                   if (extra$1 === rootKey) {
                     return root;
+                  }
+                  if (extra$1 === rawKey) {
+                    return target;
                   }
                   var c = root.collecting;
                   if (c !== undefined) {
@@ -143,8 +163,10 @@ function proxify(root, target) {
                   var p$1 = proxify(root, v);
                   Reflect.set(proxied, extra$1, p$1);
                   return p$1;
-                }),
-              ownKeys: (function (extra) {
+                }
+                }(target,observed,proxied)),
+                ownKeys: (function(observed){
+                return function (extra) {
                   var c = root.collecting;
                   if (c !== undefined) {
                     c.push([
@@ -153,8 +175,10 @@ function proxify(root, target) {
                         ]);
                   }
                   return Reflect.ownKeys(extra);
-                })
-            });
+                }
+                }(observed))
+              });
+  };
 }
 
 function make(seed) {
