@@ -1,10 +1,12 @@
 # Tilia React
 
-Tilia is a simple state management library for "FRP" style programming with React.
+Tilia is a simple state management library for "FRP" style programming with
+React.
 
 This package contains the hook for React.
 
-This package is compatible with _TypeScript_ and _ReScript_, you can find the examples for the latter at the end.
+This package is compatible with _TypeScript_ and _ReScript_, you can find the
+examples for the latter at the end.
 
 ## Installation
 
@@ -46,6 +48,10 @@ function Clouds(props: { clouds: MyState["clouds"] }) {
   );
 }
 ```
+
+Note that you can re-insert a tracked object inside the same tree and share
+state and tracking.
+
 
 # ReScript example
 
