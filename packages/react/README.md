@@ -52,11 +52,9 @@ function Clouds(props: { clouds: MyState["clouds"] }) {
 Note that you can re-insert a tracked object inside the same tree and share
 state and tracking.
 
-
 # ReScript example
 
 ```res
-open TiliaCore
 open JsxEvent.Form
 
 type clouds = {
@@ -69,7 +67,7 @@ type state = {
 }
 
 // Create a tracked object or array:
-let tree = make({
+let tree = Tilia.make({
   flowers: "are beautiful",
   clouds: { morning: "can be pink", evening: "can be orange" },
 })

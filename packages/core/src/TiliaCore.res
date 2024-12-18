@@ -4,6 +4,11 @@ module Reflect = {
   external set: ('a, string, 'b) => bool = "Reflect.set"
   external ownKeys: 'a => 'b = "Reflect.ownKeys"
 }
+
+module Exn = {
+  @new external makeError: string => exn = "Error"
+  let raiseError = str => raise(makeError(str))
+}
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
