@@ -256,6 +256,21 @@ Ava("Should notify on key deletion", (function (t) {
         t.is(m.called, true);
       }));
 
+Ava("Should not proxy or watch prototype methods", (function (t) {
+        var m = {
+          called: false
+        };
+        var p = TiliaCore.make(person());
+        var o = TiliaCore._connect(p, (function () {
+                m.called = true;
+              }));
+        var x = Reflect.get(p.notes, "constructor");
+        t.true(x === Reflect.get({}, "constructor"));
+        TiliaCore._flush(o);
+        Reflect.set(p.notes, "constructor", "haha");
+        t.is(m.called, false);
+      }));
+
 var Core;
 
 export {

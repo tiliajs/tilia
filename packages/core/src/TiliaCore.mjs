@@ -38,11 +38,11 @@ function _clear(observer) {
     observer.collector.forEach(function (param) {
           var key = param[1];
           var observed = param[0];
-          var watchers = Reflect.get(observed, key);
+          var watchers = observed.get(key);
           if (watchers === null || watchers === undefined || !(watchers.delete(watcher) && watchers.size === 0)) {
             return ;
           } else {
-            Reflect.deleteProperty(observed, key);
+            observed.delete(key);
             return ;
           }
         });
@@ -62,7 +62,7 @@ function _flush(observer) {
   observer.collector.forEach(function (extra) {
         var key = extra[1];
         var observed = extra[0];
-        var watchers = Reflect.get(observed, key);
+        var watchers = observed.get(key);
         var watchers$1;
         var exit = 0;
         if (watchers === null || watchers === undefined) {
@@ -72,7 +72,7 @@ function _flush(observer) {
         }
         if (exit === 1) {
           var watchers$2 = new Set();
-          Reflect.set(observed, key, watchers$2);
+          observed.set(key, watchers$2);
           watchers$1 = watchers$2;
         }
         watchers$1.add(watcher);
@@ -80,11 +80,11 @@ function _flush(observer) {
 }
 
 function notify(root, observed, key) {
-  var watchers = Reflect.get(observed, key);
+  var watchers = observed.get(key);
   if (watchers === null || watchers === undefined) {
     return ;
   }
-  Reflect.deleteProperty(observed, key);
+  observed.delete(key);
   watchers.forEach(function (watcher) {
         var observer = root.observers.get(watcher);
         if (observer !== undefined) {
@@ -98,8 +98,8 @@ function notify(root, observed, key) {
 function proxify(root, _target) {
   while(true) {
     var target = _target;
-    var observed = {};
-    var proxied = {};
+    var observed = new Map();
+    var proxied = new Map();
     var r = Reflect.get(target, rootKey);
     if (r === null || r === undefined) {
       r === null;
@@ -119,7 +119,7 @@ function proxify(root, _target) {
                     return true;
                   } else if (Reflect.set(extra, extra$1, extra$2)) {
                     if (object(prev)) {
-                      Reflect.deleteProperty(proxied, extra$1);
+                      proxied.delete(extra$1);
                     }
                     notify(root, observed, extra$1);
                     if (!hadKey) {
@@ -134,7 +134,7 @@ function proxify(root, _target) {
                 deleteProperty: (function(observed,proxied){
                 return function (extra, extra$1) {
                   var res = Reflect.deleteProperty(extra, extra$1);
-                  Reflect.deleteProperty(proxied, extra$1);
+                  proxied.delete(extra$1);
                   notify(root, observed, extra$1);
                   return res;
                 }
@@ -147,6 +147,11 @@ function proxify(root, _target) {
                   }
                   if (extra$1 === rawKey) {
                     return target;
+                  }
+                  var v = Reflect.get(extra, extra$1);
+                  var own = Object.hasOwn(extra, extra$1);
+                  if (!(v === undefined || own)) {
+                    return v;
                   }
                   var c = root.collecting;
                   if (c !== undefined) {
@@ -162,17 +167,16 @@ function proxify(root, _target) {
                           ]);
                     }
                   }
-                  var v = Reflect.get(extra, extra$1);
                   if (!object(v)) {
                     return v;
                   }
-                  var p = Reflect.get(proxied, extra$1);
+                  var p = proxied.get(extra$1);
                   if (!(p === null || p === undefined)) {
                     return p;
                   }
                   p === null;
                   var p$1 = proxify(root, v);
-                  Reflect.set(proxied, extra$1, p$1);
+                  proxied.set(extra$1, p$1);
                   return p$1;
                 }
                 }(target,observed,proxied)),

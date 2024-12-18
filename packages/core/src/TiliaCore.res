@@ -21,11 +21,17 @@ function(v) {
 }
   `)
 }
+
+module Object = {
+  external hasOwn: ('a, string) => bool = "Object.hasOwn"
+}
+
 module Dict = {
   type t<'a>
-  external get: (t<'a>, string) => nullable<'a> = "Reflect.get"
-  external set: (t<'a>, string, 'b) => unit = "Reflect.set"
-  external remove: (t<'a>, string) => unit = "Reflect.deleteProperty"
+  @new external make: unit => t<'a> = "Map"
+  @send external get: (t<'a>, string) => nullable<'a> = "get"
+  @send external set: (t<'a>, string, 'b) => unit = "set"
+  @send external delete: (t<'a>, string) => unit = "delete"
 }
 type dict<'a> = Dict.t<'a>
 
@@ -79,7 +85,7 @@ let _clear = (observer: observer) => {
       | Value(watchers) =>
         if Set.delete(watchers, watcher) {
           if Set.size(watchers) == 0 {
-            Dict.remove(observed, key)
+            Dict.delete(observed, key)
           }
         }
       | _ => ()
@@ -124,7 +130,7 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
 let notify = (root, observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) =>
-    Dict.remove(observed, key)
+    Dict.delete(observed, key)
     Set.forEach(watchers, watcher => {
       switch Map.get(root.observers, watcher) {
       | Some(observer) => {
@@ -155,7 +161,7 @@ let set = (
     | false => false
     | true =>
       if Typeof.object(prev) {
-        Dict.remove(proxied, key)
+        Dict.delete(proxied, key)
       }
       notify(root, observed, key)
       if !hadKey {
@@ -175,7 +181,7 @@ let deleteProperty = (
   key: string,
 ) => {
   let res = Reflect.deleteProperty(target, key)
-  Dict.remove(proxied, key)
+  Dict.delete(proxied, key)
   notify(root, observed, key)
   res
 }
@@ -193,24 +199,30 @@ let rec get = (
   } else if key === rawKey {
     %raw(`target`)
   } else {
-    switch root.collecting {
-    | Some(c) =>
-      if isArray && key == "length" {
-        Array.push(c, (observed, indexKey))
-      } else {
-        Array.push(c, (observed, key))
-      }
-    | None => ()
-    }
     // is array and get length
     let v = Reflect.get(target, key)
-    if Typeof.object(v) {
-      switch Dict.get(proxied, key) {
-      | Value(p) => p
-      | _ =>
-        let p = proxify(root, v)
-        Dict.set(proxied, key, p)
-        p
+    let own = Object.hasOwn(target, key)
+    if v === undefined || own {
+      switch root.collecting {
+      | Some(c) =>
+        if isArray && key == "length" {
+          Array.push(c, (observed, indexKey))
+        } else {
+          Array.push(c, (observed, key))
+        }
+      | None => ()
+      }
+
+      if Typeof.object(v) {
+        switch Dict.get(proxied, key) {
+        | Value(p) => p
+        | _ =>
+          let p = proxify(root, v)
+          Dict.set(proxied, key, p)
+          p
+        }
+      } else {
+        v
       }
     } else {
       v
@@ -219,8 +231,8 @@ let rec get = (
 }
 
 and proxify = (root: root, target: 'a): 'a => {
-  let observed: dict<watchers> = %raw(`{}`)
-  let proxied: dict<'b> = %raw(`{}`)
+  let observed: dict<watchers> = Dict.make()
+  let proxied: dict<'b> = Dict.make()
   switch _root(target) {
   | Value(r) if r === root => target /* same tree, reuse proxy */
   | Value(_) => proxify(root, _raw(target)) /* external tree: clear */

@@ -35,7 +35,7 @@
     "react": "*"
   },
   "dependencies": {
-    "@tilia/core": "^1.1.0"
+    "@tilia/core": "^1.2.1"
   },
   "devDependencies": {
     "@dzakh/rescript-ava": "^3.0.0",

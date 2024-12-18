@@ -272,3 +272,17 @@ test("Should notify on key deletion", t => {
   // Callback should be called
   t->is(m.called, true)
 })
+
+test("Should not proxy or watch prototype methods", t => {
+  let m = {called: false}
+  let p = Core.make(person())
+  let o = Core._connect(p, () => m.called = true)
+  let x = Object.get(p.notes, "constructor")
+  t->isTrue(x === Object.get(%raw(`{}`), "constructor"))
+  Core._flush(o)
+
+  // Edit
+  Object.set(p.notes, "constructor", "haha")
+  // Callback should be called
+  t->is(m.called, false)
+})
