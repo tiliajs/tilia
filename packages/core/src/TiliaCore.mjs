@@ -131,6 +131,14 @@ function proxify(root, _target) {
                   }
                 }
                 }(observed,proxied)),
+                deleteProperty: (function(observed,proxied){
+                return function (extra, extra$1) {
+                  var res = Reflect.deleteProperty(extra, extra$1);
+                  Reflect.deleteProperty(proxied, extra$1);
+                  notify(root, observed, extra$1);
+                  return res;
+                }
+                }(observed,proxied)),
                 get: (function(target,observed,proxied){
                 return function (extra, extra$1) {
                   var isArray = Array.isArray(target);
@@ -170,14 +178,21 @@ function proxify(root, _target) {
                 }(target,observed,proxied)),
                 ownKeys: (function(observed){
                 return function (extra) {
+                  var keys = Reflect.ownKeys(extra);
                   var c = root.collecting;
                   if (c !== undefined) {
                     c.push([
                           observed,
                           indexKey
                         ]);
+                    keys.forEach(function (k) {
+                          c.push([
+                                observed,
+                                k
+                              ]);
+                        });
                   }
-                  return Reflect.ownKeys(extra);
+                  return keys;
                 }
                 }(observed))
               });

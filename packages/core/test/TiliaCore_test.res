@@ -6,6 +6,7 @@ module Object = {
   let make: unit => t = %raw(`() => ({})`)
   external get: (t, string) => string = "Reflect.get"
   external set: (t, string, string) => unit = "Reflect.set"
+  external remove: (t, string) => unit = "Reflect.deleteProperty"
   external keys: t => array<string> = "Object.keys"
 }
 
@@ -169,7 +170,6 @@ test("Should watch array index", t => {
 test("Should watch object keys", t => {
   let m = {called: false}
   let p = person()
-  p.passions = ["fruits"]
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(Array.length(Object.keys(p.notes)), 0) // observe keys
@@ -177,6 +177,22 @@ test("Should watch object keys", t => {
 
   // Insert new entry
   Object.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
+  // Callback Should be called
+  t->is(m.called, true)
+})
+
+test("Should watch each object key", t => {
+  let m = {called: false}
+  let p = person()
+  Object.set(p.notes, "day", "Seems ok")
+  Object.set(p.notes, "night", "Seems good")
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(Array.length(Object.keys(p.notes)), 2) // observe keys
+  Core._flush(o)
+
+  // Insert new entry
+  Object.set(p.notes, "night", "Full of stars")
   // Callback Should be called
   t->is(m.called, true)
 })
@@ -241,4 +257,18 @@ test("Should not share tracking in another tree", t => {
   t->is(p1.address.city, "Love")
   p1.address.city = "Life"
   t->isTrue(m.called)
+})
+
+test("Should notify on key deletion", t => {
+  let m = {called: false}
+  let p = Core.make(person())
+  Object.set(p.notes, "hello", "Everyone")
+  let o = Core._connect(p, () => m.called = true)
+  t->is(Object.get(p.notes, "hello"), "Everyone") // observe "hello" key
+  Core._flush(o)
+
+  // Remove entry
+  Object.remove(p.notes, "hello")
+  // Callback should be called
+  t->is(m.called, true)
 })

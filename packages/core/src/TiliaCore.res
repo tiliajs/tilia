@@ -2,6 +2,7 @@ module Reflect = {
   external has: ('a, string) => bool = "Reflect.has"
   external get: ('a, string) => 'b = "Reflect.get"
   external set: ('a, string, 'b) => bool = "Reflect.set"
+  external deleteProperty: ('a, string) => bool = "Reflect.deleteProperty"
   external ownKeys: 'a => 'b = "Reflect.ownKeys"
 }
 
@@ -78,7 +79,6 @@ let _clear = (observer: observer) => {
       | Value(watchers) =>
         if Set.delete(watchers, watcher) {
           if Set.size(watchers) == 0 {
-            // We want to avoid any external deps.
             Dict.remove(observed, key)
           }
         }
@@ -111,11 +111,14 @@ let _flush = (observer: observer) => {
 }
 
 let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
+  let keys = Reflect.ownKeys(target)
   switch root.collecting {
-  | Some(c) => Array.push(c, (observed, indexKey))
+  | Some(c) =>
+    Array.push(c, (observed, indexKey))
+    Array.forEach(keys, k => Array.push(c, (observed, k)))
   | None => ()
   }
-  Reflect.ownKeys(target)
+  keys
 }
 
 let notify = (root, observed, key) => {
@@ -133,6 +136,48 @@ let notify = (root, observed, key) => {
     })
   | _ => ()
   }
+}
+
+let set = (
+  root: root,
+  observed: dict<watchers>,
+  proxied: dict<'c>,
+  target: 'a,
+  key: string,
+  value: 'b,
+) => {
+  let hadKey = Reflect.has(target, key)
+  let prev = Reflect.get(target, key)
+  if prev === value {
+    true
+  } else {
+    switch Reflect.set(target, key, value) {
+    | false => false
+    | true =>
+      if Typeof.object(prev) {
+        Dict.remove(proxied, key)
+      }
+      notify(root, observed, key)
+      if !hadKey {
+        // new key: trigger index
+        notify(root, observed, indexKey)
+      }
+      true
+    }
+  }
+}
+
+let deleteProperty = (
+  root: root,
+  observed: dict<watchers>,
+  proxied: dict<'c>,
+  target: 'a,
+  key: string,
+) => {
+  let res = Reflect.deleteProperty(target, key)
+  Dict.remove(proxied, key)
+  notify(root, observed, key)
+  res
 }
 
 let rec get = (
@@ -173,35 +218,6 @@ let rec get = (
   }
 }
 
-and set = (
-  root: root,
-  observed: dict<watchers>,
-  proxied: dict<'c>,
-  target: 'a,
-  key: string,
-  value: 'b,
-) => {
-  let hadKey = Reflect.has(target, key)
-  let prev = Reflect.get(target, key)
-  if prev === value {
-    true
-  } else {
-    switch Reflect.set(target, key, value) {
-    | false => false
-    | true =>
-      if Typeof.object(prev) {
-        Dict.remove(proxied, key)
-      }
-      notify(root, observed, key)
-      if !hadKey {
-        // new key: trigger index
-        notify(root, observed, indexKey)
-      }
-      true
-    }
-  }
-}
-
 and proxify = (root: root, target: 'a): 'a => {
   let observed: dict<watchers> = %raw(`{}`)
   let proxied: dict<'b> = %raw(`{}`)
@@ -213,6 +229,7 @@ and proxify = (root: root, target: 'a): 'a => {
       target,
       {
         "set": set(root, observed, proxied, ...),
+        "deleteProperty": deleteProperty(root, observed, proxied, ...),
         "get": get(root, observed, proxied, Typeof.array(target), ...),
         "ownKeys": ownKeys(root, observed, ...),
       },

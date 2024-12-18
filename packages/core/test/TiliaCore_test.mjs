@@ -143,7 +143,6 @@ Ava("Should watch object keys", (function (t) {
           called: false
         };
         var p = person();
-        p.passions = ["fruits"];
         var p$1 = TiliaCore.make(p);
         var o = TiliaCore._connect(p$1, (function () {
                 m.called = true;
@@ -151,6 +150,23 @@ Ava("Should watch object keys", (function (t) {
         t.is(Object.keys(p$1.notes).length, 0);
         TiliaCore._flush(o);
         Reflect.set(p$1.notes, "2024-12-07", "Rebuilding Tilia in ReScript");
+        t.is(m.called, true);
+      }));
+
+Ava("Should watch each object key", (function (t) {
+        var m = {
+          called: false
+        };
+        var p = person();
+        Reflect.set(p.notes, "day", "Seems ok");
+        Reflect.set(p.notes, "night", "Seems good");
+        var p$1 = TiliaCore.make(p);
+        var o = TiliaCore._connect(p$1, (function () {
+                m.called = true;
+              }));
+        t.is(Object.keys(p$1.notes).length, 2);
+        TiliaCore._flush(o);
+        Reflect.set(p$1.notes, "night", "Full of stars");
         t.is(m.called, true);
       }));
 
@@ -223,6 +239,21 @@ Ava("Should not share tracking in another tree", (function (t) {
         t.is(p1.address.city, "Love");
         p1.address.city = "Life";
         t.true(m.called);
+      }));
+
+Ava("Should notify on key deletion", (function (t) {
+        var m = {
+          called: false
+        };
+        var p = TiliaCore.make(person());
+        Reflect.set(p.notes, "hello", "Everyone");
+        var o = TiliaCore._connect(p, (function () {
+                m.called = true;
+              }));
+        t.is(Reflect.get(p.notes, "hello"), "Everyone");
+        TiliaCore._flush(o);
+        Reflect.deleteProperty(p.notes, "hello");
+        t.is(m.called, true);
       }));
 
 var Core;
