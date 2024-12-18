@@ -1,13 +1,32 @@
 open Ava
 open Assert
 module Core = TiliaCore
-module Object = {
+module TestObject = {
   type t
   let make: unit => t = %raw(`() => ({})`)
   external get: (t, string) => string = "Reflect.get"
   external set: (t, string, string) => unit = "Reflect.set"
   external remove: (t, string) => unit = "Reflect.deleteProperty"
   external keys: t => array<string> = "Object.keys"
+}
+
+module AnyObject = {
+  type descriptor<'a> = {writable: bool, value: 'a}
+  external get: ('a, string) => 'b = "Reflect.get"
+  external set: ('a, string, 'b) => bool = "Reflect.set"
+  external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
+    "Object.getOwnPropertyDescriptor"
+  external defineProperty: ('a, string, descriptor<'b>) => unit = "Object.defineProperty"
+
+  let setReadonly: ('a, string, 'b) => unit = (o, k, v) => {
+    defineProperty(o, k, {writable: false, value: v})
+  }
+  let readonly: ('a, string) => bool = (o, k) => {
+    switch getOwnPropertyDescriptor(o, k) {
+    | Value(d) => d.writable === false
+    | _ => false
+    }
+  }
 }
 
 type user = {mutable name: string, mutable username: string}
@@ -17,9 +36,10 @@ type person = {
   mutable address: address,
   mutable other_address: address,
   mutable passions: array<string>,
-  mutable notes: Object.t,
+  mutable notes: TestObject.t,
 }
 type tester = {mutable called: bool}
+type error = {mutable message: option<string>}
 
 let person = () => {
   name: "John",
@@ -32,7 +52,7 @@ let person = () => {
     zip: 5678,
   },
   passions: ["fruits"],
-  notes: Object.make(),
+  notes: TestObject.make(),
 }
 
 test("Should track leaf changes", t => {
@@ -172,11 +192,11 @@ test("Should watch object keys", t => {
   let p = person()
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
-  t->is(Array.length(Object.keys(p.notes)), 0) // observe keys
+  t->is(Array.length(TestObject.keys(p.notes)), 0) // observe keys
   Core._flush(o)
 
   // Insert new entry
-  Object.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
+  TestObject.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
   // Callback Should be called
   t->is(m.called, true)
 })
@@ -184,25 +204,28 @@ test("Should watch object keys", t => {
 test("Should watch each object key", t => {
   let m = {called: false}
   let p = person()
-  Object.set(p.notes, "day", "Seems ok")
-  Object.set(p.notes, "night", "Seems good")
+  TestObject.set(p.notes, "day", "Seems ok")
+  TestObject.set(p.notes, "night", "Seems good")
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
-  t->is(Array.length(Object.keys(p.notes)), 2) // observe keys
+  t->is(Array.length(TestObject.keys(p.notes)), 2) // observe keys
   Core._flush(o)
 
   // Insert new entry
-  Object.set(p.notes, "night", "Full of stars")
+  TestObject.set(p.notes, "night", "Full of stars")
   // Callback Should be called
   t->is(m.called, true)
 })
 
 test("Should throw on connect to non tilia object", t => {
+  let error = {message: None}
   try {
     ignore(Core._connect({name: "Not a tree", username: "Ho"}, () => ()))
+    error.message = Some("Did not throw")
   } catch {
-  | Exn.Error(obj) => t->is(obj->Exn.message, Some("Observed state is not a tilia proxy."))
+  | Exn.Error(err) => error.message = Exn.message(err)
   }
+  t->is(error.message, Some("Observed state is not a tilia proxy."))
 })
 
 test("Should not clone added objects", t => {
@@ -262,13 +285,13 @@ test("Should not share tracking in another tree", t => {
 test("Should notify on key deletion", t => {
   let m = {called: false}
   let p = Core.make(person())
-  Object.set(p.notes, "hello", "Everyone")
+  TestObject.set(p.notes, "hello", "Everyone")
   let o = Core._connect(p, () => m.called = true)
-  t->is(Object.get(p.notes, "hello"), "Everyone") // observe "hello" key
+  t->is(TestObject.get(p.notes, "hello"), "Everyone") // observe "hello" key
   Core._flush(o)
 
   // Remove entry
-  Object.remove(p.notes, "hello")
+  TestObject.remove(p.notes, "hello")
   // Callback should be called
   t->is(m.called, true)
 })
@@ -277,12 +300,34 @@ test("Should not proxy or watch prototype methods", t => {
   let m = {called: false}
   let p = Core.make(person())
   let o = Core._connect(p, () => m.called = true)
-  let x = Object.get(p.notes, "constructor")
-  t->isTrue(x === Object.get(%raw(`{}`), "constructor"))
+  let x = TestObject.get(p.notes, "constructor")
+  t->isTrue(x === TestObject.get(%raw(`{}`), "constructor"))
   Core._flush(o)
 
   // Edit
-  Object.set(p.notes, "constructor", "haha")
+  TestObject.set(p.notes, "constructor", "haha")
   // Callback should be called
   t->is(m.called, false)
+})
+
+test("Should not proxy readonly properties", t => {
+  let m = {called: false}
+  let p1 = person()
+  let tree = %raw(`{}`)
+  AnyObject.setReadonly(tree, "person", p1)
+  t->isTrue(AnyObject.readonly(tree, "person"))
+  let tree = Core.make(tree)
+  let o = Core._connect(tree, () => m.called = true)
+  let p2 = AnyObject.get(tree, "person")
+  t->isTrue(p2 === p1)
+  Core._flush(o)
+
+  // Cannot set
+  t->isFalse(AnyObject.set(tree, "person", person()))
+
+  // Callback should not be called
+  t->is(m.called, false)
+
+  // Exact original value is always returned
+  t->isTrue(AnyObject.get(tree, "person") === p1)
 })

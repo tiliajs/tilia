@@ -46,11 +46,13 @@ Will trigger the logging of the cloud color.
 
 ## Features
 
-- Objects be can copied from one part of the tree to another and will
-  share state and tracking.
-- Inserted objects are not cloned.
 - Uses a single tracking recorder. This means that tracking can stop
   in an async function if another part of the app starts recording read operations (on any part of the same tree).
+- Inserted objects are not cloned.
+- Objects be can copied from one part of the tree to another and will
+  share state and tracking.
+- Respects `readonly` (set with `defineProperty`) by not wrapping values with a
+  proxy.
 
 ## Internals
 

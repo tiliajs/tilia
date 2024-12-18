@@ -5,6 +5,15 @@ var object = (function(v) {
   return typeof v === 'object' && v !== null;
 });
 
+function readonly(o, k) {
+  var d = Object.getOwnPropertyDescriptor(o, k);
+  if (d === null || d === undefined) {
+    return false;
+  } else {
+    return d.writable === false;
+  }
+}
+
 var indexKey = (Symbol());
 
 var rootKey = (Symbol());
@@ -167,7 +176,7 @@ function proxify(root, _target) {
                           ]);
                     }
                   }
-                  if (!object(v)) {
+                  if (!(object(v) && !readonly(extra, extra$1))) {
                     return v;
                   }
                   var p = proxied.get(extra$1);

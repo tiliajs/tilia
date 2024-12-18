@@ -7,8 +7,29 @@ import * as Caml_js_exceptions from "rescript/lib/es6/caml_js_exceptions.js";
 
 var make = (() => ({}));
 
-var $$Object = {
+var TestObject = {
   make: make
+};
+
+function setReadonly(o, k, v) {
+  Object.defineProperty(o, k, {
+        writable: false,
+        value: v
+      });
+}
+
+function readonly(o, k) {
+  var d = Object.getOwnPropertyDescriptor(o, k);
+  if (d === null || d === undefined) {
+    return false;
+  } else {
+    return d.writable === false;
+  }
+}
+
+var AnyObject = {
+  setReadonly: setReadonly,
+  readonly: readonly
 };
 
 function person() {
@@ -171,6 +192,7 @@ Ava("Should watch each object key", (function (t) {
       }));
 
 Ava("Should throw on connect to non tilia object", (function (t) {
+        var error;
         try {
           TiliaCore._connect({
                 name: "Not a tree",
@@ -178,16 +200,17 @@ Ava("Should throw on connect to non tilia object", (function (t) {
               }, (function () {
                   
                 }));
-          return ;
+          error = "Did not throw";
         }
-        catch (raw_obj){
-          var obj = Caml_js_exceptions.internalToOCamlException(raw_obj);
-          if (obj.RE_EXN_ID === Js_exn.$$Error) {
-            t.is(obj._1.message, "Observed state is not a tilia proxy.");
-            return ;
+        catch (raw_err){
+          var err = Caml_js_exceptions.internalToOCamlException(raw_err);
+          if (err.RE_EXN_ID === Js_exn.$$Error) {
+            error = err._1.message;
+          } else {
+            throw err;
           }
-          throw obj;
         }
+        t.is(error, "Observed state is not a tilia proxy.");
       }));
 
 Ava("Should not clone added objects", (function (t) {
@@ -271,11 +294,32 @@ Ava("Should not proxy or watch prototype methods", (function (t) {
         t.is(m.called, false);
       }));
 
+Ava("Should not proxy readonly properties", (function (t) {
+        var m = {
+          called: false
+        };
+        var p1 = person();
+        var tree = {};
+        setReadonly(tree, "person", p1);
+        t.true(readonly(tree, "person"));
+        var tree$1 = TiliaCore.make(tree);
+        var o = TiliaCore._connect(tree$1, (function () {
+                m.called = true;
+              }));
+        var p2 = Reflect.get(tree$1, "person");
+        t.true(p2 === p1);
+        TiliaCore._flush(o);
+        t.false(Reflect.set(tree$1, "person", person()));
+        t.is(m.called, false);
+        t.true(Reflect.get(tree$1, "person") === p1);
+      }));
+
 var Core;
 
 export {
   Core ,
-  $$Object ,
+  TestObject ,
+  AnyObject ,
   person ,
 }
 /*  Not a pure module */

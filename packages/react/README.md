@@ -94,3 +94,5 @@ let make(~clouds: clouds) {
   </div>
 }
 ```
+
+Please check the documentation for [@tilia/core](../core/README.md) for technical details on how tracking is done.

@@ -23,7 +23,16 @@ function(v) {
 }
 
 module Object = {
+  type descriptor<'a> = {writable: bool, value: 'a}
   external hasOwn: ('a, string) => bool = "Object.hasOwn"
+  external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
+    "Object.getOwnPropertyDescriptor"
+  let readonly: ('a, string) => bool = (o, k) => {
+    switch getOwnPropertyDescriptor(o, k) {
+    | Value(d) => d.writable === false
+    | _ => false
+    }
+  }
 }
 
 module Dict = {
@@ -213,7 +222,7 @@ let rec get = (
       | None => ()
       }
 
-      if Typeof.object(v) {
+      if Typeof.object(v) && !Object.readonly(target, key) {
         switch Dict.get(proxied, key) {
         | Value(p) => p
         | _ =>
