@@ -96,3 +96,16 @@ let make(~clouds: clouds) {
 ```
 
 Please check the documentation for [@tilia/core](../core/README.md) for technical details on how tracking is done.
+
+## Little sandbox examples
+
+- [An input field](https://codesandbox.io/p/sandbox/react-ts)
+
+### Changelog
+
+- 2024-12-18 **1.2.2** Fix readonly tracking: should not proxy.
+- 2024-12-18 **1.2.1** Fix bug to not track prototype methods.
+- 2024-12-18 **1.2.0** Improve ownKeys watching, notify on key deletion.
+- 2024-12-18 **1.1.1** Fix build issue (rescript was still required)
+- 2024-12-17 **1.1.0** Add support to share tracking between branches.
+- 2024-12-13 **1.0.0** Alpha release.
