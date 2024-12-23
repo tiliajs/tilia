@@ -12,6 +12,7 @@
     "core": "pnpm --filter core",
     "web": "pnpm --filter website",
     "react": "pnpm --filter react",
+    "build": "pnpm -r build",
     "test": "pnpm -r test"
   },
   "keywords": [],
