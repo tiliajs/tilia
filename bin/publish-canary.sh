@@ -28,15 +28,18 @@ for pkg in core react; do
   cd ../..
 done
 
+set -e
+
 # Publish @tilia/core to NPM
-npm publish --tag canary --access public
+cd packages/core
+pnpm publish --tag canary --access public --no-git-checks
 
 # Update @tilia/react dependency
 cd ../react
 pnpm add @tilia/core@canary
 
 # Publish @tilia/react to NPM
-npm publish --tag canary --access public
+pnpm publish --tag canary --access public --no-git-checks
 
 echo "Canary versions published successfully!"
 
