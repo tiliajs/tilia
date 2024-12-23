@@ -38,7 +38,9 @@ jobs:
         run: pnpm install-all
 
       - name: Build packages
-        run: pnpm run build
+        run: |
+          pnpm core build
+          pnpm react build
 
       - name: Set canary versions
         run: |
