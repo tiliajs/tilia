@@ -8,8 +8,8 @@ on:
       - "packages/core/src/**"
       - "packages/react/src/**"
       - ".github/workflows/release-canary.yml"
+      - "package.json"
 
-# trigger rebuild
 jobs:
   build_and_publish:
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
           version: 8
 
       - name: Install dependencies
-        run: pnpm install
+        run: pnpm install-all
 
       - name: Build packages
         run: pnpm run build

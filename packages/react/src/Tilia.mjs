@@ -12,7 +12,7 @@ function use(p) {
               });
         }));
   React.useEffect(function () {
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         return (function () {
                   TiliaCore._clear(o);
                 });

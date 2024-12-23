@@ -13,6 +13,7 @@
     "web": "pnpm --filter website",
     "react": "pnpm --filter react",
     "build": "pnpm -r build",
+    "install-all": "pnpm -r install",
     "test": "pnpm -r test"
   },
   "keywords": [],
