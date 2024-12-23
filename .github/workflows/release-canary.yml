@@ -9,6 +9,7 @@ on:
       - "packages/react/src/**"
       - ".github/workflows/release-canary.yml"
 
+# trigger rebuild
 jobs:
   build_and_publish:
     runs-on: ubuntu-latest
