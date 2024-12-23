@@ -47,11 +47,12 @@ type dict<'a> = Dict.t<'a>
 let indexKey = %raw(`Symbol()`)
 let rootKey = %raw(`Symbol()`)
 let rawKey = %raw(`Symbol()`)
+let deadKey = %raw(`Symbol()`)
 
 // Set of observers observing a given key in an object/array
 type watchers = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
-type collector = array<(dict<watchers>, string)>
+type collector = array<(dict<watchers>, string, watchers)>
 
 type rec observer = {
   // The symbol that will be added to watchers on flush
@@ -86,10 +87,20 @@ let _connect = (p: 'a, notify) => {
   }
 }
 
+let setForKey = (observed, key) => {
+  switch Dict.get(observed, key) {
+  | Value(watchers) => watchers
+  | _ =>
+    let watchers = Set.make()
+    Dict.set(observed, key, watchers)
+    watchers
+  }
+}
+
 let _clear = (observer: observer) => {
   let {watcher, root} = observer
   if Map.delete(root.observers, watcher) {
-    Array.forEach(observer.collector, ((observed, key)) => {
+    Array.forEach(observer.collector, ((observed, key, _)) => {
       switch Dict.get(observed, key) {
       | Value(watchers) =>
         if Set.delete(watchers, watcher) {
@@ -115,22 +126,39 @@ let register = (watcher: Symbol.t, leaf: (dict<watchers>, string)) => {
   Set.add(watchers, watcher)
 }
 
-let _flush = (observer: observer) => {
+type notified = {mutable done: bool}
+
+let _flush = (observer: observer, ~notifyIfChanged: bool=true) => {
   let {root, watcher, collector} = observer
   switch root.collecting {
   | Some(c) if c === collector => root.collecting = None
   | _ => ()
   }
+  let notified = {done: false}
   Map.set(root.observers, watcher, observer)
-  Array.forEach(observer.collector, register(watcher, ...))
+  Array.forEach(observer.collector, ((observed, key, watchers)) => {
+    if !notified.done {
+      if Set.has(watchers, deadKey) {
+        if notifyIfChanged {
+          notified.done = true
+          _clear(observer)
+          observer.notify()
+        } else {
+          let watchers = setForKey(observed, key)
+          Set.add(watchers, watcher)
+        }
+      } else {
+        Set.add(watchers, watcher)
+      }
+    }
+  })
 }
 
 let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   let keys = Reflect.ownKeys(target)
   switch root.collecting {
-  | Some(c) =>
-    Array.push(c, (observed, indexKey))
-    Array.forEach(keys, k => Array.push(c, (observed, k)))
+  | Some(c) => Array.push(c, (observed, indexKey, setForKey(observed, indexKey)))
+  // Array.forEach(keys, k => Array.push(c, (observed, k)))
   | None => ()
   }
   keys
@@ -149,6 +177,7 @@ let notify = (root, observed, key) => {
       | None => () // Should never happen
       }
     })
+    Set.add(watchers, deadKey)
   | _ => ()
   }
 }
@@ -215,9 +244,9 @@ let rec get = (
       switch root.collecting {
       | Some(c) =>
         if isArray && key == "length" {
-          Array.push(c, (observed, indexKey))
+          Array.push(c, (observed, indexKey, setForKey(observed, indexKey)))
         } else {
-          Array.push(c, (observed, key))
+          Array.push(c, (observed, key, setForKey(observed, key)))
         }
       | None => ()
       }
@@ -270,7 +299,7 @@ let observe = (p: 'a, callback: 'a => unit) => {
   let rec notify = () => {
     let o = _connect(p, notify)
     callback(p)
-    _flush(o)
+    _flush(o, ~notifyIfChanged=false)
   }
   notify()
 }

@@ -46,13 +46,12 @@ Will trigger the logging of the cloud color.
 
 ## Features
 
-- Uses a single tracking recorder. This means that tracking can stop
-  in an async function if another part of the app starts recording read operations (on any part of the same tree).
+- Zero dependencies
+- Single proxy tracking
+- Compatible with ReScript and TypeScript
 - Inserted objects are not cloned.
-- Objects be can copied from one part of the tree to another and will
-  share state and tracking.
-- Respects `readonly` (set with `defineProperty`) by not wrapping values with a
-  proxy.
+- Tracking follows moved or copied objects.
+- Respects `readonly` properties.
 
 ## Internals
 

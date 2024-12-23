@@ -39,6 +39,7 @@ function person() {
             city: "Truth",
             zip: 1234
           },
+          phone: undefined,
           other_address: {
             city: "Beauty",
             zip: 5678
@@ -62,12 +63,10 @@ Ava("Should track leaf changes", (function (t) {
               }));
         t.is(x.name, "John");
         t.is(m.called, false);
-        x.name = "One";
+        TiliaCore._flush(o, undefined);
+        x.name = "John";
         t.is(m.called, false);
-        TiliaCore._flush(o);
-        x.name = "One";
-        t.is(m.called, false);
-        x.name = "Two";
+        x.name = "Mary";
         t.is(m.called, true);
         m.called = false;
         x.name = "Three";
@@ -90,20 +89,41 @@ Ava("Should observe", (function (t) {
         t.is(p$1.username, "ma");
       }));
 
-Ava("Should allow mutating observed", (function (t) {
+Ava("Should allow mutating in observed", (function (t) {
         var p = {
           name: "John",
           username: "jo"
         };
         var p$1 = TiliaCore.make(p);
         TiliaCore.observe(p$1, (function (p) {
-                p.name = p.name.toLowerCase().slice(0, 2);
+                p.name = p.name + " OK";
               }));
-        t.is(p$1.name, "jo");
-        p$1.name = "John";
-        t.is(p$1.name, "jo");
+        t.is(p$1.name, "John OK");
+        p$1.name = "John OK";
+        t.is(p$1.name, "John OK");
         p$1.name = "Mary";
-        t.is(p$1.name, "ma");
+        t.is(p$1.name, "Mary OK");
+      }));
+
+Ava("Should observe mutated keys", (function (t) {
+        var p = {
+          name: "John",
+          username: "jo"
+        };
+        var p$1 = TiliaCore.make(p);
+        TiliaCore.observe(p$1, (function (p) {
+                if (p.username === "john") {
+                  p.username = "not john";
+                  return ;
+                }
+                
+              }));
+        p$1.username = "john";
+        t.is(p$1.username, "not john");
+        p$1.username = "mary";
+        t.is(p$1.username, "mary");
+        p$1.username = "john";
+        t.is(p$1.username, "not john");
       }));
 
 Ava("Should proxy sub-objects", (function (t) {
@@ -117,10 +137,8 @@ Ava("Should proxy sub-objects", (function (t) {
               }));
         t.is(p$1.address.city, "Truth");
         t.is(m.called, false);
-        p$1.address.city = "Passion";
-        t.is(m.called, false);
-        TiliaCore._flush(o);
-        p$1.address.city = "Passion";
+        TiliaCore._flush(o, undefined);
+        p$1.address.city = "Truth";
         t.is(m.called, false);
         p$1.address.city = "Kindness";
         t.is(m.called, true);
@@ -139,7 +157,7 @@ Ava("Should proxy array", (function (t) {
                 m.called = true;
               }));
         t.is(p$1.passions[0], "fruits");
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         p$1.passions[0] = "watercolor";
         t.is(m.called, true);
       }));
@@ -154,7 +172,7 @@ Ava("Should watch array index", (function (t) {
                 m.called = true;
               }));
         t.is(p$1.passions.length, 1);
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         p$1.passions.push("watercolor");
         t.is(m.called, true);
       }));
@@ -169,12 +187,12 @@ Ava("Should watch object keys", (function (t) {
                 m.called = true;
               }));
         t.is(Object.keys(p$1.notes).length, 0);
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         Reflect.set(p$1.notes, "2024-12-07", "Rebuilding Tilia in ReScript");
         t.is(m.called, true);
       }));
 
-Ava("Should watch each object key", (function (t) {
+Ava("Should not watch each object key", (function (t) {
         var m = {
           called: false
         };
@@ -186,9 +204,9 @@ Ava("Should watch each object key", (function (t) {
                 m.called = true;
               }));
         t.is(Object.keys(p$1.notes).length, 2);
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         Reflect.set(p$1.notes, "night", "Full of stars");
-        t.is(m.called, true);
+        t.is(m.called, false);
       }));
 
 Ava("Should throw on connect to non tilia object", (function (t) {
@@ -236,7 +254,7 @@ Ava("Should share tracking in same tree", (function (t) {
                 m.called = true;
               }));
         t.is(p$1.address.city, "Truth");
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         t.false(m.called);
         p$1.other_address = p$1.address;
         p$1.other_address.city = "Love";
@@ -254,7 +272,7 @@ Ava("Should not share tracking in another tree", (function (t) {
                 m.called = true;
               }));
         t.is(p1.address.city, "Truth");
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         t.false(m.called);
         p2.other_address = p1.address;
         p2.other_address.city = "Love";
@@ -274,7 +292,7 @@ Ava("Should notify on key deletion", (function (t) {
                 m.called = true;
               }));
         t.is(Reflect.get(p.notes, "hello"), "Everyone");
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         Reflect.deleteProperty(p.notes, "hello");
         t.is(m.called, true);
       }));
@@ -289,7 +307,7 @@ Ava("Should not proxy or watch prototype methods", (function (t) {
               }));
         var x = Reflect.get(p.notes, "constructor");
         t.true(x === Reflect.get({}, "constructor"));
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         Reflect.set(p.notes, "constructor", "haha");
         t.is(m.called, false);
       }));
@@ -308,10 +326,43 @@ Ava("Should not proxy readonly properties", (function (t) {
               }));
         var p2 = Reflect.get(tree$1, "person");
         t.true(p2 === p1);
-        TiliaCore._flush(o);
+        TiliaCore._flush(o, undefined);
         t.false(Reflect.set(tree$1, "person", person()));
         t.is(m.called, false);
         t.true(Reflect.get(tree$1, "person") === p1);
+      }));
+
+Ava("Should track undefined values", (function (t) {
+        var m = {
+          called: false
+        };
+        var p = person();
+        var p$1 = TiliaCore.make(p);
+        var o = TiliaCore._connect(p$1, (function () {
+                m.called = true;
+              }));
+        var phone = p$1.phone;
+        t.true(phone === undefined);
+        TiliaCore._flush(o, undefined);
+        p$1.phone = "123 456 789";
+        t.is(m.called, true);
+      }));
+
+Ava("Should notify on flush", (function (t) {
+        var m = {
+          called: false
+        };
+        var p = person();
+        var p$1 = TiliaCore.make(p);
+        var o = TiliaCore._connect(p$1, (function () {
+                m.called = true;
+              }));
+        t.is(p$1.name, "John");
+        t.is(m.called, false);
+        p$1.name = "One";
+        t.is(m.called, false);
+        TiliaCore._flush(o, undefined);
+        t.is(m.called, true);
       }));
 
 var Core;

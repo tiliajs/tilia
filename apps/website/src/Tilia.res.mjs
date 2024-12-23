@@ -3,32 +3,33 @@
 import * as React from "react";
 import * as TiliaCore from "./TiliaCore.res.mjs";
 
-function _inc(i) {
-  return i + 1 | 0;
-}
-
-function use(t) {
-  var match = React.useState(function () {
-        return 0;
-      });
+function use(p) {
+  console.log("RENDER");
+  var match = React.useState(0);
   var setCount = match[1];
-  var o = TiliaCore._connect(t, (function () {
-          setCount(_inc);
+  var o = TiliaCore._connect(p, (function () {
+          console.log("REDRAW");
+          setCount(function (i) {
+                return i + 1 | 0;
+              });
         }));
   React.useEffect(function () {
+        console.log("REACT FLUSH");
         TiliaCore._flush(o);
         return (function () {
                   TiliaCore._clear(o);
                 });
       });
-  return t[1];
+  return p;
 }
 
 var make = TiliaCore.make;
 
+var observe = TiliaCore.observe;
+
 export {
   make ,
-  _inc ,
+  observe ,
   use ,
 }
 /* react Not a pure module */

@@ -1,13 +1,18 @@
+@module("react") external useState: int => (int, (int => int) => unit) = "useState"
+@module("react") external useEffect: (unit => option<unit => unit>) => unit = "useEffect"
 open TiliaCore
-type t<'a> = TiliaCore.t<'a>
-let make = TiliaCore.make
 
-let _inc = i => i + 1
-let use = (t: t<'a>) => {
-  let (_, setCount) = React.useState(() => 0)
-  let o = _connect(t, () => setCount(_inc))
-  let (_, p) = t
-  React.useEffectOnEveryRender(() => {
+let make = make
+let observe = observe
+let use = p => {
+  Js.log("RENDER")
+  let (_, setCount) = useState(0)
+  let o = _connect(p, () => {
+    Js.log("REDRAW")
+    setCount(i => i + 1)
+  })
+  useEffect(() => {
+    Js.log("REACT FLUSH")
     _flush(o)
     Some(() => _clear(o))
   })

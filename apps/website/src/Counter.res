@@ -1,9 +1,10 @@
 type counter = {mutable count: int}
 
 @react.component
-let make = (~t: Tilia.t<State.state>) => {
+let make = (~t: State.state) => {
   let (i, setI) = React.useState(() => 0)
   let c = Tilia.use(t)
+  Exn.raiseError("Boom")
 
   <div className="bg-white p-4 border-teal-600 rounded-md border">
     <Blink>

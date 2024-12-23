@@ -20,6 +20,8 @@ var rootKey = (Symbol());
 
 var rawKey = (Symbol());
 
+var deadKey = (Symbol());
+
 function _connect(p, notify) {
   var root = Reflect.get(p, rootKey);
   if (root === null || root === undefined) {
@@ -41,6 +43,17 @@ function _connect(p, notify) {
   }
 }
 
+function setForKey(observed, key) {
+  var watchers = observed.get(key);
+  if (!(watchers === null || watchers === undefined)) {
+    return watchers;
+  }
+  watchers === null;
+  var watchers$1 = new Set();
+  observed.set(key, watchers$1);
+  return watchers$1;
+}
+
 function _clear(observer) {
   var watcher = observer.watcher;
   if (observer.root.observers.delete(watcher)) {
@@ -60,31 +73,34 @@ function _clear(observer) {
   
 }
 
-function _flush(observer) {
+function _flush(observer, notifyIfChangedOpt) {
+  var notifyIfChanged = notifyIfChangedOpt !== undefined ? notifyIfChangedOpt : true;
   var root = observer.root;
   var watcher = observer.watcher;
   var c = root.collecting;
   if (c !== undefined && c === observer.collector) {
     root.collecting = undefined;
   }
+  var notified = {
+    done: false
+  };
   root.observers.set(watcher, observer);
-  observer.collector.forEach(function (extra) {
-        var key = extra[1];
-        var observed = extra[0];
-        var watchers = observed.get(key);
-        var watchers$1;
-        var exit = 0;
-        if (watchers === null || watchers === undefined) {
-          exit = 1;
-        } else {
-          watchers$1 = watchers;
+  observer.collector.forEach(function (param) {
+        if (notified.done) {
+          return ;
         }
-        if (exit === 1) {
-          var watchers$2 = new Set();
-          observed.set(key, watchers$2);
-          watchers$1 = watchers$2;
+        var watchers = param[2];
+        if (watchers.has(deadKey)) {
+          if (notifyIfChanged) {
+            notified.done = true;
+            _clear(observer);
+            return observer.notify();
+          }
+          var watchers$1 = setForKey(param[0], param[1]);
+          watchers$1.add(watcher);
+          return ;
         }
-        watchers$1.add(watcher);
+        watchers.add(watcher);
       });
 }
 
@@ -102,6 +118,7 @@ function notify(root, observed, key) {
         }
         
       });
+  watchers.add(deadKey);
 }
 
 function proxify(root, _target) {
@@ -167,12 +184,14 @@ function proxify(root, _target) {
                     if (isArray && extra$1 === "length") {
                       c.push([
                             observed,
-                            indexKey
+                            indexKey,
+                            setForKey(observed, indexKey)
                           ]);
                     } else {
                       c.push([
                             observed,
-                            extra$1
+                            extra$1,
+                            setForKey(observed, extra$1)
                           ]);
                     }
                   }
@@ -196,14 +215,9 @@ function proxify(root, _target) {
                   if (c !== undefined) {
                     c.push([
                           observed,
-                          indexKey
+                          indexKey,
+                          setForKey(observed, indexKey)
                         ]);
-                    keys.forEach(function (k) {
-                          c.push([
-                                observed,
-                                k
-                              ]);
-                        });
                   }
                   return keys;
                 }
@@ -224,7 +238,7 @@ function observe(p, callback) {
   var notify = function () {
     var o = _connect(p, notify);
     callback(p);
-    _flush(o);
+    _flush(o, false);
   };
   notify();
 }

@@ -4,6 +4,7 @@ import * as Blink from "./Blink.res.mjs";
 import * as Tilia from "./Tilia.res.mjs";
 import * as React from "react";
 import * as Button from "./Button.res.mjs";
+import * as Js_exn from "rescript/lib/es6/js_exn.js";
 import * as Caml_option from "rescript/lib/es6/caml_option.js";
 import * as JsxRuntime from "react/jsx-runtime";
 
@@ -13,6 +14,7 @@ function Counter(props) {
       });
   var setI = match[1];
   var c = Tilia.use(props.t);
+  Js_exn.raiseError("Boom");
   return JsxRuntime.jsx("div", {
               children: JsxRuntime.jsxs(Blink.make, {
                     children: [
