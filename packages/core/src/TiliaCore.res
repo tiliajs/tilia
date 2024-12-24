@@ -146,6 +146,7 @@ let _flush = (observer: observer, ~notifyIfChanged: bool=true) => {
         } else {
           let watchers = setForKey(observed, key)
           Set.add(watchers, watcher)
+          Array.push(observer.collector, (observed, key, watchers))
         }
       } else {
         Set.add(watchers, watcher)

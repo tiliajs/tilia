@@ -91,13 +91,20 @@ function _flush(observer, notifyIfChangedOpt) {
         }
         var watchers = param[2];
         if (watchers.has(deadKey)) {
+          var key = param[1];
+          var observed = param[0];
           if (notifyIfChanged) {
             notified.done = true;
             _clear(observer);
             return observer.notify();
           }
-          var watchers$1 = setForKey(param[0], param[1]);
+          var watchers$1 = setForKey(observed, key);
           watchers$1.add(watcher);
+          observer.collector.push([
+                observed,
+                key,
+                watchers$1
+              ]);
           return ;
         }
         watchers.add(watcher);
