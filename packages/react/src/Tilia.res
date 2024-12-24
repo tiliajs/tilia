@@ -8,7 +8,7 @@ let use = p => {
   let (_, setCount) = useState(0)
   let o = _connect(p, () => setCount(i => i + 1))
   useEffect(() => {
-    _flush(o)
+    _ready(o)
     Some(() => _clear(o))
   })
   p

@@ -64,14 +64,14 @@ test("Should track leaf changes", t => {
   let o = Core._connect(x, () => m.called = true)
   t->is(x.name, "John") // observe 'name'
   t->is(m.called, false)
-  Core._flush(o)
+  Core._ready(o)
 
-  // Update name with same value after flush
+  // Update name with same value after ready
   x.name = "John"
   // Callback should not be called
   t->is(m.called, false)
 
-  // Update name with another value after flush
+  // Update name with another value after ready
   x.name = "Mary"
   // Callback should be called
   t->is(m.called, true)
@@ -111,6 +111,7 @@ test("Should allow mutating in observed", t => {
     p.name = p.name ++ " OK"
   })
 
+  Js.log("y")
   t->is(p.name, "John OK")
 
   // Update with same name
@@ -150,14 +151,14 @@ test("Should proxy sub-objects", t => {
   let o = Core._connect(p, () => m.called = true)
   t->is(p.address.city, "Truth") // observe 'address.city'
   t->is(m.called, false)
-  Core._flush(o)
+  Core._ready(o)
 
-  // Update name with same value after flush
+  // Update name with same value after ready
   p.address.city = "Truth"
   // Callback should not be called
   t->is(m.called, false)
 
-  // Update name with another value after flush
+  // Update name with another value after ready
   p.address.city = "Kindness"
   // Callback should be called
   t->is(m.called, true)
@@ -175,7 +176,7 @@ test("Should proxy array", t => {
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(p.passions[0], Some("fruits")) // observe key 0
-  Core._flush(o)
+  Core._ready(o)
 
   // Update entry
   p.passions[0] = "watercolor"
@@ -189,7 +190,7 @@ test("Should watch array index", t => {
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(Array.length(p.passions), 1) // observe length
-  Core._flush(o)
+  Core._ready(o)
 
   // Insert new entry
   Array.push(p.passions, "watercolor")
@@ -203,7 +204,7 @@ test("Should watch object keys", t => {
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 0) // observe keys
-  Core._flush(o)
+  Core._ready(o)
 
   // Insert new entry
   TestObject.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
@@ -219,7 +220,7 @@ test("Should not watch each object key", t => {
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 2) // observe keys
-  Core._flush(o)
+  Core._ready(o)
 
   // Insert new entry
   TestObject.set(p.notes, "night", "Full of stars")
@@ -262,7 +263,7 @@ test("Should share tracking in same tree", t => {
   let p = Core.make(p)
   let o = Core._connect(p, () => m.called = true)
   t->is(p.address.city, "Truth") // observe 'city'
-  Core._flush(o)
+  Core._ready(o)
   t->isFalse(m.called)
   p.other_address = p.address
   p.other_address.city = "Love"
@@ -278,7 +279,7 @@ test("Should not share tracking in another tree", t => {
   let p2 = Core.make(person())
   let o = Core._connect(p1, () => m.called = true)
   t->is(p1.address.city, "Truth") // observe 'city'
-  Core._flush(o)
+  Core._ready(o)
   t->isFalse(m.called)
 
   // Shares the same target, but not the same proxy
@@ -298,7 +299,7 @@ test("Should notify on key deletion", t => {
   TestObject.set(p.notes, "hello", "Everyone")
   let o = Core._connect(p, () => m.called = true)
   t->is(TestObject.get(p.notes, "hello"), "Everyone") // observe "hello" key
-  Core._flush(o)
+  Core._ready(o)
 
   // Remove entry
   TestObject.remove(p.notes, "hello")
@@ -312,7 +313,7 @@ test("Should not proxy or watch prototype methods", t => {
   let o = Core._connect(p, () => m.called = true)
   let x = TestObject.get(p.notes, "constructor")
   t->isTrue(x === TestObject.get(%raw(`{}`), "constructor"))
-  Core._flush(o)
+  Core._ready(o)
 
   // Edit
   TestObject.set(p.notes, "constructor", "haha")
@@ -330,7 +331,7 @@ test("Should not proxy readonly properties", t => {
   let o = Core._connect(tree, () => m.called = true)
   let p2 = AnyObject.get(tree, "person")
   t->isTrue(p2 === p1)
-  Core._flush(o)
+  Core._ready(o)
 
   // Cannot set
   t->isFalse(AnyObject.set(tree, "person", person()))
@@ -349,14 +350,14 @@ test("Should track undefined values", t => {
   let o = Core._connect(p, () => m.called = true)
   let phone = p.phone
   t->isTrue(phone === Undefined)
-  Core._flush(o)
+  Core._ready(o)
 
   p.phone = Value("123 456 789")
   // Callback should be called
   t->is(m.called, true)
 })
 
-test("Should notify on flush", t => {
+test("Should notify on ready", t => {
   let m = {called: false}
   let p = person()
   let p = Core.make(p)
@@ -364,12 +365,12 @@ test("Should notify on flush", t => {
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
 
-  // Update name before flush
+  // Update name before ready
   p.name = "One"
   // Callback should not be called
   t->is(m.called, false)
-  Core._flush(o)
-  // Callback should be called during flush
+  Core._ready(o)
+  // Callback should be called during ready
   t->is(m.called, true)
 })
 
@@ -382,12 +383,12 @@ test("Should not clear common key on _clear", t => {
   t->is(p.name, "John") // o1 observe 'name'
   let o2 = Core._connect(p, () => m2.called = true)
   t->is(p.name, "John") // o2 observe 'name'
-  Core._flush(o1) // Register
+  Core._ready(o1) // Register
   Core._clear(o1)
 
   // Clear o1 should not remove set from observed keys because
   // o2 will need it.
-  Core._flush(o2)
+  Core._ready(o2)
   t->is(m2.called, false)
 
   // Update 'name'

@@ -7,6 +7,6 @@ let observe: ('a, 'a => unit) => unit
 /** internal */
 let _connect: ('a, unit => unit) => observer
 /** internal */
-let _flush: (observer, ~notifyIfChanged: bool=?) => unit
+let _ready: (observer, ~notifyIfChanged: bool=?) => unit
 /** internal */
 let _clear: observer => unit

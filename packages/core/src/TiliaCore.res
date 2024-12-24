@@ -1,9 +1,3 @@
-%%raw(`
-if (globalThis["@tilia/core"] === "Loaded") {
-  throw new Error("@tilia/core already loaded")
-}
-globalThis["@tilia/core"] = "Loaded"
-`)
 module Reflect = {
   external has: ('a, string) => bool = "Reflect.has"
   external get: ('a, string) => 'b = "Reflect.get"
@@ -53,24 +47,26 @@ type dict<'a> = Dict.t<'a>
 let indexKey = %raw(`Symbol()`)
 let rootKey = %raw(`Symbol()`)
 let rawKey = %raw(`Symbol()`)
-let deadKey = %raw(`Symbol()`)
 
 // Set of observers observing a given key in an object/array
 type watchers = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
-type collector = array<(dict<watchers>, string, watchers)>
+type observing = array<watchers>
+
+type state = Recording | Ready | ShouldNotify
 
 type rec observer = {
+  mutable state: state,
   // The symbol that will be added to watchers on flush
   watcher: Symbol.t,
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
-  collector: collector,
+  observing: observing,
   // Where this observer is observing (used for clear and flush)
   root: root,
 }
 and root = {
-  mutable collecting: option<collector>,
+  mutable observer: nullable<observer>,
   observers: Map.t<Symbol.t, observer>,
 }
 
@@ -81,111 +77,86 @@ let _connect = (p: 'a, notify) => {
   switch _root(p) {
   | Value(root) => {
       let observer: observer = {
+        state: Recording,
         watcher: Symbol.make(""),
         notify,
-        collector: [],
+        observing: [],
         root,
       }
-      root.collecting = Some(observer.collector)
+      Map.set(root.observers, observer.watcher, observer)
+      root.observer = Value(observer)
       observer
     }
   | _ => Exn.raiseError("Observed state is not a tilia proxy.")
   }
 }
 
-let setForKey = (observed, key) => {
-  switch Dict.get(observed, key) {
-  | Value(watchers) => watchers
+let observeKey = (observer, observed, key) => {
+  let w = switch Dict.get(observed, key) {
+  | Value(w) => w
   | _ =>
-    let watchers = Set.make()
-    Dict.set(observed, key, watchers)
-    watchers
+    let w = Set.make()
+    Dict.set(observed, key, w)
+    w
   }
+  Set.add(w, observer.watcher)
+  Array.push(observer.observing, w)
 }
 
 let _clear = (observer: observer) => {
   let {watcher, root} = observer
   if Map.delete(root.observers, watcher) {
-    Array.forEach(observer.collector, ((observed, key, _)) => {
-      switch Dict.get(observed, key) {
-      | Value(watchers) =>
-        if Set.delete(watchers, watcher) {
-          if Set.size(watchers) == 0 {
-            // Dict.delete(observed, key)
-            ()
-          }
-        }
-      | _ => ()
-      }
-    })
+    Array.forEach(observer.observing, watchers => ignore(Set.delete(watchers, watcher)))
   }
 }
 
-let register = (watcher: Symbol.t, leaf: (dict<watchers>, string)) => {
-  let (observed, key) = leaf
-  let watchers = switch Dict.get(observed, key) {
-  | Value(watchers) => watchers
-  | _ =>
-    let watchers = Set.make()
-    Dict.set(observed, key, watchers)
-    watchers
-  }
-  Set.add(watchers, watcher)
-}
-
-type notified = {mutable done: bool}
-
-let _flush = (observer: observer, ~notifyIfChanged: bool=true) => {
-  let {root, watcher, collector} = observer
-  switch root.collecting {
-  | Some(c) if c === collector => root.collecting = None
+let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
+  let {root, state} = observer
+  switch root.observer {
+  | Value(o) if o === observer => root.observer = Undefined
   | _ => ()
   }
-  let notified = {done: false}
-  Map.set(root.observers, watcher, observer)
-  Array.forEach(observer.collector, ((observed, key, watchers)) => {
-    if !notified.done {
-      if Set.has(watchers, deadKey) {
-        if notifyIfChanged {
-          notified.done = true
-          _clear(observer)
-          observer.notify()
-        } else {
-          let watchers = setForKey(observed, key)
-          Set.add(watchers, watcher)
-          Array.push(observer.collector, (observed, key, watchers))
-        }
-      } else {
-        Set.add(watchers, watcher)
-      }
+  switch state {
+  | ShouldNotify if notifyIfChanged => {
+      _clear(observer)
+      observer.notify()
     }
-  })
+  | _ => observer.state = Ready
+  }
 }
 
 let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   let keys = Reflect.ownKeys(target)
-  switch root.collecting {
-  | Some(c) => Array.push(c, (observed, indexKey, setForKey(observed, indexKey)))
-  // Array.forEach(keys, k => Array.push(c, (observed, k)))
-  | None => ()
+  switch root.observer {
+  | Value(o) => observeKey(o, observed, indexKey)
+  | _ => ()
   }
   keys
 }
 
 let notify = (root, observed, key) => {
   switch Dict.get(observed, key) {
-  | Value(watchers) =>
-    Dict.delete(observed, key)
-    Set.forEach(watchers, watcher => {
-      switch Map.get(root.observers, watcher) {
-      | Some(observer) => {
-          _clear(observer)
-          observer.notify()
+  | Value(watchers) => {
+      let c = []
+      Set.forEach(watchers, watcher => {
+        switch Map.get(root.observers, watcher) {
+        | Some(observer) =>
+          switch observer.state {
+          | Ready => Array.push(c, observer)
+          | Recording => observer.state = ShouldNotify
+          | ShouldNotify => ()
+          }
+        | None => () // Should never happen
         }
-      | None => () // Should never happen
+      })
+      Array.forEach(c, observer => {
+        _clear(observer)
+        observer.notify()
+      })
+      if Set.size(watchers) == 0 {
+        Dict.delete(observed, key)
       }
-    })
-    Set.add(watchers, deadKey)
+    }
   | _ => ()
   }
 }
@@ -249,14 +220,14 @@ let rec get = (
     let v = Reflect.get(target, key)
     let own = Object.hasOwn(target, key)
     if v === undefined || own {
-      switch root.collecting {
-      | Some(c) =>
+      switch root.observer {
+      | Value(o) =>
         if isArray && key == "length" {
-          Array.push(c, (observed, indexKey, setForKey(observed, indexKey)))
+          observeKey(o, observed, indexKey)
         } else {
-          Array.push(c, (observed, key, setForKey(observed, key)))
+          observeKey(o, observed, key)
         }
-      | None => ()
+      | _ => ()
       }
 
       if Typeof.object(v) && !Object.readonly(target, key) {
@@ -297,7 +268,7 @@ and proxify = (root: root, target: 'a): 'a => {
 
 let make = (seed: 'a): 'a => {
   let root = {
-    collecting: None,
+    observer: Undefined,
     observers: Map.make(),
   }
   proxify(root, seed)
@@ -307,7 +278,7 @@ let observe = (p: 'a, callback: 'a => unit) => {
   let rec notify = () => {
     let o = _connect(p, notify)
     callback(p)
-    _flush(o, ~notifyIfChanged=false)
+    _ready(o, ~notifyIfChanged=false)
   }
   notify()
 }
