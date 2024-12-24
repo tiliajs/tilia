@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["../src/index.js"],
-  "sourcesContent": ["import { useState, useEffect } from \"react\";\nimport { _connect, _flush, _clear, tilia, observe } from \"@tilia/core\";\n\nexport function useTilia(p) {\n  const [, setCount] = useState(0);\n  const o = _connect(p, () => setCount((i) => i + 1));\n  useEffect(function () {\n    _flush(o);\n    return () => _clear(o);\n  });\n  return p;\n}\n\nexport { tilia, observe };\n"],
-  "mappings": "4ZAAA,IAAAA,EAAA,GAAAC,EAAAD,EAAA,sDAAAE,IAAA,eAAAC,EAAAH,GAAA,IAAAI,EAAoC,iBACpCC,EAAyD,uBAElD,SAASH,EAASI,EAAG,CAC1B,GAAM,CAAC,CAAEC,CAAQ,KAAI,YAAS,CAAC,EACzBC,KAAI,YAASF,EAAG,IAAMC,EAAUE,GAAMA,EAAI,CAAC,CAAC,EAClD,sBAAU,UAAY,CACpB,mBAAOD,CAAC,EACD,OAAM,UAAOA,CAAC,CACvB,CAAC,EACMF,CACT",
-  "names": ["src_exports", "__export", "useTilia", "__toCommonJS", "import_react", "import_core", "p", "setCount", "o", "i"]
-}

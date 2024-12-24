@@ -1,3 +1,9 @@
+%%raw(`
+if (globalThis["@tilia/core"] === "Loaded") {
+  throw new Error("@tilia/core already loaded")
+}
+globalThis["@tilia/core"] = "Loaded"
+`)
 module Reflect = {
   external has: ('a, string) => bool = "Reflect.has"
   external get: ('a, string) => 'b = "Reflect.get"
