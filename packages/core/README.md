@@ -61,9 +61,10 @@ To be used for binding to other frameworks/libraries:
 // Create an observer by connecting a callback to a Tilia object
 // or array and start recording viewed nodes.
 export function _connect<a>(tree: a, callback: () => void): observer;
-// Register the observer on viewed nodes and stop recording.
-export function _flush(observer: observer): void;
-// Remove registered observer.
+// Register the observer as ready. If a watched field changed during recording, notify
+// if notifyIfChanged is true.
+export function _ready(observer: observer, notifyIfChanged: boolean = true): void;
+// Remove observer.
 export function _clear(observer: observer): void;
 ```
 

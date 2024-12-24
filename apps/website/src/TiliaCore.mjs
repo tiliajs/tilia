@@ -28,64 +28,73 @@ function _connect(p, notify) {
     }
     throw new Error("Observed state is not a tilia proxy.");
   } else {
-    var observer_watcher = Symbol("");
-    var observer_collector = [];
     var observer = {
-      watcher: observer_watcher,
+      state: "Recording",
+      watcher: Symbol(""),
       notify: notify,
-      collector: observer_collector,
+      observing: [],
       root: root
     };
-    root.collecting = observer_collector;
+    root.observers.set(observer.watcher, observer);
+    root.observer = observer;
     return observer;
   }
+}
+
+function observeKey(observer, observed, key) {
+  var w = observed.get(key);
+  var w$1;
+  var exit = 0;
+  if (w === null || w === undefined) {
+    exit = 1;
+  } else {
+    w$1 = w;
+  }
+  if (exit === 1) {
+    var w$2 = new Set();
+    observed.set(key, w$2);
+    w$1 = w$2;
+  }
+  w$1.add(observer.watcher);
+  observer.observing.push(w$1);
 }
 
 function _clear(observer) {
   var watcher = observer.watcher;
   if (observer.root.observers.delete(watcher)) {
-    observer.collector.forEach(function (param) {
-          var key = param[1];
-          var observed = param[0];
-          var watchers = observed.get(key);
-          if (watchers === null || watchers === undefined || !(watchers.delete(watcher) && watchers.size === 0)) {
-            return ;
-          } else {
-            observed.delete(key);
-            return ;
-          }
+    observer.observing.forEach(function (watchers) {
+          watchers.delete(watcher);
         });
     return ;
   }
   
 }
 
-function _flush(observer) {
+function _ready(observer, notifyIfChangedOpt) {
+  var notifyIfChanged = notifyIfChangedOpt !== undefined ? notifyIfChangedOpt : true;
+  var state = observer.state;
   var root = observer.root;
-  var watcher = observer.watcher;
-  var c = root.collecting;
-  if (c !== undefined && c === observer.collector) {
-    root.collecting = undefined;
+  var o = root.observer;
+  if (o === null || o === undefined) {
+    o === null;
+  } else if (o === observer) {
+    root.observer = undefined;
   }
-  root.observers.set(watcher, observer);
-  observer.collector.forEach(function (extra) {
-        var key = extra[1];
-        var observed = extra[0];
-        var watchers = observed.get(key);
-        var watchers$1;
-        var exit = 0;
-        if (watchers === null || watchers === undefined) {
-          exit = 1;
+  switch (state) {
+    case "Recording" :
+    case "Ready" :
+        observer.state = "Ready";
+        return ;
+    case "ShouldNotify" :
+        if (notifyIfChanged) {
+          _clear(observer);
+          return observer.notify();
         } else {
-          watchers$1 = watchers;
+          observer.state = "Ready";
+          return ;
         }
-        if (exit === 1) {
-          var watchers$2 = new Set();
-          observed.set(key, watchers$2);
-          watchers$1 = watchers$2;
-        }
-        watchers$1.add(watcher);
-      });
+    
+  }
 }
 
 function notify(root, observed, key) {
@@ -93,15 +102,34 @@ function notify(root, observed, key) {
   if (watchers === null || watchers === undefined) {
     return ;
   }
-  observed.delete(key);
+  var c = [];
   watchers.forEach(function (watcher) {
         var observer = root.observers.get(watcher);
-        if (observer !== undefined) {
-          _clear(observer);
-          return observer.notify();
+        if (observer === undefined) {
+          return ;
         }
-        
+        var match = observer.state;
+        switch (match) {
+          case "Recording" :
+              observer.state = "ShouldNotify";
+              return ;
+          case "Ready" :
+              c.push(observer);
+              return ;
+          case "ShouldNotify" :
+              return ;
+          
+        }
       });
+  c.forEach(function (observer) {
+        _clear(observer);
+        observer.notify();
+      });
+  if (watchers.size === 0) {
+    observed.delete(key);
+    return ;
+  }
+  
 }
 
 function proxify(root, _target) {
@@ -162,19 +190,13 @@ function proxify(root, _target) {
                   if (!(v === undefined || own)) {
                     return v;
                   }
-                  var c = root.collecting;
-                  if (c !== undefined) {
-                    if (isArray && extra$1 === "length") {
-                      c.push([
-                            observed,
-                            indexKey
-                          ]);
-                    } else {
-                      c.push([
-                            observed,
-                            extra$1
-                          ]);
-                    }
+                  var o = root.observer;
+                  if (o === null || o === undefined) {
+                    o === null;
+                  } else if (isArray && extra$1 === "length") {
+                    observeKey(o, observed, indexKey);
+                  } else {
+                    observeKey(o, observed, extra$1);
                   }
                   if (!(object(v) && !readonly(extra, extra$1))) {
                     return v;
@@ -192,18 +214,11 @@ function proxify(root, _target) {
                 ownKeys: (function(observed){
                 return function (extra) {
                   var keys = Reflect.ownKeys(extra);
-                  var c = root.collecting;
-                  if (c !== undefined) {
-                    c.push([
-                          observed,
-                          indexKey
-                        ]);
-                    keys.forEach(function (k) {
-                          c.push([
-                                observed,
-                                k
-                              ]);
-                        });
+                  var o = root.observer;
+                  if (o === null || o === undefined) {
+                    o === null;
+                  } else {
+                    observeKey(o, observed, indexKey);
                   }
                   return keys;
                 }
@@ -214,7 +229,7 @@ function proxify(root, _target) {
 
 function make(seed) {
   var root = {
-    collecting: undefined,
+    observer: undefined,
     observers: new Map()
   };
   return proxify(root, seed);
@@ -224,7 +239,7 @@ function observe(p, callback) {
   var notify = function () {
     var o = _connect(p, notify);
     callback(p);
-    _flush(o);
+    _ready(o, false);
   };
   notify();
 }
@@ -233,7 +248,7 @@ export {
   make ,
   observe ,
   _connect ,
-  _flush ,
+  _ready ,
   _clear ,
 }
 /* indexKey Not a pure module */
