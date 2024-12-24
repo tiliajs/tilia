@@ -64,13 +64,11 @@ function _clear(observer) {
   var watcher = observer.watcher;
   if (observer.root.observers.delete(watcher)) {
     observer.collector.forEach(function (param) {
-          var key = param[1];
-          var observed = param[0];
-          var watchers = observed.get(key);
-          if (watchers === null || watchers === undefined || !(watchers.delete(watcher) && watchers.size === 0)) {
+          var watchers = param[0].get(param[1]);
+          if (watchers === null || watchers === undefined) {
             return ;
           } else {
-            observed.delete(key);
+            watchers.delete(watcher);
             return ;
           }
         });

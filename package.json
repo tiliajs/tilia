@@ -19,8 +19,5 @@
   },
   "keywords": [],
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
-  "license": "MIT",
-  "devDependencies": {
-    "jq": "^1.7.2"
-  }
+  "license": "MIT"
 }

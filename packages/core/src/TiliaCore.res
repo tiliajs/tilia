@@ -111,7 +111,8 @@ let _clear = (observer: observer) => {
       | Value(watchers) =>
         if Set.delete(watchers, watcher) {
           if Set.size(watchers) == 0 {
-            Dict.delete(observed, key)
+            // Dict.delete(observed, key)
+            ()
           }
         }
       | _ => ()

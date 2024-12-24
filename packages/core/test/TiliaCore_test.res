@@ -372,3 +372,26 @@ test("Should notify on flush", t => {
   // Callback should be called during flush
   t->is(m.called, true)
 })
+
+test("Should not clear common key on _clear", t => {
+  let m1 = {called: false}
+  let m2 = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let o1 = Core._connect(p, () => m1.called = true)
+  t->is(p.name, "John") // o1 observe 'name'
+  let o2 = Core._connect(p, () => m2.called = true)
+  t->is(p.name, "John") // o2 observe 'name'
+  Core._flush(o1) // Register
+  Core._clear(o1)
+
+  // Clear o1 should not remove set from observed keys because
+  // o2 will need it.
+  Core._flush(o2)
+  t->is(m2.called, false)
+
+  // Update 'name'
+  p.name = "Mary"
+  // Callback should be called
+  t->is(m2.called, true)
+})
