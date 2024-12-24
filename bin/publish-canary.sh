@@ -13,7 +13,7 @@ fi
 if [ -n "$(git status --porcelain)" ]; then
   echo "Error: There are uncommitted changes in the repository."
   echo "Please commit or stash your changes before proceeding."
-#  exit 1
+  exit 1
 else
   echo "Repository is clean. Proceeding with the operation."
 fi
