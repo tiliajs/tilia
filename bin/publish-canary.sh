@@ -14,6 +14,8 @@ else
   echo "Repository is clean. Proceeding with the operation."
 fi
 
+export CANARY="true"
+
 # Install dependencies
 pnpm install-all
 

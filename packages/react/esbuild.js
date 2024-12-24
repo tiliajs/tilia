@@ -15,8 +15,7 @@ const build = {
   entryPoints: ["src/index.js"],
   bundle: true,
   sourcemap: true,
-  minify: true,
-  format: "esm",
+  minify: process.env.CANARY ? false : true,
   target: ["esnext"],
   ignoreAnnotations: true,
   plugins: [
