@@ -103,6 +103,7 @@ Please check the documentation for [@tilia/core](../core/README.md) for technica
 
 ### Changelog (for @tilia/core)
 
+- 2024-12-27 **1.2.4** Add support for ready after clear.
 - 2024-12-24 **1.2.3** Rewrite tracking to fix notify and clear before ready.
 - 2024-12-18 **1.2.2** Fix readonly tracking: should not proxy.
 - 2024-12-18 **1.2.1** Fix bug to not track prototype methods.

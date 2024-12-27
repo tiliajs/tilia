@@ -357,7 +357,7 @@ test("Should track undefined values", t => {
   t->is(m.called, true)
 })
 
-test("Should notify on ready", t => {
+test("Should notify if update before ready", t => {
   let m = {called: false}
   let p = person()
   let p = Core.make(p)
@@ -370,6 +370,22 @@ test("Should notify on ready", t => {
   // Callback should not be called
   t->is(m.called, false)
   Core._ready(o)
+  // Callback should be called during ready
+  t->is(m.called, true)
+})
+
+test("Should notify on many updates before ready", t => {
+  let m = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(p.name, "John") // observe 'name'
+  t->is(m.called, false)
+
+  Core._ready(o)
+  p.name = "One"
+  p.name = "Two"
+  p.name = "Three"
   // Callback should be called during ready
   t->is(m.called, true)
 })
@@ -395,4 +411,21 @@ test("Should not clear common key on _clear", t => {
   p.name = "Mary"
   // Callback should be called
   t->is(m2.called, true)
+})
+
+test("Should support ready, clear, ready", t => {
+  let m = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  t->is(p.name, "John") // o observe 'name'
+  Core._ready(o)
+  Core._clear(o)
+  Core._ready(o)
+  t->is(m.called, false)
+
+  // Update 'name'
+  p.name = "Mary"
+  // Callback should be called
+  t->is(m.called, true)
 })

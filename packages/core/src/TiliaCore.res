@@ -53,7 +53,7 @@ type watchers = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
 type observing = array<watchers>
 
-type state = Recording | Ready | ShouldNotify
+type state = Recording | Ready | ShouldNotify | Cleared
 
 type rec observer = {
   mutable state: state,
@@ -108,6 +108,7 @@ let _clear = (observer: observer) => {
   if Map.delete(root.observers, watcher) {
     Array.forEach(observer.observing, watchers => ignore(Set.delete(watchers, watcher)))
   }
+  observer.state = Cleared
 }
 
 let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
@@ -120,6 +121,12 @@ let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
   | ShouldNotify if notifyIfChanged => {
       _clear(observer)
       observer.notify()
+    }
+  | Cleared => {
+      let {watcher, root} = observer
+      Map.set(root.observers, watcher, observer)
+      Array.forEach(observer.observing, watchers => ignore(Set.add(watchers, watcher)))
+      observer.state = Ready
     }
   | _ => observer.state = Ready
   }
@@ -145,6 +152,7 @@ let notify = (root, observed, key) => {
           | Ready => Array.push(c, observer)
           | Recording => observer.state = ShouldNotify
           | ShouldNotify => ()
+          | Cleared => () // Should never happen
           }
         | None => () // Should never happen
         }
@@ -154,6 +162,9 @@ let notify = (root, observed, key) => {
         observer.notify()
       })
       if Set.size(watchers) == 0 {
+        // If a key is updated (and triggers notify) between first effect _ready
+        // and clear and second effect _ready, we could lose tracking. But this should
+        // not happen without at least a notify (and thus a re-render after the effect).
         Dict.delete(observed, key)
       }
     }

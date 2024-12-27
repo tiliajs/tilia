@@ -9,7 +9,7 @@ importers:
   .:
     dependencies:
       '@tilia/core':
-        specifier: ^1.2.3
+        specifier: link:../core
         version: link:../core
     devDependencies:
       '@dzakh/rescript-ava':

@@ -65,9 +65,8 @@ function _clear(observer) {
     observer.observing.forEach(function (watchers) {
           watchers.delete(watcher);
         });
-    return ;
   }
-  
+  observer.state = "Cleared";
 }
 
 function _ready(observer, notifyIfChangedOpt) {
@@ -93,6 +92,14 @@ function _ready(observer, notifyIfChangedOpt) {
           observer.state = "Ready";
           return ;
         }
+    case "Cleared" :
+        var watcher = observer.watcher;
+        observer.root.observers.set(watcher, observer);
+        observer.observing.forEach(function (watchers) {
+              watchers.add(watcher);
+            });
+        observer.state = "Ready";
+        return ;
     
   }
 }
@@ -117,6 +124,7 @@ function notify(root, observed, key) {
               c.push(observer);
               return ;
           case "ShouldNotify" :
+          case "Cleared" :
               return ;
           
         }
