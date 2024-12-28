@@ -429,3 +429,46 @@ test("Should support ready, clear, ready", t => {
   // Callback should be called
   t->is(m.called, true)
 })
+
+type item = {
+  mutable name: string,
+  mutable quantity: int,
+}
+
+type items = {
+  all: array<item>,
+  mutable sorted: array<item>,
+  mutable selected: option<item>,
+}
+
+test("Should support sub-object in array", t => {
+  open Option
+  let m = {called: false}
+  let items = Core.make({
+    all: [
+      {name: "banana", quantity: 4},
+      {name: "carrot", quantity: 8},
+      {name: "apple", quantity: 2},
+    ],
+    // apple
+    // banana
+    // carrot
+    sorted: [],
+    selected: None,
+  })
+  Core.observe(items, _ => {
+    items.sorted = [...items.all]
+    Array.sort(items.sorted, (a, b) => String.compare(a.name, b.name))
+  })
+  let o = Core._connect(items, () => m.called = true)
+  t->is(getExn(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
+  Core._ready(o)
+  items.selected = items.all[1] // carrot
+  t->is(m.called, false)
+  getExn(items.selected).name = "avocado"
+  t->is(m.called, true)
+  t->is(getExn(items.sorted[2]).name, "banana")
+  // apple
+  // avocado (ex carrot)
+  // banana
+})
