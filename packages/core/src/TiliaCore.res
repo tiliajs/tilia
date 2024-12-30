@@ -46,7 +46,7 @@ type dict<'a> = Dict.t<'a>
 
 let indexKey = %raw(`Symbol()`)
 let rootKey = %raw(`Symbol()`)
-let rawKey = %raw(`Symbol()`)
+let metaKey = %raw(`Symbol()`)
 
 // Set of observers observing a given key in an object/array
 type watchers = Set.t<Symbol.t>
@@ -70,8 +70,16 @@ and root = {
   observers: Map.t<Symbol.t, observer>,
 }
 
+type meta<'a> = {
+  target: 'a,
+  root: root,
+  observed: dict<watchers>,
+  proxied: dict<Obj.t>,
+}
+
 let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
-let _raw: 'a => 'a = p => Reflect.get(p, rawKey)
+let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
+let _raw: 'a => 'a = p => _meta(p).target
 
 let _connect = (p: 'a, notify) => {
   switch _root(p) {
@@ -224,8 +232,8 @@ let rec get = (
 ): 'b => {
   if key === rootKey {
     %raw(`root`)
-  } else if key === rawKey {
-    %raw(`target`)
+  } else if key === metaKey {
+    %raw(`{root, target, observed, proxied}`)
   } else {
     // is array and get length
     let v = Reflect.get(target, key)

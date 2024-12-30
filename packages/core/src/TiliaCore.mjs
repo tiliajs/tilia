@@ -18,7 +18,11 @@ var indexKey = (Symbol());
 
 var rootKey = (Symbol());
 
-var rawKey = (Symbol());
+var metaKey = (Symbol());
+
+function _meta(p) {
+  return Reflect.get(p, metaKey);
+}
 
 function _connect(p, notify) {
   var root = Reflect.get(p, rootKey);
@@ -152,7 +156,7 @@ function proxify(root, _target) {
       if (r === root) {
         return target;
       }
-      _target = Reflect.get(target, rawKey);
+      _target = _meta(target).target;
       continue ;
     }
     return new Proxy(target, {
@@ -190,8 +194,8 @@ function proxify(root, _target) {
                   if (extra$1 === rootKey) {
                     return root;
                   }
-                  if (extra$1 === rawKey) {
-                    return target;
+                  if (extra$1 === metaKey) {
+                    return ({root, target, observed, proxied});
                   }
                   var v = Reflect.get(extra, extra$1);
                   var own = Object.hasOwn(extra, extra$1);
@@ -258,5 +262,6 @@ export {
   _connect ,
   _ready ,
   _clear ,
+  _meta ,
 }
 /* indexKey Not a pure module */

@@ -13,7 +13,6 @@
     "web": "pnpm --filter website",
     "react": "pnpm --filter react",
     "build": "pnpm -r build",
-    "install-all": "pnpm -r install",
     "canary": "./bin/publish-canary.sh",
     "test": "pnpm -r test"
   },

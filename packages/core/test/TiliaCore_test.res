@@ -472,3 +472,47 @@ test("Should support sub-object in array", t => {
   // avocado (ex carrot)
   // banana
 })
+
+type simple_person = {
+  mutable name: string,
+  mutable username: string,
+  address: address,
+}
+
+type meta<'a> = {
+  target: 'a,
+  observed: Map.t<string, Set.t<Symbol.t>>,
+  proxied: Map.t<string, address>,
+}
+
+let getMeta: Core.meta<'a> => meta<'a> = _m => %raw(`_m`)
+
+test("Should get internals with _meta", t => {
+  let person = {
+    name: "Mary",
+    username: "mama78",
+    address: {city: "Los Angleless", zip: 1234},
+  }
+  let p = Core.make(person)
+  Core.observe(p, p => {
+    p.username = p.name
+    p.username = p.address.city
+  })
+  let o = Core._connect(p, _ => ())
+  t->is("Los Angleless", p.address.city)
+  Core._ready(o)
+
+  let meta = getMeta(Core._meta(p))
+  t->is(person, meta.target)
+  let n = Option.getExn(Map.get(meta.observed, "name"))
+  t->is(1, Set.size(n))
+
+  let address = Option.getExn(Map.get(meta.proxied, "address"))
+  t->is(address, p.address)
+
+  let meta = getMeta(Core._meta(address))
+  t->is(person.address, meta.target)
+
+  let n = Option.getExn(Map.get(meta.observed, "city"))
+  t->is(2, Set.size(n))
+})

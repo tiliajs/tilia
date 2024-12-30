@@ -19,7 +19,7 @@ else
 fi
 
 # Install dependencies
-pnpm install-all
+pnpm i
 
 # ================ CORE
 cd packages/core

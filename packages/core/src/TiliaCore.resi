@@ -1,5 +1,7 @@
 type observer
 type root
+type meta<'a>
+
 let make: 'a => 'a
 let observe: ('a, 'a => unit) => unit
 
@@ -10,3 +12,5 @@ let _connect: ('a, unit => unit) => observer
 let _ready: (observer, ~notifyIfChanged: bool=?) => unit
 /** internal */
 let _clear: observer => unit
+/** internal */
+let _meta: 'a => meta<'a>

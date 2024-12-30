@@ -25,3 +25,15 @@ Core engine for tilia. Most users will not import this directly.
 
 The goal with Tilia is to be minimal and fast while staying as much as possible
 out of the way.
+
+### Changelog (for @tilia/core)
+
+- 2024-12-30 **1.3.0** Expose internals for stats with \_meta.
+- 2024-12-27 **1.2.4** Add support for ready after clear.
+- 2024-12-24 **1.2.3** Rewrite tracking to fix notify and clear before ready.
+- 2024-12-18 **1.2.2** Fix readonly tracking: should not proxy.
+- 2024-12-18 **1.2.1** Fix bug to not track prototype methods.
+- 2024-12-18 **1.2.0** Improve ownKeys watching, notify on key deletion.
+- 2024-12-18 **1.1.1** Fix build issue (rescript was still required)
+- 2024-12-17 **1.1.0** Add support to share tracking between branches.
+- 2024-12-13 **1.0.0** Alpha release.
