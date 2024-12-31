@@ -69,7 +69,7 @@ importers:
   packages/react:
     dependencies:
       '@tilia/core':
-        specifier: ^1.2.4
+        specifier: workspace:*
         version: link:../core
     devDependencies:
       '@dzakh/rescript-ava':

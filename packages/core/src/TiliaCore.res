@@ -49,25 +49,29 @@ let rootKey = %raw(`Symbol()`)
 let metaKey = %raw(`Symbol()`)
 
 type state =
-  | Recording // Normal recording, a notify during recording will move to ShouldNotify
-  | ShouldNotify // Notify while recording, must trigger callback on _ready
-  | RecordingNoNotify // Ignore notify while recording, will not trigger callback on _ready
-  | Ready // Normal ready state, triggers callback on notify
-  | Cleared // Cleared through _clear (without notify)
-  | Notified // Cleared on notify
+  | Pristine // Hasn't changed since value read.
+  | Changed // Value changed and has been notified.
+  | Cleared // No more observer registered: cleared.
 
 type rec observer = {
-  mutable state: state,
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
   observing: observing,
   // Where this observer is observing (not used anymore ?)
   root: root,
 }
-and root = {mutable observer: nullable<observer>}
 // Set of observers observing a given key in an object/array
-and watchers = Set.t<observer>
-// List of sets to which the the observer should add itself on flush
+and watchers = {
+  mutable state: state,
+  // Tracked key in parent
+  key: string,
+  // Parent tracking
+  observed: dict<watchers>,
+  // Set of observers to notify on change.
+  observers: Set.t<observer>,
+}
+and root = {mutable observer: nullable<observer>}
+// List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
 
 type meta<'a> = {
@@ -81,11 +85,10 @@ let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
 let _raw: 'a => 'a = p => _meta(p).target
 
-let _connect = (p: 'a, notify, ~notifyIfChanged: bool=true) => {
+let _connect = (p: 'a, notify) => {
   switch _root(p) {
   | Value(root) => {
       let observer: observer = {
-        state: notifyIfChanged ? Recording : RecordingNoNotify,
         notify,
         observing: [],
         root,
@@ -97,47 +100,72 @@ let _connect = (p: 'a, notify, ~notifyIfChanged: bool=true) => {
   }
 }
 
-let observeKey = (observer, observed, key) => {
-  let w = switch Dict.get(observed, key) {
+let observeKey = (observed, key) => {
+  switch Dict.get(observed, key) {
   | Value(w) => w
   | _ =>
-    let w = Set.make()
+    let w = {
+      state: Pristine,
+      key,
+      observed,
+      observers: Set.make(),
+    }
     Dict.set(observed, key, w)
     w
   }
-  Set.add(w, observer)
-  Array.push(observer.observing, w)
 }
 
 let _clear = (observer: observer) => {
-  Array.forEach(observer.observing, watchers => ignore(Set.delete(watchers, observer)))
-  observer.state = Cleared
+  Array.forEach(observer.observing, watchers => {
+    if (
+      watchers.state == Pristine &&
+      // No need to delete if state isn't Pristine
+      Set.delete(watchers.observers, observer) &&
+      Set.size(watchers.observers) === 0
+    ) {
+      // Cleanup
+      watchers.state = Cleared
+      Dict.delete(watchers.observed, watchers.key)
+    }
+  })
 }
 
-let _ready = (observer: observer) => {
-  let {root, state} = observer
+let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
+  let {root} = observer
   switch root.observer {
   | Value(o) if o === observer => root.observer = Undefined
   | _ => ()
   }
-  switch state {
-  | ShouldNotify => {
-      observer.notify()
-      observer.state = Notified
-    }
-  | Cleared => {
-      Array.forEach(observer.observing, watchers => ignore(Set.add(watchers, observer)))
-      observer.state = Ready
-    }
-  | Recording | RecordingNoNotify => observer.state = Ready
-  | Ready | Notified => () // Should not happen
-  }
+  ignore(
+    Array.findWithIndex(observer.observing, (w, idx) => {
+      switch w.state {
+      | Pristine => {
+          ignore(Set.add(w.observers, observer))
+          false
+        }
+      | Changed if notifyIfChanged => {
+          _clear(observer)
+          observer.notify()
+          true // abort loop
+        }
+      | _ => {
+          let w = observeKey(w.observed, w.key)
+          ignore(Set.add(w.observers, observer))
+          observer.observing[idx] = w
+          false
+        }
+      }
+    }),
+  )
 }
 
 let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   let keys = Reflect.ownKeys(target)
   switch root.observer {
-  | Value(o) => observeKey(o, observed, indexKey)
+  | Value(o) => {
+      let w = observeKey(observed, indexKey)
+      Array.push(o.observing, w)
+    }
   | _ => ()
   }
   keys
@@ -146,29 +174,12 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
 let notify = (observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
-      let removable = ref(true)
-      // We need to freeze the set content before looping because the notification could
-      // re-add the observer during this same run and we would loop forever.
-      Array.forEach(Set.toArray(watchers), observer => {
-        switch observer.state {
-        | Ready => {
-            _clear(observer)
-            observer.notify()
-            observer.state = Notified
-          }
-        | Recording => {
-            _clear(observer)
-            observer.state = ShouldNotify
-          }
-        | RecordingNoNotify => removable.contents = false
-        | ShouldNotify => () // These cases should never happen because of previous clear
-        | Cleared => ()
-        | Notified => ()
-        }
+      Dict.delete(observed, key)
+      watchers.state = Changed
+      Set.forEach(watchers.observers, observer => {
+        _clear(observer)
+        observer.notify()
       })
-      if removable.contents && Set.size(watchers) == 0 {
-        Dict.delete(observed, key)
-      }
     }
   | _ => ()
   }
@@ -223,9 +234,11 @@ let rec get = (
       switch root.observer {
       | Value(o) =>
         if isArray && key == "length" {
-          observeKey(o, observed, indexKey)
+          let w = observeKey(observed, indexKey)
+          Array.push(o.observing, w)
         } else {
-          observeKey(o, observed, key)
+          let w = observeKey(observed, key)
+          Array.push(o.observing, w)
         }
       | _ => ()
       }
@@ -273,9 +286,9 @@ let make = (seed: 'a): 'a => {
 
 let observe = (p: 'a, callback: 'a => unit) => {
   let rec notify = () => {
-    let o = _connect(p, notify, ~notifyIfChanged=false)
+    let o = _connect(p, notify)
     callback(p)
-    _ready(o)
+    _ready(o, ~notifyIfChanged=false)
   }
   notify()
 }

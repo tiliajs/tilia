@@ -389,7 +389,7 @@ test("Should notify on many updates before ready", t => {
   t->is(m.called, true)
 })
 
-test("Should not clear common key on _clear", t => {
+test("Should clear common key on _clear", t => {
   let m1 = {called: false}
   let m2 = {called: false}
   let p = person()
@@ -398,11 +398,8 @@ test("Should not clear common key on _clear", t => {
   t->is(p.name, "John") // o1 observe 'name'
   let o2 = Core._connect(p, () => m2.called = true)
   t->is(p.name, "John") // o2 observe 'name'
-  Core._ready(o1) // Register
-  Core._clear(o1)
-
-  // Clear o1 should not remove set from observed keys because
-  // o2 will need it.
+  Core._ready(o1) // o1 register, o2 not registered
+  Core._clear(o1) // removes watchers (set empty)
   Core._ready(o2)
   t->is(m2.called, false)
 
@@ -478,9 +475,16 @@ type simple_person = {
   address: address,
 }
 
+type watchers = {
+  // Tracked key in parent
+  key: string,
+  // Set of observers to notify on change.
+  observers: Set.t<Core.observer>,
+}
+
 type meta<'a> = {
   target: 'a,
-  observed: Map.t<string, Set.t<Symbol.t>>,
+  observed: Map.t<string, watchers>,
   proxied: Map.t<string, address>,
 }
 
@@ -504,7 +508,7 @@ test("Should get internals with _meta", t => {
   let meta = getMeta(Core._meta(p))
   t->is(person, meta.target)
   let n = Option.getExn(Map.get(meta.observed, "name"))
-  t->is(1, Set.size(n))
+  t->is(1, Set.size(n.observers))
 
   let address = Option.getExn(Map.get(meta.proxied, "address"))
   t->is(address, p.address)
@@ -513,35 +517,26 @@ test("Should get internals with _meta", t => {
   t->is(person.address, meta.target)
 
   let n = Option.getExn(Map.get(meta.observed, "city"))
-  t->is(2, Set.size(n))
+  t->is(2, Set.size(n.observers))
 })
 
 test("Should clear if ready never called", t => {
-  let m1 = {called: false}
-  let m2 = {called: false}
+  let m = {called: false}
   let p = person()
   let p = Core.make(p)
-  let _ = Core._connect(p, () => m1.called = true)
-  t->is(p.name, "John") // o1 observe 'name'
-  let _ = Core._connect(p, () => m2.called = true)
-  t->is(p.name, "John") // o2 observe 'name'
+  let _ = Core._connect(p, () => m.called = true)
+  t->is(p.name, "John") // o observe 'name'
 
   // Ready never called
-  // Update 'name'
-  p.name = "Mary"
-
-  t->is(m1.called, false)
-  t->is(m2.called, false)
-
   // Observers should be zero
   let meta = getMeta(Core._meta(p))
-  let n = Map.get(meta.observed, "name")
-  t->is(None, n)
+  let n = Option.getExn(Map.get(meta.observed, "name"))
+  t->is(0, Set.size(n.observers))
 })
 
 type people = dict<person>
 
-test("Should clear on delete", t => {
+test("Should delete tracking on set", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
@@ -551,10 +546,28 @@ test("Should clear on delete", t => {
   t->is(j.name, "John") // o observe 'john.name'
   Core._ready(o)
 
-  // Observers should be zero
   let meta = getMeta(Core._meta(p))
   let n = Option.getExn(Map.get(meta.observed, "john"))
-  t->is(1, Set.size(n))
+  t->is(1, Set.size(n.observers))
+  Dict.set(p, "john", person())
+
+  let n = Map.get(meta.observed, "john")
+  t->is(None, n)
+})
+
+test("Should delete tracking on delete", t => {
+  let p: people = Dict.make()
+  Dict.set(p, "john", person())
+  let m = {called: false}
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  let j = Dict.getUnsafe(p, "john")
+  t->is(j.name, "John") // o observe 'john.name'
+  Core._ready(o)
+
+  let meta = getMeta(Core._meta(p))
+  let n = Option.getExn(Map.get(meta.observed, "john"))
+  t->is(1, Set.size(n.observers))
   Dict.delete(p, "john")
 
   let n = Map.get(meta.observed, "john")

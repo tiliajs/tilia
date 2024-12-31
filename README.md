@@ -28,7 +28,9 @@ out of the way.
 
 ### Changelog (for @tilia/core)
 
-- 2024-12-30 **1.3.0** Expose internals with \_meta, fix memory leak.
+- 2024-12-30 **1.3.0**
+  - Expose internals with \_meta.
+  - Rewrite tracking to fix memory leaks due to \_ready and \_clear are never called.
 - 2024-12-27 **1.2.4** Add support for ready after clear.
 - 2024-12-24 **1.2.3** Rewrite tracking to fix notify and clear before ready.
 - 2024-12-18 **1.2.2** Fix readonly tracking: should not proxy.
