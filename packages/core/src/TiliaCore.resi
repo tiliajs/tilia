@@ -7,9 +7,9 @@ let observe: ('a, 'a => unit) => unit
 
 /** Internal types for library developers */
 /** internal */
-let _connect: ('a, unit => unit) => observer
+let _connect: ('a, unit => unit, ~notifyIfChanged: bool=?) => observer
 /** internal */
-let _ready: (observer, ~notifyIfChanged: bool=?) => unit
+let _ready: observer => unit
 /** internal */
 let _clear: observer => unit
 /** internal */

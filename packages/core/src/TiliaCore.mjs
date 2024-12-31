@@ -24,7 +24,8 @@ function _meta(p) {
   return Reflect.get(p, metaKey);
 }
 
-function _connect(p, notify) {
+function _connect(p, notify, notifyIfChangedOpt) {
+  var notifyIfChanged = notifyIfChangedOpt !== undefined ? notifyIfChangedOpt : true;
   var root = Reflect.get(p, rootKey);
   if (root === null || root === undefined) {
     if (root === null) {
@@ -33,7 +34,7 @@ function _connect(p, notify) {
     throw new Error("Observed state is not a tilia proxy.");
   } else {
     var observer = {
-      state: "Recording",
+      state: notifyIfChanged ? "Recording" : "RecordingNoNotify",
       watcher: Symbol(""),
       notify: notify,
       observing: [],
@@ -73,8 +74,7 @@ function _clear(observer) {
   observer.state = "Cleared";
 }
 
-function _ready(observer, notifyIfChangedOpt) {
-  var notifyIfChanged = notifyIfChangedOpt !== undefined ? notifyIfChangedOpt : true;
+function _ready(observer) {
   var state = observer.state;
   var root = observer.root;
   var o = root.observer;
@@ -84,18 +84,14 @@ function _ready(observer, notifyIfChangedOpt) {
     root.observer = undefined;
   }
   switch (state) {
+    case "ShouldNotify" :
+        observer.notify();
+        observer.state = "Notified";
+        return ;
     case "Recording" :
-    case "Ready" :
+    case "RecordingNoNotify" :
         observer.state = "Ready";
         return ;
-    case "ShouldNotify" :
-        if (notifyIfChanged) {
-          _clear(observer);
-          return observer.notify();
-        } else {
-          observer.state = "Ready";
-          return ;
-        }
     case "Cleared" :
         var watcher = observer.watcher;
         observer.root.observers.set(watcher, observer);
@@ -103,6 +99,9 @@ function _ready(observer, notifyIfChangedOpt) {
               watchers.add(watcher);
             });
         observer.state = "Ready";
+        return ;
+    case "Ready" :
+    case "Notified" :
         return ;
     
   }
@@ -113,8 +112,10 @@ function notify(root, observed, key) {
   if (watchers === null || watchers === undefined) {
     return ;
   }
-  var c = [];
-  watchers.forEach(function (watcher) {
+  var removable = {
+    contents: true
+  };
+  Array.from(watchers).forEach(function (watcher) {
         var observer = root.observers.get(watcher);
         if (observer === undefined) {
           return ;
@@ -122,22 +123,22 @@ function notify(root, observed, key) {
         var match = observer.state;
         switch (match) {
           case "Recording" :
+              _clear(observer);
               observer.state = "ShouldNotify";
               return ;
+          case "RecordingNoNotify" :
+              removable.contents = false;
+              return ;
           case "Ready" :
-              c.push(observer);
+              _clear(observer);
+              observer.notify();
+              observer.state = "Notified";
               return ;
-          case "ShouldNotify" :
-          case "Cleared" :
-              return ;
-          
+          default:
+            return ;
         }
       });
-  c.forEach(function (observer) {
-        _clear(observer);
-        observer.notify();
-      });
-  if (watchers.size === 0) {
+  if (removable.contents && watchers.size === 0) {
     observed.delete(key);
     return ;
   }
@@ -249,9 +250,9 @@ function make(seed) {
 
 function observe(p, callback) {
   var notify = function () {
-    var o = _connect(p, notify);
+    var o = _connect(p, notify, false);
     callback(p);
-    _ready(o, false);
+    _ready(o);
   };
   notify();
 }

@@ -53,7 +53,13 @@ type watchers = Set.t<Symbol.t>
 // List of sets to which the the observer should add itself on flush
 type observing = array<watchers>
 
-type state = Recording | Ready | ShouldNotify | Cleared
+type state =
+  | Recording // Normal recording, a notify during recording will move to ShouldNotify
+  | ShouldNotify // Notify while recording, must trigger callback on _ready
+  | RecordingNoNotify // Ignore notify while recording, will not trigger callback on _ready
+  | Ready // Normal ready state, triggers callback on notify
+  | Cleared // Cleared through _clear (without notify)
+  | Notified // Cleared on notify
 
 type rec observer = {
   mutable state: state,
@@ -81,11 +87,11 @@ let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
 let _raw: 'a => 'a = p => _meta(p).target
 
-let _connect = (p: 'a, notify) => {
+let _connect = (p: 'a, notify, ~notifyIfChanged: bool=true) => {
   switch _root(p) {
   | Value(root) => {
       let observer: observer = {
-        state: Recording,
+        state: notifyIfChanged ? Recording : RecordingNoNotify,
         watcher: Symbol.make(""),
         notify,
         observing: [],
@@ -119,16 +125,16 @@ let _clear = (observer: observer) => {
   observer.state = Cleared
 }
 
-let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
+let _ready = (observer: observer) => {
   let {root, state} = observer
   switch root.observer {
   | Value(o) if o === observer => root.observer = Undefined
   | _ => ()
   }
   switch state {
-  | ShouldNotify if notifyIfChanged => {
-      _clear(observer)
+  | ShouldNotify => {
       observer.notify()
+      observer.state = Notified
     }
   | Cleared => {
       let {watcher, root} = observer
@@ -136,7 +142,8 @@ let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
       Array.forEach(observer.observing, watchers => ignore(Set.add(watchers, watcher)))
       observer.state = Ready
     }
-  | _ => observer.state = Ready
+  | Recording | RecordingNoNotify => observer.state = Ready
+  | Ready | Notified => () // Should not happen
   }
 }
 
@@ -152,27 +159,31 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
 let notify = (root, observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
-      let c = []
-      Set.forEach(watchers, watcher => {
+      let removable = ref(true)
+      // We need to freeze the set content before looping because the notification could
+      // re-add the observer during this same run and we would loop forever.
+      Array.forEach(Set.toArray(watchers), watcher => {
         switch Map.get(root.observers, watcher) {
         | Some(observer) =>
           switch observer.state {
-          | Ready => Array.push(c, observer)
-          | Recording => observer.state = ShouldNotify
-          | ShouldNotify => ()
-          | Cleared => () // Should never happen
+          | Ready => {
+              _clear(observer)
+              observer.notify()
+              observer.state = Notified
+            }
+          | Recording => {
+              _clear(observer)
+              observer.state = ShouldNotify
+            }
+          | RecordingNoNotify => removable.contents = false
+          | ShouldNotify => () // These cases should never happen because of previous clear
+          | Cleared => ()
+          | Notified => ()
           }
         | None => () // Should never happen
         }
       })
-      Array.forEach(c, observer => {
-        _clear(observer)
-        observer.notify()
-      })
-      if Set.size(watchers) == 0 {
-        // If a key is updated (and triggers notify) between first effect _ready
-        // and clear and second effect _ready, we could lose tracking. But this should
-        // not happen without at least a notify (and thus a re-render after the effect).
+      if removable.contents && Set.size(watchers) == 0 {
         Dict.delete(observed, key)
       }
     }
@@ -295,9 +306,9 @@ let make = (seed: 'a): 'a => {
 
 let observe = (p: 'a, callback: 'a => unit) => {
   let rec notify = () => {
-    let o = _connect(p, notify)
+    let o = _connect(p, notify, ~notifyIfChanged=false)
     callback(p)
-    _ready(o, ~notifyIfChanged=false)
+    _ready(o)
   }
   notify()
 }

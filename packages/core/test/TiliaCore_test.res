@@ -1,4 +1,5 @@
 open Ava
+let onot = not
 open Assert
 module Core = TiliaCore
 module TestObject = {
@@ -111,7 +112,6 @@ test("Should allow mutating in observed", t => {
     p.name = p.name ++ " OK"
   })
 
-  Js.log("y")
   t->is(p.name, "John OK")
 
   // Update with same name
@@ -130,7 +130,6 @@ test("Should observe mutated keys", t => {
   let p = Core.make(p)
   Core.observe(p, p => {
     if p.username === "john" {
-      // This makes 'username' dead...Will not be observed.
       p.username = "not john"
     }
   })
@@ -479,8 +478,11 @@ type simple_person = {
   address: address,
 }
 
+type root = {observers: Map.t<Symbol.t, Core.observer>}
+
 type meta<'a> = {
   target: 'a,
+  root: root,
   observed: Map.t<string, Set.t<Symbol.t>>,
   proxied: Map.t<string, address>,
 }
@@ -515,4 +517,28 @@ test("Should get internals with _meta", t => {
 
   let n = Option.getExn(Map.get(meta.observed, "city"))
   t->is(2, Set.size(n))
+})
+
+test("Should properly clear if ready never called", t => {
+  let m1 = {called: false}
+  let m2 = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let _ = Core._connect(p, () => m1.called = true)
+  t->is(p.name, "John") // o1 observe 'name'
+  let _ = Core._connect(p, () => m2.called = true)
+  t->is(p.name, "John") // o2 observe 'name'
+
+  // Ready never called
+  // Update 'name'
+  p.name = "Mary"
+
+  t->is(m1.called, false)
+  t->is(m2.called, false)
+
+  // Observers should be zero
+  let meta = getMeta(Core._meta(p))
+  let n = Map.get(meta.observed, "name")
+  t->is(None, n)
+  t->is(0, Map.size(meta.root.observers))
 })
