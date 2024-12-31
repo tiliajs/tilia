@@ -35,12 +35,10 @@ function _connect(p, notify, notifyIfChangedOpt) {
   } else {
     var observer = {
       state: notifyIfChanged ? "Recording" : "RecordingNoNotify",
-      watcher: Symbol(""),
       notify: notify,
       observing: [],
       root: root
     };
-    root.observers.set(observer.watcher, observer);
     root.observer = observer;
     return observer;
   }
@@ -60,17 +58,14 @@ function observeKey(observer, observed, key) {
     observed.set(key, w$2);
     w$1 = w$2;
   }
-  w$1.add(observer.watcher);
+  w$1.add(observer);
   observer.observing.push(w$1);
 }
 
 function _clear(observer) {
-  var watcher = observer.watcher;
-  if (observer.root.observers.delete(watcher)) {
-    observer.observing.forEach(function (watchers) {
-          watchers.delete(watcher);
-        });
-  }
+  observer.observing.forEach(function (watchers) {
+        watchers.delete(observer);
+      });
   observer.state = "Cleared";
 }
 
@@ -93,10 +88,8 @@ function _ready(observer) {
         observer.state = "Ready";
         return ;
     case "Cleared" :
-        var watcher = observer.watcher;
-        observer.root.observers.set(watcher, observer);
         observer.observing.forEach(function (watchers) {
-              watchers.add(watcher);
+              watchers.add(observer);
             });
         observer.state = "Ready";
         return ;
@@ -107,7 +100,7 @@ function _ready(observer) {
   }
 }
 
-function notify(root, observed, key) {
+function notify(observed, key) {
   var watchers = observed.get(key);
   if (watchers === null || watchers === undefined) {
     return ;
@@ -115,11 +108,7 @@ function notify(root, observed, key) {
   var removable = {
     contents: true
   };
-  Array.from(watchers).forEach(function (watcher) {
-        var observer = root.observers.get(watcher);
-        if (observer === undefined) {
-          return ;
-        }
+  Array.from(watchers).forEach(function (observer) {
         var match = observer.state;
         switch (match) {
           case "Recording" :
@@ -171,9 +160,9 @@ function proxify(root, _target) {
                     if (object(prev)) {
                       proxied.delete(extra$1);
                     }
-                    notify(root, observed, extra$1);
+                    notify(observed, extra$1);
                     if (!hadKey) {
-                      notify(root, observed, indexKey);
+                      notify(observed, indexKey);
                     }
                     return true;
                   } else {
@@ -185,7 +174,7 @@ function proxify(root, _target) {
                 return function (extra, extra$1) {
                   var res = Reflect.deleteProperty(extra, extra$1);
                   proxied.delete(extra$1);
-                  notify(root, observed, extra$1);
+                  notify(observed, extra$1);
                   return res;
                 }
                 }(observed,proxied)),
@@ -242,8 +231,7 @@ function proxify(root, _target) {
 
 function make(seed) {
   var root = {
-    observer: undefined,
-    observers: new Map()
+    observer: undefined
   };
   return proxify(root, seed);
 }

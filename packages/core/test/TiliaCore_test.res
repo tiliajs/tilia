@@ -478,11 +478,8 @@ type simple_person = {
   address: address,
 }
 
-type root = {observers: Map.t<Symbol.t, Core.observer>}
-
 type meta<'a> = {
   target: 'a,
-  root: root,
   observed: Map.t<string, Set.t<Symbol.t>>,
   proxied: Map.t<string, address>,
 }
@@ -519,7 +516,7 @@ test("Should get internals with _meta", t => {
   t->is(2, Set.size(n))
 })
 
-test("Should properly clear if ready never called", t => {
+test("Should clear if ready never called", t => {
   let m1 = {called: false}
   let m2 = {called: false}
   let p = person()
@@ -540,5 +537,26 @@ test("Should properly clear if ready never called", t => {
   let meta = getMeta(Core._meta(p))
   let n = Map.get(meta.observed, "name")
   t->is(None, n)
-  t->is(0, Map.size(meta.root.observers))
+})
+
+type people = dict<person>
+
+test("Should clear on delete", t => {
+  let p: people = Dict.make()
+  Dict.set(p, "john", person())
+  let m = {called: false}
+  let p = Core.make(p)
+  let o = Core._connect(p, () => m.called = true)
+  let j = Dict.getUnsafe(p, "john")
+  t->is(j.name, "John") // o observe 'john.name'
+  Core._ready(o)
+
+  // Observers should be zero
+  let meta = getMeta(Core._meta(p))
+  let n = Option.getExn(Map.get(meta.observed, "john"))
+  t->is(1, Set.size(n))
+  Dict.delete(p, "john")
+
+  let n = Map.get(meta.observed, "john")
+  t->is(None, n)
 })

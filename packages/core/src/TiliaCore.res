@@ -48,11 +48,6 @@ let indexKey = %raw(`Symbol()`)
 let rootKey = %raw(`Symbol()`)
 let metaKey = %raw(`Symbol()`)
 
-// Set of observers observing a given key in an object/array
-type watchers = Set.t<Symbol.t>
-// List of sets to which the the observer should add itself on flush
-type observing = array<watchers>
-
 type state =
   | Recording // Normal recording, a notify during recording will move to ShouldNotify
   | ShouldNotify // Notify while recording, must trigger callback on _ready
@@ -63,18 +58,17 @@ type state =
 
 type rec observer = {
   mutable state: state,
-  // The symbol that will be added to watchers on flush
-  watcher: Symbol.t,
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
   observing: observing,
-  // Where this observer is observing (used for clear and flush)
+  // Where this observer is observing (not used anymore ?)
   root: root,
 }
-and root = {
-  mutable observer: nullable<observer>,
-  observers: Map.t<Symbol.t, observer>,
-}
+and root = {mutable observer: nullable<observer>}
+// Set of observers observing a given key in an object/array
+and watchers = Set.t<observer>
+// List of sets to which the the observer should add itself on flush
+and observing = array<watchers>
 
 type meta<'a> = {
   target: 'a,
@@ -92,12 +86,10 @@ let _connect = (p: 'a, notify, ~notifyIfChanged: bool=true) => {
   | Value(root) => {
       let observer: observer = {
         state: notifyIfChanged ? Recording : RecordingNoNotify,
-        watcher: Symbol.make(""),
         notify,
         observing: [],
         root,
       }
-      Map.set(root.observers, observer.watcher, observer)
       root.observer = Value(observer)
       observer
     }
@@ -113,15 +105,12 @@ let observeKey = (observer, observed, key) => {
     Dict.set(observed, key, w)
     w
   }
-  Set.add(w, observer.watcher)
+  Set.add(w, observer)
   Array.push(observer.observing, w)
 }
 
 let _clear = (observer: observer) => {
-  let {watcher, root} = observer
-  if Map.delete(root.observers, watcher) {
-    Array.forEach(observer.observing, watchers => ignore(Set.delete(watchers, watcher)))
-  }
+  Array.forEach(observer.observing, watchers => ignore(Set.delete(watchers, observer)))
   observer.state = Cleared
 }
 
@@ -137,9 +126,7 @@ let _ready = (observer: observer) => {
       observer.state = Notified
     }
   | Cleared => {
-      let {watcher, root} = observer
-      Map.set(root.observers, watcher, observer)
-      Array.forEach(observer.observing, watchers => ignore(Set.add(watchers, watcher)))
+      Array.forEach(observer.observing, watchers => ignore(Set.add(watchers, observer)))
       observer.state = Ready
     }
   | Recording | RecordingNoNotify => observer.state = Ready
@@ -156,31 +143,27 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   keys
 }
 
-let notify = (root, observed, key) => {
+let notify = (observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
       let removable = ref(true)
       // We need to freeze the set content before looping because the notification could
       // re-add the observer during this same run and we would loop forever.
-      Array.forEach(Set.toArray(watchers), watcher => {
-        switch Map.get(root.observers, watcher) {
-        | Some(observer) =>
-          switch observer.state {
-          | Ready => {
-              _clear(observer)
-              observer.notify()
-              observer.state = Notified
-            }
-          | Recording => {
-              _clear(observer)
-              observer.state = ShouldNotify
-            }
-          | RecordingNoNotify => removable.contents = false
-          | ShouldNotify => () // These cases should never happen because of previous clear
-          | Cleared => ()
-          | Notified => ()
+      Array.forEach(Set.toArray(watchers), observer => {
+        switch observer.state {
+        | Ready => {
+            _clear(observer)
+            observer.notify()
+            observer.state = Notified
           }
-        | None => () // Should never happen
+        | Recording => {
+            _clear(observer)
+            observer.state = ShouldNotify
+          }
+        | RecordingNoNotify => removable.contents = false
+        | ShouldNotify => () // These cases should never happen because of previous clear
+        | Cleared => ()
+        | Notified => ()
         }
       })
       if removable.contents && Set.size(watchers) == 0 {
@@ -191,14 +174,7 @@ let notify = (root, observed, key) => {
   }
 }
 
-let set = (
-  root: root,
-  observed: dict<watchers>,
-  proxied: dict<'c>,
-  target: 'a,
-  key: string,
-  value: 'b,
-) => {
+let set = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string, value: 'b) => {
   let hadKey = Reflect.has(target, key)
   let prev = Reflect.get(target, key)
   if prev === value {
@@ -210,26 +186,20 @@ let set = (
       if Typeof.object(prev) {
         Dict.delete(proxied, key)
       }
-      notify(root, observed, key)
+      notify(observed, key)
       if !hadKey {
         // new key: trigger index
-        notify(root, observed, indexKey)
+        notify(observed, indexKey)
       }
       true
     }
   }
 }
 
-let deleteProperty = (
-  root: root,
-  observed: dict<watchers>,
-  proxied: dict<'c>,
-  target: 'a,
-  key: string,
-) => {
+let deleteProperty = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string) => {
   let res = Reflect.deleteProperty(target, key)
   Dict.delete(proxied, key)
-  notify(root, observed, key)
+  notify(observed, key)
   res
 }
 
@@ -287,8 +257,8 @@ and proxify = (root: root, target: 'a): 'a => {
     Proxy.make(
       target,
       {
-        "set": set(root, observed, proxied, ...),
-        "deleteProperty": deleteProperty(root, observed, proxied, ...),
+        "set": set(observed, proxied, ...),
+        "deleteProperty": deleteProperty(observed, proxied, ...),
         "get": get(root, observed, proxied, Typeof.array(target), ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
@@ -297,10 +267,7 @@ and proxify = (root: root, target: 'a): 'a => {
 }
 
 let make = (seed: 'a): 'a => {
-  let root = {
-    observer: Undefined,
-    observers: Map.make(),
-  }
+  let root = {observer: Undefined}
   proxify(root, seed)
 }
 
