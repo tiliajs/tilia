@@ -28,6 +28,7 @@ out of the way.
 
 ### Changelog (for @tilia/core)
 
+- 2025-01-02 **1.3.2** Fix extension in built artifacts.
 - 2024-12-31 **1.3.0**
   - Expose internals with \_meta.
   - Rewrite tracking to fix memory leaks when \_ready and \_clear are never called.
