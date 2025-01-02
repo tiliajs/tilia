@@ -29,13 +29,13 @@ Promise.all([
   esbuild.build({
     ...build,
     format: "cjs",
-    outfile: "dist/index.cjs.js",
+    outfile: "dist/index.cjs",
   }),
   // ESM build
   esbuild.build({
     ...build,
     format: "esm",
-    outfile: "dist/index.esm.js",
+    outfile: "dist/index.mjs",
   }),
 ]).catch((e) => {
   console.log(e);

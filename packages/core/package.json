@@ -1,8 +1,8 @@
 {
   "name": "@tilia/core",
   "version": "1.3.0",
-  "main": "./dist/index.cjs.js",
-  "module": "./dist/index.esm.js",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
   "type": "module",
   "repository": {
@@ -15,7 +15,8 @@
     "res:dev": "rescript -w",
     "test:watch": "ava --watch",
     "build": "node esbuild.js",
-    "prebuild": "rescript",
+    "clean": "rm -rf dist",
+    "prebuild": "pnpm clean && rescript",
     "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
     "test": "ava"
