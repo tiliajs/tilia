@@ -22,7 +22,7 @@ fi
 pnpm i
 
 # ================ CORE
-cd packages/core
+cd core
 CORE_VERSION=$(npm pkg get version | sed 's/"//g')-canary.$DATE
 npm --no-git-tag-version version $CORE_VERSION
 CANARY=true pnpm publish --tag canary --access public --no-git-checks
@@ -40,7 +40,7 @@ REACT_VERSION=$(npm pkg get version | sed 's/"//g')-canary.$DATE
 npm --no-git-tag-version version $REACT_VERSION
 npm pkg set dependencies.@tilia/core="$CORE_VERSION"
 CANARY=true pnpm publish --tag canary --access public --no-git-checks
-cd ../..
+cd ..
 
 # Reset git repo
 git reset --hard HEAD

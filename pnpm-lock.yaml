@@ -8,41 +8,7 @@ importers:
 
   .: {}
 
-  apps/website:
-    dependencies:
-      '@rescript/core':
-        specifier: ^1.6.1
-        version: 1.6.1(rescript@11.1.4)
-      '@rescript/react':
-        specifier: ^0.12.1
-        version: 0.12.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-      rescript:
-        specifier: ^11.1.4
-        version: 11.1.4
-    devDependencies:
-      '@vitejs/plugin-react':
-        specifier: ^4.2.1
-        version: 4.3.4(vite@5.4.11(@types/node@22.10.2))
-      autoprefixer:
-        specifier: ^10.4.15
-        version: 10.4.20(postcss@8.4.49)
-      postcss:
-        specifier: ^8.4.28
-        version: 8.4.49
-      tailwindcss:
-        specifier: ^3.3.3
-        version: 3.4.17
-      vite:
-        specifier: ^5.0.6
-        version: 5.4.11(@types/node@22.10.2)
-
-  packages/core:
+  core:
     devDependencies:
       '@dzakh/rescript-ava':
         specifier: ^3.0.0
@@ -66,10 +32,10 @@ importers:
         specifier: ^11.1.4
         version: 11.1.4
 
-  packages/react:
+  react:
     dependencies:
       '@tilia/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       '@dzakh/rescript-ava':
@@ -114,6 +80,40 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.7.2
+
+  website:
+    dependencies:
+      '@rescript/core':
+        specifier: ^1.6.1
+        version: 1.6.1(rescript@11.1.4)
+      '@rescript/react':
+        specifier: ^0.12.1
+        version: 0.12.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      rescript:
+        specifier: ^11.1.4
+        version: 11.1.4
+    devDependencies:
+      '@vitejs/plugin-react':
+        specifier: ^4.2.1
+        version: 4.3.4(vite@5.4.11(@types/node@22.10.2))
+      autoprefixer:
+        specifier: ^10.4.15
+        version: 10.4.20(postcss@8.4.49)
+      postcss:
+        specifier: ^8.4.28
+        version: 8.4.49
+      tailwindcss:
+        specifier: ^3.3.3
+        version: 3.4.17
+      vite:
+        specifier: ^5.0.6
+        version: 5.4.11(@types/node@22.10.2)
 
 packages:
 
