@@ -14,7 +14,7 @@
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
     "test:watch": "ava --watch",
-    "clean": "rm -rf dist && rm -rf lib && rm *.tgz",
+    "clean": "rm -rf dist && rm -rf lib && rm -f *.tgz",
     "build": "node esbuild.js",
     "prebuild": "pnpm clean && rescript",
     "prepack": "pnpm build && clean-package",
