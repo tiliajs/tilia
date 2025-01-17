@@ -20,6 +20,7 @@ Core engine for tilia. Most users will not import this directly.
 - Inserted objects are not cloned.
 - Tracking follows moved or copied objects.
 - Respects `readonly` properties.
+- Support for both read based observing and branch based tracking.
 
 ### Goals and Non-goals
 
@@ -28,10 +29,11 @@ out of the way.
 
 ### Changelog (for @tilia/core)
 
+- 2025-01-17 **1.4.0** Add `track` method
 - 2025-01-02 **1.3.2** Fix extension in built artifacts.
 - 2024-12-31 **1.3.0**
   - Expose internals with \_meta.
-  - Rewrite tracking to fix memory leaks when \_ready and \_clear are never called.
+  - Rewrite tracking to fix memory leaks when \_ready and clear are never called.
 - 2024-12-27 **1.2.4** Add support for ready after clear.
 - 2024-12-24 **1.2.3** Rewrite tracking to fix notify and clear before ready.
 - 2024-12-18 **1.2.2** Fix readonly tracking: should not proxy.

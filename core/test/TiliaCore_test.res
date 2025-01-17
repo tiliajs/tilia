@@ -389,7 +389,7 @@ test("Should notify on many updates before ready", t => {
   t->is(m.called, true)
 })
 
-test("Should clear common key on _clear", t => {
+test("Should clear common key on clear", t => {
   let m1 = {called: false}
   let m2 = {called: false}
   let p = person()
@@ -399,7 +399,7 @@ test("Should clear common key on _clear", t => {
   let o2 = Core._connect(p, () => m2.called = true)
   t->is(p.name, "John") // o2 observe 'name'
   Core._ready(o1) // o1 register, o2 not registered
-  Core._clear(o1) // removes watchers (set empty)
+  Core.clear(o1) // removes watchers (set empty)
   Core._ready(o2)
   t->is(m2.called, false)
 
@@ -416,7 +416,7 @@ test("Should support ready, clear, ready", t => {
   let o = Core._connect(p, () => m.called = true)
   t->is(p.name, "John") // o observe 'name'
   Core._ready(o)
-  Core._clear(o)
+  Core.clear(o)
   Core._ready(o)
   t->is(m.called, false)
 
@@ -572,4 +572,89 @@ test("Should delete tracking on delete", t => {
 
   let n = Map.get(meta.observed, "john")
   t->is(None, n)
+})
+
+module Fifo = {
+  type fn = unit => unit
+  type t = array<fn>
+  let make: unit => t = () => []
+  let defer = (t: t, fn) => {
+    let f = Array.shift(t)
+    switch f {
+    | Some(f) => f()
+    | None => ()
+    }
+    Array.push(t, fn)
+  }
+
+  let flush: t => unit = t => {
+    while Array.length(t) > 0 {
+      Option.getExn(Array.shift(t))()
+    }
+  }
+}
+
+let fifo = Fifo.make()
+let defer = Fifo.defer(fifo, ...)
+let flush = () => Fifo.flush(fifo)
+
+test("Should allow async in observed", t => {
+  let m = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let _ = Core.track(p, _ => {
+    defer(
+      () => {
+        m.called = true
+      },
+    )
+  })
+
+  // Tracker sees all changes (even without reading anything)
+  p.name = "Mary"
+  t->isFalse(m.called) // Observer not called
+
+  defer(() => {
+    // Now observer has finished.
+    t->isTrue(m.called)
+    m.called = false
+
+    // Update something again
+    p.address.city = "London"
+    // Observer called (but hasn't finished)
+    t->isFalse(m.called) // Observer not called
+    defer(
+      () => {
+        // Observer finished
+        t->isTrue(m.called)
+      },
+    )
+  })
+  flush()
+})
+
+test("Should only track given branch", t => {
+  let m = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let _ = Core.track(p.address, _ => m.called = true)
+
+  // Tracker sees all changes (even without reading anything)
+  p.name = "Mary"
+  t->isFalse(m.called)
+
+  p.address.city = "London"
+  t->isTrue(m.called)
+})
+
+test("Should not trigger after clear", t => {
+  let m = {called: false}
+  let p = person()
+  let p = Core.make(p)
+  let o = Core.track(p, _ => m.called = true)
+
+  Core.clear(o)
+
+  p.name = "Mary"
+  t->isFalse(m.called)
 })

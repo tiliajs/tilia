@@ -16,6 +16,8 @@ function readonly(o, k) {
 
 var indexKey = (Symbol());
 
+var triggerKey = (Symbol());
+
 var rootKey = (Symbol());
 
 var metaKey = (Symbol());
@@ -59,7 +61,7 @@ function observeKey(observed, key) {
   return w$1;
 }
 
-function _clear(observer) {
+function clear(observer) {
   observer.observing.forEach(function (watchers) {
         if (watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0) {
           watchers.state = "Cleared";
@@ -87,7 +89,7 @@ function _ready(observer, notifyIfChangedOpt) {
               return false;
           case "Changed" :
               if (notifyIfChanged) {
-                _clear(observer);
+                clear(observer);
                 observer.notify();
                 return true;
               }
@@ -103,24 +105,53 @@ function _ready(observer, notifyIfChangedOpt) {
       });
 }
 
-function notify(observed, key) {
-  var watchers = observed.get(key);
+function callTrackers(observed) {
+  var watchers = observed.get(triggerKey);
   if (watchers === null || watchers === undefined) {
     return ;
   }
-  observed.delete(key);
-  watchers.state = "Changed";
+  observed.delete(triggerKey);
   watchers.observers.forEach(function (observer) {
-        _clear(observer);
         observer.notify();
       });
+  observed.set(triggerKey, watchers);
 }
 
-function proxify(root, _target) {
+function notify(observed, key, trigger) {
+  var watchers = observed.get(key);
+  if (watchers === null || watchers === undefined) {
+    watchers === null;
+  } else {
+    observed.delete(key);
+    watchers.state = "Changed";
+    watchers.observers.forEach(function (observer) {
+          clear(observer);
+          observer.notify();
+        });
+  }
+  if (trigger) {
+    return callTrackers(observed);
+  }
+  
+}
+
+function proxify(root, parentObserved, _target) {
   while(true) {
     var target = _target;
     var observed = new Map();
     var proxied = new Map();
+    var propagate_notify = function () {
+      callTrackers(parentObserved);
+    };
+    var propagate_observing = [];
+    var propagate = {
+      notify: propagate_notify,
+      observing: propagate_observing,
+      root: root
+    };
+    var w = observeKey(observed, triggerKey);
+    w.observers.add(propagate);
+    propagate_observing.push(w);
     var r = Reflect.get(target, rootKey);
     if (r === null || r === undefined) {
       r === null;
@@ -142,9 +173,9 @@ function proxify(root, _target) {
                     if (object(prev)) {
                       proxied.delete(extra$1);
                     }
-                    notify(observed, extra$1);
+                    notify(observed, extra$1, true);
                     if (!hadKey) {
-                      notify(observed, indexKey);
+                      notify(observed, indexKey, false);
                     }
                     return true;
                   } else {
@@ -156,7 +187,7 @@ function proxify(root, _target) {
                 return function (extra, extra$1) {
                   var res = Reflect.deleteProperty(extra, extra$1);
                   proxied.delete(extra$1);
-                  notify(observed, extra$1);
+                  notify(observed, extra$1, true);
                   return res;
                 }
                 }(observed,proxied)),
@@ -192,7 +223,7 @@ function proxify(root, _target) {
                     return p;
                   }
                   p === null;
-                  var p$1 = proxify(root, v);
+                  var p$1 = proxify(root, observed, v);
                   proxied.set(extra$1, p$1);
                   return p$1;
                 }
@@ -218,7 +249,8 @@ function make(seed) {
   var root = {
     observer: undefined
   };
-  return proxify(root, seed);
+  var parentObserved = new Map();
+  return proxify(root, parentObserved, seed);
 }
 
 function observe(p, callback) {
@@ -230,12 +262,38 @@ function observe(p, callback) {
   notify();
 }
 
+function track(p, callback) {
+  var match = Reflect.get(p, metaKey);
+  if (match === null || match === undefined) {
+    if (match === null) {
+      throw new Error("Observed state is not a tilia proxy.");
+    }
+    throw new Error("Observed state is not a tilia proxy.");
+  } else {
+    var observer_notify = function () {
+      callback(p);
+    };
+    var observer_observing = [];
+    var observer_root = match.root;
+    var observer = {
+      notify: observer_notify,
+      observing: observer_observing,
+      root: observer_root
+    };
+    var w = observeKey(match.observed, triggerKey);
+    w.observers.add(observer);
+    observer_observing.push(w);
+    return observer;
+  }
+}
+
 export {
   make ,
   observe ,
+  track ,
+  clear ,
   _connect ,
   _ready ,
-  _clear ,
   _meta ,
 }
 /* indexKey Not a pure module */

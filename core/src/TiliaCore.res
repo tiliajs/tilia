@@ -45,6 +45,7 @@ module Dict = {
 type dict<'a> = Dict.t<'a>
 
 let indexKey = %raw(`Symbol()`)
+let triggerKey = %raw(`Symbol()`)
 let rootKey = %raw(`Symbol()`)
 let metaKey = %raw(`Symbol()`)
 
@@ -82,6 +83,7 @@ type meta<'a> = {
 }
 
 let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
+let _nmeta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
 let _raw: 'a => 'a = p => _meta(p).target
 
@@ -115,7 +117,7 @@ let observeKey = (observed, key) => {
   }
 }
 
-let _clear = (observer: observer) => {
+let clear = (observer: observer) => {
   Array.forEach(observer.observing, watchers => {
     if (
       watchers.state == Pristine &&
@@ -144,7 +146,7 @@ let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
           false
         }
       | Changed if notifyIfChanged => {
-          _clear(observer)
+          clear(observer)
           observer.notify()
           true // abort loop
         }
@@ -171,17 +173,36 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   keys
 }
 
-let notify = (observed, key) => {
+let callTrackers = observed => {
+  switch Dict.get(observed, triggerKey) {
+  | Value(watchers) =>
+    // Protect against loops
+    Dict.delete(observed, triggerKey)
+
+    Set.forEach(watchers.observers, observer => {
+      // Triggers are not automatically cleared
+      observer.notify() // This will call `callTrackers` in the parent.
+    })
+
+    Dict.set(observed, triggerKey, watchers)
+  | _ => ()
+  }
+}
+
+let notify = (observed, key, trigger) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
       Dict.delete(observed, key)
       watchers.state = Changed
       Set.forEach(watchers.observers, observer => {
-        _clear(observer)
+        clear(observer)
         observer.notify()
       })
     }
   | _ => ()
+  }
+  if trigger {
+    callTrackers(observed)
   }
 }
 
@@ -197,10 +218,10 @@ let set = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string,
       if Typeof.object(prev) {
         Dict.delete(proxied, key)
       }
-      notify(observed, key)
+      notify(observed, key, true)
       if !hadKey {
         // new key: trigger index
-        notify(observed, indexKey)
+        notify(observed, indexKey, false)
       }
       true
     }
@@ -210,7 +231,7 @@ let set = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string,
 let deleteProperty = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string) => {
   let res = Reflect.deleteProperty(target, key)
   Dict.delete(proxied, key)
-  notify(observed, key)
+  notify(observed, key, true)
   res
 }
 
@@ -247,7 +268,7 @@ let rec get = (
         switch Dict.get(proxied, key) {
         | Value(p) => p
         | _ =>
-          let p = proxify(root, v)
+          let p = proxify(root, observed, v)
           Dict.set(proxied, key, p)
           p
         }
@@ -260,12 +281,21 @@ let rec get = (
   }
 }
 
-and proxify = (root: root, target: 'a): 'a => {
+and proxify = (root: root, parentObserved: dict<watchers>, target: 'a): 'a => {
   let observed: dict<watchers> = Dict.make()
   let proxied: dict<'b> = Dict.make()
+  let propagate: observer = {
+    notify: () => callTrackers(parentObserved),
+    observing: [],
+    root,
+  }
+  let w = observeKey(observed, triggerKey)
+  ignore(Set.add(w.observers, propagate))
+  Array.push(propagate.observing, w)
+
   switch _root(target) {
   | Value(r) if r === root => target /* same tree, reuse proxy */
-  | Value(_) => proxify(root, _raw(target)) /* external tree: clear */
+  | Value(_) => proxify(root, parentObserved, _raw(target)) /* external tree: clear */
   | _ =>
     Proxy.make(
       target,
@@ -281,7 +311,8 @@ and proxify = (root: root, target: 'a): 'a => {
 
 let make = (seed: 'a): 'a => {
   let root = {observer: Undefined}
-  proxify(root, seed)
+  let parentObserved = Dict.make()
+  proxify(root, parentObserved, seed)
 }
 
 let observe = (p: 'a, callback: 'a => unit) => {
@@ -291,4 +322,21 @@ let observe = (p: 'a, callback: 'a => unit) => {
     _ready(o, ~notifyIfChanged=false)
   }
   notify()
+}
+
+let track = (p: 'a, callback: 'a => unit) => {
+  switch _nmeta(p) {
+  | Value({root, observed}) => {
+      let observer: observer = {
+        notify: () => callback(p),
+        observing: [],
+        root,
+      }
+      let w = observeKey(observed, triggerKey)
+      ignore(Set.add(w.observers, observer))
+      Array.push(observer.observing, w)
+      observer
+    }
+  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
+  }
 }

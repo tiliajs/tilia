@@ -2,14 +2,18 @@
 @module("react") external useEffect: (unit => option<unit => unit>) => unit = "useEffect"
 open TiliaCore
 
+type observer = observer
 let make = make
 let observe = observe
+let track = track
+let clear = clear
+
 let use = p => {
   let (_, setCount) = useState(0)
   let o = _connect(p, () => setCount(i => i + 1))
   useEffect(() => {
     _ready(o)
-    Some(() => _clear(o))
+    Some(() => clear(o))
   })
   p
 }

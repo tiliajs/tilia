@@ -1,8 +1,9 @@
 export {
   _connect,
   _ready,
-  _clear,
   _meta,
   make as tilia,
+  clear,
   observe,
+  track,
 } from "./TiliaCore.mjs";

@@ -16,7 +16,7 @@ npm install @tilia/core
 ## Usage
 
 ```ts
-import { tilia, observe } from "@tilia/core";
+import { tilia, observe, track, clear } from "@tilia/core";
 
 // Create a tracked object or array:
 const tree = tilia({
@@ -24,13 +24,28 @@ const tree = tilia({
   clouds: { morning: "can be pink", evening: "can be orange" },
 });
 
-// Observe and react to changes
+// Observe and react to changes from what was seen in the
+// callback (here key "clouds" in tree and key "evening" in clouds).
 observe(tree, () => {
   console.log("Evening Clouds", tree.clouds.evening);
+  // We can write to observed data in the callback (for computations for example)
+  tree.clouds.evening = tree.clouds.evening + " are nice";
 });
+
+// Track and react to any change in the observed branch (here 'tree.clouds')
+const observer = track(tree.clouds, () => {
+  console.log("Something changed", tree.clouds);
+  // We should be careful when we write to the tracked branch to avoid
+  // infinite loops.
+});
+
+// Stop tracking.
+clear(observer);
+
+// NB: to stop tracking with `observe`, simply avoid reading anything in the callback.
 ```
 
-The call to `tilia` creates a tracked object or array.
+The call to `tilia` creates a proxy object or array.
 
 And then we create an observer that will run if anything that it reads from the
 tree changes. For example, the observer above watches "clouds" and "evening" inside the clouds
@@ -63,9 +78,12 @@ To be used for binding to other frameworks/libraries:
 export function _connect<a>(tree: a, callback: () => void): observer;
 // Register the observer as ready. If a watched field changed during recording, notify
 // if notifyIfChanged is true.
-export function _ready(observer: observer, notifyIfChanged: boolean = true): void;
+export function _ready(
+  observer: observer,
+  notifyIfChanged: boolean = true
+): void;
 // Remove observer.
-export function _clear(observer: observer): void;
+export function clear(observer: observer): void;
 ```
 
 # ReScript example

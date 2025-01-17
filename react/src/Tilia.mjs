@@ -14,7 +14,7 @@ function use(p) {
   React.useEffect(function () {
         TiliaCore._ready(o, undefined);
         return (function () {
-                  TiliaCore._clear(o);
+                  TiliaCore.clear(o);
                 });
       });
   return p;
@@ -24,9 +24,15 @@ var make = TiliaCore.make;
 
 var observe = TiliaCore.observe;
 
+var track = TiliaCore.track;
+
+var clear = TiliaCore.clear;
+
 export {
   make ,
   observe ,
+  track ,
+  clear ,
   use ,
 }
 /* react Not a pure module */
