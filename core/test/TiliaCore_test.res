@@ -482,10 +482,11 @@ type watchers = {
   observers: Set.t<Core.observer>,
 }
 
-type meta<'a> = {
+type rec meta<'a> = {
   target: 'a,
   observed: Map.t<string, watchers>,
-  proxied: Map.t<string, address>,
+  proxied: Map.t<string, meta<address>>,
+  proxy: 'a,
 }
 
 let getMeta: Core.meta<'a> => meta<'a> = _m => %raw(`_m`)
@@ -510,8 +511,8 @@ test("Should get internals with _meta", t => {
   let n = Option.getExn(Map.get(meta.observed, "name"))
   t->is(1, Set.size(n.observers))
 
-  let address = Option.getExn(Map.get(meta.proxied, "address"))
-  t->is(address, p.address)
+  let address = Option.getExn(Map.get(meta.proxied, "address")).proxy
+  t->is(p.address, address)
 
   let meta = getMeta(Core._meta(address))
   t->is(person.address, meta.target)
@@ -657,4 +658,71 @@ test("Should not trigger after clear", t => {
 
   p.name = "Mary"
   t->isFalse(m.called)
+})
+
+type familiy = dict<person>
+
+test("Should disconnect track on delete", t => {
+  let m = {called: false}
+  let f: familiy = Dict.make()
+  let f = Core.make(f)
+  Dict.set(f, "p1", person())
+  let _ = Core.track(f, _ => m.called = true)
+
+  let p1 = Dict.getUnsafe(f, "p1")
+  p1.name = "Other name"
+  t->isTrue(m.called)
+  m.called = false
+
+  Dict.delete(f, "p1")
+  t->isTrue(m.called)
+
+  m.called = false
+
+  p1.name = "New name"
+  t->isFalse(m.called)
+})
+
+test("Should disconnect track on replace", t => {
+  let m = {called: false}
+  let f: familiy = Dict.make()
+  let f = Core.make(f)
+  Dict.set(f, "p1", person())
+  let _ = Core.track(f, _ => m.called = true)
+
+  let p1 = Dict.getUnsafe(f, "p1")
+  p1.name = "Other name"
+  t->isTrue(m.called)
+
+  Dict.set(f, "p1", person())
+
+  m.called = false
+
+  p1.name = "New name"
+  t->isFalse(m.called)
+})
+
+test("Should share track if shared", t => {
+  let m1 = {called: false}
+  let m2 = {called: false}
+  let f = Core.make(Dict.make())
+  Dict.set(f, "p1", person())
+  let p1 = Dict.getUnsafe(f, "p1")
+
+  Dict.set(f, "p2", p1)
+  let p2 = Dict.getUnsafe(f, "p2")
+  let _ = Core.track(p1, _ => m1.called = true)
+  let _ = Core.track(p2, _ => m2.called = true)
+
+  // Share adress from p1 to p2
+  p2.address = p1.address
+
+  m1.called = false
+  m2.called = false
+
+  // Any change to address should now trigger both m1 and m2
+  p1.address.zip = 444
+
+  t->isTrue(m1.called)
+  t->isTrue(m2.called)
 })

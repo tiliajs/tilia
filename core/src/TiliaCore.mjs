@@ -16,9 +16,7 @@ function readonly(o, k) {
 
 var indexKey = (Symbol());
 
-var triggerKey = (Symbol());
-
-var rootKey = (Symbol());
+var trackKey = (Symbol());
 
 var metaKey = (Symbol());
 
@@ -27,13 +25,14 @@ function _meta(p) {
 }
 
 function _connect(p, notify) {
-  var root = Reflect.get(p, rootKey);
-  if (root === null || root === undefined) {
-    if (root === null) {
+  var match = Reflect.get(p, metaKey);
+  if (match === null || match === undefined) {
+    if (match === null) {
       throw new Error("Observed state is not a tilia proxy.");
     }
     throw new Error("Observed state is not a tilia proxy.");
   } else {
+    var root = match.root;
     var observer_observing = [];
     var observer = {
       notify: notify,
@@ -106,15 +105,15 @@ function _ready(observer, notifyIfChangedOpt) {
 }
 
 function callTrackers(observed) {
-  var watchers = observed.get(triggerKey);
+  var watchers = observed.get(trackKey);
   if (watchers === null || watchers === undefined) {
     return ;
   }
-  observed.delete(triggerKey);
+  observed.delete(trackKey);
   watchers.observers.forEach(function (observer) {
         observer.notify();
       });
-  observed.set(triggerKey, watchers);
+  observed.set(trackKey, watchers);
 }
 
 function notify(observed, key, trigger) {
@@ -135,113 +134,134 @@ function notify(observed, key, trigger) {
   
 }
 
-function proxify(root, parentObserved, _target) {
+function deleteProxied(proxied, propagate, key) {
+  var m = proxied.get(key);
+  if (m === null || m === undefined) {
+    m === null;
+  } else {
+    var w = m.observed.get(trackKey);
+    if (w === null || w === undefined) {
+      w === null;
+    } else {
+      w.observers.delete(propagate);
+    }
+  }
+  proxied.delete(key);
+}
+
+function proxify(root, _propagate, _target) {
   while(true) {
     var target = _target;
-    var observed = new Map();
+    var propagate = _propagate;
     var proxied = new Map();
-    var propagate_notify = function () {
-      callTrackers(parentObserved);
-    };
+    var observed = new Map();
+    var w = observeKey(observed, trackKey);
+    w.observers.add(propagate);
+    propagate.observing.push(w);
+    var propagate_notify = (function(observed){
+    return function propagate_notify() {
+      callTrackers(observed);
+    }
+    }(observed));
     var propagate_observing = [];
-    var propagate = {
+    var propagate$1 = {
       notify: propagate_notify,
       observing: propagate_observing,
       root: root
     };
-    var w = observeKey(observed, triggerKey);
-    w.observers.add(propagate);
-    propagate_observing.push(w);
-    var r = Reflect.get(target, rootKey);
-    if (r === null || r === undefined) {
-      r === null;
+    var m = Reflect.get(target, metaKey);
+    if (m === null || m === undefined) {
+      m === null;
     } else {
-      if (r === root) {
-        return target;
+      if (m.root === root) {
+        var w$1 = observeKey(m.observed, trackKey);
+        w$1.observers.add(propagate$1);
+        return m;
       }
-      _target = _meta(target).target;
+      _target = m.target;
+      _propagate = propagate$1;
       continue ;
     }
-    return new Proxy(target, {
-                set: (function(observed,proxied){
-                return function (extra, extra$1, extra$2) {
-                  var hadKey = Reflect.has(extra, extra$1);
-                  var prev = Reflect.get(extra, extra$1);
-                  if (prev === extra$2) {
-                    return true;
-                  } else if (Reflect.set(extra, extra$1, extra$2)) {
-                    if (object(prev)) {
-                      proxied.delete(extra$1);
-                    }
-                    notify(observed, extra$1, true);
-                    if (!hadKey) {
-                      notify(observed, indexKey, false);
-                    }
-                    return true;
-                  } else {
-                    return false;
-                  }
-                }
-                }(observed,proxied)),
-                deleteProperty: (function(observed,proxied){
-                return function (extra, extra$1) {
-                  var res = Reflect.deleteProperty(extra, extra$1);
-                  proxied.delete(extra$1);
-                  notify(observed, extra$1, true);
-                  return res;
-                }
-                }(observed,proxied)),
-                get: (function(target,observed,proxied){
-                return function (extra, extra$1) {
-                  var isArray = Array.isArray(target);
-                  if (extra$1 === rootKey) {
-                    return root;
-                  }
-                  if (extra$1 === metaKey) {
-                    return ({root, target, observed, proxied});
-                  }
-                  var v = Reflect.get(extra, extra$1);
-                  var own = Object.hasOwn(extra, extra$1);
-                  if (!(v === undefined || own)) {
-                    return v;
-                  }
-                  var o = root.observer;
-                  if (o === null || o === undefined) {
-                    o === null;
-                  } else if (isArray && extra$1 === "length") {
-                    var w = observeKey(observed, indexKey);
-                    o.observing.push(w);
-                  } else {
-                    var w$1 = observeKey(observed, extra$1);
-                    o.observing.push(w$1);
-                  }
-                  if (!(object(v) && !readonly(extra, extra$1))) {
-                    return v;
-                  }
-                  var p = proxied.get(extra$1);
-                  if (!(p === null || p === undefined)) {
-                    return p;
-                  }
-                  p === null;
-                  var p$1 = proxify(root, observed, v);
-                  proxied.set(extra$1, p$1);
-                  return p$1;
-                }
-                }(target,observed,proxied)),
-                ownKeys: (function(observed){
-                return function (extra) {
-                  var keys = Reflect.ownKeys(extra);
-                  var o = root.observer;
-                  if (o === null || o === undefined) {
-                    o === null;
-                  } else {
-                    var w = observeKey(observed, indexKey);
-                    o.observing.push(w);
-                  }
-                  return keys;
-                }
-                }(observed))
-              });
+    var meta = ({root, target, observed, proxied, propagate});
+    var isArray = Array.isArray(target);
+    var proxy = new Proxy(target, {
+          set: (function(proxied,observed,propagate$1){
+          return function (extra, extra$1, extra$2) {
+            var hadKey = Reflect.has(extra, extra$1);
+            var prev = Reflect.get(extra, extra$1);
+            if (prev === extra$2) {
+              return true;
+            } else if (Reflect.set(extra, extra$1, extra$2)) {
+              if (object(prev)) {
+                deleteProxied(proxied, propagate$1, extra$1);
+              }
+              notify(observed, extra$1, true);
+              if (!hadKey) {
+                notify(observed, indexKey, false);
+              }
+              return true;
+            } else {
+              return false;
+            }
+          }
+          }(proxied,observed,propagate$1)),
+          deleteProperty: (function(proxied,observed,propagate$1){
+          return function (extra, extra$1) {
+            var res = Reflect.deleteProperty(extra, extra$1);
+            deleteProxied(proxied, propagate$1, extra$1);
+            notify(observed, extra$1, true);
+            return res;
+          }
+          }(proxied,observed,propagate$1)),
+          get: (function(proxied,observed,propagate$1,isArray){
+          return function (extra, extra$1) {
+            if (extra$1 === metaKey) {
+              return meta;
+            }
+            var v = Reflect.get(extra, extra$1);
+            var own = Object.hasOwn(extra, extra$1);
+            if (!(v === undefined || own)) {
+              return v;
+            }
+            var o = root.observer;
+            if (o === null || o === undefined) {
+              o === null;
+            } else if (isArray && extra$1 === "length") {
+              var w = observeKey(observed, indexKey);
+              o.observing.push(w);
+            } else {
+              var w$1 = observeKey(observed, extra$1);
+              o.observing.push(w$1);
+            }
+            if (!(object(v) && !readonly(extra, extra$1))) {
+              return v;
+            }
+            var m = proxied.get(extra$1);
+            if (!(m === null || m === undefined)) {
+              return m.proxy;
+            }
+            m === null;
+            var m$1 = proxify(root, propagate$1, v);
+            proxied.set(extra$1, m$1);
+            return m$1.proxy;
+          }
+          }(proxied,observed,propagate$1,isArray)),
+          ownKeys: (function(observed){
+          return function (extra) {
+            var keys = Reflect.ownKeys(extra);
+            var o = root.observer;
+            if (o === null || o === undefined) {
+              o === null;
+            } else {
+              var w = observeKey(observed, indexKey);
+              o.observing.push(w);
+            }
+            return keys;
+          }
+          }(observed))
+        });
+    meta.proxy = proxy;
+    return meta;
   };
 }
 
@@ -249,8 +269,16 @@ function make(seed) {
   var root = {
     observer: undefined
   };
-  var parentObserved = new Map();
-  return proxify(root, parentObserved, seed);
+  var propagate_notify = function () {
+    
+  };
+  var propagate_observing = [];
+  var propagate = {
+    notify: propagate_notify,
+    observing: propagate_observing,
+    root: root
+  };
+  return proxify(root, propagate, seed).proxy;
 }
 
 function observe(p, callback) {
@@ -280,7 +308,7 @@ function track(p, callback) {
       observing: observer_observing,
       root: observer_root
     };
-    var w = observeKey(match.observed, triggerKey);
+    var w = observeKey(match.observed, trackKey);
     w.observers.add(observer);
     observer_observing.push(w);
     return observer;

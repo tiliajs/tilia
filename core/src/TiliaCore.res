@@ -44,9 +44,11 @@ module Dict = {
 }
 type dict<'a> = Dict.t<'a>
 
+// Called when something changes in the index (added or removed keys)
 let indexKey = %raw(`Symbol()`)
-let triggerKey = %raw(`Symbol()`)
-let rootKey = %raw(`Symbol()`)
+// Called on any change in the object or children (track method)
+let trackKey = %raw(`Symbol()`)
+// Used to get meta information (mostly for stats)
 let metaKey = %raw(`Symbol()`)
 
 type state =
@@ -75,21 +77,27 @@ and root = {mutable observer: nullable<observer>}
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
 
-type meta<'a> = {
+type rec meta<'a> = {
   target: 'a,
   root: root,
+  // The list of observers for each keys in the object. The trackKey triggers
+  // on any change (including in children). The indexKey triggers on changes
+  // to "index" (adding or removing children).
   observed: dict<watchers>,
-  proxied: dict<Obj.t>,
+  // Cached children proxy.
+  proxied: dict<meta<'a>>,
+  // The observer called by children to propagate tracking.
+  propagate: observer,
+  // The proxy itself (used by proxied).
+  mutable proxy: 'a,
 }
 
-let _root: 'a => nullable<root> = p => Reflect.get(p, rootKey)
 let _nmeta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
-let _raw: 'a => 'a = p => _meta(p).target
 
 let _connect = (p: 'a, notify) => {
-  switch _root(p) {
-  | Value(root) => {
+  switch _nmeta(p) {
+  | Value({root}) => {
       let observer: observer = {
         notify,
         observing: [],
@@ -174,17 +182,17 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
 }
 
 let callTrackers = observed => {
-  switch Dict.get(observed, triggerKey) {
+  switch Dict.get(observed, trackKey) {
   | Value(watchers) =>
     // Protect against loops
-    Dict.delete(observed, triggerKey)
+    Dict.delete(observed, trackKey)
 
     Set.forEach(watchers.observers, observer => {
       // Triggers are not automatically cleared
       observer.notify() // This will call `callTrackers` in the parent.
     })
 
-    Dict.set(observed, triggerKey, watchers)
+    Dict.set(observed, trackKey, watchers)
   | _ => ()
   }
 }
@@ -206,7 +214,28 @@ let notify = (observed, key, trigger) => {
   }
 }
 
-let set = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string, value: 'b) => {
+let deleteProxied = (proxied: dict<meta<'a>>, propagate: observer, key: string) => {
+  switch Dict.get(proxied, key) {
+  | Value(m) =>
+    switch Dict.get(m.observed, trackKey) {
+    | Value(w) =>
+      // Child disconnected: will not trigger tracking anymore
+      ignore(Set.delete(w.observers, propagate))
+    | _ => ()
+    }
+  | _ => ()
+  }
+  Dict.delete(proxied, key)
+}
+
+let set = (
+  observed: dict<watchers>,
+  proxied: dict<meta<'c>>,
+  propagate: observer,
+  target: 'a,
+  key: string,
+  value: 'b,
+) => {
   let hadKey = Reflect.has(target, key)
   let prev = Reflect.get(target, key)
   if prev === value {
@@ -216,7 +245,7 @@ let set = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string,
     | false => false
     | true =>
       if Typeof.object(prev) {
-        Dict.delete(proxied, key)
+        deleteProxied(proxied, propagate, key)
       }
       notify(observed, key, true)
       if !hadKey {
@@ -228,9 +257,15 @@ let set = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string,
   }
 }
 
-let deleteProperty = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, key: string) => {
+let deleteProperty = (
+  observed: dict<watchers>,
+  proxied: dict<meta<'c>>,
+  propagate: observer,
+  target: 'a,
+  key: string,
+) => {
   let res = Reflect.deleteProperty(target, key)
-  Dict.delete(proxied, key)
+  deleteProxied(proxied, propagate, key)
   notify(observed, key, true)
   res
 }
@@ -238,15 +273,19 @@ let deleteProperty = (observed: dict<watchers>, proxied: dict<'c>, target: 'a, k
 let rec get = (
   root: root,
   observed: dict<watchers>,
-  proxied: dict<'c>,
+  proxied: dict<meta<'c>>,
+  propagate: observer,
+  meta: meta<'a>,
   isArray: bool,
   target: 'a,
   key: string,
 ): 'b => {
-  if key === rootKey {
-    %raw(`root`)
-  } else if key === metaKey {
-    %raw(`{root, target, observed, proxied}`)
+  if key === metaKey {
+    // We use this to avoid argument removal by compilation (it is not
+    // included in JS compiled code).
+    ignore(meta)
+    // We use raw to avoid type
+    %raw(`meta`)
   } else {
     // is array and get length
     let v = Reflect.get(target, key)
@@ -266,11 +305,11 @@ let rec get = (
 
       if Typeof.object(v) && !Object.readonly(target, key) {
         switch Dict.get(proxied, key) {
-        | Value(p) => p
+        | Value(m) => m.proxy
         | _ =>
-          let p = proxify(root, observed, v)
-          Dict.set(proxied, key, p)
-          p
+          let m = proxify(root, propagate, v)
+          Dict.set(proxied, key, m)
+          m.proxy
         }
       } else {
         v
@@ -281,38 +320,54 @@ let rec get = (
   }
 }
 
-and proxify = (root: root, parentObserved: dict<watchers>, target: 'a): 'a => {
+and proxify = (root: root, propagate: observer, target: 'a): meta<'a> => {
+  let proxied: dict<meta<'b>> = Dict.make()
   let observed: dict<watchers> = Dict.make()
-  let proxied: dict<'b> = Dict.make()
-  let propagate: observer = {
-    notify: () => callTrackers(parentObserved),
-    observing: [],
-    root,
-  }
-  let w = observeKey(observed, triggerKey)
+
+  // Register parent tracking propagation
+  let w = observeKey(observed, trackKey)
   ignore(Set.add(w.observers, propagate))
   Array.push(propagate.observing, w)
 
-  switch _root(target) {
-  | Value(r) if r === root => target /* same tree, reuse proxy */
-  | Value(_) => proxify(root, parentObserved, _raw(target)) /* external tree: clear */
+  // Create child tracking propagation observer
+  let propagate: observer = {
+    notify: () => callTrackers(observed),
+    observing: [],
+    root,
+  }
+  switch _nmeta(target) {
+  | Value(m) if m.root === root => {
+      /* same tree, reuse proxy */
+      let w = observeKey(m.observed, trackKey)
+      Set.add(w.observers, propagate)
+      m
+    }
+  | Value(m) => proxify(root, propagate, m.target) /* external tree: clear */
   | _ =>
-    Proxy.make(
+    let meta: meta<'a> = %raw(`{root, target, observed, proxied, propagate}`)
+    let isArray = Typeof.array(target)
+    let proxy = Proxy.make(
       target,
       {
-        "set": set(observed, proxied, ...),
-        "deleteProperty": deleteProperty(observed, proxied, ...),
-        "get": get(root, observed, proxied, Typeof.array(target), ...),
+        "set": set(observed, proxied, propagate, ...),
+        "deleteProperty": deleteProperty(observed, proxied, propagate, ...),
+        "get": get(root, observed, proxied, propagate, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
     )
+    meta.proxy = proxy
+    meta
   }
 }
 
 let make = (seed: 'a): 'a => {
   let root = {observer: Undefined}
-  let parentObserved = Dict.make()
-  proxify(root, parentObserved, seed)
+  let propagate: observer = {
+    notify: () => (),
+    observing: [],
+    root,
+  }
+  proxify(root, propagate, seed).proxy
 }
 
 let observe = (p: 'a, callback: 'a => unit) => {
@@ -332,7 +387,7 @@ let track = (p: 'a, callback: 'a => unit) => {
         observing: [],
         root,
       }
-      let w = observeKey(observed, triggerKey)
+      let w = observeKey(observed, trackKey)
       ignore(Set.add(w.observers, observer))
       Array.push(observer.observing, w)
       observer
