@@ -1,6 +1,6 @@
 {
   "name": "@tilia/core",
-  "version": "1.4.0-canary.20250117T230449-canary.20250120T162159",
+  "version": "1.4.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
