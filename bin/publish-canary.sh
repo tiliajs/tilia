@@ -20,6 +20,9 @@ fi
 
 # Install dependencies
 pnpm i
+# Check compilation for all projects
+pnpm core res:build
+pnpm react res:build
 
 # ================ CORE
 cd core
