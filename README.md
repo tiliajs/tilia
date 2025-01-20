@@ -29,7 +29,9 @@ out of the way.
 
 ### Changelog (for @tilia/core)
 
-- 2025-01-17 **1.4.0** Add `track` method
+- 2025-01-17 **1.4.0**
+  - Add `track` method to observe branches.
+  - Add `flush` strategy for tracking notification.
 - 2025-01-02 **1.3.2** Fix extension in built artifacts.
 - 2024-12-31 **1.3.0**
   - Expose internals with \_meta.

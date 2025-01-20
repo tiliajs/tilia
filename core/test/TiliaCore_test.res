@@ -537,7 +537,7 @@ test("Should clear if ready never called", t => {
 
 type people = dict<person>
 
-test("Should delete tracking on set", t => {
+test("Should delete observations on set", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
@@ -556,7 +556,7 @@ test("Should delete tracking on set", t => {
   t->is(None, n)
 })
 
-test("Should delete tracking on delete", t => {
+test("Should delete observations on delete", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
@@ -575,75 +575,20 @@ test("Should delete tracking on delete", t => {
   t->is(None, n)
 })
 
-module Fifo = {
-  type fn = unit => unit
-  type t = array<fn>
-  let make: unit => t = () => []
-  let defer = (t: t, fn) => {
-    let f = Array.shift(t)
-    switch f {
-    | Some(f) => f()
-    | None => ()
-    }
-    Array.push(t, fn)
-  }
+type track = {mutable flush: unit => unit}
+let flush = (t: track, fn) => t.flush = fn
+let apply = fn => fn()
 
-  let flush: t => unit = t => {
-    while Array.length(t) > 0 {
-      Option.getExn(Array.shift(t))()
-    }
-  }
-}
-
-let fifo = Fifo.make()
-let defer = Fifo.defer(fifo, ...)
-let flush = () => Fifo.flush(fifo)
-
-test("Should allow async in observed", t => {
+test("Should track a given branch", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let _ = Core.track(p, _ => {
-    defer(
-      () => {
-        m.called = true
-      },
-    )
-  })
-
-  // Tracker sees all changes (even without reading anything)
-  p.name = "Mary"
-  t->isFalse(m.called) // Observer not called
-
-  defer(() => {
-    // Now observer has finished.
-    t->isTrue(m.called)
-    m.called = false
-
-    // Update something again
-    p.address.city = "London"
-    // Observer called (but hasn't finished)
-    t->isFalse(m.called) // Observer not called
-    defer(
-      () => {
-        // Observer finished
-        t->isTrue(m.called)
-      },
-    )
-  })
-  flush()
-})
-
-test("Should only track given branch", t => {
-  let m = {called: false}
-  let p = person()
-  let p = Core.make(p)
+  let p = Core.make(p, ~flush=apply)
   let _ = Core.track(p.address, _ => m.called = true)
 
-  // Tracker sees all changes (even without reading anything)
   p.name = "Mary"
   t->isFalse(m.called)
 
+  // Tracker sees all changes (even without reading anything)
   p.address.city = "London"
   t->isTrue(m.called)
 })
@@ -651,7 +596,7 @@ test("Should only track given branch", t => {
 test("Should not trigger after clear", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
+  let p = Core.make(p, ~flush=apply)
   let o = Core.track(p, _ => m.called = true)
 
   Core.clear(o)
@@ -665,7 +610,7 @@ type familiy = dict<person>
 test("Should disconnect track on delete", t => {
   let m = {called: false}
   let f: familiy = Dict.make()
-  let f = Core.make(f)
+  let f = Core.make(f, ~flush=apply)
   Dict.set(f, "p1", person())
   let _ = Core.track(f, _ => m.called = true)
 
@@ -686,7 +631,7 @@ test("Should disconnect track on delete", t => {
 test("Should disconnect track on replace", t => {
   let m = {called: false}
   let f: familiy = Dict.make()
-  let f = Core.make(f)
+  let f = Core.make(f, ~flush=apply)
   Dict.set(f, "p1", person())
   let _ = Core.track(f, _ => m.called = true)
 
@@ -705,7 +650,7 @@ test("Should disconnect track on replace", t => {
 test("Should share track if shared", t => {
   let m1 = {called: false}
   let m2 = {called: false}
-  let f = Core.make(Dict.make())
+  let f = Core.make(Dict.make(), ~flush=apply)
   Dict.set(f, "p1", person())
   let p1 = Dict.getUnsafe(f, "p1")
 
@@ -725,4 +670,24 @@ test("Should share track if shared", t => {
 
   t->isTrue(m1.called)
   t->isTrue(m2.called)
+})
+
+asyncTest("Should use setTimeout as default flush", t => {
+  let m = {called: false}
+  let p = Core.make(person())
+  let _ = Core.track(p, _ => m.called = true)
+  Promise.make((resolve, _) => {
+    p.name = "Muholi"
+    t->isFalse(m.called)
+    ignore(
+      setTimeout(
+        () => {
+          Js.log("HOHO")
+          t->isTrue(m.called)
+          resolve()
+        },
+        0,
+      ),
+    )
+  })
 })

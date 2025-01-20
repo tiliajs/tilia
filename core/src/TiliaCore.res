@@ -63,19 +63,37 @@ type rec observer = {
   // Where this observer is observing (not used anymore ?)
   root: root,
 }
-// Set of observers observing a given key in an object/array
+// Observed key => watchers
+and observed = dict<watchers>
+// Who to notify on change
+and observers = Set.t<observer>
+// Observers observing a given key in an object/array. We
+// are mainly interested in the 'observers' set but we need
+// the other attributes like state/key/observed to manage edge
+// cases.
 and watchers = {
   mutable state: state,
   // Tracked key in parent
   key: string,
   // Parent tracking
-  observed: dict<watchers>,
+  observed: observed,
   // Set of observers to notify on change.
-  observers: Set.t<observer>,
+  observers: observers,
 }
-and root = {mutable observer: nullable<observer>}
+and root = {
+  mutable observer: nullable<observer>,
+  mutable triggers: nullable<Set.t<propagate>>,
+  flush: (unit => unit) => unit,
+}
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
+
+and propagate = {
+  // Cannot use 'observed' because of the rec clause and
+  // watchers having an 'observed' field already.
+  obs: observed,
+  ancestry: Set.t<propagate>,
+}
 
 type rec meta<'a> = {
   target: 'a,
@@ -86,8 +104,8 @@ type rec meta<'a> = {
   observed: dict<watchers>,
   // Cached children proxy.
   proxied: dict<meta<'a>>,
-  // The observer called by children to propagate tracking.
-  propagate: observer,
+  // The observer and ancestry to propagate tracking.
+  propagate: propagate,
   // The proxy itself (used by proxied).
   mutable proxy: 'a,
 }
@@ -181,23 +199,28 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   keys
 }
 
-let callTrackers = observed => {
-  switch Dict.get(observed, trackKey) {
-  | Value(watchers) =>
-    // Protect against loops
-    Dict.delete(observed, trackKey)
-
-    Set.forEach(watchers.observers, observer => {
-      // Triggers are not automatically cleared
-      observer.notify() // This will call `callTrackers` in the parent.
-    })
-
-    Dict.set(observed, trackKey, watchers)
-  | _ => ()
-  }
+let rec collect = (accum: Set.t<observed>, ancestry: Set.t<propagate>) => {
+  Set.forEach(ancestry, ({obs, ancestry}) => {
+    if !Set.has(accum, obs) {
+      Set.add(accum, obs)
+      collect(accum, ancestry)
+    }
+  })
 }
 
-let notify = (observed, key, trigger) => {
+let flush = (triggers: Set.t<propagate>) => {
+  let observers = Set.make()
+  collect(observers, triggers)
+  Set.forEach(observers, observed => {
+    // Notify without reseting observer
+    switch Dict.get(observed, trackKey) {
+    | Value(watchers) => Set.forEach(watchers.observers, observer => observer.notify())
+    | _ => ()
+    }
+  })
+}
+
+let notify = (observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
       Dict.delete(observed, key)
@@ -209,29 +232,38 @@ let notify = (observed, key, trigger) => {
     }
   | _ => ()
   }
-  if trigger {
-    callTrackers(observed)
+}
+
+let triggerTracking = (root, propagate) => {
+  switch root.triggers {
+  | Value(triggers) => Set.add(triggers, propagate)
+  | _ => {
+      let triggers = Set.make()
+      Set.add(triggers, propagate)
+      root.triggers = Value(triggers)
+      root.flush(() => {
+        root.triggers = Undefined
+        flush(triggers)
+      })
+    }
   }
 }
 
-let deleteProxied = (proxied: dict<meta<'a>>, propagate: observer, key: string) => {
+let deleteProxied = (proxied: dict<meta<'a>>, propagate: propagate, key: string) => {
   switch Dict.get(proxied, key) {
   | Value(m) =>
-    switch Dict.get(m.observed, trackKey) {
-    | Value(w) =>
-      // Child disconnected: will not trigger tracking anymore
-      ignore(Set.delete(w.observers, propagate))
-    | _ => ()
-    }
+    // Child disconnected: will not trigger tracking anymore
+    ignore(Set.delete(m.propagate.ancestry, propagate))
   | _ => ()
   }
   Dict.delete(proxied, key)
 }
 
 let set = (
+  root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  propagate: observer,
+  propagate: propagate,
   target: 'a,
   key: string,
   value: 'b,
@@ -247,26 +279,29 @@ let set = (
       if Typeof.object(prev) {
         deleteProxied(proxied, propagate, key)
       }
-      notify(observed, key, true)
+      notify(observed, key)
       if !hadKey {
         // new key: trigger index
-        notify(observed, indexKey, false)
+        notify(observed, indexKey)
       }
+      triggerTracking(root, propagate)
       true
     }
   }
 }
 
 let deleteProperty = (
+  root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  propagate: observer,
+  propagate: propagate,
   target: 'a,
   key: string,
 ) => {
   let res = Reflect.deleteProperty(target, key)
   deleteProxied(proxied, propagate, key)
-  notify(observed, key, true)
+  notify(observed, key)
+  triggerTracking(root, propagate)
   res
 }
 
@@ -274,7 +309,7 @@ let rec get = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  propagate: observer,
+  propagate: propagate,
   meta: meta<'a>,
   isArray: bool,
   target: 'a,
@@ -320,26 +355,21 @@ let rec get = (
   }
 }
 
-and proxify = (root: root, propagate: observer, target: 'a): meta<'a> => {
+and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
-  let observed: dict<watchers> = Dict.make()
+  let observed: observed = Dict.make()
+  let ancestry = Set.make()
 
-  // Register parent tracking propagation
-  let w = observeKey(observed, trackKey)
-  ignore(Set.add(w.observers, propagate))
-  Array.push(propagate.observing, w)
+  // Register parent in child ancestry
+  Set.add(ancestry, parent_propagate)
 
-  // Create child tracking propagation observer
-  let propagate: observer = {
-    notify: () => callTrackers(observed),
-    observing: [],
-    root,
-  }
+  // Create child propagation object
+  let propagate: propagate = {obs: observed, ancestry}
+
   switch _nmeta(target) {
   | Value(m) if m.root === root => {
       /* same tree, reuse proxy */
-      let w = observeKey(m.observed, trackKey)
-      Set.add(w.observers, propagate)
+      Set.add(m.propagate.ancestry, parent_propagate)
       m
     }
   | Value(m) => proxify(root, propagate, m.target) /* external tree: clear */
@@ -349,8 +379,8 @@ and proxify = (root: root, propagate: observer, target: 'a): meta<'a> => {
     let proxy = Proxy.make(
       target,
       {
-        "set": set(observed, proxied, propagate, ...),
-        "deleteProperty": deleteProperty(observed, proxied, propagate, ...),
+        "set": set(root, observed, proxied, propagate, ...),
+        "deleteProperty": deleteProperty(root, observed, proxied, propagate, ...),
         "get": get(root, observed, proxied, propagate, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
@@ -360,12 +390,15 @@ and proxify = (root: root, propagate: observer, target: 'a): meta<'a> => {
   }
 }
 
-let make = (seed: 'a): 'a => {
-  let root = {observer: Undefined}
-  let propagate: observer = {
-    notify: () => (),
-    observing: [],
-    root,
+let timeOutFlush = (fn: unit => unit) => {
+  ignore(setTimeout(() => fn(), 0))
+}
+
+let make = (seed: 'a, ~flush=timeOutFlush): 'a => {
+  let root = {flush, observer: Undefined, triggers: Undefined}
+  let propagate: propagate = {
+    obs: Dict.make(),
+    ancestry: Set.make(),
   }
   proxify(root, propagate, seed).proxy
 }
