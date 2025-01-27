@@ -40,12 +40,12 @@ is_semver "$CORE_VERSION"
 cd ../react
 REACT_VERSION=$(npm pkg get version | sed 's/"//g')
 is_semver "$REACT_VERSION"
-npm version minor
 cd ..
 
 # ================ CORE
 cd core
 pnpm publish --access public --no-git-checks
+npm version patch
 
 echo "Wait for core version to propagate on npm"
 sleep 3
@@ -58,7 +58,7 @@ sleep 3
 cd ../react
 npm pkg set dependencies.@tilia/core="$CORE_VERSION"
 pnpm publish --access public --no-git-checks
-npm version minor
+npm version patch
 cd ..
 
 # Reset git repo
