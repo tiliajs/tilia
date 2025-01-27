@@ -61,7 +61,4 @@ pnpm publish --access public --no-git-checks
 npm version patch
 cd ..
 
-# Reset git repo
-git reset --hard HEAD
-
 echo "Published successfully!"
