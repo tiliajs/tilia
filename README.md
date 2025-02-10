@@ -4,11 +4,11 @@ Simple and fast state management for your app.
 
 This is the root of the monorepo. Documentation for the projects are here:
 
-- [**@tilia/react**](./packages/react/README.md)
+- [**@tilia/react**](./react/README.md)
 
 Tilia for React. The library supports raw JS, TypeScript and ReScript.
 
-- [**@tilia/core**](./packages/core/README.md)
+- [**@tilia/core**](./core/README.md)
 
 Core engine for tilia. Most users will not import this directly.
 
