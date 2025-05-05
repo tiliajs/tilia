@@ -256,32 +256,30 @@ function proxify(root, _parent_propagate, _target) {
               var w$1 = observeKey(observed, extra$1);
               o.observing.push(w$1);
             }
+            var v$1;
             if (v === computeKey) {
-              var fn = computes.get(extra$1);
-              if (fn === null || fn === undefined) {
-                if (fn === null) {
+              var rebuild = computes.get(extra$1);
+              if (rebuild === null || rebuild === undefined) {
+                if (rebuild === null) {
                   throw new Error("Compute function not found.");
                 }
                 throw new Error("Compute function not found.");
               } else {
-                fn();
+                rebuild();
+                v$1 = Reflect.get(extra, extra$1);
               }
-              var v$1 = Reflect.get(extra, extra$1);
-              if (v$1 === computeKey) {
-                return undefined;
-              } else {
-                return v$1;
-              }
+            } else {
+              v$1 = v;
             }
-            if (!(object(v) && !readonly(extra, extra$1))) {
-              return v;
+            if (!(object(v$1) && !readonly(extra, extra$1))) {
+              return v$1;
             }
             var m = proxied.get(extra$1);
             if (!(m === null || m === undefined)) {
               return m.proxy;
             }
             m === null;
-            var m$1 = proxify(root, propagate, v);
+            var m$1 = proxify(root, propagate, v$1);
             proxied.set(extra$1, m$1);
             return m$1.proxy;
           }
@@ -372,20 +370,30 @@ function compute(p, key, callback) {
   } else {
     var computes = match.computes;
     var target = match.target;
+    var v = Reflect.get(target, key);
+    var lastValue = {
+      v: v
+    };
     var clearCache = function () {
+      var v = Reflect.get(target, key);
+      if (v !== computeKey) {
+        lastValue.v = v;
+      }
       Reflect.set(target, key, computeKey);
     };
     var clear_o = {
       o: undefined
     };
     var rebuild = function () {
+      console.log(lastValue.v);
+      Reflect.set(target, key, lastValue.v);
       var o = _connect(p, clearCache);
       clear_o.o = o;
       callback(p);
       _ready(o, false);
     };
     computes.set(key, rebuild);
-    clearCache();
+    Reflect.set(target, key, computeKey);
     var clear = function () {
       var o = clear_o.o;
       if (o === null || o === undefined) {
@@ -393,13 +401,13 @@ function compute(p, key, callback) {
       } else {
         _clear(o);
       }
-      var fn = computes.get(key);
-      if (fn === null || fn === undefined || fn !== rebuild) {
+      var c = computes.get(key);
+      if (c === null || c === undefined || c !== rebuild) {
         return ;
       } else {
         computes.delete(key);
         if (Reflect.get(target, key) === computeKey) {
-          Reflect.set(target, key, undefined);
+          Reflect.set(target, key, lastValue.v);
           return ;
         } else {
           return ;

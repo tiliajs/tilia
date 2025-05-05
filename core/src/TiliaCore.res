@@ -42,6 +42,10 @@ module Dict = {
   @send external set: (t<'a>, string, 'b) => unit = "set"
   @send external delete: (t<'a>, string) => unit = "delete"
 }
+
+// This type is never used and only used to pass value.
+type opaque
+
 type dict<'a> = Dict.t<'a>
 type compute = unit => unit
 
@@ -360,20 +364,20 @@ let rec get = (
       | _ => ()
       }
 
-      if v === computeKey {
+      let v = if v === computeKey {
         switch Dict.get(computes, key) {
-        | Value(fn) => fn()
+        | Value(rebuild) => {
+            rebuild()
+            // The rebuild function always sets a value so we can get it now.
+            Reflect.get(target, key)
+          }
         | _ => Exn.raiseError("Compute function not found.")
         }
-        let v = Reflect.get(target, key)
-        if v === computeKey {
-          // Async rebuild, return undefined
-          // We need to use raw to avoid type guess of "undefined" for 'a
-          %raw(`undefined`)
-        } else {
-          v
-        }
-      } else if Typeof.object(v) && !Object.readonly(target, key) {
+      } else {
+        v
+      }
+
+      if Typeof.object(v) && !Object.readonly(target, key) {
         switch Dict.get(proxied, key) {
         | Value(m) => m.proxy
         | _ =>
@@ -467,20 +471,37 @@ let track = (p: 'a, callback: 'a => unit) => {
 }
 
 type clear_o = {mutable o: nullable<observer>}
+type lastValue = {mutable v: opaque}
 
 let compute = (p: 'a, key: string, callback: 'a => unit) => {
   switch _nmeta(p) {
   | Value({root, target, computes}) => {
-      let clearCache = () => ignore(Reflect.set(target, key, computeKey))
+      let v = Reflect.get(target, key)
+      let lastValue: lastValue = {v: v}
+      let clearCache = () => {
+        let v = Reflect.get(target, key)
+        if v !== computeKey {
+          lastValue.v = v
+        }
+        // Now cache is hidden behind the computeKey.
+        ignore(Reflect.set(target, key, computeKey))
+      }
       let clear_o = {o: Undefined}
       let rebuild = () => {
+        // Make sure any further read gets the last value until we
+        // are done with rebuilding the value.
+        Console.log(lastValue.v)
+        ignore(Reflect.set(target, key, lastValue.v))
+        // On change: hide cache.
         let o = _connect(p, clearCache)
         clear_o.o = Value(o)
+        // Rebuild value (will only retrigger on next read after
+        // cache clear).
         callback(p)
         _ready(o, ~notifyIfChanged=false)
       }
       Dict.set(computes, key, rebuild)
-      clearCache()
+      ignore(Reflect.set(target, key, computeKey))
 
       // Compute clearing function
       let clear = () => {
@@ -492,10 +513,10 @@ let compute = (p: 'a, key: string, callback: 'a => unit) => {
 
         // Only remove our rebuild function
         switch Dict.get(computes, key) {
-        | Value(fn) if fn === rebuild => {
+        | Value(c) if c === rebuild => {
             Dict.delete(computes, key)
             if Reflect.get(target, key) === computeKey {
-              ignore(Reflect.set(target, key, undefined))
+              ignore(Reflect.set(target, key, lastValue.v))
             }
           }
         | _ => ()

@@ -682,7 +682,6 @@ asyncTest("Should use setTimeout as default flush", t => {
     ignore(
       setTimeout(
         () => {
-          Js.log("HOHO")
           t->isTrue(m.called)
           resolve()
         },
@@ -709,6 +708,40 @@ test("Should create compute", t => {
   t->isTrue(m.called)
 })
 
+test("Should create async compute", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let m = {called: false}
+  let _ = Core.compute(p, "name", p => {
+    m.called = true
+    if p.username == "jo" {
+      p.name = "Is jo"
+    }
+    // Not setting p.name (simulate async computation)
+  })
+  t->isFalse(m.called)
+
+  p.username = "mary"
+  // Rebuild not called but cache is hidden
+  t->isFalse(m.called)
+  // On read, the callback is called
+  // But we return the previous value (until name is set)
+  t->is(p.name, "John")
+  t->isTrue(m.called)
+  m.called = false
+  // Now reading the value will be as usual (no cache management)
+  t->is(p.name, "John")
+  p.name = "Mary"
+  t->is(p.name, "Mary")
+  t->isFalse(m.called)
+
+  // Only changes to username will retrigger the cache dance
+  p.username = "mo"
+  // Cache is hidden (retrieves the last value and starts rebuilding)
+  t->is(p.name, "Mary")
+  t->isTrue(m.called)
+})
+
 test("Should clear compute", t => {
   let p = {name: "John", username: "jo"}
   let p = Core.make(p, ~flush=apply)
@@ -722,8 +755,7 @@ test("Should clear compute", t => {
 
   p.username = "mary"
   t->isFalse(m.called)
-  // This can be a bug, be careful.
-  t->is(p.name, %raw(`undefined`))
+  t->is(p.name, "John")
   t->isFalse(m.called)
 })
 
