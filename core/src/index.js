@@ -6,4 +6,5 @@ export {
   clear,
   observe,
   track,
+  compute,
 } from "./TiliaCore.mjs";

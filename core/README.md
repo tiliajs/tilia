@@ -43,6 +43,20 @@ const observer = track(tree.clouds, () => {
 clear(observer);
 
 // NB: to stop tracking with `observe`, simply avoid reading anything in the callback.
+
+// Compute value on the fly. The callback is called on read.  Note that if the
+// computing function needs to start an async operation, it is their
+// responsability to set a proper value before yielding. Something like a
+// Loading state or a Promise. Without such a value, undefined will be returned
+// and might not match the actual type of the value.
+let observer = compute(tree.clouds, () => {
+  // When something is changed on the observed values, the cached value is
+  // cleared and will be recomputed on first read.
+  tree.clouds.morning = tree.clouds.evening + " are not the same";
+});
+
+// Remove computed value.
+clear(observer);
 ```
 
 The call to `tilia` creates a proxy object or array.
@@ -67,6 +81,9 @@ Will trigger the logging of the cloud color.
 - Inserted objects are not cloned.
 - Tracking follows moved or copied objects.
 - Respects `readonly` properties.
+- Leaf-tracking (observe read values).
+- Tracking (observe a whole branch).
+- Computed values (cached calculations, recomputed on read when changed).
 
 ## Internals
 

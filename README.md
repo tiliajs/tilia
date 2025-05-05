@@ -29,6 +29,8 @@ out of the way.
 
 ### Changelog (for @tilia/core)
 
+- 2025-05-05 **1.6.0**
+  - Add `compute` method to cache values on read.
 - 2025-01-17 **1.4.0**
   - Add `track` method to observe branches.
   - Add `flush` strategy for tracking notification.

@@ -12,10 +12,11 @@
     "core": "pnpm --filter core",
     "web": "pnpm --filter website",
     "react": "pnpm --filter react",
-    "build": "pnpm -r build",
+    "build": "pnpm core build && pnpm react build",
     "canary": "./bin/publish-canary.sh",
     "pub": "./bin/publish.sh",
-    "test": "pnpm -r test"
+    "pretest": "pnpm react res:dev-build && pnpm core res:dev-build",
+    "test": "pnpm core test"
   },
   "keywords": [],
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",

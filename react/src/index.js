@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { _connect, _ready, clear } from "@tilia/core";
-export { tilia, observe, track, clear } from "@tilia/core";
+export { tilia, observe, track, clear, compute } from "@tilia/core";
 
 export function useTilia(p) {
   const [, setCount] = useState(0);

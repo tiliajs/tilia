@@ -24,6 +24,8 @@ var make = TiliaCore.make;
 
 var observe = TiliaCore.observe;
 
+var compute = TiliaCore.compute;
+
 var track = TiliaCore.track;
 
 var clear = TiliaCore.clear;
@@ -31,6 +33,7 @@ var clear = TiliaCore.clear;
 export {
   make ,
   observe ,
+  compute ,
   track ,
   clear ,
   use ,

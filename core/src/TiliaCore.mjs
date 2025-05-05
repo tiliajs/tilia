@@ -20,6 +20,8 @@ var trackKey = (Symbol());
 
 var metaKey = (Symbol());
 
+var computeKey = (Symbol());
+
 function _meta(p) {
   return Reflect.get(p, metaKey);
 }
@@ -36,6 +38,7 @@ function _connect(p, notify) {
     var observer_observing = [];
     var observer = {
       notify: notify,
+      clear: undefined,
       observing: observer_observing,
       root: root
     };
@@ -60,7 +63,7 @@ function observeKey(observed, key) {
   return w$1;
 }
 
-function clear(observer) {
+function _clear(observer) {
   observer.observing.forEach(function (watchers) {
         if (watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0) {
           watchers.state = "Cleared";
@@ -69,6 +72,16 @@ function clear(observer) {
         }
         
       });
+}
+
+function clear(observer) {
+  _clear(observer);
+  var fn = observer.clear;
+  if (fn === null || fn === undefined) {
+    return ;
+  } else {
+    return fn();
+  }
 }
 
 function _ready(observer, notifyIfChangedOpt) {
@@ -88,7 +101,7 @@ function _ready(observer, notifyIfChangedOpt) {
               return false;
           case "Changed" :
               if (notifyIfChanged) {
-                clear(observer);
+                _clear(observer);
                 observer.notify();
                 return true;
               }
@@ -123,7 +136,7 @@ function notify(observed, key) {
   observed.delete(key);
   watchers.state = "Changed";
   watchers.observers.forEach(function (observer) {
-        clear(observer);
+        _clear(observer);
         observer.notify();
       });
 }
@@ -171,6 +184,7 @@ function proxify(root, _parent_propagate, _target) {
     var parent_propagate = _parent_propagate;
     var proxied = new Map();
     var observed = new Map();
+    var computes = new Map();
     var ancestry = new Set();
     ancestry.add(parent_propagate);
     var propagate = {
@@ -189,7 +203,7 @@ function proxify(root, _parent_propagate, _target) {
       _parent_propagate = propagate;
       continue ;
     }
-    var meta = ({root, target, observed, proxied, propagate});
+    var meta = ({root, target, observed, proxied, computes, propagate});
     var isArray = Array.isArray(target);
     var proxy = new Proxy(target, {
           set: (function(proxied,observed,propagate){
@@ -222,7 +236,7 @@ function proxify(root, _parent_propagate, _target) {
             return res;
           }
           }(proxied,observed,propagate)),
-          get: (function(proxied,observed,propagate,isArray){
+          get: (function(proxied,observed,computes,propagate,isArray){
           return function (extra, extra$1) {
             if (extra$1 === metaKey) {
               return meta;
@@ -242,6 +256,23 @@ function proxify(root, _parent_propagate, _target) {
               var w$1 = observeKey(observed, extra$1);
               o.observing.push(w$1);
             }
+            if (v === computeKey) {
+              var fn = computes.get(extra$1);
+              if (fn === null || fn === undefined) {
+                if (fn === null) {
+                  throw new Error("Compute function not found.");
+                }
+                throw new Error("Compute function not found.");
+              } else {
+                fn();
+              }
+              var v$1 = Reflect.get(extra, extra$1);
+              if (v$1 === computeKey) {
+                return undefined;
+              } else {
+                return v$1;
+              }
+            }
             if (!(object(v) && !readonly(extra, extra$1))) {
               return v;
             }
@@ -254,7 +285,7 @@ function proxify(root, _parent_propagate, _target) {
             proxied.set(extra$1, m$1);
             return m$1.proxy;
           }
-          }(proxied,observed,propagate,isArray)),
+          }(proxied,observed,computes,propagate,isArray)),
           ownKeys: (function(observed){
           return function (extra) {
             var keys = Reflect.ownKeys(extra);
@@ -320,6 +351,7 @@ function track(p, callback) {
     var observer_root = match.root;
     var observer = {
       notify: observer_notify,
+      clear: undefined,
       observing: observer_observing,
       root: observer_root
     };
@@ -327,6 +359,61 @@ function track(p, callback) {
     w.observers.add(observer);
     observer_observing.push(w);
     return observer;
+  }
+}
+
+function compute(p, key, callback) {
+  var match = Reflect.get(p, metaKey);
+  if (match === null || match === undefined) {
+    if (match === null) {
+      throw new Error("Observed state is not a tilia proxy.");
+    }
+    throw new Error("Observed state is not a tilia proxy.");
+  } else {
+    var computes = match.computes;
+    var target = match.target;
+    var clearCache = function () {
+      Reflect.set(target, key, computeKey);
+    };
+    var clear_o = {
+      o: undefined
+    };
+    var rebuild = function () {
+      var o = _connect(p, clearCache);
+      clear_o.o = o;
+      callback(p);
+      _ready(o, false);
+    };
+    computes.set(key, rebuild);
+    clearCache();
+    var clear = function () {
+      var o = clear_o.o;
+      if (o === null || o === undefined) {
+        o === null;
+      } else {
+        _clear(o);
+      }
+      var fn = computes.get(key);
+      if (fn === null || fn === undefined || fn !== rebuild) {
+        return ;
+      } else {
+        computes.delete(key);
+        if (Reflect.get(target, key) === computeKey) {
+          Reflect.set(target, key, undefined);
+          return ;
+        } else {
+          return ;
+        }
+      }
+    };
+    return {
+            notify: (function () {
+                
+              }),
+            clear: clear,
+            observing: [],
+            root: match.root
+          };
   }
 }
 
@@ -338,5 +425,6 @@ export {
   _connect ,
   _ready ,
   _meta ,
+  compute ,
 }
 /* indexKey Not a pure module */

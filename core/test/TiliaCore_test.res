@@ -691,3 +691,56 @@ asyncTest("Should use setTimeout as default flush", t => {
     )
   })
 })
+
+test("Should create compute", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let m = {called: false}
+  let _ = Core.compute(p, "name", p => {
+    m.called = true
+    p.name = p.username ++ " OK"
+  })
+  t->isFalse(m.called)
+
+  p.username = "mary"
+  t->isFalse(m.called)
+  // On read, the callback is called
+  t->is(p.name, "mary OK")
+  t->isTrue(m.called)
+})
+
+test("Should clear compute", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let m = {called: false}
+  let o = Core.compute(p, "name", p => {
+    m.called = true
+    p.name = p.username ++ " OK"
+  })
+  t->isFalse(m.called)
+  Core.clear(o)
+
+  p.username = "mary"
+  t->isFalse(m.called)
+  // This can be a bug, be careful.
+  t->is(p.name, %raw(`undefined`))
+  t->isFalse(m.called)
+})
+
+test("Should clear compute after setting value", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let m = {called: false}
+  let o = Core.compute(p, "name", p => {
+    m.called = true
+    p.name = p.username ++ " OK"
+  })
+  t->isFalse(m.called)
+  p.name = "Louise"
+  Core.clear(o)
+
+  p.username = "mary"
+  t->isFalse(m.called)
+  t->is(p.name, "Louise")
+  t->isFalse(m.called)
+})

@@ -43,6 +43,7 @@ module Dict = {
   @send external delete: (t<'a>, string) => unit = "delete"
 }
 type dict<'a> = Dict.t<'a>
+type compute = unit => unit
 
 // Called when something changes in the index (added or removed keys)
 let indexKey = %raw(`Symbol()`)
@@ -50,6 +51,8 @@ let indexKey = %raw(`Symbol()`)
 let trackKey = %raw(`Symbol()`)
 // Used to get meta information (mostly for stats)
 let metaKey = %raw(`Symbol()`)
+// Used to compute values
+let computeKey = %raw(`Symbol()`)
 
 type state =
   | Pristine // Hasn't changed since value read.
@@ -58,6 +61,7 @@ type state =
 
 type rec observer = {
   notify: unit => unit,
+  clear: nullable<unit => unit>,
   // What this observer is observing (a list of watchers)
   observing: observing,
   // Where this observer is observing (not used anymore ?)
@@ -104,6 +108,8 @@ type rec meta<'a> = {
   observed: dict<watchers>,
   // Cached children proxy.
   proxied: dict<meta<'a>>,
+  // Compute functions.
+  computes: dict<compute>,
   // The observer and ancestry to propagate tracking.
   propagate: propagate,
   // The proxy itself (used by proxied).
@@ -117,6 +123,7 @@ let _connect = (p: 'a, notify) => {
   switch _nmeta(p) {
   | Value({root}) => {
       let observer: observer = {
+        clear: Undefined,
         notify,
         observing: [],
         root,
@@ -143,7 +150,7 @@ let observeKey = (observed, key) => {
   }
 }
 
-let clear = (observer: observer) => {
+let _clear = (observer: observer) => {
   Array.forEach(observer.observing, watchers => {
     if (
       watchers.state == Pristine &&
@@ -156,6 +163,14 @@ let clear = (observer: observer) => {
       Dict.delete(watchers.observed, watchers.key)
     }
   })
+}
+
+let clear = (observer: observer) => {
+  _clear(observer)
+  switch observer.clear {
+  | Value(fn) => fn()
+  | _ => ()
+  }
 }
 
 let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
@@ -172,7 +187,7 @@ let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
           false
         }
       | Changed if notifyIfChanged => {
-          clear(observer)
+          _clear(observer)
           observer.notify()
           true // abort loop
         }
@@ -226,7 +241,7 @@ let notify = (observed, key) => {
       Dict.delete(observed, key)
       watchers.state = Changed
       Set.forEach(watchers.observers, observer => {
-        clear(observer)
+        _clear(observer)
         observer.notify()
       })
     }
@@ -234,9 +249,15 @@ let notify = (observed, key) => {
   }
 }
 
+/* Something changed, notify. If there is already a set of triggers, we add to
+ * it or create a new one. If creating a new one, we flush the triggers
+ * synchronously or asynchronously depending on the flush function.
+ */
 let triggerTracking = (root, propagate) => {
   switch root.triggers {
+  /* Existing trigger set (we are in an asynchronous flush mode). Add to it. */
   | Value(triggers) => Set.add(triggers, propagate)
+  /* No trigger set: create one. */
   | _ => {
       let triggers = Set.make()
       Set.add(triggers, propagate)
@@ -309,6 +330,7 @@ let rec get = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
+  computes: dict<compute>,
   propagate: propagate,
   meta: meta<'a>,
   isArray: bool,
@@ -338,7 +360,20 @@ let rec get = (
       | _ => ()
       }
 
-      if Typeof.object(v) && !Object.readonly(target, key) {
+      if v === computeKey {
+        switch Dict.get(computes, key) {
+        | Value(fn) => fn()
+        | _ => Exn.raiseError("Compute function not found.")
+        }
+        let v = Reflect.get(target, key)
+        if v === computeKey {
+          // Async rebuild, return undefined
+          // We need to use raw to avoid type guess of "undefined" for 'a
+          %raw(`undefined`)
+        } else {
+          v
+        }
+      } else if Typeof.object(v) && !Object.readonly(target, key) {
         switch Dict.get(proxied, key) {
         | Value(m) => m.proxy
         | _ =>
@@ -358,6 +393,7 @@ let rec get = (
 and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
+  let computes: dict<compute> = Dict.make()
   let ancestry = Set.make()
 
   // Register parent in child ancestry
@@ -374,14 +410,14 @@ and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> =>
     }
   | Value(m) => proxify(root, propagate, m.target) /* external tree: clear */
   | _ =>
-    let meta: meta<'a> = %raw(`{root, target, observed, proxied, propagate}`)
+    let meta: meta<'a> = %raw(`{root, target, observed, proxied, computes, propagate}`)
     let isArray = Typeof.array(target)
     let proxy = Proxy.make(
       target,
       {
         "set": set(root, observed, proxied, propagate, ...),
         "deleteProperty": deleteProperty(root, observed, proxied, propagate, ...),
-        "get": get(root, observed, proxied, propagate, meta, isArray, ...),
+        "get": get(root, observed, proxied, computes, propagate, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
     )
@@ -416,6 +452,7 @@ let track = (p: 'a, callback: 'a => unit) => {
   switch _nmeta(p) {
   | Value({root, observed}) => {
       let observer: observer = {
+        clear: Undefined,
         notify: () => callback(p),
         observing: [],
         root,
@@ -423,6 +460,53 @@ let track = (p: 'a, callback: 'a => unit) => {
       let w = observeKey(observed, trackKey)
       ignore(Set.add(w.observers, observer))
       Array.push(observer.observing, w)
+      observer
+    }
+  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
+  }
+}
+
+type clear_o = {mutable o: nullable<observer>}
+
+let compute = (p: 'a, key: string, callback: 'a => unit) => {
+  switch _nmeta(p) {
+  | Value({root, target, computes}) => {
+      let clearCache = () => ignore(Reflect.set(target, key, computeKey))
+      let clear_o = {o: Undefined}
+      let rebuild = () => {
+        let o = _connect(p, clearCache)
+        clear_o.o = Value(o)
+        callback(p)
+        _ready(o, ~notifyIfChanged=false)
+      }
+      Dict.set(computes, key, rebuild)
+      clearCache()
+
+      // Compute clearing function
+      let clear = () => {
+        // Clear our cache clearing observer
+        switch clear_o.o {
+        | Value(o) => _clear(o)
+        | _ => ()
+        }
+
+        // Only remove our rebuild function
+        switch Dict.get(computes, key) {
+        | Value(fn) if fn === rebuild => {
+            Dict.delete(computes, key)
+            if Reflect.get(target, key) === computeKey {
+              ignore(Reflect.set(target, key, undefined))
+            }
+          }
+        | _ => ()
+        }
+      }
+      let observer = {
+        notify: () => (),
+        clear: Value(clear),
+        observing: [],
+        root,
+      }
       observer
     }
   | _ => Exn.raiseError("Observed state is not a tilia proxy.")

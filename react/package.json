@@ -1,6 +1,6 @@
 {
   "name": "@tilia/react",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -11,6 +11,7 @@
   },
   "scripts": {
     "res:build": "rescript",
+    "res:dev-build": "rescript build -with-deps",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
     "test:watch": "ava --watch",
