@@ -484,24 +484,27 @@ let compute = (p: 'a, key: string, callback: 'a => unit) => {
           lastValue.v = v
         }
         // Now cache is hidden behind the computeKey.
-        ignore(Reflect.set(target, key, computeKey))
+        // Notify observers to fetch value (will trigger a rebuild if the
+        // observers are alive and still need the value).
+        ignore(Reflect.set(p, key, computeKey))
       }
       let clear_o = {o: Undefined}
       let rebuild = () => {
         // Make sure any further read gets the last value until we
         // are done with rebuilding the value.
-        Console.log(lastValue.v)
         ignore(Reflect.set(target, key, lastValue.v))
         // On change: hide cache.
         let o = _connect(p, clearCache)
         clear_o.o = Value(o)
-        // Rebuild value (will only retrigger on next read after
-        // cache clear).
+
+        // Rebuild value.
         callback(p)
         _ready(o, ~notifyIfChanged=false)
       }
       Dict.set(computes, key, rebuild)
-      ignore(Reflect.set(target, key, computeKey))
+
+      // Notify observers of proxy[key]:
+      ignore(Reflect.set(p, key, computeKey))
 
       // Compute clearing function
       let clear = () => {

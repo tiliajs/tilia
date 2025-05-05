@@ -2,6 +2,7 @@ open Ava
 let onot = not
 open Assert
 module Core = TiliaCore
+
 module TestObject = {
   type t
   let make: unit => t = %raw(`() => ({})`)
@@ -714,9 +715,7 @@ test("Should create async compute", t => {
   let m = {called: false}
   let _ = Core.compute(p, "name", p => {
     m.called = true
-    if p.username == "jo" {
-      p.name = "Is jo"
-    }
+    t->is(p.username, p.username) // Just to read value from proxy
     // Not setting p.name (simulate async computation)
   })
   t->isFalse(m.called)
@@ -728,8 +727,9 @@ test("Should create async compute", t => {
   // But we return the previous value (until name is set)
   t->is(p.name, "John")
   t->isTrue(m.called)
-  m.called = false
+
   // Now reading the value will be as usual (no cache management)
+  m.called = false
   t->is(p.name, "John")
   p.name = "Mary"
   t->is(p.name, "Mary")
@@ -775,4 +775,53 @@ test("Should clear compute after setting value", t => {
   t->isFalse(m.called)
   t->is(p.name, "Louise")
   t->isFalse(m.called)
+})
+
+test("Should notify cache observer on dependency change", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let m = {called: false}
+  let read = ref(true)
+  Core.observe(p, p => {
+    if read.contents {
+      t->is(p.name, "John")
+    }
+    m.called = true
+  })
+  m.called = false
+
+  let mc = {called: false}
+  let _ = Core.compute(p, "name", p => {
+    t->is(p.username, p.username) // Just to read value from proxy
+    mc.called = true
+  })
+  // On compute setup, observers are notified (because it is like a value
+  // change).
+  t->isTrue(m.called)
+  t->isTrue(mc.called)
+  m.called = false
+  mc.called = false
+  read.contents = false
+
+  p.username = "mary"
+  // Cached value "hidden", observer notified but compute not run.
+  t->isTrue(m.called)
+  t->isFalse(mc.called)
+})
+
+test("Should work with observers", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let _ = Core.compute(p, "name", p => {
+    Js.log(p.username)
+    p.name = p.username ++ " is OK"
+  })
+  let name = ref("")
+  Core.observe(p, p => {
+    name.contents = p.name
+  })
+  t->is(name.contents, "jo is OK")
+
+  p.username = "mary"
+  t->is(name.contents, "mary is OK")
 })

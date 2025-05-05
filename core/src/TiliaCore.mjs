@@ -379,13 +379,12 @@ function compute(p, key, callback) {
       if (v !== computeKey) {
         lastValue.v = v;
       }
-      Reflect.set(target, key, computeKey);
+      Reflect.set(p, key, computeKey);
     };
     var clear_o = {
       o: undefined
     };
     var rebuild = function () {
-      console.log(lastValue.v);
       Reflect.set(target, key, lastValue.v);
       var o = _connect(p, clearCache);
       clear_o.o = o;
@@ -393,7 +392,7 @@ function compute(p, key, callback) {
       _ready(o, false);
     };
     computes.set(key, rebuild);
-    Reflect.set(target, key, computeKey);
+    Reflect.set(p, key, computeKey);
     var clear = function () {
       var o = clear_o.o;
       if (o === null || o === undefined) {
