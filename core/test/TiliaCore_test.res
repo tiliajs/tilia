@@ -16,6 +16,7 @@ module AnyObject = {
   type descriptor<'a> = {writable: bool, value: 'a}
   external get: ('a, string) => 'b = "Reflect.get"
   external set: ('a, string, 'b) => bool = "Reflect.set"
+  external deleteProperty: ('a, string) => unit = "Reflect.deleteProperty"
   external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
     "Object.getOwnPropertyDescriptor"
   external defineProperty: ('a, string, descriptor<'b>) => unit = "Object.defineProperty"
@@ -692,14 +693,18 @@ asyncTest("Should use setTimeout as default flush", t => {
   })
 })
 
-test("Should create compute", t => {
+let ucomputed: Core.computed<user, 'a> = Core.computed
+let pcomputed: Core.computed<person, 'a> = Core.computed
+
+test("Should create computed", t => {
   let p = {name: "John", username: "jo"}
   let p = Core.make(p, ~flush=apply)
   let m = {called: false}
-  let _ = Core.compute(p, "name", p => {
+  p.name = ucomputed("John", p => {
     m.called = true
-    p.name = p.username ++ " OK"
+    p.username ++ " OK"
   })
+  // Not called: does not have observers
   t->isFalse(m.called)
 
   p.username = "mary"
@@ -709,113 +714,177 @@ test("Should create compute", t => {
   t->isTrue(m.called)
 })
 
-test("Should create async compute", t => {
-  let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+test("Should manage computed in object", t => {
   let m = {called: false}
-  let _ = Core.compute(p, "name", p => {
-    m.called = true
-    t->is(p.username, p.username) // Just to read value from proxy
-    // Not setting p.name (simulate async computation)
-  })
+  let p = {
+    name: ucomputed("John", p => {
+      m.called = true
+      p.username ++ " is OK"
+    }),
+    username: "jo",
+  }
+  let p = Core.make(p, ~flush=apply)
+  // Not called: does not have observers
   t->isFalse(m.called)
 
-  p.username = "mary"
-  // Rebuild not called but cache is hidden
-  t->isFalse(m.called)
   // On read, the callback is called
-  // But we return the previous value (until name is set)
-  t->is(p.name, "John")
+  t->is(p.name, "jo is OK")
   t->isTrue(m.called)
-
-  // Now reading the value will be as usual (no cache management)
   m.called = false
-  t->is(p.name, "John")
-  p.name = "Mary"
-  t->is(p.name, "Mary")
+  t->is(p.name, "jo is OK")
   t->isFalse(m.called)
+})
 
-  // Only changes to username will retrigger the cache dance
-  p.username = "mo"
-  // Cache is hidden (retrieves the last value and starts rebuilding)
-  t->is(p.name, "Mary")
+test("Should proxify computed object", t => {
+  let m = {called: false}
+  let p = {
+    name: "Louise",
+    address: pcomputed({city: "Any", zip: 1234}, p => {
+      m.called = true
+      {city: "Wild " ++ p.name, zip: 1234}
+    }),
+    phone: Value("827013"),
+    other_address: {city: "Angels", zip: 1234},
+    passions: [],
+    notes: TestObject.make(),
+  }
+  let p = Core.make(p, ~flush=apply)
+  t->isFalse(m.called)
+  let mo = {called: false}
+  let o = Core._connect(p.address, () => mo.called = true)
+  t->is(p.address.city, "Wild Louise")
+  Core._ready(o)
   t->isTrue(m.called)
+  m.called = false
+  t->isFalse(mo.called)
+  p.name = "Mary"
+  t->isTrue(m.called)
+  t->isTrue(mo.called)
 })
 
-test("Should clear compute", t => {
+test("Should not notify if unchanged computed", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  let mo = {called: false}
+  Core.observe(p, p => {
+    t->is(p.name, p.name) // Read p.name
+    mo.called = true
+  })
+  t->isTrue(mo.called)
+  mo.called = false
+
+  // Replacing a raw value with a computed with the same value should not
+  // trigger a notification.
+  let mc = {called: false}
+  p.name = ucomputed(p.name, p => {
+    t->is(p.username, p.username)
+    mc.called = true
+    p.name
+  })
+  // Computed called (because it has observers)
+  t->isTrue(mc.called)
+  mc.called = false
+
+  // Observer not called because value did not change
+  t->isFalse(mo.called)
+
+  // Compute called
+  p.username = "mary"
+  t->isTrue(mc.called)
+  // Value did not change: not notified
+  t->isFalse(mo.called)
+})
+
+test("Should clear compute on deleting key", t => {
   let p = {name: "John", username: "jo"}
   let p = Core.make(p, ~flush=apply)
   let m = {called: false}
-  let o = Core.compute(p, "name", p => {
+  p.name = ucomputed("", p => {
     m.called = true
-    p.name = p.username ++ " OK"
+    p.username ++ " OK"
   })
   t->isFalse(m.called)
-  Core.clear(o)
+  AnyObject.deleteProperty(p, "name")
 
   p.username = "mary"
   t->isFalse(m.called)
-  t->is(p.name, "John")
+  t->is(p.name, %raw(`undefined`))
   t->isFalse(m.called)
 })
 
-test("Should clear compute after setting value", t => {
+test("Should clear compute on replacing compute", t => {
   let p = {name: "John", username: "jo"}
   let p = Core.make(p, ~flush=apply)
   let m = {called: false}
-  let o = Core.compute(p, "name", p => {
+  p.name = ucomputed("", p => {
     m.called = true
-    p.name = p.username ++ " OK"
+    p.username ++ " is nice"
   })
-  t->isFalse(m.called)
-  p.name = "Louise"
-  Core.clear(o)
+  // Trigger first compute (and observations)
+  t->is(p.name, "jo is nice")
+  t->isTrue(m.called)
+  m.called = false
 
-  p.username = "mary"
-  t->isFalse(m.called)
-  t->is(p.name, "Louise")
+  p.name = ucomputed("", p => p.username ++ " is beautiful")
+
+  p.username = "Lisa"
+  t->is(p.name, "Lisa is beautiful")
   t->isFalse(m.called)
 })
 
-test("Should notify cache observer on dependency change", t => {
+test("Compute should notify cache observer on dependency change", t => {
   let p = {name: "John", username: "jo"}
   let p = Core.make(p, ~flush=apply)
-  let m = {called: false}
+  let mo = {called: false}
   let read = ref(true)
   Core.observe(p, p => {
     if read.contents {
-      t->is(p.name, "John")
+      t->is(p.name, p.name) // Read value from proxy
     }
-    m.called = true
+    mo.called = true
   })
-  m.called = false
+  mo.called = false
 
   let mc = {called: false}
-  let _ = Core.compute(p, "name", p => {
+  p.name = ucomputed("", p => {
     t->is(p.username, p.username) // Just to read value from proxy
     mc.called = true
+    "Loading"
   })
   // On compute setup, observers are notified (because it is like a value
   // change).
-  t->isTrue(m.called)
+  t->isTrue(mo.called)
   t->isTrue(mc.called)
-  m.called = false
+  mo.called = false
   mc.called = false
   read.contents = false
 
   p.username = "mary"
-  // Cached value "hidden", observer notified but compute not run.
-  t->isTrue(m.called)
-  t->isFalse(mc.called)
+  // There are observers, value computed even though it might not be read.
+  t->isFalse(mo.called)
+  t->isTrue(mc.called)
 })
 
-test("Should work with observers", t => {
+test("Compute should work with observers", t => {
   let p = {name: "John", username: "jo"}
   let p = Core.make(p, ~flush=apply)
-  let _ = Core.compute(p, "name", p => {
-    Js.log(p.username)
-    p.name = p.username ++ " is OK"
+  p.name = ucomputed("", p => {
+    p.username ++ " is OK"
   })
+  let name = ref("")
+  Core.observe(p, p => {
+    name.contents = p.name
+  })
+  t->is(name.contents, "jo is OK")
+
+  p.username = "mary"
+  t->is(name.contents, "mary is OK")
+})
+
+test("Computed should behave like a defined compute", t => {
+  let p = {name: "John", username: "jo"}
+  let p = Core.make(p, ~flush=apply)
+  p.name = Core.computed("", () => p.username ++ " is OK")
   let name = ref("")
   Core.observe(p, p => {
     name.contents = p.name

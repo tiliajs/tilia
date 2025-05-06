@@ -1,6 +1,7 @@
 type observer
 type root
 type meta<'a>
+type computed<'p, 'a> = ('a, 'p => 'a) => 'a
 
 /** Create a new tilia proxy from a target object. 
  * The default flush function is set to a timeout of 0 (after the current
@@ -37,7 +38,8 @@ let _meta: 'a => meta<'a>
 
 /* Computed (pseudo-signals) */
 
-/** Insert a computed into a tilia proxy. The cached value is computed when the
- * key is read and destroyed when any observed value is changed.
+/** Return a computed value to be inserted into a tilia proxy. The cached value
+ * is computed when the key is read and destroyed when any observed value is
+ * changed.
  */
-let compute: ('a, string, 'a => unit) => observer
+let computed: ('a, 'p => 'a) => 'a

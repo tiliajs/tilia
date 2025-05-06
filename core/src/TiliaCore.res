@@ -13,11 +13,41 @@ module Exn = {
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
+
+// Called when something changes in the index (added or removed keys)
+let indexKey = %raw(`Symbol()`)
+// Called on any change in the object or children (track method)
+let trackKey = %raw(`Symbol()`)
+// Used to get meta information (mostly for stats)
+let metaKey = %raw(`Symbol()`)
+// Mark a function as being a compute value
+let computeKey = %raw(`Symbol()`)
+
+// This is also used to detect compute in init state (they have a noop clear
+// function).
+let noop = () => ()
+
+// This type is never used and only used to pass value.
+type opaque
+type rootp
+
+type compute<'p, 'a> = {
+  initValue: 'a,
+  mutable clear: unit => unit,
+  mutable rebuild: 'p => 'a,
+}
+
 module Typeof = {
   external array: 'a => bool = "Array.isArray"
   let object: 'a => bool = %raw(`
 function(v) {
   return typeof v === 'object' && v !== null;
+}
+  `)
+
+  let compute: 'a => nullable<compute<rootp, 'a>> = %raw(`
+function(v) {
+  return typeof v === 'object' && v !== null && v[computeKey] ? v : undefined;
 }
   `)
 }
@@ -39,24 +69,12 @@ module Dict = {
   type t<'a>
   @new external make: unit => t<'a> = "Map"
   @send external get: (t<'a>, string) => nullable<'a> = "get"
+  @send external has: (t<'a>, string) => bool = "has"
   @send external set: (t<'a>, string, 'b) => unit = "set"
   @send external delete: (t<'a>, string) => unit = "delete"
 }
 
-// This type is never used and only used to pass value.
-type opaque
-
 type dict<'a> = Dict.t<'a>
-type compute = unit => unit
-
-// Called when something changes in the index (added or removed keys)
-let indexKey = %raw(`Symbol()`)
-// Called on any change in the object or children (track method)
-let trackKey = %raw(`Symbol()`)
-// Used to get meta information (mostly for stats)
-let metaKey = %raw(`Symbol()`)
-// Used to compute values
-let computeKey = %raw(`Symbol()`)
 
 type state =
   | Pristine // Hasn't changed since value read.
@@ -89,6 +107,7 @@ and watchers = {
   observers: observers,
 }
 and root = {
+  mutable proxy: rootp,
   mutable observer: nullable<observer>,
   mutable triggers: nullable<Set.t<propagate>>,
   flush: (unit => unit) => unit,
@@ -113,7 +132,7 @@ type rec meta<'a> = {
   // Cached children proxy.
   proxied: dict<meta<'a>>,
   // Compute functions.
-  computes: dict<compute>,
+  computes: dict<compute<rootp, opaque>>,
   // The observer and ancestry to propagate tracking.
   propagate: propagate,
   // The proxy itself (used by proxied).
@@ -142,15 +161,16 @@ let _connect = (p: 'a, notify) => {
 let observeKey = (observed, key) => {
   switch Dict.get(observed, key) {
   | Value(w) => w
-  | _ =>
-    let w = {
-      state: Pristine,
-      key,
-      observed,
-      observers: Set.make(),
+  | _ => {
+      let w = {
+        state: Pristine,
+        key,
+        observed,
+        observers: Set.make(),
+      }
+      Dict.set(observed, key, w)
+      w
     }
-    Dict.set(observed, key, w)
-    w
   }
 }
 
@@ -284,10 +304,14 @@ let deleteProxied = (proxied: dict<meta<'a>>, propagate: propagate, key: string)
   Dict.delete(proxied, key)
 }
 
-let set = (
+type observerRef = {mutable o: nullable<observer>}
+type lastValue<'a> = {mutable v: 'a}
+
+let rec set = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
+  computes: dict<compute<rootp, opaque>>,
   propagate: propagate,
   target: 'a,
   key: string,
@@ -304,27 +328,131 @@ let set = (
       if Typeof.object(prev) {
         deleteProxied(proxied, propagate, key)
       }
-      notify(observed, key)
-      if !hadKey {
-        // new key: trigger index
-        notify(observed, indexKey)
+      switch Typeof.compute(value) {
+      | Value(compute) =>
+        // New computed value (install it and only notify is needed)
+        switch Dict.get(computes, key) {
+        | Value({clear}) => {
+            // Updating the compute function: clear old one.
+            clear()
+            Dict.delete(computes, key)
+          }
+        | _ => ()
+        }
+        setupComputed(root, observed, proxied, computes, propagate, target, key, compute)
+        if Dict.has(observed, key) {
+          // Computed value is already observed: notify
+          set(
+            root,
+            observed,
+            proxied,
+            computes,
+            propagate,
+            target,
+            key,
+            compute.rebuild(root.proxy),
+          )
+        } else {
+          true
+        }
+      | _ => {
+          notify(observed, key)
+          if !hadKey {
+            // new key: trigger index
+            notify(observed, indexKey)
+          }
+          triggerTracking(root, propagate)
+          true
+        }
       }
-      triggerTracking(root, propagate)
-      true
     }
   }
+}
+
+and setupComputed = (
+  root: root,
+  observed: dict<watchers>,
+  proxied: dict<meta<'c>>,
+  computes: dict<compute<rootp, opaque>>,
+  propagate: propagate,
+  target: 'a,
+  key: string,
+  compute: compute<rootp, 'b>,
+) => {
+  let p = root.proxy
+  let lastValue: lastValue<'b> = {v: compute.initValue}
+  let observer = {o: Undefined}
+  // Initial compute has raw callback as rebuild method
+  let callback = compute.rebuild
+
+  let rec notify = () => {
+    let v = Reflect.get(target, key)
+    if v !== compute {
+      lastValue.v = v
+    }
+    if Dict.has(observed, key) {
+      // We have observers on this key: rebuild() and if the key changed, it
+      // will notify cache observers.
+      ignore(set(root, observed, proxied, computes, propagate, target, key, rebuild(p)))
+    } else {
+      // We do not have observers: reset value.
+      // Make sure the previous proxy (if any) is removed so that it is not
+      // served in place of triggering the compute.
+      ignore(Reflect.deleteProperty(proxied, key))
+      ignore(Reflect.set(target, key, compute))
+    }
+  }
+  and rebuild = p => {
+    // Make sure any further read gets the last value until we
+    // are done with rebuilding the value. This is also useful if the
+    // callback needs the previous value and to detect unchanged value.
+    ignore(Reflect.set(target, key, lastValue.v))
+    let o: observer = {
+      clear: Undefined,
+      notify,
+      observing: [],
+      root,
+    }
+    observer.o = Value(o)
+
+    let previous = root.observer
+    root.observer = Value(o)
+    let v = callback(p)
+    _ready(o, ~notifyIfChanged=false)
+    root.observer = previous
+
+    v
+  }
+  compute.rebuild = rebuild
+
+  compute.clear = () => {
+    // Clear our cache clearing observer
+    switch observer.o {
+    | Value(o) => _clear(o)
+    | _ => ()
+    }
+  }
+  Dict.set(computes, key, compute)
 }
 
 let deleteProperty = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
+  computes: dict<compute<rootp, opaque>>,
   propagate: propagate,
   target: 'a,
   key: string,
 ) => {
   let res = Reflect.deleteProperty(target, key)
   deleteProxied(proxied, propagate, key)
+  switch Dict.get(computes, key) {
+  | Value({clear}) => {
+      clear()
+      Dict.delete(computes, key)
+    }
+  | _ => ()
+  }
   notify(observed, key)
   triggerTracking(root, propagate)
   res
@@ -334,7 +462,7 @@ let rec get = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute>,
+  computes: dict<compute<rootp, opaque>>,
   propagate: propagate,
   meta: meta<'a>,
   isArray: bool,
@@ -364,26 +492,29 @@ let rec get = (
       | _ => ()
       }
 
-      let v = if v === computeKey {
-        switch Dict.get(computes, key) {
-        | Value(rebuild) => {
-            rebuild()
-            // The rebuild function always sets a value so we can get it now.
-            Reflect.get(target, key)
-          }
-        | _ => Exn.raiseError("Compute function not found.")
-        }
-      } else {
-        v
-      }
-
       if Typeof.object(v) && !Object.readonly(target, key) {
-        switch Dict.get(proxied, key) {
-        | Value(m) => m.proxy
+        switch Typeof.compute(v) {
+        | Value(compute) if compute.clear === noop =>
+          // New compute: need setup
+          setupComputed(root, observed, proxied, computes, propagate, target, key, compute)
+          let v = compute.rebuild(root.proxy)
+          ignore(Reflect.set(target, key, v))
+          if Typeof.object(v) && !Object.readonly(target, key) {
+            let m = proxify(root, propagate, v)
+            Dict.set(proxied, key, m)
+            m.proxy
+          } else {
+            v
+          }
+        | Value(compute) => compute.rebuild(root.proxy)
         | _ =>
-          let m = proxify(root, propagate, v)
-          Dict.set(proxied, key, m)
-          m.proxy
+          switch Dict.get(proxied, key) {
+          | Value(m) => m.proxy
+          | _ =>
+            let m = proxify(root, propagate, v)
+            Dict.set(proxied, key, m)
+            m.proxy
+          }
         }
       } else {
         v
@@ -397,7 +528,7 @@ let rec get = (
 and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
-  let computes: dict<compute> = Dict.make()
+  let computes: dict<compute<rootp, opaque>> = Dict.make()
   let ancestry = Set.make()
 
   // Register parent in child ancestry
@@ -419,8 +550,8 @@ and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> =>
     let proxy = Proxy.make(
       target,
       {
-        "set": set(root, observed, proxied, propagate, ...),
-        "deleteProperty": deleteProperty(root, observed, proxied, propagate, ...),
+        "set": set(root, observed, proxied, computes, propagate, ...),
+        "deleteProperty": deleteProperty(root, observed, proxied, computes, propagate, ...),
         "get": get(root, observed, proxied, computes, propagate, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
@@ -435,12 +566,16 @@ let timeOutFlush = (fn: unit => unit) => {
 }
 
 let make = (seed: 'a, ~flush=timeOutFlush): 'a => {
-  let root = {flush, observer: Undefined, triggers: Undefined}
+  let root = {flush, observer: Undefined, triggers: Undefined, proxy: %raw(`seed`)}
   let propagate: propagate = {
     obs: Dict.make(),
     ancestry: Set.make(),
   }
-  proxify(root, propagate, seed).proxy
+
+  // FIXME
+  let p = proxify(root, propagate, seed).proxy
+  root.proxy = %raw(`p`)
+  p
 }
 
 let observe = (p: 'a, callback: 'a => unit) => {
@@ -470,69 +605,10 @@ let track = (p: 'a, callback: 'a => unit) => {
   }
 }
 
-type clear_o = {mutable o: nullable<observer>}
-type lastValue = {mutable v: opaque}
+type computed<'p, 'a> = ('a, 'p => 'a) => 'a
 
-let compute = (p: 'a, key: string, callback: 'a => unit) => {
-  switch _nmeta(p) {
-  | Value({root, target, computes}) => {
-      let v = Reflect.get(target, key)
-      let lastValue: lastValue = {v: v}
-      let clearCache = () => {
-        let v = Reflect.get(target, key)
-        if v !== computeKey {
-          lastValue.v = v
-        }
-        // Now cache is hidden behind the computeKey.
-        // Notify observers to fetch value (will trigger a rebuild if the
-        // observers are alive and still need the value).
-        ignore(Reflect.set(p, key, computeKey))
-      }
-      let clear_o = {o: Undefined}
-      let rebuild = () => {
-        // Make sure any further read gets the last value until we
-        // are done with rebuilding the value.
-        ignore(Reflect.set(target, key, lastValue.v))
-        // On change: hide cache.
-        let o = _connect(p, clearCache)
-        clear_o.o = Value(o)
-
-        // Rebuild value.
-        callback(p)
-        _ready(o, ~notifyIfChanged=false)
-      }
-      Dict.set(computes, key, rebuild)
-
-      // Notify observers of proxy[key]:
-      ignore(Reflect.set(p, key, computeKey))
-
-      // Compute clearing function
-      let clear = () => {
-        // Clear our cache clearing observer
-        switch clear_o.o {
-        | Value(o) => _clear(o)
-        | _ => ()
-        }
-
-        // Only remove our rebuild function
-        switch Dict.get(computes, key) {
-        | Value(c) if c === rebuild => {
-            Dict.delete(computes, key)
-            if Reflect.get(target, key) === computeKey {
-              ignore(Reflect.set(target, key, lastValue.v))
-            }
-          }
-        | _ => ()
-        }
-      }
-      let observer = {
-        notify: () => (),
-        clear: Value(clear),
-        observing: [],
-        root,
-      }
-      observer
-    }
-  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
-  }
+let computed = (initValue: 'a, callback: 'p => 'a) => {
+  let v = {clear: noop, rebuild: callback, initValue}
+  ignore(Reflect.set(v, computeKey, true))
+  %raw(`v`)
 }

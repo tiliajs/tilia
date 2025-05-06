@@ -2,7 +2,7 @@ declare const o: unique symbol;
 export type observer = { readonly [o]: true };
 export function tilia<a extends object>(tree: a, flush?: (fn: () => void) => void): a;
 export function observe<a>(tree: a, fn: (tree: a) => void): void;
-export function compute<a extends object>(tree: a, key: keyof a, fn: (tree: a) => void): observer;
+export function computed<a extends object>(tree: a, fn: (tree: a) => void, initValue: a): a;
 export function track<a>(tree: a, fn: (tree: a) => void): observer;
 export function clear(observer: observer): void;
 export function _connect<a>(tree: a, callback: () => void): observer;

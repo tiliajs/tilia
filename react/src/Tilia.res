@@ -7,7 +7,7 @@ let make = make
 let observe = observe
 let track = track
 let clear = clear
-let compute = compute
+let computed = computed
 
 let use = p => {
   let (_, setCount) = useState(0)
