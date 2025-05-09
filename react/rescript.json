@@ -4,7 +4,7 @@
     {
       "dir": "src",
       "public": [
-        "Tilia"
+        "TiliaReact"
       ],
       "subdirs": true
     },
@@ -19,7 +19,7 @@
   },
   "suffix": ".mjs",
   "bs-dependencies": [
-    "@tilia/core"
+    "tilia"
   ],
   "bs-dev-dependencies": [
     "@rescript/core",

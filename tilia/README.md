@@ -1,22 +1,23 @@
-# Tilia Core
+# Tilia
 
 Tilia is a simple state management library for "FRP" style programming.
 
-This package contains the core engine. If you need to use this library
-with React, please use [@tilia/react](https://github.com/tiliajs/tilia) instead.
+This package contains the core FRP engine.
+
+To use this library with React, please use [@tilia/react](https://github.com/tiliajs/tilia).
 
 This package is compatible with _TypeScript_ and _ReScript_, you can find the examples for the latter at the end.
 
 ## Installation
 
 ```sh
-npm install @tilia/core
+npm install tilia
 ```
 
 ## Usage
 
 ```ts
-import { tilia, observe, track, clear } from "@tilia/core";
+import { tilia, observe, track, clear } from "tilia";
 
 // Create a tracked object or array:
 const tree = tilia({
@@ -106,7 +107,7 @@ export function clear(observer: observer): void;
 # ReScript example
 
 ```res
-open TiliaCore
+open Tilia
 
 type clouds = {
   mutable morning: string,
@@ -129,7 +130,7 @@ observe(tree, (_) => {
 })
 ```
 
-The call to `TiliaCore.make` creates a tracked object or array.
+The call to `Tilia.make` creates a tracked object or array.
 
 And then we create an observer that will run if anything that it reads from the
 tree changes. For example, the observer above watches "clouds" and "evening" inside the clouds

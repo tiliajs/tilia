@@ -14,7 +14,8 @@ npm install @tilia/react
 ## Usage
 
 ```tsx
-import { tilia, observe, useTilia } from "@tilia/react";
+import { tilia, observe } from "tilia";
+import { useTilia } from "@tilia/react";
 
 // Create a tracked object or array:
 const state: MyState = tilia({
@@ -178,7 +179,7 @@ let make(~clouds: clouds) {
 }
 ```
 
-Please check the documentation for [@tilia/core](../core/README.md) for technical details on how tracking is done.
+Please check the documentation for [tilia](https://github.com/tiliajs/tilia) for technical details on how tracking is done.
 
 ## Little sandbox examples
 
@@ -186,4 +187,4 @@ Please check the documentation for [@tilia/core](../core/README.md) for technica
 
 ### Changelog
 
-See [core/changelog](https://github.com/tiliajs/tilia)
+See [tilia/changelog](https://github.com/tiliajs/tilia)

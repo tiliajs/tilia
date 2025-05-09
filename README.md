@@ -2,15 +2,16 @@
 
 Simple and fast state management for your app.
 
-This is the root of the monorepo. Documentation for the projects are here:
+The library supports raw JS, TypeScript and ReScript. This is the root of the
+monorepo. Documentation for the projects are here:
+
+Tilia FRP engine. This is what you use to handle state and functional reactivity.
+
+- [**tilia**](./packages/tilia/README.md)
+
+Tilia for React, aka "useTilia"...
 
 - [**@tilia/react**](./packages/react/README.md)
-
-Tilia for React. The library supports raw JS, TypeScript and ReScript.
-
-- [**@tilia/core**](./packages/core/README.md)
-
-Core engine for tilia. Most users will not import this directly.
 
 ## Features
 
@@ -21,14 +22,21 @@ Core engine for tilia. Most users will not import this directly.
 - Tracking follows moved or copied objects.
 - Respects `readonly` properties.
 - Support for both read based observing and branch based tracking.
+- Supports computed values.
+- Supports forest mode: tracking across multiple instances.
 
 ### Goals and Non-goals
 
 The goal with Tilia is to be minimal and fast while staying as much as possible
 out of the way.
 
-### Changelog (for @tilia/core)
+### Changelog (for tilia)
 
+- 2025-05-09 **2.0.0**
+  - Add `computed` method to cache values on read.
+  - Remove `compute` and re-exports in @tilia/react.
+  - Move to "tilia" for npm package.
+  - Enable 'forest mode': tracking across multiple instances.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.
 - 2025-01-17 **1.4.0**

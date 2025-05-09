@@ -1,7 +1,6 @@
 open Ava
 let onot = not
 open Assert
-module Core = TiliaCore
 
 module TestObject = {
   type t
@@ -63,11 +62,11 @@ let person = () => {
 test("Should track leaf changes", t => {
   let m = {called: false}
   let p = {name: "John", username: "jo"}
-  let x = Core.make(p)
-  let o = Core._connect(x, () => m.called = true)
+  let x = Tilia.make(p)
+  let o = Tilia._connect(x, () => m.called = true)
   t->is(x.name, "John") // observe 'name'
   t->is(m.called, false)
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Update name with same value after ready
   x.name = "John"
@@ -88,8 +87,8 @@ test("Should track leaf changes", t => {
 
 test("Should observe", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p)
-  Core.observe(p, p => {
+  let p = Tilia.make(p)
+  Tilia.observe(p, p => {
     open String
     p.username = p.name->toLowerCase->slice(~start=0, ~end=2)
   })
@@ -109,8 +108,8 @@ test("Should observe", t => {
 
 test("Should allow mutating in observed", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p)
-  Core.observe(p, p => {
+  let p = Tilia.make(p)
+  Tilia.observe(p, p => {
     p.name = p.name ++ " OK"
   })
 
@@ -129,8 +128,8 @@ test("Should allow mutating in observed", t => {
 
 test("Should observe mutated keys", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p)
-  Core.observe(p, p => {
+  let p = Tilia.make(p)
+  Tilia.observe(p, p => {
     if p.username === "john" {
       p.username = "not john"
     }
@@ -148,11 +147,11 @@ test("Should observe mutated keys", t => {
 test("Should proxy sub-objects", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(p.address.city, "Truth") // observe 'address.city'
   t->is(m.called, false)
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Update name with same value after ready
   p.address.city = "Truth"
@@ -174,10 +173,10 @@ test("Should proxy sub-objects", t => {
 test("Should proxy array", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(p.passions[0], Some("fruits")) // observe key 0
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Update entry
   p.passions[0] = "watercolor"
@@ -188,10 +187,10 @@ test("Should proxy array", t => {
 test("Should watch array index", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(Array.length(p.passions), 1) // observe length
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Insert new entry
   Array.push(p.passions, "watercolor")
@@ -202,10 +201,10 @@ test("Should watch array index", t => {
 test("Should watch object keys", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 0) // observe keys
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Insert new entry
   TestObject.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
@@ -218,10 +217,10 @@ test("Should not watch each object key", t => {
   let p = person()
   TestObject.set(p.notes, "day", "Seems ok")
   TestObject.set(p.notes, "night", "Seems good")
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 2) // observe keys
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Insert new entry
   TestObject.set(p.notes, "night", "Full of stars")
@@ -232,7 +231,7 @@ test("Should not watch each object key", t => {
 test("Should throw on connect to non tilia object", t => {
   let error = {message: None}
   try {
-    ignore(Core._connect({name: "Not a tree", username: "Ho"}, () => ()))
+    ignore(Tilia._connect({name: "Not a tree", username: "Ho"}, () => ()))
     error.message = Some("Did not throw")
   } catch {
   | Exn.Error(err) => error.message = Exn.message(err)
@@ -246,7 +245,7 @@ test("Should not clone added objects", t => {
     city: "Storm",
     zip: 9999,
   }
-  let p = Core.make(p)
+  let p = Tilia.make(p)
   p.address = a
 
   t->is(p.address.city, "Storm")
@@ -261,10 +260,10 @@ test("Should not clone added objects", t => {
 test("Should share tracking in same tree", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(p.address.city, "Truth") // observe 'city'
-  Core._ready(o)
+  Tilia._ready(o)
   t->isFalse(m.called)
   p.other_address = p.address
   p.other_address.city = "Love"
@@ -276,11 +275,11 @@ test("Should share tracking in same tree", t => {
 
 test("Should not share tracking in another tree", t => {
   let m = {called: false}
-  let p1 = Core.make(person())
-  let p2 = Core.make(person())
-  let o = Core._connect(p1, () => m.called = true)
+  let p1 = Tilia.make(person())
+  let p2 = Tilia.make(person())
+  let o = Tilia._connect(p1, () => m.called = true)
   t->is(p1.address.city, "Truth") // observe 'city'
-  Core._ready(o)
+  Tilia._ready(o)
   t->isFalse(m.called)
 
   // Shares the same target, but not the same proxy
@@ -296,11 +295,11 @@ test("Should not share tracking in another tree", t => {
 
 test("Should notify on key deletion", t => {
   let m = {called: false}
-  let p = Core.make(person())
+  let p = Tilia.make(person())
   TestObject.set(p.notes, "hello", "Everyone")
-  let o = Core._connect(p, () => m.called = true)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(TestObject.get(p.notes, "hello"), "Everyone") // observe "hello" key
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Remove entry
   TestObject.remove(p.notes, "hello")
@@ -310,11 +309,11 @@ test("Should notify on key deletion", t => {
 
 test("Should not proxy or watch prototype methods", t => {
   let m = {called: false}
-  let p = Core.make(person())
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(person())
+  let o = Tilia._connect(p, () => m.called = true)
   let x = TestObject.get(p.notes, "constructor")
   t->isTrue(x === TestObject.get(%raw(`{}`), "constructor"))
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Edit
   TestObject.set(p.notes, "constructor", "haha")
@@ -328,11 +327,11 @@ test("Should not proxy readonly properties", t => {
   let tree = %raw(`{}`)
   AnyObject.setReadonly(tree, "person", p1)
   t->isTrue(AnyObject.readonly(tree, "person"))
-  let tree = Core.make(tree)
-  let o = Core._connect(tree, () => m.called = true)
+  let tree = Tilia.make(tree)
+  let o = Tilia._connect(tree, () => m.called = true)
   let p2 = AnyObject.get(tree, "person")
   t->isTrue(p2 === p1)
-  Core._ready(o)
+  Tilia._ready(o)
 
   // Cannot set
   t->isFalse(AnyObject.set(tree, "person", person()))
@@ -347,11 +346,11 @@ test("Should not proxy readonly properties", t => {
 test("Should track undefined values", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   let phone = p.phone
   t->isTrue(phone === Undefined)
-  Core._ready(o)
+  Tilia._ready(o)
 
   p.phone = Value("123 456 789")
   // Callback should be called
@@ -361,8 +360,8 @@ test("Should track undefined values", t => {
 test("Should notify if update before ready", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
 
@@ -370,7 +369,7 @@ test("Should notify if update before ready", t => {
   p.name = "One"
   // Callback should not be called
   t->is(m.called, false)
-  Core._ready(o)
+  Tilia._ready(o)
   // Callback should be called during ready
   t->is(m.called, true)
 })
@@ -378,12 +377,12 @@ test("Should notify if update before ready", t => {
 test("Should notify on many updates before ready", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
 
-  Core._ready(o)
+  Tilia._ready(o)
   p.name = "One"
   p.name = "Two"
   p.name = "Three"
@@ -395,14 +394,14 @@ test("Should clear common key on clear", t => {
   let m1 = {called: false}
   let m2 = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o1 = Core._connect(p, () => m1.called = true)
+  let p = Tilia.make(p)
+  let o1 = Tilia._connect(p, () => m1.called = true)
   t->is(p.name, "John") // o1 observe 'name'
-  let o2 = Core._connect(p, () => m2.called = true)
+  let o2 = Tilia._connect(p, () => m2.called = true)
   t->is(p.name, "John") // o2 observe 'name'
-  Core._ready(o1) // o1 register, o2 not registered
-  Core.clear(o1) // removes watchers (set empty)
-  Core._ready(o2)
+  Tilia._ready(o1) // o1 register, o2 not registered
+  Tilia.clear(o1) // removes watchers (set empty)
+  Tilia._ready(o2)
   t->is(m2.called, false)
 
   // Update 'name'
@@ -414,12 +413,12 @@ test("Should clear common key on clear", t => {
 test("Should support ready, clear, ready", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   t->is(p.name, "John") // o observe 'name'
-  Core._ready(o)
-  Core.clear(o)
-  Core._ready(o)
+  Tilia._ready(o)
+  Tilia.clear(o)
+  Tilia._ready(o)
   t->is(m.called, false)
 
   // Update 'name'
@@ -442,7 +441,7 @@ type items = {
 test("Should support sub-object in array", t => {
   open Option
   let m = {called: false}
-  let items = Core.make({
+  let items = Tilia.make({
     all: [
       {name: "banana", quantity: 4},
       {name: "carrot", quantity: 8},
@@ -454,13 +453,13 @@ test("Should support sub-object in array", t => {
     sorted: [],
     selected: None,
   })
-  Core.observe(items, _ => {
+  Tilia.observe(items, _ => {
     items.sorted = [...items.all]
     Array.sort(items.sorted, (a, b) => String.compare(a.name, b.name))
   })
-  let o = Core._connect(items, () => m.called = true)
+  let o = Tilia._connect(items, () => m.called = true)
   t->is(getExn(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
-  Core._ready(o)
+  Tilia._ready(o)
   items.selected = items.all[1] // carrot
   t->is(m.called, false)
   getExn(items.selected).name = "avocado"
@@ -481,7 +480,7 @@ type watchers = {
   // Tracked key in parent
   key: string,
   // Set of observers to notify on change.
-  observers: Set.t<Core.observer>,
+  observers: Set.t<Tilia.observer>,
 }
 
 type rec meta<'a> = {
@@ -491,7 +490,7 @@ type rec meta<'a> = {
   proxy: 'a,
 }
 
-let getMeta: Core.meta<'a> => meta<'a> = _m => %raw(`_m`)
+let getMeta: Tilia.meta<'a> => meta<'a> = _m => %raw(`_m`)
 
 test("Should get internals with _meta", t => {
   let person = {
@@ -499,16 +498,16 @@ test("Should get internals with _meta", t => {
     username: "mama78",
     address: {city: "Los Angleless", zip: 1234},
   }
-  let p = Core.make(person)
-  Core.observe(p, p => {
+  let p = Tilia.make(person)
+  Tilia.observe(p, p => {
     p.username = p.name
     p.username = p.address.city
   })
-  let o = Core._connect(p, _ => ())
+  let o = Tilia._connect(p, _ => ())
   t->is("Los Angleless", p.address.city)
-  Core._ready(o)
+  Tilia._ready(o)
 
-  let meta = getMeta(Core._meta(p))
+  let meta = getMeta(Tilia._meta(p))
   t->is(person, meta.target)
   let n = Option.getExn(Map.get(meta.observed, "name"))
   t->is(1, Set.size(n.observers))
@@ -516,7 +515,7 @@ test("Should get internals with _meta", t => {
   let address = Option.getExn(Map.get(meta.proxied, "address")).proxy
   t->is(p.address, address)
 
-  let meta = getMeta(Core._meta(address))
+  let meta = getMeta(Tilia._meta(address))
   t->is(person.address, meta.target)
 
   let n = Option.getExn(Map.get(meta.observed, "city"))
@@ -526,13 +525,13 @@ test("Should get internals with _meta", t => {
 test("Should clear if ready never called", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p)
-  let _ = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let _ = Tilia._connect(p, () => m.called = true)
   t->is(p.name, "John") // o observe 'name'
 
   // Ready never called
   // Observers should be zero
-  let meta = getMeta(Core._meta(p))
+  let meta = getMeta(Tilia._meta(p))
   let n = Option.getExn(Map.get(meta.observed, "name"))
   t->is(0, Set.size(n.observers))
 })
@@ -543,13 +542,13 @@ test("Should delete observations on set", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   let j = Dict.getUnsafe(p, "john")
   t->is(j.name, "John") // o observe 'john.name'
-  Core._ready(o)
+  Tilia._ready(o)
 
-  let meta = getMeta(Core._meta(p))
+  let meta = getMeta(Tilia._meta(p))
   let n = Option.getExn(Map.get(meta.observed, "john"))
   t->is(1, Set.size(n.observers))
   Dict.set(p, "john", person())
@@ -562,13 +561,13 @@ test("Should delete observations on delete", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
-  let p = Core.make(p)
-  let o = Core._connect(p, () => m.called = true)
+  let p = Tilia.make(p)
+  let o = Tilia._connect(p, () => m.called = true)
   let j = Dict.getUnsafe(p, "john")
   t->is(j.name, "John") // o observe 'john.name'
-  Core._ready(o)
+  Tilia._ready(o)
 
-  let meta = getMeta(Core._meta(p))
+  let meta = getMeta(Tilia._meta(p))
   let n = Option.getExn(Map.get(meta.observed, "john"))
   t->is(1, Set.size(n.observers))
   Dict.delete(p, "john")
@@ -584,8 +583,8 @@ let apply = fn => fn()
 test("Should track a given branch", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p, ~flush=apply)
-  let _ = Core.track(p.address, _ => m.called = true)
+  let p = Tilia.make(p, ~flush=apply)
+  let _ = Tilia.track(p.address, _ => m.called = true)
 
   p.name = "Mary"
   t->isFalse(m.called)
@@ -598,10 +597,10 @@ test("Should track a given branch", t => {
 test("Should not trigger after clear", t => {
   let m = {called: false}
   let p = person()
-  let p = Core.make(p, ~flush=apply)
-  let o = Core.track(p, _ => m.called = true)
+  let p = Tilia.make(p, ~flush=apply)
+  let o = Tilia.track(p, _ => m.called = true)
 
-  Core.clear(o)
+  Tilia.clear(o)
 
   p.name = "Mary"
   t->isFalse(m.called)
@@ -612,9 +611,9 @@ type familiy = dict<person>
 test("Should disconnect track on delete", t => {
   let m = {called: false}
   let f: familiy = Dict.make()
-  let f = Core.make(f, ~flush=apply)
+  let f = Tilia.make(f, ~flush=apply)
   Dict.set(f, "p1", person())
-  let _ = Core.track(f, _ => m.called = true)
+  let _ = Tilia.track(f, _ => m.called = true)
 
   let p1 = Dict.getUnsafe(f, "p1")
   p1.name = "Other name"
@@ -633,9 +632,9 @@ test("Should disconnect track on delete", t => {
 test("Should disconnect track on replace", t => {
   let m = {called: false}
   let f: familiy = Dict.make()
-  let f = Core.make(f, ~flush=apply)
+  let f = Tilia.make(f, ~flush=apply)
   Dict.set(f, "p1", person())
-  let _ = Core.track(f, _ => m.called = true)
+  let _ = Tilia.track(f, _ => m.called = true)
 
   let p1 = Dict.getUnsafe(f, "p1")
   p1.name = "Other name"
@@ -652,14 +651,14 @@ test("Should disconnect track on replace", t => {
 test("Should share track if shared", t => {
   let m1 = {called: false}
   let m2 = {called: false}
-  let f = Core.make(Dict.make(), ~flush=apply)
+  let f = Tilia.make(Dict.make(), ~flush=apply)
   Dict.set(f, "p1", person())
   let p1 = Dict.getUnsafe(f, "p1")
 
   Dict.set(f, "p2", p1)
   let p2 = Dict.getUnsafe(f, "p2")
-  let _ = Core.track(p1, _ => m1.called = true)
-  let _ = Core.track(p2, _ => m2.called = true)
+  let _ = Tilia.track(p1, _ => m1.called = true)
+  let _ = Tilia.track(p2, _ => m2.called = true)
 
   // Share adress from p1 to p2
   p2.address = p1.address
@@ -676,8 +675,8 @@ test("Should share track if shared", t => {
 
 asyncTest("Should use setTimeout as default flush", t => {
   let m = {called: false}
-  let p = Core.make(person())
-  let _ = Core.track(p, _ => m.called = true)
+  let p = Tilia.make(person())
+  let _ = Tilia.track(p, _ => m.called = true)
   Promise.make((resolve, _) => {
     p.name = "Muholi"
     t->isFalse(m.called)
@@ -693,12 +692,12 @@ asyncTest("Should use setTimeout as default flush", t => {
   })
 })
 
-let ucomputed: Core.computed<user, 'a> = Core.computed
-let pcomputed: Core.computed<person, 'a> = Core.computed
+let ucomputed: Tilia.computed<user, 'a> = Tilia.computed
+let pcomputed: Tilia.computed<person, 'a> = Tilia.computed
 
 test("Should create computed", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   let m = {called: false}
   p.name = ucomputed("John", p => {
     m.called = true
@@ -723,7 +722,7 @@ test("Should manage computed in object", t => {
     }),
     username: "jo",
   }
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   // Not called: does not have observers
   t->isFalse(m.called)
 
@@ -748,12 +747,12 @@ test("Should proxify computed object", t => {
     passions: [],
     notes: TestObject.make(),
   }
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   t->isFalse(m.called)
   let mo = {called: false}
-  let o = Core._connect(p.address, () => mo.called = true)
+  let o = Tilia._connect(p.address, () => mo.called = true)
   t->is(p.address.city, "Wild Louise")
-  Core._ready(o)
+  Tilia._ready(o)
   t->isTrue(m.called)
   m.called = false
   t->isFalse(mo.called)
@@ -764,9 +763,9 @@ test("Should proxify computed object", t => {
 
 test("Should not notify if unchanged computed", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   let mo = {called: false}
-  Core.observe(p, p => {
+  Tilia.observe(p, p => {
     t->is(p.name, p.name) // Read p.name
     mo.called = true
   })
@@ -797,7 +796,7 @@ test("Should not notify if unchanged computed", t => {
 
 test("Should clear compute on deleting key", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   let m = {called: false}
   p.name = ucomputed("", p => {
     m.called = true
@@ -814,7 +813,7 @@ test("Should clear compute on deleting key", t => {
 
 test("Should clear compute on replacing compute", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   let m = {called: false}
   p.name = ucomputed("", p => {
     m.called = true
@@ -834,10 +833,10 @@ test("Should clear compute on replacing compute", t => {
 
 test("Compute should notify cache observer on dependency change", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   let mo = {called: false}
   let read = ref(true)
-  Core.observe(p, p => {
+  Tilia.observe(p, p => {
     if read.contents {
       t->is(p.name, p.name) // Read value from proxy
     }
@@ -867,12 +866,12 @@ test("Compute should notify cache observer on dependency change", t => {
 
 test("Compute should work with observers", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
+  let p = Tilia.make(p, ~flush=apply)
   p.name = ucomputed("", p => {
     p.username ++ " is OK"
   })
   let name = ref("")
-  Core.observe(p, p => {
+  Tilia.observe(p, p => {
     name.contents = p.name
   })
   t->is(name.contents, "jo is OK")
@@ -883,10 +882,10 @@ test("Compute should work with observers", t => {
 
 test("Computed should behave like a defined compute", t => {
   let p = {name: "John", username: "jo"}
-  let p = Core.make(p, ~flush=apply)
-  p.name = Core.computed("", () => p.username ++ " is OK")
+  let p = Tilia.make(p, ~flush=apply)
+  p.name = Tilia.computed("", () => p.username ++ " is OK")
   let name = ref("")
-  Core.observe(p, p => {
+  Tilia.observe(p, p => {
     name.contents = p.name
   })
   t->is(name.contents, "jo is OK")

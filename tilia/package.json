@@ -1,6 +1,6 @@
 {
-  "name": "@tilia/core",
-  "version": "1.6.1",
+  "name": "tilia",
+  "version": "2.0.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",

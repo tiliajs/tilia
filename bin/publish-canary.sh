@@ -61,7 +61,7 @@ sleep 3
 cd ../react
 REACT_VERSION=$REACT_VERSION-canary.$DATE
 npm --no-git-tag-version version $REACT_VERSION
-npm pkg set dependencies.@tilia/core="$CORE_VERSION"
+npm pkg set dependencies.tilia="$CORE_VERSION"
 CANARY=true pnpm publish --tag canary --access public --no-git-checks
 cd ..
 

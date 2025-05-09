@@ -1,6 +1,6 @@
 {
   "name": "@tilia/react",
-  "version": "1.6.1",
+  "version": "2.0.0",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -37,7 +37,7 @@
     "react": "*"
   },
   "dependencies": {
-    "@tilia/core": "workspace:^"
+    "tilia": "workspace:^"
   },
   "devDependencies": {
     "@dzakh/rescript-ava": "^3.0.0",
