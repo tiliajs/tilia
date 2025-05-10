@@ -109,19 +109,14 @@ and watchers = {
 }
 and root = {
   mutable observer: nullable<observer>,
-  mutable triggers: nullable<Set.t<propagate>>,
+  // List of watchers to clear on next flush
+  // Should rename 'triggers' to 'expired'.
+  mutable triggers: nullable<Set.t<watchers>>,
   flush: (unit => unit) => unit,
 }
 
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
-
-and propagate = {
-  // Cannot use 'observed' because of the rec clause and
-  // watchers having an 'observed' field already.
-  obs: observed,
-  ancestry: Set.t<propagate>,
-}
 
 type rec meta<'a> = {
   target: 'a,
@@ -134,8 +129,6 @@ type rec meta<'a> = {
   proxied: dict<meta<'a>>,
   // Compute functions.
   computes: dict<compute<branchp, opaque>>,
-  // The observer and ancestry to propagate tracking.
-  propagate: propagate,
   // The proxy itself (used by proxied).
   mutable proxy: 'a,
 }
@@ -241,24 +234,9 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   keys
 }
 
-let rec collect = (accum: Set.t<observed>, ancestry: Set.t<propagate>) => {
-  Set.forEach(ancestry, ({obs, ancestry}) => {
-    if !Set.has(accum, obs) {
-      Set.add(accum, obs)
-      collect(accum, ancestry)
-    }
-  })
-}
-
-let flush = (triggers: Set.t<propagate>) => {
-  let observers = Set.make()
-  collect(observers, triggers)
-  Set.forEach(observers, observed => {
-    // Notify without reseting observer
-    switch Dict.get(observed, trackKey) {
-    | Value(watchers) => Set.forEach(watchers.observers, observer => observer.notify())
-    | _ => ()
-    }
+let _flush = (expired: Set.t<watchers>) => {
+  Set.forEach(expired, watchers => {
+    Set.forEach(watchers.observers, observer => observer.notify())
   })
 }
 
@@ -266,6 +244,22 @@ let flush = (triggers: Set.t<propagate>) => {
 let notify = (observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
+      /* We could reuse some of this logic:
+        switch root.triggers {
+        /* Existing trigger set (we are in an asynchronous flush mode). Add to it. */
+        | Value(triggers) => Set.add(triggers, watchers)
+        /* No trigger set: create one. */
+        | _ => {
+            let triggers = Set.make()
+            Set.add(triggers, watchers)
+            root.triggers = Value(triggers)
+            root.flush(() => {
+              root.triggers = Undefined
+              _flush(triggers)
+            })
+          }
+        }
+ */
       Dict.delete(observed, key)
       watchers.state = Changed
       Set.forEach(watchers.observers, observer => {
@@ -277,37 +271,6 @@ let notify = (observed, key) => {
   }
 }
 
-/* Something changed, notify. If there is already a set of triggers, we add to
- * it or create a new one. If creating a new one, we flush the triggers
- * synchronously or asynchronously depending on the flush function.
- */
-let triggerTracking = (root, propagate) => {
-  switch root.triggers {
-  /* Existing trigger set (we are in an asynchronous flush mode). Add to it. */
-  | Value(triggers) => Set.add(triggers, propagate)
-  /* No trigger set: create one. */
-  | _ => {
-      let triggers = Set.make()
-      Set.add(triggers, propagate)
-      root.triggers = Value(triggers)
-      root.flush(() => {
-        root.triggers = Undefined
-        flush(triggers)
-      })
-    }
-  }
-}
-
-let deleteProxied = (proxied: dict<meta<'a>>, propagate: propagate, key: string) => {
-  switch Dict.get(proxied, key) {
-  | Value(m) =>
-    // Child disconnected: will not trigger tracking anymore
-    ignore(Set.delete(m.propagate.ancestry, propagate))
-  | _ => ()
-  }
-  Dict.delete(proxied, key)
-}
-
 type observerRef = {mutable o: nullable<observer>}
 type lastValue<'a> = {mutable v: 'a}
 
@@ -317,7 +280,6 @@ let rec set = (
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
-  propagate: propagate,
   target: 'a,
   key: string,
   value: 'b,
@@ -331,7 +293,7 @@ let rec set = (
     | false => false
     | true =>
       if Typeof.object(prev) {
-        deleteProxied(proxied, propagate, key)
+        Dict.delete(proxied, key)
       }
       switch Typeof.compute(value) {
       | Value(compute) =>
@@ -344,20 +306,10 @@ let rec set = (
           }
         | _ => ()
         }
-        setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute)
+        setupComputed(root, base, observed, proxied, computes, target, key, compute)
         if Dict.has(observed, key) {
           // Computed value is already observed or there are triggers: notify
-          set(
-            root,
-            base,
-            observed,
-            proxied,
-            computes,
-            propagate,
-            target,
-            key,
-            compute.rebuild(base.proxy),
-          )
+          set(root, base, observed, proxied, computes, target, key, compute.rebuild(base.proxy))
         } else if root.triggers !== Undefined {
           // Need to inform triggers about the change
           notify(observed, key)
@@ -371,7 +323,6 @@ let rec set = (
             // new key: trigger index
             notify(observed, indexKey)
           }
-          triggerTracking(root, propagate)
           true
         }
       }
@@ -385,7 +336,6 @@ and setupComputed = (
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
-  propagate: propagate,
   target: 'a,
   key: string,
   compute: compute<branchp, 'b>,
@@ -404,9 +354,7 @@ and setupComputed = (
     if Dict.has(observed, key) || root.triggers !== Undefined {
       // We have observers on this key: rebuild() and if the key changed, it
       // will notify cache observers.
-      ignore(
-        set(root, base, observed, proxied, computes, propagate, target, key, rebuild(base.proxy)),
-      )
+      ignore(set(root, base, observed, proxied, computes, target, key, rebuild(base.proxy)))
     } else {
       // We do not have observers: reset value.
       // Make sure the previous proxy (if any) is removed so that it is not
@@ -449,16 +397,14 @@ and setupComputed = (
 }
 
 let deleteProperty = (
-  root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
-  propagate: propagate,
   target: 'a,
   key: string,
 ) => {
   let res = Reflect.deleteProperty(target, key)
-  deleteProxied(proxied, propagate, key)
+  Dict.delete(proxied, key)
   switch Dict.get(computes, key) {
   | Value({clear}) => {
       clear()
@@ -467,7 +413,6 @@ let deleteProperty = (
   | _ => ()
   }
   notify(observed, key)
-  triggerTracking(root, propagate)
   res
 }
 
@@ -477,7 +422,6 @@ let rec get = (
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
-  propagate: propagate,
   meta: meta<'a>,
   isArray: bool,
   target: 'a,
@@ -510,11 +454,11 @@ let rec get = (
         switch Typeof.compute(v) {
         | Value(compute) if compute.clear === noop =>
           // New compute: need setup
-          setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute)
+          setupComputed(root, base, observed, proxied, computes, target, key, compute)
           let v = compute.rebuild(base.proxy)
           ignore(Reflect.set(target, key, v))
           if Typeof.object(v) && !Object.readonly(target, key) {
-            let m = proxify(root, base, propagate, v)
+            let m = proxify(root, base, v)
             Dict.set(proxied, key, m)
             m.proxy
           } else {
@@ -525,7 +469,7 @@ let rec get = (
           switch Dict.get(proxied, key) {
           | Value(m) => m.proxy
           | _ =>
-            let m = proxify(root, base, propagate, v)
+            let m = proxify(root, base, v)
             Dict.set(proxied, key, m)
             m.proxy
           }
@@ -539,34 +483,24 @@ let rec get = (
   }
 }
 
-and proxify = (root: root, base: base, parent_propagate: propagate, target: 'a): meta<'a> => {
+and proxify = (root: root, base: base, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
   let computes: dict<compute<branchp, opaque>> = Dict.make()
-  let ancestry = Set.make()
-
-  // Register parent in child ancestry
-  Set.add(ancestry, parent_propagate)
-
-  // Create child propagation object
-  let propagate: propagate = {obs: observed, ancestry}
 
   switch _nmeta(target) {
-  | Value(m) if m.root === root => {
-      /* same tree, reuse proxy */
-      Set.add(m.propagate.ancestry, parent_propagate)
-      m
-    }
-  | Value(m) => proxify(root, base, propagate, m.target) /* external tree: clear */
+  | Value(m) if m.root === root => /* same tree, reuse proxy */
+    m
+  | Value(m) => proxify(root, base, m.target) /* external tree: clear */
   | _ =>
-    let meta: meta<'a> = %raw(`{root, target, observed, proxied, computes, propagate}`)
+    let meta: meta<'a> = %raw(`{root, target, observed, proxied, computes}`)
     let isArray = Typeof.array(target)
     let proxy = Proxy.make(
       target,
       {
-        "set": set(root, base, observed, proxied, computes, propagate, ...),
-        "deleteProperty": deleteProperty(root, observed, proxied, computes, propagate, ...),
-        "get": get(root, base, observed, proxied, computes, propagate, meta, isArray, ...),
+        "set": set(root, base, observed, proxied, computes, ...),
+        "deleteProperty": deleteProperty(observed, proxied, computes, ...),
+        "get": get(root, base, observed, proxied, computes, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
     )
@@ -582,15 +516,11 @@ let timeOutFlush = (fn: unit => unit) => {
 }
 
 let connect = (root: tilia, branchp: 'a) => {
-  let propagate: propagate = {
-    obs: Dict.make(),
-    ancestry: Set.make(),
-  }
   // We cheat with types on initial proxy creation.
   let base = {proxy: %raw(`undefined`)}
 
   // We hide the type of base to avoid typing everything to rootp.
-  let proxy = proxify(root, base, propagate, branchp).proxy
+  let proxy = proxify(root, base, branchp).proxy
   base.proxy = %raw(`proxy`)
   proxy
 }

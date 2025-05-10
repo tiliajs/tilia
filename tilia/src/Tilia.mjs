@@ -125,17 +125,6 @@ function _ready(observer, notifyIfChangedOpt) {
       });
 }
 
-function collect(accum, ancestry) {
-  ancestry.forEach(function (param) {
-        var obs = param.obs;
-        if (!accum.has(obs)) {
-          accum.add(obs);
-          return collect(accum, param.ancestry);
-        }
-        
-      });
-}
-
 function notify(observed, key) {
   var watchers = observed.get(key);
   if (watchers === null || watchers === undefined) {
@@ -149,44 +138,7 @@ function notify(observed, key) {
       });
 }
 
-function triggerTracking(root, propagate) {
-  var triggers = root.triggers;
-  if (triggers === null || triggers === undefined) {
-    triggers === null;
-  } else {
-    triggers.add(propagate);
-    return ;
-  }
-  var triggers$1 = new Set();
-  triggers$1.add(propagate);
-  root.triggers = triggers$1;
-  root.flush(function () {
-        root.triggers = undefined;
-        var observers = new Set();
-        collect(observers, triggers$1);
-        observers.forEach(function (observed) {
-              var watchers = observed.get(trackKey);
-              if (watchers === null || watchers === undefined) {
-                return ;
-              }
-              watchers.observers.forEach(function (observer) {
-                    observer.notify();
-                  });
-            });
-      });
-}
-
-function deleteProxied(proxied, propagate, key) {
-  var m = proxied.get(key);
-  if (m === null || m === undefined) {
-    m === null;
-  } else {
-    m.propagate.ancestry.delete(propagate);
-  }
-  proxied.delete(key);
-}
-
-function set(root, base, observed, proxied, computes, propagate, target, key, _value) {
+function set(root, base, observed, proxied, computes, target, key, _value) {
   while(true) {
     var value = _value;
     var hadKey = Reflect.has(target, key);
@@ -198,7 +150,7 @@ function set(root, base, observed, proxied, computes, propagate, target, key, _v
       return false;
     }
     if (object(prev)) {
-      deleteProxied(proxied, propagate, key);
+      proxied.delete(key);
     }
     var compute$1 = compute(value);
     if (compute$1 === null || compute$1 === undefined) {
@@ -212,7 +164,7 @@ function set(root, base, observed, proxied, computes, propagate, target, key, _v
         clear();
         computes.delete(key);
       }
-      setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute$1);
+      setupComputed(root, base, observed, proxied, computes, target, key, compute$1);
       if (!observed.has(key)) {
         if (root.triggers !== undefined) {
           notify(observed, key);
@@ -228,12 +180,11 @@ function set(root, base, observed, proxied, computes, propagate, target, key, _v
     if (!hadKey) {
       notify(observed, indexKey);
     }
-    triggerTracking(root, propagate);
     return true;
   };
 }
 
-function setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute) {
+function setupComputed(root, base, observed, proxied, computes, target, key, compute) {
   var lastValue = {
     v: compute.initValue
   };
@@ -247,7 +198,7 @@ function setupComputed(root, base, observed, proxied, computes, propagate, targe
       lastValue.v = v;
     }
     if (observed.has(key) || root.triggers !== undefined) {
-      set(root, base, observed, proxied, computes, propagate, target, key, rebuild(base.proxy));
+      set(root, base, observed, proxied, computes, target, key, rebuild(base.proxy));
     } else {
       Reflect.deleteProperty(proxied, key);
       Reflect.set(target, key, compute);
@@ -282,43 +233,34 @@ function setupComputed(root, base, observed, proxied, computes, propagate, targe
   computes.set(key, compute);
 }
 
-function proxify(root, base, _parent_propagate, _target) {
+function proxify(root, base, _target) {
   while(true) {
     var target = _target;
-    var parent_propagate = _parent_propagate;
     var proxied = new Map();
     var observed = new Map();
     var computes = new Map();
-    var ancestry = new Set();
-    ancestry.add(parent_propagate);
-    var propagate = {
-      obs: observed,
-      ancestry: ancestry
-    };
     var m = Reflect.get(target, metaKey);
     if (m === null || m === undefined) {
       m === null;
     } else {
       if (m.root === root) {
-        m.propagate.ancestry.add(parent_propagate);
         return m;
       }
       _target = m.target;
-      _parent_propagate = propagate;
       continue ;
     }
-    var meta = ({root, target, observed, proxied, computes, propagate});
+    var meta = ({root, target, observed, proxied, computes});
     var isArray = Array.isArray(target);
     var proxy = new Proxy(target, {
-          set: (function(proxied,observed,computes,propagate){
+          set: (function(proxied,observed,computes){
           return function (extra, extra$1, extra$2) {
-            return set(root, base, observed, proxied, computes, propagate, extra, extra$1, extra$2);
+            return set(root, base, observed, proxied, computes, extra, extra$1, extra$2);
           }
-          }(proxied,observed,computes,propagate)),
-          deleteProperty: (function(proxied,observed,computes,propagate){
+          }(proxied,observed,computes)),
+          deleteProperty: (function(proxied,observed,computes){
           return function (extra, extra$1) {
             var res = Reflect.deleteProperty(extra, extra$1);
-            deleteProxied(proxied, propagate, extra$1);
+            proxied.delete(extra$1);
             var match = computes.get(extra$1);
             if (match === null || match === undefined) {
               match === null;
@@ -328,11 +270,10 @@ function proxify(root, base, _parent_propagate, _target) {
               computes.delete(extra$1);
             }
             notify(observed, extra$1);
-            triggerTracking(root, propagate);
             return res;
           }
-          }(proxied,observed,computes,propagate)),
-          get: (function(proxied,observed,computes,propagate,isArray){
+          }(proxied,observed,computes)),
+          get: (function(proxied,observed,computes,isArray){
           return function (extra, extra$1) {
             if (extra$1 === metaKey) {
               return meta;
@@ -363,13 +304,13 @@ function proxify(root, base, _parent_propagate, _target) {
               if (compute$1.clear !== noop) {
                 return compute$1.rebuild(base.proxy);
               }
-              setupComputed(root, base, observed, proxied, computes, propagate, extra, extra$1, compute$1);
+              setupComputed(root, base, observed, proxied, computes, extra, extra$1, compute$1);
               var v$1 = compute$1.rebuild(base.proxy);
               Reflect.set(extra, extra$1, v$1);
               if (!(object(v$1) && !readonly(extra, extra$1))) {
                 return v$1;
               }
-              var m = proxify(root, base, propagate, v$1);
+              var m = proxify(root, base, v$1);
               proxied.set(extra$1, m);
               return m.proxy;
             }
@@ -381,7 +322,7 @@ function proxify(root, base, _parent_propagate, _target) {
               }
               exit$1 = 2;
               if (exit$1 === 2) {
-                var m$2 = proxify(root, base, propagate, v);
+                var m$2 = proxify(root, base, v);
                 proxied.set(extra$1, m$2);
                 return m$2.proxy;
               }
@@ -389,7 +330,7 @@ function proxify(root, base, _parent_propagate, _target) {
             }
             
           }
-          }(proxied,observed,computes,propagate,isArray)),
+          }(proxied,observed,computes,isArray)),
           ownKeys: (function(observed){
           return function (extra) {
             var keys = Reflect.ownKeys(extra);
@@ -416,16 +357,10 @@ function timeOutFlush(fn) {
 }
 
 function connect(root, branchp) {
-  var propagate_obs = new Map();
-  var propagate_ancestry = new Set();
-  var propagate = {
-    obs: propagate_obs,
-    ancestry: propagate_ancestry
-  };
   var base = {
     proxy: undefined
   };
-  var proxy = proxify(root, base, propagate, branchp).proxy;
+  var proxy = proxify(root, base, branchp).proxy;
   base.proxy = proxy;
   return proxy;
 }

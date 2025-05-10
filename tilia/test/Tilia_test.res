@@ -594,98 +594,7 @@ test("Should delete observations on delete", t => {
 type track = {mutable flush: unit => unit}
 let flush = (t: track, fn) => t.flush = fn
 
-test("Should track a given branch", t => {
-  let m = {called: false}
-  let p = person()
-  let p = connect(r, p)
-  let _ = Tilia.track(p.address, _ => m.called = true)
-
-  p.name = "Mary"
-  t->isFalse(m.called)
-
-  // Tracker sees all changes (even without reading anything)
-  p.address.city = "London"
-  t->isTrue(m.called)
-})
-
-test("Should not trigger after clear", t => {
-  let m = {called: false}
-  let p = person()
-  let p = connect(r, p)
-  let o = Tilia.track(p, _ => m.called = true)
-
-  Tilia.clear(o)
-
-  p.name = "Mary"
-  t->isFalse(m.called)
-})
-
 type familiy = dict<person>
-
-test("Should disconnect track on delete", t => {
-  let m = {called: false}
-  let f: familiy = Dict.make()
-  let f = connect(r, f)
-  Dict.set(f, "p1", person())
-  let _ = Tilia.track(f, _ => m.called = true)
-
-  let p1 = Dict.getUnsafe(f, "p1")
-  p1.name = "Other name"
-  t->isTrue(m.called)
-  m.called = false
-
-  Dict.delete(f, "p1")
-  t->isTrue(m.called)
-
-  m.called = false
-
-  p1.name = "New name"
-  t->isFalse(m.called)
-})
-
-test("Should disconnect track on replace", t => {
-  let m = {called: false}
-  let f: familiy = Dict.make()
-  let f = connect(r, f)
-  Dict.set(f, "p1", person())
-  let _ = Tilia.track(f, _ => m.called = true)
-
-  let p1 = Dict.getUnsafe(f, "p1")
-  p1.name = "Other name"
-  t->isTrue(m.called)
-
-  Dict.set(f, "p1", person())
-
-  m.called = false
-
-  p1.name = "New name"
-  t->isFalse(m.called)
-})
-
-test("Should share track if shared", t => {
-  let m1 = {called: false}
-  let m2 = {called: false}
-  let f = connect(r, Dict.make())
-  Dict.set(f, "p1", person())
-  let p1 = Dict.getUnsafe(f, "p1")
-
-  Dict.set(f, "p2", p1)
-  let p2 = Dict.getUnsafe(f, "p2")
-  let _ = Tilia.track(p1, _ => m1.called = true)
-  let _ = Tilia.track(p2, _ => m2.called = true)
-
-  // Share adress from p1 to p2
-  p2.address = p1.address
-
-  m1.called = false
-  m2.called = false
-
-  // Any change to address should now trigger both m1 and m2
-  p1.address.zip = 444
-
-  t->isTrue(m1.called)
-  t->isTrue(m2.called)
-})
 
 Skip.asyncTest("Should use setTimeout as default flush", t => {
   let m = {called: false}
@@ -961,42 +870,6 @@ test("Should share computed between trees", t => {
 
   src.name = "Alina"
   // Should call observer of p2
-  t->isTrue(mo.called)
-  // Already called because there is an observer and we notify after rebuild
-  t->isTrue(mt.called)
-  t->is(trg.name, "Alina")
-})
-
-Skip.test("Should track computed between trees", t => {
-  let mo = {called: false}
-  let src = connect(r, person())
-  src.name = "Nila"
-  let mt = {called: false}
-  let trg = connect(
-    r,
-    {
-      name: computed("", () => {
-        mt.called = true
-        src.name
-      }),
-      username: "nil",
-    },
-  )
-
-  // Here it does not matter if we use p2 or p1, because it will connect
-  // to the same root in any case.
-  let _ = Tilia.track(trg, _ => {
-    mo.called = true
-    // This forces the computed to be installed
-    ignore(JSON.stringifyAny(trg))
-  })
-
-  t->isFalse(mo.called)
-
-  src.name = "Alina"
-  // FIXME: name computed never read and thus never used to trigger tracker...
-  t->isTrue(mt.called)
-  // Trackers are not notified
   t->isTrue(mo.called)
   // Already called because there is an observer and we notify after rebuild
   t->isTrue(mt.called)
