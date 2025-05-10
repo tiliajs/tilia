@@ -33,13 +33,15 @@ out of the way.
 ### Changelog (for tilia)
 
 - 2025-05-09 **2.0.0**
-  - Move to "tilia" for npm package.
-  - Replace `make` with `tilia` (to create the connect function).
-  - Enable 'forest mode': tracking across multiple instances.
-  - Add `computed` method to cache values on read.
-  - Remove `compute` and re-exports in @tilia/react.
-  - Remove `track` as this cannot scale to multiple instances and computed.
-  - TODO: Rename internal `_connect` to `_observe`.
+  - Move to "tilia" for core npm package.
+  - Replace `make` with `tilia` and `connect`.
+  - Enable 'forest mode' to observve across separated objects.
+  - Add `computed` to compute values in branches.
+  - Changed signature for `observe` to use `tilia` context.
+  - Removed re-exports in @tilia/react.
+  - Removed `compute` (replaced by `computed`).
+  - Removed `track` as this cannot scale to multiple instances and computed.
+  - Renamed internal `_connect` to `_observe`.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.
 - 2025-01-17 **1.4.0**

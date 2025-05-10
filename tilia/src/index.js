@@ -1,10 +1,10 @@
 export {
-  _connect,
-  _ready,
   _meta,
-  make as tilia,
+  _observe,
+  _ready,
   clear,
-  observe,
-  track,
   computed,
+  connect,
+  observe,
+  tilia,
 } from "./Tilia.mjs";

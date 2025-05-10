@@ -93,7 +93,7 @@ To be used for binding to other frameworks/libraries:
 ```ts
 // Create an observer by connecting a callback to a Tilia object
 // or array and start recording viewed nodes.
-export function _connect<a>(tree: a, callback: () => void): observer;
+export function _observe<a>(tree: a, callback: () => void): observer;
 // Register the observer as ready. If a watched field changed during recording, notify
 // if notifyIfChanged is true.
 export function _ready(

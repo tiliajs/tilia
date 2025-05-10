@@ -3,8 +3,6 @@
 
 var indexKey = (Symbol());
 
-var trackKey = (Symbol());
-
 var metaKey = (Symbol());
 
 var computeKey = (Symbol());
@@ -32,27 +30,6 @@ function readonly(o, k) {
 
 function _meta(p) {
   return Reflect.get(p, metaKey);
-}
-
-function _connect(p, notify) {
-  var match = Reflect.get(p, metaKey);
-  if (match === null || match === undefined) {
-    if (match === null) {
-      throw new Error("Observed state is not a tilia proxy.");
-    }
-    throw new Error("Observed state is not a tilia proxy.");
-  } else {
-    var root = match.root;
-    var observer_observing = [];
-    var observer = {
-      notify: notify,
-      clear: undefined,
-      observing: observer_observing,
-      root: root
-    };
-    root.observer = observer;
-    return observer;
-  }
 }
 
 function observeKey(observed, key) {
@@ -387,16 +364,7 @@ function tilia(flushOpt) {
         };
 }
 
-function observe(p, callback) {
-  var notify = function () {
-    var o = _connect(p, notify);
-    callback(p);
-    _ready(o, false);
-  };
-  notify();
-}
-
-function track(p, callback) {
+function _observe(p, notify) {
   var match = Reflect.get(p, metaKey);
   if (match === null || match === undefined) {
     if (match === null) {
@@ -404,22 +372,34 @@ function track(p, callback) {
     }
     throw new Error("Observed state is not a tilia proxy.");
   } else {
-    var observer_notify = function () {
-      callback(p);
-    };
+    var root = match.root;
     var observer_observing = [];
-    var observer_root = match.root;
     var observer = {
-      notify: observer_notify,
+      notify: notify,
       clear: undefined,
       observing: observer_observing,
-      root: observer_root
+      root: root
     };
-    var w = observeKey(match.observed, trackKey);
-    w.observers.add(observer);
-    observer_observing.push(w);
+    root.observer = observer;
     return observer;
   }
+}
+
+function observe(root, callback) {
+  var notify = function () {
+    var observer_observing = [];
+    var observer = {
+      notify: notify,
+      clear: undefined,
+      observing: observer_observing,
+      root: root
+    };
+    root.observer = observer;
+    var o = observer;
+    callback();
+    _ready(o, false);
+  };
+  notify();
 }
 
 function computed(initValue, callback) {
@@ -436,9 +416,8 @@ export {
   tilia ,
   connect ,
   observe ,
-  track ,
   clear ,
-  _connect ,
+  _observe ,
   _ready ,
   _meta ,
   computed ,

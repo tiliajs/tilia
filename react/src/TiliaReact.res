@@ -4,7 +4,7 @@ open Tilia
 
 let use = p => {
   let (_, setCount) = useState(0)
-  let o = _connect(p, () => setCount(i => i + 1))
+  let o = _observe(p, () => setCount(i => i + 1))
   useEffect(() => {
     _ready(o)
     Some(() => clear(o))

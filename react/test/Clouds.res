@@ -11,7 +11,7 @@ open JsxEvent.Form
 
 @react.component
 let make = (~tree: state, ~onClick: unit => unit) => {
-  let c = Tilia.use(tree)
+  let c = TiliaReact.use(tree)
 
   let onChange = e => {
     c.clouds.evening = target(e)["value"]

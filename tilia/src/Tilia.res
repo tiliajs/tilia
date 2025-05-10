@@ -16,8 +16,6 @@ module Proxy = {
 
 // Called when something changes in the index (added or removed keys)
 let indexKey = %raw(`Symbol()`)
-// Called on any change in the object or children (track method)
-let trackKey = %raw(`Symbol()`)
 // Used to get meta information (mostly for stats)
 let metaKey = %raw(`Symbol()`)
 // Mark a function as being a compute value
@@ -138,20 +136,16 @@ type tilia = root
 let _nmeta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
 
-let _connect = (p: 'a, notify) => {
-  switch _nmeta(p) {
-  | Value({root}) => {
-      let observer: observer = {
-        clear: Undefined,
-        notify,
-        observing: [],
-        root,
-      }
-      root.observer = Value(observer)
-      observer
-    }
-  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
+@inline
+let _setObserver = (root, notify) => {
+  let observer: observer = {
+    clear: Undefined,
+    notify,
+    observing: [],
+    root,
   }
+  root.observer = Value(observer)
+  observer
 }
 
 let observeKey = (observed, key) => {
@@ -523,31 +517,21 @@ let tilia = (~flush=timeOutFlush) => {
   root
 }
 
-let observe = (p: 'a, callback: 'a => unit) => {
+// Public for library developers.
+let _observe = (p: 'a, notify) => {
+  switch _nmeta(p) {
+  | Value({root}) => _setObserver(root, notify)
+  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
+  }
+}
+
+let observe = (root: root, callback: unit => unit) => {
   let rec notify = () => {
-    let o = _connect(p, notify)
-    callback(p)
+    let o = _setObserver(root, notify)
+    callback()
     _ready(o, ~notifyIfChanged=false)
   }
   notify()
-}
-
-let track = (p: 'a, callback: 'a => unit) => {
-  switch _nmeta(p) {
-  | Value({root, observed}) => {
-      let observer: observer = {
-        clear: Undefined,
-        notify: () => callback(p),
-        observing: [],
-        root,
-      }
-      let w = observeKey(observed, trackKey)
-      ignore(Set.add(w.observers, observer))
-      Array.push(observer.observing, w)
-      observer
-    }
-  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
-  }
 }
 
 type computed<'p, 'a> = ('a, 'p => 'a) => 'a

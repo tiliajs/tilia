@@ -26,7 +26,7 @@ let user = Testing.userEvent //.setup()
 open Testing
 
 asyncTest("re-render on changes", async t => {
-  let tree = Tilia.use({
+  let tree = TiliaReact.use({
     Clouds.flowers: "Are nice",
     clouds: {
       morning: "can be pink",

@@ -8,35 +8,11 @@ importers:
 
   .: {}
 
-  core:
-    devDependencies:
-      '@dzakh/rescript-ava':
-        specifier: ^3.0.0
-        version: 3.1.0(ava@5.2.0)(rescript@11.1.4)
-      '@rescript/core':
-        specifier: ^1.6.1
-        version: 1.6.1(rescript@11.1.4)
-      '@types/node':
-        specifier: ^22.10.2
-        version: 22.10.2
-      ava:
-        specifier: 5.2.x
-        version: 5.2.0
-      clean-package:
-        specifier: ^2.2.0
-        version: 2.2.0
-      esbuild:
-        specifier: ^0.24.0
-        version: 0.24.2
-      rescript:
-        specifier: ^11.1.4
-        version: 11.1.4
-
   react:
     dependencies:
-      '@tilia/core':
+      tilia:
         specifier: workspace:^
-        version: link:../core
+        version: link:../tilia
     devDependencies:
       '@dzakh/rescript-ava':
         specifier: ^3.0.0
@@ -80,6 +56,30 @@ importers:
       typescript:
         specifier: ^5.7.2
         version: 5.7.2
+
+  tilia:
+    devDependencies:
+      '@dzakh/rescript-ava':
+        specifier: ^3.0.0
+        version: 3.1.0(ava@5.2.0)(rescript@11.1.4)
+      '@rescript/core':
+        specifier: ^1.6.1
+        version: 1.6.1(rescript@11.1.4)
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.10.2
+      ava:
+        specifier: 5.2.x
+        version: 5.2.0
+      clean-package:
+        specifier: ^2.2.0
+        version: 2.2.0
+      esbuild:
+        specifier: ^0.24.0
+        version: 0.24.2
+      rescript:
+        specifier: ^11.1.4
+        version: 11.1.4
 
   website:
     dependencies:
