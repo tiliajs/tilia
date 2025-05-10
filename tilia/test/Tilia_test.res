@@ -285,8 +285,8 @@ test("Should share tracking in same tree", t => {
 
 test("Should not share tracking in another forest", t => {
   let m = {called: false}
-  let r1 = Tilia.tilia()
-  let r2 = Tilia.tilia()
+  let r1 = Tilia.tilia(~flush=apply)
+  let r2 = Tilia.tilia(~flush=apply)
   let p1 = connect(r1, person())
   let p2 = connect(r2, person())
   let o = Tilia._connect(p1, () => m.called = true)
@@ -596,7 +596,7 @@ let flush = (t: track, fn) => t.flush = fn
 
 type familiy = dict<person>
 
-Skip.asyncTest("Should use setTimeout as default flush", t => {
+asyncTest("Should use setTimeout as default flush", t => {
   let m = {called: false}
   let r = Tilia.tilia()
   let p = connect(r, person())
@@ -604,9 +604,11 @@ Skip.asyncTest("Should use setTimeout as default flush", t => {
     t->is(p.name, p.name)
     m.called = true
   })
+  m.called = false
 
   Promise.make((resolve, _) => {
-    m.called = false
+    p.name = "Dunia"
+    p.name = "Maria"
     p.name = "Muholi"
     t->isFalse(m.called)
     ignore(

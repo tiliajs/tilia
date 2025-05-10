@@ -125,16 +125,34 @@ function _ready(observer, notifyIfChangedOpt) {
       });
 }
 
-function notify(observed, key) {
+function notify(root, observed, key) {
   var watchers = observed.get(key);
   if (watchers === null || watchers === undefined) {
     return ;
   }
   observed.delete(key);
   watchers.state = "Changed";
+  var expired = root.expired;
+  if (expired === null || expired === undefined) {
+    expired === null;
+  } else {
+    watchers.observers.forEach(function (observer) {
+          _clear(observer);
+          expired.add(observer);
+        });
+    return ;
+  }
+  var expired$1 = new Set();
   watchers.observers.forEach(function (observer) {
         _clear(observer);
-        observer.notify();
+        expired$1.add(observer);
+      });
+  root.expired = expired$1;
+  root.flush(function () {
+        root.expired = undefined;
+        expired$1.forEach(function (observer) {
+              observer.notify();
+            });
       });
 }
 
@@ -166,19 +184,14 @@ function set(root, base, observed, proxied, computes, target, key, _value) {
       }
       setupComputed(root, base, observed, proxied, computes, target, key, compute$1);
       if (!observed.has(key)) {
-        if (root.triggers !== undefined) {
-          notify(observed, key);
-          return true;
-        } else {
-          return true;
-        }
+        return true;
       }
       _value = compute$1.rebuild(base.proxy);
       continue ;
     }
-    notify(observed, key);
+    notify(root, observed, key);
     if (!hadKey) {
-      notify(observed, indexKey);
+      notify(root, observed, indexKey);
     }
     return true;
   };
@@ -197,7 +210,7 @@ function setupComputed(root, base, observed, proxied, computes, target, key, com
     if (v !== compute) {
       lastValue.v = v;
     }
-    if (observed.has(key) || root.triggers !== undefined) {
+    if (observed.has(key)) {
       set(root, base, observed, proxied, computes, target, key, rebuild(base.proxy));
     } else {
       Reflect.deleteProperty(proxied, key);
@@ -269,7 +282,7 @@ function proxify(root, base, _target) {
               clear();
               computes.delete(extra$1);
             }
-            notify(observed, extra$1);
+            notify(root, observed, extra$1);
             return res;
           }
           }(proxied,observed,computes)),
@@ -369,7 +382,7 @@ function tilia(flushOpt) {
   var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
   return {
           observer: undefined,
-          triggers: undefined,
+          expired: undefined,
           flush: flush
         };
 }

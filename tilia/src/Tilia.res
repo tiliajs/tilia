@@ -111,7 +111,7 @@ and root = {
   mutable observer: nullable<observer>,
   // List of watchers to clear on next flush
   // Should rename 'triggers' to 'expired'.
-  mutable triggers: nullable<Set.t<watchers>>,
+  mutable expired: nullable<Set.t<observer>>,
   flush: (unit => unit) => unit,
 }
 
@@ -234,38 +234,34 @@ let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
   keys
 }
 
-let _flush = (expired: Set.t<watchers>) => {
-  Set.forEach(expired, watchers => {
-    Set.forEach(watchers.observers, observer => observer.notify())
-  })
-}
-
-// FIXME: fix flush for regular read calls.
-let notify = (observed, key) => {
+let notify = (root, observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
-      /* We could reuse some of this logic:
-        switch root.triggers {
-        /* Existing trigger set (we are in an asynchronous flush mode). Add to it. */
-        | Value(triggers) => Set.add(triggers, watchers)
-        /* No trigger set: create one. */
-        | _ => {
-            let triggers = Set.make()
-            Set.add(triggers, watchers)
-            root.triggers = Value(triggers)
-            root.flush(() => {
-              root.triggers = Undefined
-              _flush(triggers)
-            })
-          }
-        }
- */
+      // No need to remember this observed key
       Dict.delete(observed, key)
       watchers.state = Changed
-      Set.forEach(watchers.observers, observer => {
-        _clear(observer)
-        observer.notify()
-      })
+
+      // Notify
+      switch root.expired {
+      | Value(expired) =>
+        Set.forEach(watchers.observers, observer => {
+          _clear(observer)
+          Set.add(expired, observer)
+        })
+      | _ => {
+          // No expired set: create one.
+          let expired = Set.make()
+          Set.forEach(watchers.observers, observer => {
+            _clear(observer)
+            Set.add(expired, observer)
+          })
+          root.expired = Value(expired)
+          root.flush(() => {
+            root.expired = Undefined
+            Set.forEach(expired, observer => observer.notify())
+          })
+        }
+      }
     }
   | _ => ()
   }
@@ -308,20 +304,16 @@ let rec set = (
         }
         setupComputed(root, base, observed, proxied, computes, target, key, compute)
         if Dict.has(observed, key) {
-          // Computed value is already observed or there are triggers: notify
+          // Computed value is observed: notify
           set(root, base, observed, proxied, computes, target, key, compute.rebuild(base.proxy))
-        } else if root.triggers !== Undefined {
-          // Need to inform triggers about the change
-          notify(observed, key)
-          true
         } else {
           true
         }
       | _ => {
-          notify(observed, key)
+          notify(root, observed, key)
           if !hadKey {
             // new key: trigger index
-            notify(observed, indexKey)
+            notify(root, observed, indexKey)
           }
           true
         }
@@ -351,7 +343,7 @@ and setupComputed = (
       lastValue.v = v
     }
 
-    if Dict.has(observed, key) || root.triggers !== Undefined {
+    if Dict.has(observed, key) {
       // We have observers on this key: rebuild() and if the key changed, it
       // will notify cache observers.
       ignore(set(root, base, observed, proxied, computes, target, key, rebuild(base.proxy)))
@@ -397,6 +389,7 @@ and setupComputed = (
 }
 
 let deleteProperty = (
+  root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
@@ -412,7 +405,7 @@ let deleteProperty = (
     }
   | _ => ()
   }
-  notify(observed, key)
+  notify(root, observed, key)
   res
 }
 
@@ -499,7 +492,7 @@ and proxify = (root: root, base: base, target: 'a): meta<'a> => {
       target,
       {
         "set": set(root, base, observed, proxied, computes, ...),
-        "deleteProperty": deleteProperty(observed, proxied, computes, ...),
+        "deleteProperty": deleteProperty(root, observed, proxied, computes, ...),
         "get": get(root, base, observed, proxied, computes, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
@@ -526,7 +519,7 @@ let connect = (root: tilia, branchp: 'a) => {
 }
 
 let tilia = (~flush=timeOutFlush) => {
-  let root = {flush, observer: Undefined, triggers: Undefined}
+  let root = {flush, observer: Undefined, expired: Undefined}
   root
 }
 
