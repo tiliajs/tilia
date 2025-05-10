@@ -33,35 +33,35 @@ is_semver() {
 # Install dependencies
 pnpm i
 # Check compilation for all projects
-pnpm core res:build
+pnpm tilia res:build
 pnpm react res:build
 
-cd core
-CORE_VERSION=$(npm pkg get version | sed 's/"//g')
-is_semver "$CORE_VERSION"
+cd tilia
+TILIA_VERSION=$(npm pkg get version | sed 's/"//g')
+is_semver "$TILIA_VERSION"
 cd ../react
 REACT_VERSION=$(npm pkg get version | sed 's/"//g')
 is_semver "$REACT_VERSION"
 cd ..
 
-# ================ CORE
-cd core
-CORE_VERSION=$CORE_VERSION-canary.$DATE
-npm --no-git-tag-version version $CORE_VERSION
+# ================ TILIA
+cd tilia
+TILIA_VERSION=$TILIA_VERSION-canary.$DATE
+npm --no-git-tag-version version $TILIA_VERSION
 CANARY=true pnpm publish --tag canary --access public --no-git-checks
 
-echo "Wait for core version to propagate on npm"
+echo "Wait for tilia version to propagate on npm"
 sleep 3
-echo "Wait for core version to propagate on npm"
+echo "Wait for tilia version to propagate on npm"
 sleep 3
-echo "Wait for core version to propagate on npm"
+echo "Wait for tilia version to propagate on npm"
 sleep 3
 
 # ================ REACT
 cd ../react
 REACT_VERSION=$REACT_VERSION-canary.$DATE
 npm --no-git-tag-version version $REACT_VERSION
-npm pkg set dependencies.tilia="$CORE_VERSION"
+npm pkg set dependencies.tilia="$TILIA_VERSION"
 CANARY=true pnpm publish --tag canary --access public --no-git-checks
 cd ..
 

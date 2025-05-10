@@ -31,38 +31,36 @@ is_semver() {
 # Install dependencies
 pnpm i
 # Check compilation for all projects
-pnpm core res:build
+pnpm tilia res:build
 pnpm react res:build
 
-cd core
-CORE_VERSION=$(npm pkg get version | sed 's/"//g')
-is_semver "$CORE_VERSION"
+cd tilia
+TILIA_VERSION=$(npm pkg get version | sed 's/"//g')
+is_semver "$TILIA_VERSION"
 cd ../react
 REACT_VERSION=$(npm pkg get version | sed 's/"//g')
 is_semver "$REACT_VERSION"
 cd ..
 
-# ================ CORE
-cd core
+# ================ TILIA
+cd tilia
 pnpm publish --access public --no-git-checks
-npm version patch
 
-echo "Wait for core version to propagate on npm"
+echo "Wait for tilia version to propagate on npm"
 sleep 3
-echo "Wait for core version to propagate on npm"
+echo "Wait for tilia version to propagate on npm"
 sleep 3
-echo "Wait for core version to propagate on npm"
+echo "Wait for tilia version to propagate on npm"
 sleep 3
 
 # ================ REACT
 cd ../react
-npm pkg set dependencies.@tilia/core="$CORE_VERSION"
+npm pkg set dependencies.@tilia/tilia="$TILIA_VERSION"
 pnpm publish --access public --no-git-checks
-npm version patch
 cd ..
 
 # Reset git repo
 git reset --hard HEAD
-git tag v$CORE_VERSION
+git tag v$TILIA_VERSION
 
 echo "Published successfully!"
