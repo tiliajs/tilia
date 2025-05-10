@@ -29,7 +29,8 @@ let noop = () => ()
 
 // This type is never used and only used to pass value.
 type opaque
-type rootp
+type branchp
+type base = {mutable proxy: branchp}
 
 type compute<'p, 'a> = {
   initValue: 'a,
@@ -45,7 +46,7 @@ function(v) {
 }
   `)
 
-  let compute: 'a => nullable<compute<rootp, 'a>> = %raw(`
+  let compute: 'a => nullable<compute<branchp, 'a>> = %raw(`
 function(v) {
   return typeof v === 'object' && v !== null && v[computeKey] ? v : undefined;
 }
@@ -107,11 +108,11 @@ and watchers = {
   observers: observers,
 }
 and root = {
-  mutable proxy: rootp,
   mutable observer: nullable<observer>,
   mutable triggers: nullable<Set.t<propagate>>,
   flush: (unit => unit) => unit,
 }
+
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
 
@@ -132,12 +133,14 @@ type rec meta<'a> = {
   // Cached children proxy.
   proxied: dict<meta<'a>>,
   // Compute functions.
-  computes: dict<compute<rootp, opaque>>,
+  computes: dict<compute<branchp, opaque>>,
   // The observer and ancestry to propagate tracking.
   propagate: propagate,
   // The proxy itself (used by proxied).
   mutable proxy: 'a,
 }
+
+type tilia = root
 
 let _nmeta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
@@ -259,6 +262,7 @@ let flush = (triggers: Set.t<propagate>) => {
   })
 }
 
+// FIXME: fix flush for regular read calls.
 let notify = (observed, key) => {
   switch Dict.get(observed, key) {
   | Value(watchers) => {
@@ -309,9 +313,10 @@ type lastValue<'a> = {mutable v: 'a}
 
 let rec set = (
   root: root,
+  base: base,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<rootp, opaque>>,
+  computes: dict<compute<branchp, opaque>>,
   propagate: propagate,
   target: 'a,
   key: string,
@@ -339,19 +344,24 @@ let rec set = (
           }
         | _ => ()
         }
-        setupComputed(root, observed, proxied, computes, propagate, target, key, compute)
+        setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute)
         if Dict.has(observed, key) {
-          // Computed value is already observed: notify
+          // Computed value is already observed or there are triggers: notify
           set(
             root,
+            base,
             observed,
             proxied,
             computes,
             propagate,
             target,
             key,
-            compute.rebuild(root.proxy),
+            compute.rebuild(base.proxy),
           )
+        } else if root.triggers !== Undefined {
+          // Need to inform triggers about the change
+          notify(observed, key)
+          true
         } else {
           true
         }
@@ -371,15 +381,15 @@ let rec set = (
 
 and setupComputed = (
   root: root,
+  base: base,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<rootp, opaque>>,
+  computes: dict<compute<branchp, opaque>>,
   propagate: propagate,
   target: 'a,
   key: string,
-  compute: compute<rootp, 'b>,
+  compute: compute<branchp, 'b>,
 ) => {
-  let p = root.proxy
   let lastValue: lastValue<'b> = {v: compute.initValue}
   let observer = {o: Undefined}
   // Initial compute has raw callback as rebuild method
@@ -390,10 +400,13 @@ and setupComputed = (
     if v !== compute {
       lastValue.v = v
     }
-    if Dict.has(observed, key) {
+
+    if Dict.has(observed, key) || root.triggers !== Undefined {
       // We have observers on this key: rebuild() and if the key changed, it
       // will notify cache observers.
-      ignore(set(root, observed, proxied, computes, propagate, target, key, rebuild(p)))
+      ignore(
+        set(root, base, observed, proxied, computes, propagate, target, key, rebuild(base.proxy)),
+      )
     } else {
       // We do not have observers: reset value.
       // Make sure the previous proxy (if any) is removed so that it is not
@@ -439,7 +452,7 @@ let deleteProperty = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<rootp, opaque>>,
+  computes: dict<compute<branchp, opaque>>,
   propagate: propagate,
   target: 'a,
   key: string,
@@ -460,9 +473,10 @@ let deleteProperty = (
 
 let rec get = (
   root: root,
+  base: base,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<rootp, opaque>>,
+  computes: dict<compute<branchp, opaque>>,
   propagate: propagate,
   meta: meta<'a>,
   isArray: bool,
@@ -496,22 +510,22 @@ let rec get = (
         switch Typeof.compute(v) {
         | Value(compute) if compute.clear === noop =>
           // New compute: need setup
-          setupComputed(root, observed, proxied, computes, propagate, target, key, compute)
-          let v = compute.rebuild(root.proxy)
+          setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute)
+          let v = compute.rebuild(base.proxy)
           ignore(Reflect.set(target, key, v))
           if Typeof.object(v) && !Object.readonly(target, key) {
-            let m = proxify(root, propagate, v)
+            let m = proxify(root, base, propagate, v)
             Dict.set(proxied, key, m)
             m.proxy
           } else {
             v
           }
-        | Value(compute) => compute.rebuild(root.proxy)
+        | Value(compute) => compute.rebuild(base.proxy)
         | _ =>
           switch Dict.get(proxied, key) {
           | Value(m) => m.proxy
           | _ =>
-            let m = proxify(root, propagate, v)
+            let m = proxify(root, base, propagate, v)
             Dict.set(proxied, key, m)
             m.proxy
           }
@@ -525,10 +539,10 @@ let rec get = (
   }
 }
 
-and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> => {
+and proxify = (root: root, base: base, parent_propagate: propagate, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
-  let computes: dict<compute<rootp, opaque>> = Dict.make()
+  let computes: dict<compute<branchp, opaque>> = Dict.make()
   let ancestry = Set.make()
 
   // Register parent in child ancestry
@@ -543,16 +557,16 @@ and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> =>
       Set.add(m.propagate.ancestry, parent_propagate)
       m
     }
-  | Value(m) => proxify(root, propagate, m.target) /* external tree: clear */
+  | Value(m) => proxify(root, base, propagate, m.target) /* external tree: clear */
   | _ =>
     let meta: meta<'a> = %raw(`{root, target, observed, proxied, computes, propagate}`)
     let isArray = Typeof.array(target)
     let proxy = Proxy.make(
       target,
       {
-        "set": set(root, observed, proxied, computes, propagate, ...),
+        "set": set(root, base, observed, proxied, computes, propagate, ...),
         "deleteProperty": deleteProperty(root, observed, proxied, computes, propagate, ...),
-        "get": get(root, observed, proxied, computes, propagate, meta, isArray, ...),
+        "get": get(root, base, observed, proxied, computes, propagate, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
     )
@@ -562,20 +576,28 @@ and proxify = (root: root, parent_propagate: propagate, target: 'a): meta<'a> =>
 }
 
 let timeOutFlush = (fn: unit => unit) => {
-  ignore(setTimeout(() => fn(), 0))
+  ignore(setTimeout(() => {
+      fn()
+    }, 0))
 }
 
-let make = (seed: 'a, ~flush=timeOutFlush): 'a => {
-  let root = {flush, observer: Undefined, triggers: Undefined, proxy: %raw(`seed`)}
+let connect = (root: tilia, branchp: 'a) => {
   let propagate: propagate = {
     obs: Dict.make(),
     ancestry: Set.make(),
   }
+  // We cheat with types on initial proxy creation.
+  let base = {proxy: %raw(`undefined`)}
 
-  // FIXME
-  let p = proxify(root, propagate, seed).proxy
-  root.proxy = %raw(`p`)
-  p
+  // We hide the type of base to avoid typing everything to rootp.
+  let proxy = proxify(root, base, propagate, branchp).proxy
+  base.proxy = %raw(`proxy`)
+  proxy
+}
+
+let tilia = (~flush=timeOutFlush) => {
+  let root = {flush, observer: Undefined, triggers: Undefined}
+  root
 }
 
 let observe = (p: 'a, callback: 'a => unit) => {

@@ -186,7 +186,7 @@ function deleteProxied(proxied, propagate, key) {
   proxied.delete(key);
 }
 
-function set(root, observed, proxied, computes, propagate, target, key, _value) {
+function set(root, base, observed, proxied, computes, propagate, target, key, _value) {
   while(true) {
     var value = _value;
     var hadKey = Reflect.has(target, key);
@@ -212,11 +212,16 @@ function set(root, observed, proxied, computes, propagate, target, key, _value) 
         clear();
         computes.delete(key);
       }
-      setupComputed(root, observed, proxied, computes, propagate, target, key, compute$1);
+      setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute$1);
       if (!observed.has(key)) {
-        return true;
+        if (root.triggers !== undefined) {
+          notify(observed, key);
+          return true;
+        } else {
+          return true;
+        }
       }
-      _value = compute$1.rebuild(root.proxy);
+      _value = compute$1.rebuild(base.proxy);
       continue ;
     }
     notify(observed, key);
@@ -228,8 +233,7 @@ function set(root, observed, proxied, computes, propagate, target, key, _value) 
   };
 }
 
-function setupComputed(root, observed, proxied, computes, propagate, target, key, compute) {
-  var p = root.proxy;
+function setupComputed(root, base, observed, proxied, computes, propagate, target, key, compute) {
   var lastValue = {
     v: compute.initValue
   };
@@ -242,8 +246,8 @@ function setupComputed(root, observed, proxied, computes, propagate, target, key
     if (v !== compute) {
       lastValue.v = v;
     }
-    if (observed.has(key)) {
-      set(root, observed, proxied, computes, propagate, target, key, rebuild(p));
+    if (observed.has(key) || root.triggers !== undefined) {
+      set(root, base, observed, proxied, computes, propagate, target, key, rebuild(base.proxy));
     } else {
       Reflect.deleteProperty(proxied, key);
       Reflect.set(target, key, compute);
@@ -278,7 +282,7 @@ function setupComputed(root, observed, proxied, computes, propagate, target, key
   computes.set(key, compute);
 }
 
-function proxify(root, _parent_propagate, _target) {
+function proxify(root, base, _parent_propagate, _target) {
   while(true) {
     var target = _target;
     var parent_propagate = _parent_propagate;
@@ -308,7 +312,7 @@ function proxify(root, _parent_propagate, _target) {
     var proxy = new Proxy(target, {
           set: (function(proxied,observed,computes,propagate){
           return function (extra, extra$1, extra$2) {
-            return set(root, observed, proxied, computes, propagate, extra, extra$1, extra$2);
+            return set(root, base, observed, proxied, computes, propagate, extra, extra$1, extra$2);
           }
           }(proxied,observed,computes,propagate)),
           deleteProperty: (function(proxied,observed,computes,propagate){
@@ -357,15 +361,15 @@ function proxify(root, _parent_propagate, _target) {
               exit = 1;
             } else {
               if (compute$1.clear !== noop) {
-                return compute$1.rebuild(root.proxy);
+                return compute$1.rebuild(base.proxy);
               }
-              setupComputed(root, observed, proxied, computes, propagate, extra, extra$1, compute$1);
-              var v$1 = compute$1.rebuild(root.proxy);
+              setupComputed(root, base, observed, proxied, computes, propagate, extra, extra$1, compute$1);
+              var v$1 = compute$1.rebuild(base.proxy);
               Reflect.set(extra, extra$1, v$1);
               if (!(object(v$1) && !readonly(extra, extra$1))) {
                 return v$1;
               }
-              var m = proxify(root, propagate, v$1);
+              var m = proxify(root, base, propagate, v$1);
               proxied.set(extra$1, m);
               return m.proxy;
             }
@@ -377,7 +381,7 @@ function proxify(root, _parent_propagate, _target) {
               }
               exit$1 = 2;
               if (exit$1 === 2) {
-                var m$2 = proxify(root, propagate, v);
+                var m$2 = proxify(root, base, propagate, v);
                 proxied.set(extra$1, m$2);
                 return m$2.proxy;
               }
@@ -411,23 +415,28 @@ function timeOutFlush(fn) {
         }), 0);
 }
 
-function make(seed, flushOpt) {
-  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
-  var root = {
-    proxy: seed,
-    observer: undefined,
-    triggers: undefined,
-    flush: flush
-  };
+function connect(root, branchp) {
   var propagate_obs = new Map();
   var propagate_ancestry = new Set();
   var propagate = {
     obs: propagate_obs,
     ancestry: propagate_ancestry
   };
-  var p = proxify(root, propagate, seed).proxy;
-  root.proxy = p;
-  return p;
+  var base = {
+    proxy: undefined
+  };
+  var proxy = proxify(root, base, propagate, branchp).proxy;
+  base.proxy = proxy;
+  return proxy;
+}
+
+function tilia(flushOpt) {
+  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
+  return {
+          observer: undefined,
+          triggers: undefined,
+          flush: flush
+        };
 }
 
 function observe(p, callback) {
@@ -476,7 +485,8 @@ function computed(initValue, callback) {
 }
 
 export {
-  make ,
+  tilia ,
+  connect ,
   observe ,
   track ,
   clear ,

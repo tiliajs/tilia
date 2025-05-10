@@ -2,12 +2,14 @@ type observer
 type root
 type meta<'a>
 type computed<'p, 'a> = ('a, 'p => 'a) => 'a
+type tilia
 
-/** Create a new tilia proxy from a target object. 
- * The default flush function is set to a timeout of 0 (after the current
- * event loop). 
-*/
-let make: ('a, ~flush: (unit => unit) => unit=?) => 'a
+/** Create a new tilia context and returns a connect function to create tilia
+ * proxies.  The default flush function is set to a timeout of 0 (after the
+ * current event loop). 
+ */
+let tilia: (~flush: (unit => unit) => unit=?) => tilia
+let connect: (tilia, 'a) => 'a
 
 /** Runs a callback with the given object as the current target. The callback
  * is called whenever any observed value changes. This is a PUSH model: the
