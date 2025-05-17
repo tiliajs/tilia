@@ -1,9 +1,24 @@
 import { useTilia } from "@tilia/react";
-import { CheckCircle, Circle, Moon, Sparkles, Sun, Trash2 } from "lucide-react";
-import { useState, type ChangeEvent, type KeyboardEvent } from "react";
+import {
+  CheckCircle,
+  Circle,
+  Edit,
+  Moon,
+  Sparkles,
+  Sun,
+  Trash2,
+} from "lucide-react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
 import { app } from "./domain/app";
 import { todosFilterValues } from "./domain/types/display";
 import { isLoaded } from "./domain/types/loadable";
+import type { Todo } from "./domain/types/todos";
 
 export default function App() {
   const { todos, display } = useTilia(app);
@@ -25,7 +40,7 @@ export default function App() {
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold flex items-center">
             <span className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
-              Pinky
+              Tilia
             </span>
             <Sparkles
               className={`ml-2 ${darkMode ? "text-pink-300" : "text-pink-500"}`}
@@ -36,7 +51,7 @@ export default function App() {
                 darkMode ? "text-purple-300" : "text-purple-500"
               }`}
             >
-              Tasks
+              todo
             </span>
           </h1>
           <button
@@ -60,7 +75,7 @@ export default function App() {
               onChange={(e: ChangeEvent<HTMLInputElement>) =>
                 todos.setTitle(e.target.value)
               }
-              placeholder="Add a funky task..."
+              placeholder="Add a task..."
               className={`flex-grow p-3 rounded-l-lg border-2 focus:outline-none ${
                 darkMode
                   ? "bg-gray-800 border-pink-500 text-pink-100 placeholder-pink-300"
@@ -68,19 +83,19 @@ export default function App() {
               }`}
               onKeyPress={(e: KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter") {
-                  todos.save();
+                  todos.save(todos.selected);
                 }
               }}
             />
             <button
-              onClick={() => todos.save()}
-              className={`px-4 py-2 rounded-r-lg font-bold ${
+              onClick={() => todos.save(todos.selected)}
+              className={`px-4 py-2 rounded-r-lg font-bold min-w-20 ${
                 darkMode
                   ? "bg-pink-600 hover:bg-pink-700 text-white"
                   : "bg-pink-400 hover:bg-pink-500 text-white"
               }`}
             >
-              Add
+              {todos.selected.id === "" ? "Add" : "Save"}
             </button>
           </div>
         </div>
@@ -90,10 +105,10 @@ export default function App() {
             <button
               key={f}
               onClick={() =>
-                display.setFilters({ ...display.filters, todos: f })
+                display.setFilters({ ...display.settings, todos: f })
               }
               className={`px-4 py-2 rounded-full capitalize transition-colors ${
-                display.filters.todos === f
+                display.settings.todos === f
                   ? darkMode
                     ? "bg-pink-600 text-white"
                     : "bg-pink-400 text-white"
@@ -124,7 +139,7 @@ export default function App() {
 export function TodoList({ darkMode }: { darkMode: boolean }) {
   const {
     todos,
-    display: { filters },
+    display: { settings: filters },
     store,
   } = useTilia(app);
 
@@ -136,54 +151,7 @@ export function TodoList({ darkMode }: { darkMode: boolean }) {
     <ul className="space-y-3">
       {todos.list.length > 0 ? (
         todos.list.map((todo) => (
-          <li
-            key={todo.id}
-            className={`flex items-center justify-between p-4 rounded-lg transition-all ${
-              darkMode
-                ? "bg-gray-800 hover:bg-gray-700"
-                : "bg-white hover:bg-pink-50 shadow"
-            }`}
-          >
-            <div className="flex items-center">
-              <button
-                onClick={() => todos.toggle(todo.id)}
-                className={`mr-3 ${
-                  todo.completed
-                    ? darkMode
-                      ? "text-pink-400"
-                      : "text-pink-500"
-                    : darkMode
-                    ? "text-gray-500"
-                    : "text-gray-400"
-                }`}
-              >
-                {todo.completed ? (
-                  <CheckCircle size={20} />
-                ) : (
-                  <Circle size={20} />
-                )}
-              </button>
-              <span
-                className={`${
-                  todo.completed
-                    ? `line-through ${
-                        darkMode ? "text-gray-500" : "text-gray-400"
-                      }`
-                    : ""
-                }`}
-              >
-                {todo.title}
-              </span>
-            </div>
-            <button
-              onClick={() => todos.remove(todo.id)}
-              className={`text-gray-400 hover:${
-                darkMode ? "text-pink-400" : "text-pink-500"
-              }`}
-            >
-              <Trash2 size={18} />
-            </button>
-          </li>
+          <TodoView key={todo.id} todo={todo} darkMode={darkMode} />
         ))
       ) : (
         <div
@@ -202,5 +170,145 @@ export function TodoList({ darkMode }: { darkMode: boolean }) {
         </div>
       )}
     </ul>
+  );
+}
+
+function TodoView({
+  todo: atodo,
+  darkMode,
+}: {
+  todo: Todo;
+  darkMode: boolean;
+}) {
+  const { todos } = useTilia(app);
+  const todo = useTilia(atodo);
+
+  return (
+    <li
+      key={todo.id}
+      className={`relative flex-grow flex items-center justify-between rounded-lg transition-all ${
+        darkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-white shadow" // hover:bg-pink-50 shadow"
+      } ${
+        todos.selected.id === todo.id ? "border-pink-500 border inset-0" : ""
+      }`}
+    >
+      <button
+        onClick={() => todos.toggle(todo.id)}
+        className={`p-4 pr-1 cursor-pointer ${
+          todo.completed
+            ? darkMode
+              ? "text-pink-400"
+              : "text-pink-500"
+            : darkMode
+            ? "text-gray-500"
+            : "text-gray-400"
+        }`}
+      >
+        {todo.completed ? <CheckCircle size={20} /> : <Circle size={20} />}
+      </button>
+      <TodoTitle todo={todo} />
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          todos.edit(todo);
+        }}
+        className={`p-4 text-gray-400 hover:${
+          darkMode ? "text-pink-400" : "text-pink-500"
+        }`}
+      >
+        <Edit size={18} />
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          todos.remove(todo.id);
+        }}
+        className={`absolute opacity-40 hover:opacity-100 cursor-pointer text-gray-400 hover:${
+          darkMode ? "text-pink-400" : "text-pink-500"
+        }`}
+        style={{ right: "-2rem" }}
+      >
+        <Trash2 size={18} />
+      </button>
+    </li>
+  );
+}
+
+function TodoTitle({ todo: atodo }: { todo: Todo }) {
+  const {
+    todos,
+    display: { settings },
+  } = useTilia(app);
+  const todo = useTilia(atodo);
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(todo.title);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const changed = useRef(false);
+
+  function finishEdit() {
+    if (changed.current) {
+      todo.title = title;
+      todos.save(todo);
+    }
+    setEditing(false);
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      finishEdit();
+    } else if (e.key === "Escape") {
+      setEditing(false);
+    }
+  }
+
+  function handleChange(e: ChangeEvent<HTMLInputElement>) {
+    changed.current = true;
+    setTitle(e.target.value);
+  }
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      // inputRef.current?.select();
+    }
+  }, [editing]);
+
+  return (
+    <div
+      className="flex-grow"
+      onClick={() => {
+        if (!editing) {
+          setTitle(todo.title);
+          setEditing(true);
+        }
+      }}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          onKeyDown={handleKeyDown}
+          onChange={handleChange}
+          onBlur={finishEdit}
+          value={title}
+          className={` w-full p-2 font-bold border-pink-200 border-2 bg-transparent outline-none rounded-xl font-inherit text-inherit ${
+            settings.darkMode ? "bg-gray-800" : "bg-white"
+          }
+          `}
+          style={{ font: "inherit" }}
+        />
+      ) : (
+        <div
+          className={`p-2 border-2 border-transparent ${
+            todo.completed
+              ? `line-through ${
+                  settings.darkMode ? "text-gray-500" : "text-gray-400"
+                }`
+              : ""
+          }`}
+        >
+          {todo.title}
+        </div>
+      )}
+    </div>
   );
 }

@@ -1,6 +1,6 @@
 import { connect, observe } from "../tilia";
 import { isAuthenticated, type Auth } from "../types/auth";
-import type { Filters } from "../types/display";
+import type { Settings } from "../types/display";
 import { fail, success, type Result, type Store } from "../types/store";
 import type { Todo } from "../types/todos";
 
@@ -16,8 +16,8 @@ export function makeStore(auth: Auth): Store {
     saveTodo: (todo: Todo) => saveTodo(auth, store, todo),
     removeTodo: (id: string) => removeTodo(auth, store, id),
     fetchTodos: () => fetchTodos(store),
-    saveFilters: (filters: Filters) => saveFilters(store, filters),
-    fetchFilters: () => fetchFilters(store),
+    saveSettings: (filters: Settings) => saveSettings(store, filters),
+    fetchSettings: () => fetchSettings(store),
   });
 
   observe(() => {
@@ -107,21 +107,21 @@ async function fetchTodos(store: IndexedStore): Promise<Result<Todo[]>> {
   });
 }
 
-async function saveFilters(
+async function saveSettings(
   store: IndexedStore,
-  allFilters: Filters
-): Promise<Result<Filters>> {
+  theSettings: Settings
+): Promise<Result<Settings>> {
   if (!store.db) {
     return fail("Database not open");
   }
   const transaction = store.db.transaction(FILTERS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(FILTERS_TABLE);
   // We use a fixed key for filters (we only have one set).
-  const filters = { id: "current", ...allFilters };
-  const request = objectStore.put(filters);
+  const settings = { id: "current", ...theSettings };
+  const request = objectStore.put(settings);
   return new Promise((resolve) => {
     request.onsuccess = function () {
-      resolve(success(filters));
+      resolve(success(settings));
     };
     request.onerror = function () {
       resolve(fail("Filters save failed"));
@@ -129,7 +129,7 @@ async function saveFilters(
   });
 }
 
-async function fetchFilters(store: IndexedStore): Promise<Result<Filters>> {
+async function fetchSettings(store: IndexedStore): Promise<Result<Settings>> {
   if (!store.db) {
     return fail("Database not open");
   }
@@ -141,10 +141,10 @@ async function fetchFilters(store: IndexedStore): Promise<Result<Filters>> {
       if (request.result) {
         // Strip the ID from the result to return just the filters
         const { id, ...filters } = request.result;
-        resolve(success(filters as Filters));
+        resolve(success(filters as Settings));
       } else {
-        // Return default filters if none found
-        resolve(success({ todos: "all" }));
+        // Return default settings if none found
+        resolve(success({ todos: "all", darkMode: false }));
       }
     };
     request.onerror = function () {

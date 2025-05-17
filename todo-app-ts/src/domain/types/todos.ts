@@ -16,9 +16,10 @@ export type Todos = {
   selected: Todo;
 
   // Operations
-  save: () => Void;
+  save: (todo: Todo) => Void;
   clear: () => Void;
   remove: (id: string) => Void;
+  edit: (todo: Todo) => Void;
   setTitle: (title: string) => Void;
   toggle: (id: string) => void;
 };

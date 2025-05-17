@@ -1,7 +1,7 @@
 import { v4 as uuid } from "uuid";
 import { computed, connect } from "./tilia";
 import { isAuthenticated, type Auth } from "./types/auth";
-import type { Display, Filters } from "./types/display";
+import type { Display, Settings } from "./types/display";
 import {
   blank,
   isLoaded,
@@ -20,22 +20,40 @@ export function makeTodos(auth: Auth, display: Display, store: Store) {
   const todos: Todos = connect({
     // State
     data: computed(() => data(todos, auth, store)),
-    list: computed(() => list(todos, display.filters)),
+    list: computed(() => list(todos, display.settings)),
     selected: newTodo(),
     remaining: computed(() => remaining(todos)),
 
     // Operations
-    save: async () => {
+    save: async (atodo: Todo) => {
       if (isLoaded(todos.data)) {
-        const result = await store.saveTodo(todos.selected);
+        const isNew = atodo.id === "";
+        const todo = { ...atodo };
+        if (isNew) {
+          todo.id = uuid();
+        }
+        todos.selected = newTodo();
+        const result = await store.saveTodo(todo);
         if (isSuccess(result)) {
-          todos.data.value.push(result.value); //  = [...todos.data.value, result.value];
-          todos.selected = newTodo();
+          const todo = result.value;
+          if (isNew) {
+            todos.data.value.push(todo);
+          } else {
+            // mutate in place
+            Object.assign(todo, result.value);
+          }
         } // FIXME: handle error
       }
     },
     clear: () => {
       todos.selected = newTodo();
+    },
+    edit: (todo: Todo) => {
+      if (todo === todos.selected) {
+        todos.selected = newTodo();
+      } else {
+        todos.selected = todo;
+      }
     },
     remove: async (id: string) => {
       if (isLoaded(todos.data)) {
@@ -71,7 +89,7 @@ function data(todos: Todos, { auth }: Auth, store: Store): Loadable<Todo[]> {
   }
 }
 
-function list(todos: Todos, filters: Filters): Todo[] {
+function list(todos: Todos, filters: Settings): Todo[] {
   const { data } = todos;
   if (isLoaded(data)) {
     return data.value
@@ -104,7 +122,7 @@ async function loadTodos(
   }
 }
 
-function listFilter(state: Filters["todos"]): (todo: Todo) => boolean {
+function listFilter(state: Settings["todos"]): (todo: Todo) => boolean {
   switch (state) {
     case "active":
       return (f: Todo) => f.completed === false;
@@ -117,7 +135,7 @@ function listFilter(state: Filters["todos"]): (todo: Todo) => boolean {
 
 function newTodo(): Todo {
   return {
-    id: uuid(),
+    id: "",
     userId: "", // userId is set on save.
     title: "",
     completed: false,
