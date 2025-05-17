@@ -1,4 +1,4 @@
 packages:
   - "tilia"
   - "react"
-  - "website"
+  - "todo-app-ts"
