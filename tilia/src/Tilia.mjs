@@ -11,8 +11,12 @@ function noop() {
   
 }
 
-var object = (function(v) {
-  return typeof v === 'object' && v !== null;
+var proxiable = (function(v) {
+  if ( typeof v === 'object' && v !== null) {
+    const proto = Object.getPrototypeOf(v)
+    return proto === Object.prototype || proto === Array.prototype || proto === null
+  }
+  return false;
 });
 
 var compute = (function(v) {
@@ -57,16 +61,6 @@ function _clear(observer) {
         }
         
       });
-}
-
-function clear(observer) {
-  _clear(observer);
-  var fn = observer.clear;
-  if (fn === null || fn === undefined) {
-    return ;
-  } else {
-    return fn();
-  }
 }
 
 function _ready(observer, notifyIfChangedOpt) {
@@ -144,7 +138,7 @@ function set(root, base, observed, proxied, computes, target, key, _value) {
     if (!Reflect.set(target, key, value)) {
       return false;
     }
-    if (object(prev)) {
+    if (proxiable(prev)) {
       proxied.delete(key);
     }
     var compute$1 = compute(value);
@@ -176,7 +170,7 @@ function set(root, base, observed, proxied, computes, target, key, _value) {
 
 function setupComputed(root, base, observed, proxied, computes, target, key, compute) {
   var lastValue = {
-    v: compute.initValue
+    v: undefined
   };
   var observer = {
     o: undefined
@@ -199,7 +193,6 @@ function setupComputed(root, base, observed, proxied, computes, target, key, com
     var o_observing = [];
     var o = {
       notify: notify,
-      clear: undefined,
       observing: o_observing,
       root: root
     };
@@ -283,7 +276,7 @@ function proxify(root, base, _target) {
               var w$1 = observeKey(observed, extra$1);
               o.observing.push(w$1);
             }
-            if (!(object(v) && !readonly(extra, extra$1))) {
+            if (!(proxiable(v) && !readonly(extra, extra$1))) {
               return v;
             }
             var compute$1 = compute(v);
@@ -291,13 +284,12 @@ function proxify(root, base, _target) {
             if (compute$1 === null || compute$1 === undefined) {
               exit = 1;
             } else {
-              if (compute$1.clear !== noop) {
-                return compute$1.rebuild(base.proxy);
+              if (compute$1.clear === noop) {
+                setupComputed(root, base, observed, proxied, computes, extra, extra$1, compute$1);
               }
-              setupComputed(root, base, observed, proxied, computes, extra, extra$1, compute$1);
               var v$1 = compute$1.rebuild(base.proxy);
               Reflect.set(extra, extra$1, v$1);
-              if (!(object(v$1) && !readonly(extra, extra$1))) {
+              if (!(proxiable(v$1) && !readonly(extra, extra$1))) {
                 return v$1;
               }
               var m = proxify(root, base, v$1);
@@ -346,24 +338,6 @@ function timeOutFlush(fn) {
         }), 0);
 }
 
-function connect(root, branchp) {
-  var base = {
-    proxy: undefined
-  };
-  var proxy = proxify(root, base, branchp).proxy;
-  base.proxy = proxy;
-  return proxy;
-}
-
-function tilia(flushOpt) {
-  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
-  return {
-          observer: undefined,
-          expired: undefined,
-          flush: flush
-        };
-}
-
 function _observe(p, notify) {
   var match = Reflect.get(p, metaKey);
   if (match === null || match === undefined) {
@@ -376,7 +350,6 @@ function _observe(p, notify) {
     var observer_observing = [];
     var observer = {
       notify: notify,
-      clear: undefined,
       observing: observer_observing,
       root: root
     };
@@ -385,26 +358,37 @@ function _observe(p, notify) {
   }
 }
 
-function observe(root, callback) {
-  var notify = function () {
-    var observer_observing = [];
-    var observer = {
-      notify: notify,
-      clear: undefined,
-      observing: observer_observing,
-      root: root
+function connect(root) {
+  return function (branchp) {
+    var base = {
+      proxy: undefined
     };
-    root.observer = observer;
-    var o = observer;
-    callback();
-    _ready(o, false);
+    var proxy = proxify(root, base, branchp).proxy;
+    base.proxy = proxy;
+    return proxy;
   };
-  notify();
 }
 
-function computed(initValue, callback) {
+function observe(root) {
+  return function (callback) {
+    var notify = function () {
+      var observer_observing = [];
+      var observer = {
+        notify: notify,
+        observing: observer_observing,
+        root: root
+      };
+      root.observer = observer;
+      var o = observer;
+      callback();
+      _ready(o, false);
+    };
+    notify();
+  };
+}
+
+function computed(callback) {
   var v = {
-    initValue: initValue,
     clear: noop,
     rebuild: callback
   };
@@ -412,14 +396,27 @@ function computed(initValue, callback) {
   return v;
 }
 
+function connector(connect, observe) {
+  return {connect, observe};
+}
+;
+
+function make(flushOpt) {
+  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
+  var root = {
+    observer: undefined,
+    expired: undefined,
+    flush: flush
+  };
+  return connector(connect(root), observe(root));
+}
+
 export {
-  tilia ,
-  connect ,
-  observe ,
-  clear ,
+  make ,
+  computed ,
   _observe ,
   _ready ,
   _meta ,
-  computed ,
+  _clear ,
 }
 /* indexKey Not a pure module */

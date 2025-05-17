@@ -1,12 +1,16 @@
 declare const o: unique symbol;
 declare const r: unique symbol;
 export type Observer = { readonly [o]: true };
-export type Tilia = { readonly [r]: true };
-export function tilia(flush?: (fn: () => void) => void): Tilia;
-export function connect<a>(tilia: Tilia, branch: a): a;
-export function observe(tilia: Tilia, fn: () => void): void;
-export function computed<a extends object>(tree: a, fn: (tree: a) => void, initValue: a): a;
-export function clear(observer: Observer): void;
+export type Tilia = {
+  connect: <a>(branch: a) => a;
+  observe: (fn: () => void) => void;
+};
+export function make(flush?: (fn: () => void) => void): Tilia;
+// We could expose the first argument of the computed function if needed but in
+// TS, we can have p referenced in computed through the closure so we don't need
+// it.
+export function computed<a>(fn: () => a): a;
+export function _clear(observer: Observer): void;
 export function _observe<a>(tree: a, callback: () => void): Observer;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;
 export function _meta<a>(tree: a): unknown;

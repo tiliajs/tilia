@@ -1,29 +1,32 @@
 type observer
 type meta<'a>
 type computed<'p, 'a> = ('a, 'p => 'a) => 'a
-type tilia
 
-/** Create a new tilia context and returns a connect function to create tilia
- * proxies.  The default flush function is set to a timeout of 0 (after the
- * current event loop). 
- */
-let tilia: (~flush: (unit => unit) => unit=?) => tilia
-let connect: (tilia, 'a) => 'a
-
-/** Runs a callback with the given object as the current target. The callback
- * is called whenever any observed value changes. This is a PUSH model: the
- * callback is called on the next flush.
- *
- * See "signal" for a PULL model where the callback is only called on object read.
- * 
- * See "track" for another PUSH model where the callback is called on any change
- * in the observed branch (the callback is not used to build the dependency graph).
- */
-let observe: (tilia, unit => unit) => unit
-
-/** Stop tracking. 
+type tilia<'a> = {
+  /** Create a new tilia proxy and connect it to the forest.
+   */
+  connect: 'a. 'a => 'a,
+  /** Re-runs a callback whenever any of the observed values changes. 
+  * The observer implements a PUSH model (changes "push" the callback to run).
+  *
+  * See "computed" for a PULL model where the callback is only called when the
+  * produced value is read.
   */
-let clear: observer => unit
+  observe: (unit => unit) => unit,
+}
+
+/** Create a new tilia context and returns the `connect` and `observe` functions.
+ * The default flush function is set to notify on the next event loop (setTimeout).
+ */
+let make: (~flush: (unit => unit) => unit=?) => tilia<'a>
+
+/** Return a computed value to be inserted into a tilia proxy. The cached value
+ * is computed when the key is read and destroyed when any observed value is
+ * changed.
+ * 
+ * The first parameter to the callback is the "connected" object.
+ */
+let computed: ('p => 'a) => 'a
 
 /** Internal types for library developers */
 /** internal */
@@ -32,11 +35,5 @@ let _observe: ('a, unit => unit) => observer
 let _ready: (observer, ~notifyIfChanged: bool=?) => unit
 /** internal */
 let _meta: 'a => meta<'a>
-
-/* Computed (pseudo-signals) */
-
-/** Return a computed value to be inserted into a tilia proxy. The cached value
- * is computed when the key is read and destroyed when any observed value is
- * changed.
- */
-let computed: ('a, 'p => 'a) => 'a
+/** Dispose of an observer */
+let _clear: observer => unit

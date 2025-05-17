@@ -14,7 +14,7 @@ function use(p) {
   React.useEffect(function () {
         Tilia._ready(o, undefined);
         return (function () {
-                  Tilia.clear(o);
+                  Tilia._clear(o);
                 });
       });
   return p;

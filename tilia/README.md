@@ -17,52 +17,72 @@ npm install tilia
 ## Usage
 
 ```ts
-import { tilia, observe, track, clear } from "tilia";
+import { make, computed, clear } from "tilia";
 
-// Create a tracked object or array:
-const tree = tilia({
+// Create a tilia context:
+const { connect, observe } = make();
+
+// Add an object to the "forest" so that it can be observed.
+const tree = connect({
   flowers: "are beautiful",
   clouds: { morning: "can be pink", evening: "can be orange" },
 });
 
 // Observe and react to changes from what was seen in the
 // callback (here key "clouds" in tree and key "evening" in clouds).
-observe(tree, () => {
+// Note that the observe function will see changes from trees in
+// the same forest (tilia context).
+observe(() => {
   console.log("Evening Clouds", tree.clouds.evening);
   // We can write to observed data in the callback (for computations for example)
   tree.clouds.evening = tree.clouds.evening + " are nice";
 });
 
-// Track and react to any change in the observed branch (here 'tree.clouds')
-const observer = track(tree.clouds, () => {
-  console.log("Something changed", tree.clouds);
-  // We should be careful when we write to the tracked branch to avoid
-  // infinite loops.
-});
-
-// Stop tracking.
-clear(observer);
-
 // NB: to stop tracking with `observe`, simply avoid reading anything in the callback.
 
-// Compute value on the fly. The callback is called on read.  Note that if the
-// computing function needs to start an async operation, it is their
-// responsability to set a proper value before yielding. Something like a
-// Loading state or a Promise. Without such a value, undefined will be returned
-// and might not match the actual type of the value.
-let observer = compute(tree.clouds, () => {
-  // When something is changed on the observed values, the cached value is
-  // cleared and will be recomputed on first read.
-  tree.clouds.morning = tree.clouds.evening + " are not the same";
+const mimic = connect({
+  clouds: {
+    morning: computed(() => tree.clouds.morning),
+    evening: "can be orange",
+  },
 });
 
-// Remove computed value.
-clear(observer);
+// Todo example
+type Auth = {
+  user?: { id: number };
+};
+
+const auth: Auth = connect({
+  user: undefined,
+});
+
+async function fetchTodos(authUser: Auth["user"], todos: Todos) {
+  const response = await fetch(`https://jsonplaceholder.typicode.com/todos`);
+  todos.data = (await response.json()).filter(
+    (todo) => todo.userId === owner.id
+  );
+  todos.state = "loaded";
+}
+
+const todos = connect({
+  state: "locked",
+  data: computed(() => {
+    if (auth.user) {
+      todos.state = "loading";
+      fetchTodos(auth.user, todos);
+    } else {
+      todos.state = "locked";
+    }
+    return []; // Temporary data while loading
+  }),
+  selectedId: undefined,
+  selected: computed(() => data.find((todo) => todo.id === todos.selectedId)),
+});
 ```
 
-The call to `tilia` creates a proxy object or array.
+The call to `make` creates a tiia context. We can then create a proxy object or array by using the `connect` function from this context.
 
-And then we create an observer that will run if anything that it reads from the
+And then we create observers that will run if anything that it reads from the
 tree changes. For example, the observer above watches "clouds" and "evening" inside the clouds
 object but not "flowers" or "morning".
 
@@ -83,8 +103,8 @@ Will trigger the logging of the cloud color.
 - Tracking follows moved or copied objects.
 - Respects `readonly` properties.
 - Leaf-tracking (observe read values).
-- Tracking (observe a whole branch).
 - Computed values (cached calculations, recomputed on read when changed).
+- Forest mode: tracking across multiple instances.
 
 ## Internals
 
@@ -119,20 +139,22 @@ type state = {
 }
 
 // Create a tracked object or array:
-let tree = make({
+let tilia = make()
+
+let tree = tilia.connect({
   flowers: "are beautiful",
   clouds: { morning: "can be pink", evening: "can be orange" },
 })
 
 // Observe and react to changes
-observe(tree, (_) => {
+tilia.observe(() => {
   Js.log2("Evening Clouds", tree.clouds.evening)
 })
 ```
 
-The call to `Tilia.make` creates a tracked object or array.
+The call to `Tilia.make` creates a tilia context with `connect` and `observe` functions.
 
-And then we create an observer that will run if anything that it reads from the
+We then create an observer that will run if anything that it reads from the
 tree changes. For example, the observer above watches "clouds" and "evening" inside the clouds
 object but not "flowers" or "morning".
 

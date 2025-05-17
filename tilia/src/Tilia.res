@@ -31,16 +31,20 @@ type branchp
 type base = {mutable proxy: branchp}
 
 type compute<'p, 'a> = {
-  initValue: 'a,
   mutable clear: unit => unit,
   mutable rebuild: 'p => 'a,
 }
 
 module Typeof = {
   external array: 'a => bool = "Array.isArray"
-  let object: 'a => bool = %raw(`
+
+  let proxiable: 'a => bool = %raw(`
 function(v) {
-  return typeof v === 'object' && v !== null;
+  if ( typeof v === 'object' && v !== null) {
+    const proto = Object.getPrototypeOf(v)
+    return proto === Object.prototype || proto === Array.prototype || proto === null
+  }
+  return false;
 }
   `)
 
@@ -82,10 +86,9 @@ type state =
 
 type rec observer = {
   notify: unit => unit,
-  clear: nullable<unit => unit>,
   // What this observer is observing (a list of watchers)
   observing: observing,
-  // Where this observer is observing (not used anymore ?)
+  // Reference to the root is needed for ready call.
   root: root,
 }
 // Observed key => watchers
@@ -116,6 +119,19 @@ and root = {
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
 
+type tilia<'a> = {
+  /** Create a new tilia proxy and connect it to the forest.
+   */
+  connect: 'a. 'a => 'a,
+  /** Re-runs a callback whenever any of the observed values changes. 
+  * The observer implements a PUSH model (changes "push" the callback to run).
+  *
+  * See "computed" for a PULL model where the callback is only called when the
+  * produced value is read.
+  */
+  observe: (unit => unit) => unit,
+}
+
 type rec meta<'a> = {
   target: 'a,
   root: root,
@@ -131,15 +147,12 @@ type rec meta<'a> = {
   mutable proxy: 'a,
 }
 
-type tilia = root
-
 let _nmeta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
 
 @inline
 let _setObserver = (root, notify) => {
   let observer: observer = {
-    clear: Undefined,
     notify,
     observing: [],
     root,
@@ -177,14 +190,6 @@ let _clear = (observer: observer) => {
       Dict.delete(watchers.observed, watchers.key)
     }
   })
-}
-
-let clear = (observer: observer) => {
-  _clear(observer)
-  switch observer.clear {
-  | Value(fn) => fn()
-  | _ => ()
-  }
 }
 
 let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
@@ -282,7 +287,7 @@ let rec set = (
     switch Reflect.set(target, key, value) {
     | false => false
     | true =>
-      if Typeof.object(prev) {
+      if Typeof.proxiable(prev) {
         Dict.delete(proxied, key)
       }
       switch Typeof.compute(value) {
@@ -326,7 +331,7 @@ and setupComputed = (
   key: string,
   compute: compute<branchp, 'b>,
 ) => {
-  let lastValue: lastValue<'b> = {v: compute.initValue}
+  let lastValue: lastValue<'b> = {v: %raw(`undefined`)}
   let observer = {o: Undefined}
   // Initial compute has raw callback as rebuild method
   let callback = compute.rebuild
@@ -350,12 +355,13 @@ and setupComputed = (
     }
   }
   and rebuild = p => {
-    // Make sure any further read gets the last value until we
-    // are done with rebuilding the value. This is also useful if the
-    // callback needs the previous value and to detect unchanged value.
+    // Make sure any further read gets the last value until we are done with
+    // rebuilding the value. This is also useful if the callback needs the
+    // previous value and to detect unchanged value.  If possible, the callback
+    // should avoid accessing this value because it can be undefined on first
+    // run and breaks typing.
     ignore(Reflect.set(target, key, lastValue.v))
     let o: observer = {
-      clear: Undefined,
       notify,
       observing: [],
       root,
@@ -437,21 +443,23 @@ let rec get = (
       | _ => ()
       }
 
-      if Typeof.object(v) && !Object.readonly(target, key) {
+      if Typeof.proxiable(v) && !Object.readonly(target, key) {
         switch Typeof.compute(v) {
-        | Value(compute) if compute.clear === noop =>
-          // New compute: need setup
-          setupComputed(root, base, observed, proxied, computes, target, key, compute)
-          let v = compute.rebuild(base.proxy)
-          ignore(Reflect.set(target, key, v))
-          if Typeof.object(v) && !Object.readonly(target, key) {
-            let m = proxify(root, base, v)
-            Dict.set(proxied, key, m)
-            m.proxy
-          } else {
-            v
+        | Value(compute) => {
+            if compute.clear === noop {
+              // New compute: need setup
+              setupComputed(root, base, observed, proxied, computes, target, key, compute)
+            }
+            let v = compute.rebuild(base.proxy)
+            ignore(Reflect.set(target, key, v))
+            if Typeof.proxiable(v) && !Object.readonly(target, key) {
+              let m = proxify(root, base, v)
+              Dict.set(proxied, key, m)
+              m.proxy
+            } else {
+              v
+            }
           }
-        | Value(compute) => compute.rebuild(base.proxy)
         | _ =>
           switch Dict.get(proxied, key) {
           | Value(m) => m.proxy
@@ -502,7 +510,15 @@ let timeOutFlush = (fn: unit => unit) => {
     }, 0))
 }
 
-let connect = (root: tilia, branchp: 'a) => {
+// Public for library developers.
+let _observe = (p: 'a, notify) => {
+  switch _nmeta(p) {
+  | Value({root}) => _setObserver(root, notify)
+  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
+  }
+}
+
+let connect = (root: root) => (branchp: branchp) => {
   // We cheat with types on initial proxy creation.
   let base = {proxy: %raw(`undefined`)}
 
@@ -512,20 +528,7 @@ let connect = (root: tilia, branchp: 'a) => {
   proxy
 }
 
-let tilia = (~flush=timeOutFlush) => {
-  let root = {flush, observer: Undefined, expired: Undefined}
-  root
-}
-
-// Public for library developers.
-let _observe = (p: 'a, notify) => {
-  switch _nmeta(p) {
-  | Value({root}) => _setObserver(root, notify)
-  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
-  }
-}
-
-let observe = (root: root, callback: unit => unit) => {
+let observe = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
     let o = _setObserver(root, notify)
     callback()
@@ -536,8 +539,21 @@ let observe = (root: root, callback: unit => unit) => {
 
 type computed<'p, 'a> = ('a, 'p => 'a) => 'a
 
-let computed = (initValue: 'a, callback: 'p => 'a) => {
-  let v = {clear: noop, rebuild: callback, initValue}
+let computed = (callback: 'p => 'a) => {
+  let v = {clear: noop, rebuild: callback}
   ignore(Reflect.set(v, computeKey, true))
   %raw(`v`)
+}
+
+external connector: (branchp => branchp, (unit => unit) => unit) => tilia<'a> = "connector"
+
+%%raw(`
+function connector(connect, observe) {
+  return {connect, observe};
+}
+`)
+
+let make = (~flush=timeOutFlush): tilia<'a> => {
+  let root = {flush, observer: Undefined, expired: Undefined}
+  connector(connect(root), observe(root))
 }

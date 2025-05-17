@@ -33,11 +33,11 @@ out of the way.
 ### Changelog (for tilia)
 
 - 2025-05-09 **2.0.0**
-  - Move to "tilia" for core npm package.
-  - Replace `make` with `tilia` and `connect`.
+  - Moved core to npm "tilia" package.
+  - Changed `make` signature to build tilia context `{ connect, observe }`.
   - Enable 'forest mode' to observve across separated objects.
   - Add `computed` to compute values in branches.
-  - Changed signature for `observe` to use `tilia` context.
+  - Moved `observe` into `tilia` context.
   - Removed re-exports in @tilia/react.
   - Removed `compute` (replaced by `computed`).
   - Removed `track` as this cannot scale to multiple instances and computed.

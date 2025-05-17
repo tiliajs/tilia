@@ -7,7 +7,7 @@ let use = p => {
   let o = _observe(p, () => setCount(i => i + 1))
   useEffect(() => {
     _ready(o)
-    Some(() => clear(o))
+    Some(() => _clear(o))
   })
   p
 }
