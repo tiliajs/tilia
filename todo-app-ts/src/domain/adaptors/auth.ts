@@ -1,15 +1,15 @@
-import { connect } from "./tilia";
 import {
   authenticated,
   notAuthenticated,
   type Auth,
   type User,
-} from "./types/auth";
+} from "../ports/auth";
+import { type Context } from "../tilia";
 
-/** Bind auth.
+/** Trivial auth adapter.
  *
  */
-export function makeAuth(): Auth {
+export function makeAuth({ connect }: Context) {
   const auth: Auth = connect({
     auth: notAuthenticated(),
     login: (user: User) => (auth.auth = authenticated(user)),

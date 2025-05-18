@@ -1,5 +1,5 @@
+import type { Todo } from "../types/todo";
 import type { Settings } from "./display";
-import type { Todo } from "./todos";
 
 export type Success<T> = { t: "Success"; value: T };
 export type Fail = { t: "Fail"; message: string };

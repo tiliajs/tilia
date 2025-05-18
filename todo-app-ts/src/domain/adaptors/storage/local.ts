@@ -1,14 +1,14 @@
-import { connect, observe } from "../tilia";
-import { isAuthenticated, type Auth } from "../types/auth";
-import type { Settings } from "../types/display";
-import { fail, success, type Result, type Store } from "../types/store";
-import type { Todo } from "../types/todos";
+import { isAuthenticated, type Auth } from "../../ports/auth";
+import type { Settings } from "../../ports/display";
+import { fail, success, type Result, type Store } from "../../ports/store";
+import { type Context } from "../../tilia";
+import type { Todo } from "../../types/todo";
 
 type IndexedStore = Store & {
   db?: IDBDatabase;
 };
 
-export function makeStore(auth: Auth): Store {
+export function makeStore({ connect, observe }: Context, auth: Auth): Store {
   // auth not used with local storage
   const store: IndexedStore = connect({
     state: { t: "NotAuthenticated" },

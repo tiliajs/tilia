@@ -1,22 +1,28 @@
 import { v4 as uuid } from "uuid";
-import { computed, connect } from "./tilia";
-import { isAuthenticated, type Auth } from "./types/auth";
-import type { Display, Settings } from "./types/display";
+import { isAuthenticated, type Auth } from "../ports/auth";
+import type { Display, Settings } from "../ports/display";
+import { isReady, isSuccess, type Store } from "../ports/store";
+import type { Todos } from "../ports/todos";
+import type { Context } from "../tilia";
 import {
   blank,
   isLoaded,
   loaded,
   loading,
   type Loadable,
-} from "./types/loadable";
-import { isReady, isSuccess, type Store } from "./types/store";
-import type { Todo, Todos } from "./types/todos";
+} from "../types/loadable";
+import type { Todo } from "../types/todo";
 
 /** Bind todos to the auth service. This is the todos adapter = implementation
  * of the todos port
  *
  */
-export function makeTodos(auth: Auth, display: Display, store: Store) {
+export function makeTodos(
+  { connect, computed }: Context,
+  auth: Auth,
+  display: Display,
+  store: Store
+) {
   const todos: Todos = connect({
     // State
     data: computed(() => data(todos, auth, store)),

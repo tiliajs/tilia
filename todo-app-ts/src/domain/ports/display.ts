@@ -10,5 +10,5 @@ export type Settings = {
 
 export type Display = {
   settings: Settings;
-  setFilters: (filters: Settings) => Promise<Result<Settings>>;
+  setSettings: (filters: Settings) => Promise<Result<Settings>>;
 };

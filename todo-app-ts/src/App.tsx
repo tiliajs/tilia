@@ -16,18 +16,25 @@ import {
   type KeyboardEvent,
 } from "react";
 import { app } from "./domain/app";
-import { todosFilterValues } from "./domain/types/display";
+import { todosFilterValues } from "./domain/ports/display";
 import { isLoaded } from "./domain/types/loadable";
-import type { Todo } from "./domain/types/todos";
+import type { Todo } from "./domain/types/todo";
 
 export default function App() {
   const { todos, display } = useTilia(app);
-  const [darkMode, setDarkMode] = useState<boolean>(false);
+  const darkMode = display.settings.darkMode;
 
   // Toggle dark mode
   const toggleDarkMode = (): void => {
-    setDarkMode(!darkMode);
+    display.setSettings({
+      ...display.settings,
+      darkMode: !darkMode,
+    });
   };
+
+  if (!isLoaded(todos.data)) {
+    return null;
+  }
 
   return (
     <div
@@ -81,7 +88,7 @@ export default function App() {
                   ? "bg-gray-800 border-pink-500 text-pink-100 placeholder-pink-300"
                   : "bg-white border-pink-300 text-gray-800 placeholder-pink-300"
               }`}
-              onKeyPress={(e: KeyboardEvent<HTMLInputElement>) => {
+              onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter") {
                   todos.save(todos.selected);
                 }
@@ -105,7 +112,7 @@ export default function App() {
             <button
               key={f}
               onClick={() =>
-                display.setFilters({ ...display.settings, todos: f })
+                display.setSettings({ ...display.settings, todos: f })
               }
               className={`px-4 py-2 rounded-full capitalize transition-colors ${
                 display.settings.todos === f
@@ -122,7 +129,7 @@ export default function App() {
           ))}
         </div>
 
-        <TodoList darkMode={darkMode} />
+        <TodoList />
 
         {todos.list.length > 0 && (
           <div className="mt-6 text-center">
@@ -136,34 +143,35 @@ export default function App() {
   );
 }
 
-export function TodoList({ darkMode }: { darkMode: boolean }) {
+export function TodoList() {
   const {
     todos,
-    display: { settings: filters },
-    store,
+    display: { settings },
   } = useTilia(app);
 
   if (!isLoaded(todos.data)) {
-    return <div>store state: {store.state.t}</div>;
+    return null;
   }
 
   return (
     <ul className="space-y-3">
       {todos.list.length > 0 ? (
-        todos.list.map((todo) => (
-          <TodoView key={todo.id} todo={todo} darkMode={darkMode} />
-        ))
+        todos.list.map((todo) => <TodoView key={todo.id} todo={todo} />)
       ) : (
         <div
           className={`text-center p-6 rounded-lg ${
-            darkMode ? "bg-gray-800" : "bg-white"
+            settings.darkMode ? "bg-gray-800" : "bg-white"
           }`}
         >
           <p className="text-lg">No tasks found!</p>
-          <p className={`${darkMode ? "text-pink-400" : "text-pink-500"} mt-2`}>
-            {filters.todos === "all"
+          <p
+            className={`${
+              settings.darkMode ? "text-pink-400" : "text-pink-500"
+            } mt-2`}
+          >
+            {settings.todos === "all"
               ? "Add some pinky tasks above!"
-              : filters.todos === "active"
+              : settings.todos === "active"
               ? "No active tasks!"
               : "No completed tasks!"}
           </p>
@@ -173,14 +181,13 @@ export function TodoList({ darkMode }: { darkMode: boolean }) {
   );
 }
 
-function TodoView({
-  todo: atodo,
-  darkMode,
-}: {
-  todo: Todo;
-  darkMode: boolean;
-}) {
-  const { todos } = useTilia(app);
+function TodoView({ todo: atodo }: { todo: Todo }) {
+  const {
+    todos,
+    display: {
+      settings: { darkMode },
+    },
+  } = useTilia(app);
   const todo = useTilia(atodo);
 
   return (
@@ -290,7 +297,7 @@ function TodoTitle({ todo: atodo }: { todo: Todo }) {
           onChange={handleChange}
           onBlur={finishEdit}
           value={title}
-          className={` w-full p-2 font-bold border-pink-200 border-2 bg-transparent outline-none rounded-xl font-inherit text-inherit ${
+          className={` w-full p-2 font-bold border-pink-200 border-2 outline-none rounded-xl font-inherit text-inherit ${
             settings.darkMode ? "bg-gray-800" : "bg-white"
           }
           `}

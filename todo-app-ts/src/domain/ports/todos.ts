@@ -1,11 +1,5 @@
-import type { Loadable, Void } from "./loadable";
-
-export type Todo = {
-  id: string;
-  userId: string;
-  title: string;
-  completed: boolean;
-};
+import type { Loadable, Void } from "../types/loadable";
+import type { Todo } from "../types/todo";
 
 // Todos port (contract)
 export type Todos = {
