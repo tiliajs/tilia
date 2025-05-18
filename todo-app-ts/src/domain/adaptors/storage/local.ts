@@ -1,5 +1,4 @@
 import { isAuthenticated, type Auth } from "../../ports/auth";
-import type { Settings } from "../../ports/display";
 import { fail, success, type Result, type Store } from "../../ports/store";
 import { type Context } from "../../tilia";
 import type { Todo } from "../../types/todo";
@@ -8,16 +7,16 @@ type IndexedStore = Store & {
   db?: IDBDatabase;
 };
 
-export function makeStore({ connect, observe }: Context, auth: Auth): Store {
+export function localStore({ connect, observe }: Context, auth: Auth): Store {
   // auth not used with local storage
   const store: IndexedStore = connect({
     state: { t: "NotAuthenticated" },
     // Operations
-    saveTodo: (todo: Todo) => saveTodo(auth, store, todo),
-    removeTodo: (id: string) => removeTodo(auth, store, id),
+    saveTodo: (todo) => saveTodo(store, todo),
+    removeTodo: (id) => removeTodo(store, id),
     fetchTodos: () => fetchTodos(store),
-    saveSettings: (filters: Settings) => saveSettings(store, filters),
-    fetchSettings: () => fetchSettings(store),
+    saveSetting: (key, value) => saveSetting(store, key, value),
+    fetchSetting: (key) => fetchSetting(store, key),
   });
 
   observe(() => {
@@ -38,20 +37,15 @@ export function makeStore({ connect, observe }: Context, auth: Auth): Store {
 }
 
 const TODOS_TABLE = "todos";
-const FILTERS_TABLE = "filters";
+const SETTINGS_TABLE = "settings";
 
 async function saveTodo(
-  { auth }: Auth,
   store: IndexedStore,
-  aTodo: Todo
+  todo: Todo
 ): Promise<Result<Todo>> {
   if (!store.db) {
     return fail("Database not open");
   }
-  if (!isAuthenticated(auth)) {
-    return fail("Not authenticated");
-  }
-  const todo = { ...aTodo, userId: auth.user.id };
   const transaction = store.db.transaction(TODOS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(TODOS_TABLE);
   const request = objectStore.put(todo);
@@ -66,15 +60,11 @@ async function saveTodo(
 }
 
 async function removeTodo(
-  { auth }: Auth,
   store: IndexedStore,
   id: string
 ): Promise<Result<string>> {
   if (!store.db) {
     return fail("Database not open");
-  }
-  if (!isAuthenticated(auth)) {
-    return fail("Not authenticated");
   }
   const transaction = store.db.transaction(TODOS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(TODOS_TABLE);
@@ -107,21 +97,22 @@ async function fetchTodos(store: IndexedStore): Promise<Result<Todo[]>> {
   });
 }
 
-async function saveSettings(
+async function saveSetting(
   store: IndexedStore,
-  theSettings: Settings
-): Promise<Result<Settings>> {
+  key: string,
+  value: string
+): Promise<Result<string>> {
   if (!store.db) {
     return fail("Database not open");
   }
-  const transaction = store.db.transaction(FILTERS_TABLE, "readwrite");
-  const objectStore = transaction.objectStore(FILTERS_TABLE);
+  const transaction = store.db.transaction(SETTINGS_TABLE, "readwrite");
+  const objectStore = transaction.objectStore(SETTINGS_TABLE);
   // We use a fixed key for filters (we only have one set).
-  const settings = { id: "current", ...theSettings };
+  const settings = { id: key, value };
   const request = objectStore.put(settings);
   return new Promise((resolve) => {
     request.onsuccess = function () {
-      resolve(success(settings));
+      resolve(success(value));
     };
     request.onerror = function () {
       resolve(fail("Filters save failed"));
@@ -129,26 +120,26 @@ async function saveSettings(
   });
 }
 
-async function fetchSettings(store: IndexedStore): Promise<Result<Settings>> {
+async function fetchSetting(
+  store: IndexedStore,
+  key: string
+): Promise<Result<string>> {
   if (!store.db) {
     return fail("Database not open");
   }
-  const transaction = store.db.transaction(FILTERS_TABLE, "readonly");
-  const objectStore = transaction.objectStore(FILTERS_TABLE);
-  const request = objectStore.get("current");
+  const transaction = store.db.transaction(SETTINGS_TABLE, "readonly");
+  const objectStore = transaction.objectStore(SETTINGS_TABLE);
+  const request = objectStore.get(key);
   return new Promise((resolve) => {
     request.onsuccess = function () {
       if (request.result) {
-        // Strip the ID from the result to return just the filters
-        const { id, ...filters } = request.result;
-        resolve(success(filters as Settings));
+        resolve(success(request.result.value));
       } else {
-        // Return default settings if none found
-        resolve(success({ todos: "all", darkMode: false }));
+        resolve(fail("Setting not found"));
       }
     };
     request.onerror = function () {
-      resolve(fail("Filters fetch failed"));
+      resolve(fail("Setting fetch failed"));
     };
   });
 }
@@ -166,8 +157,8 @@ function getDb(store: IndexedStore, userId: string) {
       db.createObjectStore(TODOS_TABLE, { keyPath: "id" });
     }
 
-    if (!db.objectStoreNames.contains(FILTERS_TABLE)) {
-      db.createObjectStore(FILTERS_TABLE, { keyPath: "id" });
+    if (!db.objectStoreNames.contains(SETTINGS_TABLE)) {
+      db.createObjectStore(SETTINGS_TABLE, { keyPath: "id" });
     }
   };
 

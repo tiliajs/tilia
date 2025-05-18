@@ -1,8 +1,7 @@
 import { v4 as uuid } from "uuid";
 import { isAuthenticated, type Auth } from "../ports/auth";
-import type { Display, Settings } from "../ports/display";
-import { isReady, isSuccess, type Store } from "../ports/store";
-import type { Todos } from "../ports/todos";
+import { fail, isReady, isSuccess, type Store } from "../ports/store";
+import type { Todos, TodosFilter } from "../ports/todos";
 import type { Context } from "../tilia";
 import {
   blank,
@@ -13,20 +12,30 @@ import {
 } from "../types/loadable";
 import type { Todo } from "../types/todo";
 
+const filterKey = "todos.filter";
+
 /** Bind todos to the auth service. This is the todos adapter = implementation
  * of the todos port
  *
  */
 export function makeTodos(
-  { connect, computed }: Context,
+  { connect, computed, observe }: Context,
   auth: Auth,
-  display: Display,
   store: Store
 ) {
+  async function saveTodo(atodo: Todo) {
+    if (!isAuthenticated(auth.auth)) {
+      return fail("Not authenticated");
+    }
+    const todo = { ...atodo, userId: auth.auth.user.id };
+    return store.saveTodo(todo);
+  }
+
   const todos: Todos = connect({
     // State
+    filter: "all",
     data: computed(() => data(todos, auth, store)),
-    list: computed(() => list(todos, display.settings)),
+    list: computed(() => list(todos)),
     selected: newTodo(),
     remaining: computed(() => remaining(todos)),
 
@@ -36,10 +45,11 @@ export function makeTodos(
         const isNew = atodo.id === "";
         const todo = { ...atodo };
         if (isNew) {
+          todo.createdAt = new Date().toISOString();
           todo.id = uuid();
         }
         todos.selected = newTodo();
-        const result = await store.saveTodo(todo);
+        const result = await saveTodo(todo);
         if (isSuccess(result)) {
           const todo = result.value;
           if (isNew) {
@@ -48,7 +58,12 @@ export function makeTodos(
             // mutate in place
             Object.assign(todo, result.value);
           }
-        } // FIXME: handle error
+          return todo;
+        } else {
+          throw new Error(`Cannot save (${result.message})`);
+        }
+      } else {
+        throw new Error("Cannot save (data not yet loaded)");
       }
     },
     clear: () => {
@@ -73,17 +88,35 @@ export function makeTodos(
     setTitle: (title: string) => {
       todos.selected.title = title;
     },
+    setFilter: (filter: TodosFilter) => {
+      todos.filter = filter;
+      store.saveSetting(filterKey, filter);
+    },
     toggle: (id: string) => {
       if (isLoaded(todos.data)) {
         const todo = todos.data.value.find((t) => t.id === id);
         if (todo) {
           todo.completed = !todo.completed;
-          store.saveTodo(todo);
+          saveTodo(todo);
         }
       }
     },
   });
+
+  observe(() => {
+    if (isReady(store)) {
+      fetchFilter(todos, store);
+    }
+  });
+
   return todos;
+}
+
+async function fetchFilter(todos: Todos, store: Store) {
+  const result = await store.fetchSetting(filterKey);
+  if (isSuccess(result)) {
+    todos.filter = result.value as TodosFilter;
+  }
 }
 
 function data(todos: Todos, { auth }: Auth, store: Store): Loadable<Todo[]> {
@@ -95,12 +128,13 @@ function data(todos: Todos, { auth }: Auth, store: Store): Loadable<Todo[]> {
   }
 }
 
-function list(todos: Todos, filters: Settings): Todo[] {
+function list(todos: Todos): Todo[] {
   const { data } = todos;
   if (isLoaded(data)) {
-    return data.value
-      .filter(listFilter(filters.todos))
-      .sort((a, b) => (a.title > b.title ? 1 : -1));
+    const l = data.value
+      .filter(listFilter(todos.filter))
+      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
+    return l;
   }
   return [];
 }
@@ -128,8 +162,8 @@ async function loadTodos(
   }
 }
 
-function listFilter(state: Settings["todos"]): (todo: Todo) => boolean {
-  switch (state) {
+function listFilter(filter: TodosFilter): (todo: Todo) => boolean {
+  switch (filter) {
     case "active":
       return (f: Todo) => f.completed === false;
     case "completed":
@@ -142,6 +176,7 @@ function listFilter(state: Settings["todos"]): (todo: Todo) => boolean {
 function newTodo(): Todo {
   return {
     id: "",
+    createdAt: "",
     userId: "", // userId is set on save.
     title: "",
     completed: false,

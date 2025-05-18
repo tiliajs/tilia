@@ -1,5 +1,4 @@
 import type { Todo } from "../types/todo";
-import type { Settings } from "./display";
 
 export type Success<T> = { t: "Success"; value: T };
 export type Fail = { t: "Fail"; message: string };
@@ -18,8 +17,8 @@ export type Store = {
   saveTodo: (todo: Todo) => Promise<Result<Todo>>;
   removeTodo: (id: string) => Promise<Result<string>>;
   fetchTodos: (userId: string) => Promise<Result<Todo[]>>;
-  saveSettings: (filters: Settings) => Promise<Result<Settings>>;
-  fetchSettings: () => Promise<Result<Settings>>;
+  saveSetting: (key: string, value: string) => Promise<Result<string>>;
+  fetchSetting: (key: string) => Promise<Result<string>>;
 };
 
 export function success<T>(value: T): Success<T> {

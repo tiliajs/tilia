@@ -16,20 +16,16 @@ import {
   type KeyboardEvent,
 } from "react";
 import { app } from "./domain/app";
-import { todosFilterValues } from "./domain/ports/display";
+import { todosFilterValues } from "./domain/ports/todos";
 import { isLoaded } from "./domain/types/loadable";
 import type { Todo } from "./domain/types/todo";
 
 export default function App() {
   const { todos, display } = useTilia(app);
-  const darkMode = display.settings.darkMode;
+  const darkMode = display.darkMode;
 
-  // Toggle dark mode
   const toggleDarkMode = (): void => {
-    display.setSettings({
-      ...display.settings,
-      darkMode: !darkMode,
-    });
+    display.setDarkMode(!darkMode);
   };
 
   if (!isLoaded(todos.data)) {
@@ -91,6 +87,8 @@ export default function App() {
               onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter") {
                   todos.save(todos.selected);
+                } else if (e.key === "Escape") {
+                  todos.clear();
                 }
               }}
             />
@@ -111,11 +109,9 @@ export default function App() {
           {todosFilterValues.map((f) => (
             <button
               key={f}
-              onClick={() =>
-                display.setSettings({ ...display.settings, todos: f })
-              }
+              onClick={() => todos.setFilter(f)}
               className={`px-4 py-2 rounded-full capitalize transition-colors ${
-                display.settings.todos === f
+                todos.filter === f
                   ? darkMode
                     ? "bg-pink-600 text-white"
                     : "bg-pink-400 text-white"
@@ -146,7 +142,7 @@ export default function App() {
 export function TodoList() {
   const {
     todos,
-    display: { settings },
+    display: { darkMode },
   } = useTilia(app);
 
   if (!isLoaded(todos.data)) {
@@ -160,18 +156,14 @@ export function TodoList() {
       ) : (
         <div
           className={`text-center p-6 rounded-lg ${
-            settings.darkMode ? "bg-gray-800" : "bg-white"
+            darkMode ? "bg-gray-800" : "bg-white"
           }`}
         >
           <p className="text-lg">No tasks found!</p>
-          <p
-            className={`${
-              settings.darkMode ? "text-pink-400" : "text-pink-500"
-            } mt-2`}
-          >
-            {settings.todos === "all"
+          <p className={`${darkMode ? "text-pink-400" : "text-pink-500"} mt-2`}>
+            {todos.filter === "all"
               ? "Add some pinky tasks above!"
-              : settings.todos === "active"
+              : todos.filter === "active"
               ? "No active tasks!"
               : "No completed tasks!"}
           </p>
@@ -184,9 +176,7 @@ export function TodoList() {
 function TodoView({ todo: atodo }: { todo: Todo }) {
   const {
     todos,
-    display: {
-      settings: { darkMode },
-    },
+    display: { darkMode },
   } = useTilia(app);
   const todo = useTilia(atodo);
 
@@ -244,7 +234,7 @@ function TodoView({ todo: atodo }: { todo: Todo }) {
 function TodoTitle({ todo: atodo }: { todo: Todo }) {
   const {
     todos,
-    display: { settings },
+    display: { darkMode },
   } = useTilia(app);
   const todo = useTilia(atodo);
   const [editing, setEditing] = useState(false);
@@ -298,7 +288,7 @@ function TodoTitle({ todo: atodo }: { todo: Todo }) {
           onBlur={finishEdit}
           value={title}
           className={` w-full p-2 font-bold border-pink-200 border-2 outline-none rounded-xl font-inherit text-inherit ${
-            settings.darkMode ? "bg-gray-800" : "bg-white"
+            darkMode ? "bg-gray-800" : "bg-white"
           }
           `}
           style={{ font: "inherit" }}
@@ -307,9 +297,7 @@ function TodoTitle({ todo: atodo }: { todo: Todo }) {
         <div
           className={`p-2 border-2 border-transparent ${
             todo.completed
-              ? `line-through ${
-                  settings.darkMode ? "text-gray-500" : "text-gray-400"
-                }`
+              ? `line-through ${darkMode ? "text-gray-500" : "text-gray-400"}`
               : ""
           }`}
         >

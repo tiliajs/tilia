@@ -1,4 +1,4 @@
-import type { Display, Settings } from "../ports/display";
+import type { Display } from "../ports/display";
 import {
   isFail,
   isReady,
@@ -8,21 +8,23 @@ import {
 } from "../ports/store";
 import { type Context } from "../tilia";
 
+const darkModeKey = "display.darkMode";
+
 export function makeDisplay({ connect, observe }: Context, store: Store) {
   const display: Display = connect({
-    settings: {
-      todos: "all",
-      darkMode: false,
-    },
+    darkMode: false,
 
     // Operations
-    setSettings: async (settings: Settings) => {
-      const result = await store.saveSettings(settings);
+    setDarkMode: async (darkMode: boolean) => {
+      const result = await store.saveSetting(
+        darkModeKey,
+        darkMode ? "true" : "false"
+      );
       if (isFail(result)) {
         return result;
       }
-      display.settings = settings;
-      return success(settings);
+      display.darkMode = darkMode;
+      return success(darkMode);
     },
   });
 
@@ -36,8 +38,8 @@ export function makeDisplay({ connect, observe }: Context, store: Store) {
 }
 
 async function fetchSettings(display: Display, store: Store) {
-  const result = await store.fetchSettings();
+  const result = await store.fetchSetting(darkModeKey);
   if (isSuccess(result)) {
-    Object.assign(display.settings, result.value);
+    display.darkMode = result.value === "true";
   }
 }

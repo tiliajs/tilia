@@ -1,7 +1,7 @@
 import { computed, make as makeTilia } from "tilia";
 
-export function make(): Context {
-  const { connect, observe } = makeTilia();
+export function make(flush?: (fn: () => void) => void): Context {
+  const { connect, observe } = makeTilia(flush);
   return { connect, observe, computed };
 }
 
