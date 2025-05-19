@@ -10,7 +10,7 @@ import { list } from "@feature/todos/computed/list";
 import { remaining } from "@feature/todos/computed/remaining";
 import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
 import { type Auth } from "@interface/auth";
-import { type Store } from "@interface/store";
+import { type Repo } from "@interface/repo";
 import type { Todos } from "@interface/todos";
 import type { Context } from "@model/context";
 import { clear } from "./actions/clear";
@@ -22,7 +22,7 @@ import { clear } from "./actions/clear";
 export function makeTodos(
   { connect, computed, observe }: Context,
   auth: Auth,
-  store: Store
+  repo: Repo
 ) {
   const todos: Todos = connect({
     // State
@@ -30,21 +30,21 @@ export function makeTodos(
     selected: newTodo(),
 
     // Computed state
-    data: computed(() => data(auth, store, todos)),
+    data: computed(() => data(auth, repo, todos)),
     list: computed(() => list(todos)),
     remaining: computed(() => remaining(todos)),
 
     // Actions
     clear: () => clear(todos),
     edit: (todo) => edit(todos, todo),
-    remove: (id) => remove(store, todos, id),
-    save: async (todo) => save(auth, store, todos, todo),
-    setFilter: (filter) => setFilter(store, todos, filter),
+    remove: (id) => remove(repo, todos, id),
+    save: async (todo) => save(auth, repo, todos, todo),
+    setFilter: (filter) => setFilter(repo, todos, filter),
     setTitle: (title) => setTitle(todos, title),
-    toggle: (id) => toggle(auth, store, todos, id),
+    toggle: (id) => toggle(auth, repo, todos, id),
   });
 
-  observe(() => fetchFilterOnReady(store, todos));
+  observe(() => fetchFilterOnReady(repo, todos));
 
   return todos;
 }

@@ -1,8 +1,8 @@
 import { makeAuth } from "./feature/auth";
 import { makeDisplay } from "./feature/display";
-import { localStore } from "./feature/storage/local";
 import { makeTodos } from "./feature/todos/todos";
 import { makeContext } from "./model/context";
+import { localStore } from "./repo/local";
 
 const ctx = makeContext();
 const auth = makeAuth(ctx);

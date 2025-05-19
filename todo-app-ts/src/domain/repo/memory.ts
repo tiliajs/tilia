@@ -1,6 +1,6 @@
-import { fail, success, type Store } from "../../interface/store";
-import { type Context } from "../../model/context";
-import type { Todo } from "../../model/todo";
+import { fail, success, type Repo } from "../interface/repo";
+import { type Context } from "../model/context";
+import type { Todo } from "../model/todo";
 
 export function memoryStore(
   { connect }: Context,
@@ -9,9 +9,9 @@ export function memoryStore(
     ["todos.filter"]: "all",
     ["display.darkMode"]: "false",
   } as Record<string, string>
-): Store {
+): Repo {
   // auth not used with local storage
-  const store: Store = connect({
+  const repo: Repo = connect({
     state: { t: "Ready" },
     // Operations
     saveTodo: async (todo: Todo) => success(todo),
@@ -26,5 +26,5 @@ export function memoryStore(
       return fail("No settings");
     },
   });
-  return store;
+  return repo;
 }

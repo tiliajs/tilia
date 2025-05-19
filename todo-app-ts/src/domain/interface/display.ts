@@ -1,4 +1,4 @@
-import type { Result } from "./store";
+import type { Result } from "./repo";
 
 export type Settings = {};
 

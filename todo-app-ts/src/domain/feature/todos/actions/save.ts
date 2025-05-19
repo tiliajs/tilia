@@ -1,17 +1,12 @@
 import { newTodo, saveTodo } from "@feature/todos/actions/_utils";
 import type { Auth } from "@interface/auth";
-import { isSuccess, type Store } from "@interface/store";
+import { isSuccess, type Repo } from "@interface/repo";
 import type { Todos } from "@interface/todos";
 import { isLoaded } from "@model/loadable";
 import type { Todo } from "@model/todo";
 import { v4 as uuid } from "uuid";
 
-export async function save(
-  auth: Auth,
-  store: Store,
-  todos: Todos,
-  atodo: Todo
-) {
+export async function save(auth: Auth, repo: Repo, todos: Todos, atodo: Todo) {
   if (isLoaded(todos.data)) {
     const isNew = atodo.id === "";
     const todo = { ...atodo };
@@ -20,7 +15,7 @@ export async function save(
       todo.id = uuid();
     }
     todos.selected = newTodo();
-    const result = await saveTodo(auth, store, todo);
+    const result = await saveTodo(auth, repo, todo);
     if (isSuccess(result)) {
       const todo = result.value;
       if (isNew) {

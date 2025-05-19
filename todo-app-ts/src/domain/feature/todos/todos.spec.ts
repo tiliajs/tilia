@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { makeContext } from "../model/context";
-import { loaded } from "../model/loadable";
-import type { Todo } from "../model/todo";
-import { makeAuth } from "./auth";
-import { makeDisplay } from "./display";
-import { memoryStore } from "./storage/memory";
-import { makeTodos } from "./todos/todos";
+import { makeContext } from "../../model/context";
+import { loaded } from "../../model/loadable";
+import type { Todo } from "../../model/todo";
+import { memoryStore } from "../../repo/memory";
+import { makeAuth } from "../auth";
+import { makeDisplay } from "../display";
+import { makeTodos } from "./todos";
 
 const rice: Todo = {
   id: "1",

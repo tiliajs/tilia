@@ -1,52 +1,52 @@
-import { isAuthenticated, type Auth } from "../../interface/auth";
-import { fail, success, type Result, type Store } from "../../interface/store";
-import { type Context } from "../../model/context";
-import type { Todo } from "../../model/todo";
+import { isAuthenticated, type Auth } from "../interface/auth";
+import { fail, success, type Repo, type Result } from "../interface/repo";
+import { type Context } from "../model/context";
+import type { Todo } from "../model/todo";
 
-type IndexedStore = Store & {
+type IndexedDBRepo = Repo & {
   db?: IDBDatabase;
 };
 
-export function localStore({ connect, observe }: Context, auth: Auth): Store {
+export function localStore({ connect, observe }: Context, auth: Auth): Repo {
   // auth not used with local storage
-  const store: IndexedStore = connect({
+  const repo: IndexedDBRepo = connect({
     state: { t: "NotAuthenticated" },
     // Operations
-    saveTodo: (todo) => saveTodo(store, todo),
-    removeTodo: (id) => removeTodo(store, id),
-    fetchTodos: () => fetchTodos(store),
-    saveSetting: (key, value) => saveSetting(store, key, value),
-    fetchSetting: (key) => fetchSetting(store, key),
+    saveTodo: (todo) => saveTodo(repo, todo),
+    removeTodo: (id) => removeTodo(repo, id),
+    fetchTodos: () => fetchTodos(repo),
+    saveSetting: (key, value) => saveSetting(repo, key, value),
+    fetchSetting: (key) => fetchSetting(repo, key),
   });
 
   observe(() => {
     if (isAuthenticated(auth.auth)) {
-      if (!store.db) {
-        store.state = { t: "Opening" };
-        getDb(store, auth.auth.user.id);
+      if (!repo.db) {
+        repo.state = { t: "Opening" };
+        getDb(repo, auth.auth.user.id);
       }
     } else {
-      if (store.db) {
-        store.db.close();
-        store.db = undefined;
+      if (repo.db) {
+        repo.db.close();
+        repo.db = undefined;
       }
-      store.state = { t: "NotAuthenticated" };
+      repo.state = { t: "NotAuthenticated" };
     }
   });
-  return store;
+  return repo;
 }
 
 const TODOS_TABLE = "todos";
 const SETTINGS_TABLE = "settings";
 
 async function saveTodo(
-  store: IndexedStore,
+  repo: IndexedDBRepo,
   todo: Todo
 ): Promise<Result<Todo>> {
-  if (!store.db) {
+  if (!repo.db) {
     return fail("Database not open");
   }
-  const transaction = store.db.transaction(TODOS_TABLE, "readwrite");
+  const transaction = repo.db.transaction(TODOS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(TODOS_TABLE);
   const request = objectStore.put(todo);
   return new Promise((resolve) => {
@@ -60,13 +60,13 @@ async function saveTodo(
 }
 
 async function removeTodo(
-  store: IndexedStore,
+  repo: IndexedDBRepo,
   id: string
 ): Promise<Result<string>> {
-  if (!store.db) {
+  if (!repo.db) {
     return fail("Database not open");
   }
-  const transaction = store.db.transaction(TODOS_TABLE, "readwrite");
+  const transaction = repo.db.transaction(TODOS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(TODOS_TABLE);
   const request = objectStore.delete(id);
   return new Promise((resolve) => {
@@ -79,8 +79,8 @@ async function removeTodo(
   });
 }
 
-async function fetchTodos(store: IndexedStore): Promise<Result<Todo[]>> {
-  const { db } = store;
+async function fetchTodos(repo: IndexedDBRepo): Promise<Result<Todo[]>> {
+  const { db } = repo;
   if (!db) {
     return fail("Database not open");
   }
@@ -98,14 +98,14 @@ async function fetchTodos(store: IndexedStore): Promise<Result<Todo[]>> {
 }
 
 async function saveSetting(
-  store: IndexedStore,
+  repo: IndexedDBRepo,
   key: string,
   value: string
 ): Promise<Result<string>> {
-  if (!store.db) {
+  if (!repo.db) {
     return fail("Database not open");
   }
-  const transaction = store.db.transaction(SETTINGS_TABLE, "readwrite");
+  const transaction = repo.db.transaction(SETTINGS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(SETTINGS_TABLE);
   // We use a fixed key for filters (we only have one set).
   const settings = { id: key, value };
@@ -121,13 +121,13 @@ async function saveSetting(
 }
 
 async function fetchSetting(
-  store: IndexedStore,
+  repo: IndexedDBRepo,
   key: string
 ): Promise<Result<string>> {
-  if (!store.db) {
+  if (!repo.db) {
     return fail("Database not open");
   }
-  const transaction = store.db.transaction(SETTINGS_TABLE, "readonly");
+  const transaction = repo.db.transaction(SETTINGS_TABLE, "readonly");
   const objectStore = transaction.objectStore(SETTINGS_TABLE);
   const request = objectStore.get(key);
   return new Promise((resolve) => {
@@ -146,7 +146,7 @@ async function fetchSetting(
 
 // ======= PRIVATE ========================
 
-function getDb(store: IndexedStore, userId: string) {
+function getDb(repo: IndexedDBRepo, userId: string) {
   const dbName = `todoapp_${userId}`;
   const request = indexedDB.open(dbName, 1);
 
@@ -164,7 +164,7 @@ function getDb(store: IndexedStore, userId: string) {
 
   request.onerror = function () {
     console.error("Database error:", request.error);
-    store.state = {
+    repo.state = {
       t: "Error",
       message: `Database error: ${request.error?.message || "Unknown error"}`,
     };
@@ -172,12 +172,12 @@ function getDb(store: IndexedStore, userId: string) {
 
   request.onsuccess = function (event) {
     const db = (event.target as IDBRequest).result;
-    store.db = db;
-    store.state = { t: "Ready" };
+    repo.db = db;
+    repo.state = { t: "Ready" };
 
     db.onerror = function () {
       console.error("Database error:", db.error);
-      store.state = {
+      repo.state = {
         t: "Error",
         message: `Database error: ${db.error?.message || "Unknown error"}`,
       };

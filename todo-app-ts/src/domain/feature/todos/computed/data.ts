@@ -1,16 +1,16 @@
 import { isAuthenticated, type Auth } from "@interface/auth";
-import { isReady, isSuccess, type Store } from "@interface/store";
+import { isReady, isSuccess, type Repo } from "@interface/repo";
 import type { Todos } from "@interface/todos";
 import { blank, loaded, loading, type Loadable } from "@model/loadable";
 import type { Todo } from "@model/todo";
 
 export function data(
   { auth }: Auth,
-  store: Store,
+  repo: Repo,
   todos: Todos
 ): Loadable<Todo[]> {
-  if (isAuthenticated(auth) && isReady(store)) {
-    loadTodos(todos, store.fetchTodos, auth.user.id);
+  if (isAuthenticated(auth) && isReady(repo)) {
+    loadTodos(todos, repo.fetchTodos, auth.user.id);
     return loading();
   } else {
     return blank();
@@ -21,7 +21,7 @@ export function data(
 
 async function loadTodos(
   todos: Todos,
-  fetchTodos: Store["fetchTodos"],
+  fetchTodos: Repo["fetchTodos"],
   userId: string
 ) {
   const data = await fetchTodos(userId);

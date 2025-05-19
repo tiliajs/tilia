@@ -5,8 +5,7 @@ export type Fail = { t: "Fail"; message: string };
 
 export type Result<T> = Success<T> | Fail;
 
-// FIXME: rename to repo
-export type Store = {
+export type Repo = {
   state:
     | { t: "NotAuthenticated" }
     | { t: "Opening" }
@@ -37,6 +36,6 @@ export function isFail<T>(result: Result<T>): result is Fail {
   return result.t === "Fail";
 }
 
-export function isReady(store: Store): boolean {
-  return store.state.t === "Ready";
+export function isReady(repo: Repo): boolean {
+  return repo.state.t === "Ready";
 }
