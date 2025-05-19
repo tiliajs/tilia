@@ -17,7 +17,7 @@
     "canary": "./bin/publish-canary.sh",
     "pub": "./bin/publish.sh",
     "pretest": "pnpm react res:dev-build && pnpm tilia res:dev-build",
-    "test": "pnpm tilia test"
+    "test": "pnpm tilia test && pnpm todo-ts test -- run"
   },
   "keywords": [],
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",

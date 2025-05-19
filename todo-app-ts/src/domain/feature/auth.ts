@@ -3,8 +3,8 @@ import {
   notAuthenticated,
   type Auth,
   type User,
-} from "../ports/auth";
-import { type Context } from "../tilia";
+} from "../interface/auth";
+import { type Context } from "../model/context";
 
 /** Trivial auth adapter.
  *
@@ -18,4 +18,4 @@ export function makeAuth({ connect }: Context) {
   return auth;
 }
 
-// ======= Utility functions ==================
+// ======= PRIVATE ========================

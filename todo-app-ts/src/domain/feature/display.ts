@@ -1,12 +1,12 @@
-import type { Display } from "../ports/display";
+import type { Display } from "../interface/display";
 import {
   isFail,
   isReady,
   isSuccess,
   success,
   type Store,
-} from "../ports/store";
-import { type Context } from "../tilia";
+} from "../interface/store";
+import { type Context } from "../model/context";
 
 const darkModeKey = "display.darkMode";
 

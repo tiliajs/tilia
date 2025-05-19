@@ -1,6 +1,6 @@
-import { fail, success, type Store } from "../../ports/store";
-import { type Context } from "../../tilia";
-import type { Todo } from "../../types/todo";
+import { fail, success, type Store } from "../../interface/store";
+import { type Context } from "../../model/context";
+import type { Todo } from "../../model/todo";
 
 export function memoryStore(
   { connect }: Context,

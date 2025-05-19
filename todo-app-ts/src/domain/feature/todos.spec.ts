@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { make } from "../tilia";
-import { loaded } from "../types/loadable";
-import type { Todo } from "../types/todo";
+import { makeContext } from "../model/context";
+import { loaded } from "../model/loadable";
+import type { Todo } from "../model/todo";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";
 import { memoryStore } from "./storage/memory";
-import { makeTodos } from "./todos";
+import { makeTodos } from "./todos/todos";
 
 const rice: Todo = {
   id: "1",
@@ -32,7 +32,7 @@ const plants: Todo = {
 const baseTodos = () => [hug, rice, plants];
 
 async function setup(initialTodos: Todo[] = baseTodos()) {
-  const ctx = make((fn) => fn()); // Immediate flush
+  const ctx = makeContext((fn) => fn()); // Immediate flush
   const auth = makeAuth(ctx);
   const store = memoryStore(ctx, initialTodos);
   const display = makeDisplay(ctx, store);

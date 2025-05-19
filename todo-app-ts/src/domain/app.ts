@@ -1,10 +1,10 @@
-import { makeAuth } from "./adaptors/auth";
-import { makeDisplay } from "./adaptors/display";
-import { localStore } from "./adaptors/storage/local";
-import { makeTodos } from "./adaptors/todos";
-import { make } from "./tilia";
+import { makeAuth } from "./feature/auth";
+import { makeDisplay } from "./feature/display";
+import { localStore } from "./feature/storage/local";
+import { makeTodos } from "./feature/todos/todos";
+import { makeContext } from "./model/context";
 
-const ctx = make();
+const ctx = makeContext();
 const auth = makeAuth(ctx);
 const store = localStore(ctx, auth);
 const display = makeDisplay(ctx, store);

@@ -1,7 +1,7 @@
-import { isAuthenticated, type Auth } from "../../ports/auth";
-import { fail, success, type Result, type Store } from "../../ports/store";
-import { type Context } from "../../tilia";
-import type { Todo } from "../../types/todo";
+import { isAuthenticated, type Auth } from "../../interface/auth";
+import { fail, success, type Result, type Store } from "../../interface/store";
+import { type Context } from "../../model/context";
+import type { Todo } from "../../model/todo";
 
 type IndexedStore = Store & {
   db?: IDBDatabase;
@@ -144,7 +144,7 @@ async function fetchSetting(
   });
 }
 
-//// Utility functions
+// ======= PRIVATE ========================
 
 function getDb(store: IndexedStore, userId: string) {
   const dbName = `todoapp_${userId}`;

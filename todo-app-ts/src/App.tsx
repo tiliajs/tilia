@@ -16,9 +16,9 @@ import {
   type KeyboardEvent,
 } from "react";
 import { app } from "./domain/app";
-import { todosFilterValues } from "./domain/ports/todos";
-import { isLoaded } from "./domain/types/loadable";
-import type { Todo } from "./domain/types/todo";
+import { todosFilterValues } from "./domain/interface/todos";
+import { isLoaded } from "./domain/model/loadable";
+import type { Todo } from "./domain/model/todo";
 
 export default function App() {
   const { todos, display } = useTilia(app);

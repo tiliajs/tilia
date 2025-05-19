@@ -1,5 +1,5 @@
-import type { Loadable, Void } from "../types/loadable";
-import type { Todo } from "../types/todo";
+import type { Loadable, Void } from "../model/loadable";
+import type { Todo } from "../model/todo";
 
 export type TodosFilter = "all" | "active" | "completed";
 

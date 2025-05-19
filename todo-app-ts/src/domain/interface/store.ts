@@ -1,11 +1,11 @@
-import type { Todo } from "../types/todo";
+import type { Todo } from "../model/todo";
 
 export type Success<T> = { t: "Success"; value: T };
 export type Fail = { t: "Fail"; message: string };
 
 export type Result<T> = Success<T> | Fail;
 
-// Todos port (contract)
+// FIXME: rename to repo
 export type Store = {
   state:
     | { t: "NotAuthenticated" }
