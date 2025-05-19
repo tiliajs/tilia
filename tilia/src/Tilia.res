@@ -119,17 +119,10 @@ and root = {
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
 
-type tilia<'a> = {
-  /** Create a new tilia proxy and connect it to the forest.
-   */
+type t<'a> = {
   connect: 'a. 'a => 'a,
-  /** Re-runs a callback whenever any of the observed values changes. 
-  * The observer implements a PUSH model (changes "push" the callback to run).
-  *
-  * See "computed" for a PULL model where the callback is only called when the
-  * produced value is read.
-  */
   observe: (unit => unit) => unit,
+  computed: 'b. ('a => 'b) => 'b,
 }
 
 type rec meta<'a> = {
@@ -545,15 +538,16 @@ let computed = (callback: 'p => 'a) => {
   %raw(`v`)
 }
 
-external connector: (branchp => branchp, (unit => unit) => unit) => tilia<'a> = "connector"
+external connector: (branchp => branchp, (unit => unit) => unit, ('p => 'a) => 'b) => t<'a> =
+  "connector"
 
 %%raw(`
-function connector(connect, observe) {
-  return {connect, observe};
+function connector(connect, observe, computed) {
+  return {connect, observe, computed};
 }
 `)
 
-let make = (~flush=timeOutFlush): tilia<'a> => {
+let make = (~flush=timeOutFlush): t<'a> => {
   let root = {flush, observer: Undefined, expired: Undefined}
-  connector(connect(root), observe(root))
+  connector(connect(root), observe(root), computed)
 }

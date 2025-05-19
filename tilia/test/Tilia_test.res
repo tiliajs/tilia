@@ -54,6 +54,7 @@ let apply = fn => fn()
 let tilia = make(~flush=apply)
 let connect = tilia.connect
 let observe = tilia.observe
+let computed = tilia.computed
 
 let person = () => {
   name: "John",
@@ -803,10 +804,10 @@ test("Compute should work with observers", t => {
   t->is(name.contents, "mary is OK")
 })
 
-test("Computed should behave like a defined compute", t => {
+test("Computed should behave like a value", t => {
   let p = {name: "John", username: "jo"}
   let p = connect(p)
-  p.name = Tilia.computed(() => p.username ++ " is OK")
+  p.name = computed(() => p.username ++ " is OK")
   let name = ref("")
   observe(() => {
     name.contents = p.name

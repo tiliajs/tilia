@@ -1,10 +1,10 @@
-import { make } from "tilia";
 import { makeAuth } from "./feature/auth";
 import { makeDisplay } from "./feature/display";
 import { makeTodos } from "./feature/todos/todos";
+import { makeContext } from "./model/context";
 import { localStore } from "./repo/local";
 
-const ctx = make();
+const ctx = makeContext();
 const auth = makeAuth(ctx);
 const store = localStore(ctx, auth);
 const display = makeDisplay(ctx, store);

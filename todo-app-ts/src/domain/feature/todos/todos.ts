@@ -12,7 +12,7 @@ import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
 import { type Auth } from "@interface/auth";
 import { type Repo } from "@interface/repo";
 import type { Todos } from "@interface/todos";
-import type { Context } from "@model/context";
+import type { Tilia } from "tilia";
 import { clear } from "./actions/clear";
 
 /** Bind todos to the auth service. This is the todos adapter = implementation
@@ -20,7 +20,7 @@ import { clear } from "./actions/clear";
  *
  */
 export function makeTodos(
-  { connect, computed, observe }: Context,
+  { connect, computed, observe }: Tilia,
   auth: Auth,
   repo: Repo
 ) {

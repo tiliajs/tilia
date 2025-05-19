@@ -1,13 +1,13 @@
-import type { Tilia } from "tilia";
 import { isAuthenticated, type Auth } from "../interface/auth";
 import { fail, success, type Repo, type Result } from "../interface/repo";
+import { type Context } from "../model/context";
 import type { Todo } from "../model/todo";
 
 type IndexedDBRepo = Repo & {
   db?: IDBDatabase;
 };
 
-export function localStore({ connect, observe }: Tilia, auth: Auth): Repo {
+export function localStore({ connect, observe }: Context, auth: Auth): Repo {
   // auth not used with local storage
   const repo: IndexedDBRepo = connect({
     state: { t: "NotAuthenticated" },

@@ -1,5 +1,5 @@
-import { make } from "tilia";
 import { describe, expect, it } from "vitest";
+import { makeContext } from "../../model/context";
 import { loaded } from "../../model/loadable";
 import type { Todo } from "../../model/todo";
 import { memoryStore } from "../../repo/memory";
@@ -32,7 +32,7 @@ const plants: Todo = {
 const baseTodos = () => [hug, rice, plants];
 
 async function setup(initialTodos: Todo[] = baseTodos()) {
-  const ctx = make((fn) => fn()); // Immediate flush
+  const ctx = makeContext((fn) => fn()); // Immediate flush
   const auth = makeAuth(ctx);
   const store = memoryStore(ctx, initialTodos);
   const display = makeDisplay(ctx, store);

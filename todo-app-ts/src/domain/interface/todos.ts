@@ -9,10 +9,12 @@ export const todosFilterValues: TodosFilter[] = ["all", "active", "completed"];
 export type Todos = {
   // State
   filter: TodosFilter;
+  selected: Todo;
+
+  // Computed state
   data: Loadable<Todo[]>;
   list: Todo[];
   remaining: number;
-  selected: Todo;
 
   // Operations
   save: (todo: Todo) => Promise<Todo>;

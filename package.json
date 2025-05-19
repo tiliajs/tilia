@@ -14,6 +14,7 @@
     "react": "pnpm --filter react",
     "build": "pnpm -r build",
     "todo-ts": "pnpm --filter todo-app-ts",
+    "todo-re": "pnpm --filter todo-app-re",
     "canary": "./bin/publish-canary.sh",
     "pub": "./bin/publish.sh",
     "pretest": "pnpm react res:dev-build && pnpm tilia res:dev-build",

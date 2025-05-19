@@ -4,12 +4,12 @@ export type Observer = { readonly [o]: true };
 export type Tilia = {
   connect: <a>(branch: a) => a;
   observe: (fn: () => void) => void;
+  // We could expose the first argument of the computed function if needed but in
+  // TS, we can have p referenced in computed through the closure so we don't need
+  // it.
+  computed: <a>(fn: () => a) => a;
 };
 export function make(flush?: (fn: () => void) => void): Tilia;
-// We could expose the first argument of the computed function if needed but in
-// TS, we can have p referenced in computed through the closure so we don't need
-// it.
-export function computed<a>(fn: () => a): a;
 export function _clear(observer: Observer): void;
 export function _observe<a>(tree: a, callback: () => void): Observer;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;

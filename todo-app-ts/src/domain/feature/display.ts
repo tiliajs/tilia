@@ -1,3 +1,4 @@
+import type { Tilia } from "tilia";
 import type { Display } from "../interface/display";
 import {
   isFail,
@@ -6,11 +7,10 @@ import {
   success,
   type Repo,
 } from "../interface/repo";
-import { type Context } from "../model/context";
 
 const darkModeKey = "display.darkMode";
 
-export function makeDisplay({ connect, observe }: Context, repo: Repo) {
+export function makeDisplay({ connect, observe }: Tilia, repo: Repo) {
   const display: Display = connect({
     darkMode: false,
 

@@ -1,0 +1,26 @@
+{
+  "name": "todo-app-re",
+  "sources": [
+    {
+      "dir": "src",
+      "subdirs": true
+    }
+  ],
+  "package-specs": {
+    "module": "esmodule"
+  },
+  "suffix": ".mjs",
+  "bs-dependencies": [
+    "@rescript/core",
+    "tilia"
+  ],
+  "bs-dev-dependencies": [
+    "@rescript/core"
+  ],
+  "bsc-flags": [
+    "-open RescriptCore"
+  ],
+  "jsx": {
+    "version": 4
+  }
+}

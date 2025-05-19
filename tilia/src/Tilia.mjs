@@ -396,8 +396,8 @@ function computed(callback) {
   return v;
 }
 
-function connector(connect, observe) {
-  return {connect, observe};
+function connector(connect, observe, computed) {
+  return {connect, observe, computed};
 }
 ;
 
@@ -408,12 +408,11 @@ function make(flushOpt) {
     expired: undefined,
     flush: flush
   };
-  return connector(connect(root), observe(root));
+  return connector(connect(root), observe(root), computed);
 }
 
 export {
   make ,
-  computed ,
   _observe ,
   _ready ,
   _meta ,

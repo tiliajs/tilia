@@ -1,9 +1,9 @@
-import type { Tilia } from "tilia";
 import { fail, success, type Repo } from "../interface/repo";
+import { type Context } from "../model/context";
 import type { Todo } from "../model/todo";
 
 export function memoryStore(
-  { connect }: Tilia,
+  { connect }: Context,
   initialTodos: Todo[] = [],
   initialSettings = {
     ["todos.filter"]: "all",
