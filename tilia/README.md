@@ -8,6 +8,10 @@ To use this library with React, please use [@tilia/react](https://github.com/til
 
 This package is compatible with _TypeScript_ and _ReScript_, you can find the examples for the latter at the end.
 
+# WARNING: This is the documentation for the canary version (2.0.0)
+
+You can check the [todo app](../todo-app-ts/README.md) for a working example using TypeScript or [todo app re](../todo-app-re/README.md) for a work in progress using ReScript.
+
 ## Installation
 
 ```sh
@@ -17,10 +21,10 @@ npm install tilia
 ## Usage
 
 ```ts
-import { make, computed, clear } from "tilia";
+import { make, clear } from "tilia";
 
 // Create a tilia context:
-const { connect, observe } = make();
+const { connect, observe, computed } = make();
 
 // Add an object to the "forest" so that it can be observed.
 const tree = connect({

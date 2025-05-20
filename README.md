@@ -7,11 +7,11 @@ monorepo. Documentation for the projects are here:
 
 Tilia FRP engine. This is what you use to handle state and functional reactivity.
 
-- [**tilia**](./packages/tilia/README.md)
+- [**tilia**](./tilia/README.md)
 
 Tilia for React, aka "useTilia"...
 
-- [**@tilia/react**](./packages/react/README.md)
+- [**@tilia/react**](./react/README.md)
 
 ## Features
 
@@ -32,11 +32,11 @@ out of the way.
 
 ### Changelog (for tilia)
 
-- 2025-05-09 **2.0.0**
+- 2025-05-09 **2.0.0** (not yet release: canary version)
   - Moved core to npm "tilia" package.
-  - Changed `make` signature to build tilia context `{ connect, observe }`.
-  - Enable 'forest mode' to observve across separated objects.
-  - Add `computed` to compute values in branches.
+  - Changed `make` signature to build tilia context `{ connect, observe, computed }`.
+  - Enable **forest mode** to observve across separated objects.
+  - Add `computed` to compute values in branches (moved into `tilia` context).
   - Moved `observe` into `tilia` context.
   - Removed re-exports in @tilia/react.
   - Removed `compute` (replaced by `computed`).
