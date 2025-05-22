@@ -1,11 +1,10 @@
+import { makeApp } from "@feature/app";
+import { isAppReady, type AppReady } from "@interface/app";
+import { memoryStore } from "src/domain/repo/memory";
 import { make } from "tilia";
 import { describe, expect, it } from "vitest";
 import { loaded } from "../../model/loadable";
 import type { Todo } from "../../model/todo";
-import { memoryStore } from "../../repo/memory";
-import { makeAuth } from "../auth";
-import { makeDisplay } from "../display";
-import { makeTodos } from "./todos";
 
 const rice: Todo = {
   id: "1",
@@ -32,16 +31,14 @@ const plants: Todo = {
 const baseTodos = () => [hug, rice, plants];
 
 async function setup(initialTodos: Todo[] = baseTodos()) {
-  const ctx = make((fn) => fn()); // Immediate flush
-  const auth = makeAuth(ctx);
-  const store = memoryStore(ctx, initialTodos);
-  const display = makeDisplay(ctx, store);
-  const todos = makeTodos(ctx, auth, store);
-  auth.login({ id: "main", name: "Main" });
-  const app = ctx.connect({ todos, auth, store, display });
-  return new Promise<typeof app>((resolve) => {
+  const ctx = make();
+  const app = makeApp(ctx, memoryStore(initialTodos));
+  if (app.auth.t !== "Authenticated") {
+    app.auth.login({ id: "main", name: "Main" });
+  }
+  return new Promise<AppReady>((resolve) => {
     ctx.observe(() => {
-      if (loaded(app.todos.data)) {
+      if (isAppReady(app)) {
         resolve(app);
       }
     });
@@ -56,13 +53,15 @@ describe("Todos", () => {
 
   it("should set id to uuid on save", async () => {
     const { todos } = await setup();
-    const todo = await todos.save({
+    await todos.save({
       id: "",
       createdAt: "",
       title: "Buy milk",
       completed: false,
       userId: "",
     });
+
+    const todo = todos.list[0];
     expect(todo.id).toMatch(
       // uuid
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -75,13 +74,15 @@ describe("Todos", () => {
 
   it("should add new todo to list", async () => {
     const { todos } = await setup([]);
-    const todo = await todos.save({
+    await todos.save({
       id: "",
       createdAt: "",
       title: "Buy milk",
       completed: false,
       userId: "",
     });
+
+    const todo = todos.list[0];
     expect(todos.list).toEqual([
       {
         id: todo.id,

@@ -1,6 +1,5 @@
 type observer
 type meta<'a>
-type computed<'p, 'a> = ('a, 'p => 'a) => 'a
 
 type t<'a> = {
   /** Create a new tilia proxy and connect it to the forest.
@@ -20,6 +19,15 @@ type t<'a> = {
    * The first parameter to the callback is the "connected" object.
    */
   computed: 'b. ('a => 'b) => 'b,
+  /** Move the state of a proxy object to a new state. The callback should return
+   * the new state of the proxy object. This is more idiomatic for ReScript.
+   */
+  update: 'a. ('a, unit => 'a) => unit,
+  /** Move the state of a proxy object to a new state using a setter callback.
+   * The callback can be used in an async function (outside of the move callback).
+   * This is more idiomatic for TypeScript.
+   */
+  move: 'a. ('a, ('a => unit) => unit) => unit,
 }
 
 /** Create a new tilia context and returns the `connect` and `observe` functions.

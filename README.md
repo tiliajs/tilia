@@ -37,7 +37,9 @@ out of the way.
   - Changed `make` signature to build tilia context `{ connect, observe, computed }`.
   - Enable **forest mode** to observve across separated objects.
   - Add `computed` to compute values in branches (moved into `tilia` context).
+    Note: computed _will not be called_ for its own mutations.
   - Moved `observe` into `tilia` context.
+  - `observe` _will be called_ for its own mutations (this is to allow state machines).
   - Removed re-exports in @tilia/react.
   - Removed `compute` (replaced by `computed`).
   - Removed `track` as this cannot scale to multiple instances and computed.

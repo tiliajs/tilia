@@ -8,6 +8,8 @@ export type Tilia = {
   // TS, we can have p referenced in computed through the closure so we don't need
   // it.
   computed: <a>(fn: () => a) => a;
+  update: <a>(v: a, fn: () => a) => void;
+  move: <a>(v: a, fn: (setter: (v: a) => void) => void) => void;
 };
 export function make(flush?: (fn: () => void) => void): Tilia;
 export function _clear(observer: Observer): void;

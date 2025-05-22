@@ -9,8 +9,8 @@ import { data } from "@feature/todos/computed/data";
 import { list } from "@feature/todos/computed/list";
 import { remaining } from "@feature/todos/computed/remaining";
 import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
-import { type Auth } from "@interface/auth";
-import { type Repo } from "@interface/repo";
+import { type AuthAuthenticated } from "@interface/auth";
+import { type RepoReady } from "@interface/repo";
 import type { Todos } from "@interface/todos";
 import type { Tilia } from "tilia";
 import { clear } from "./actions/clear";
@@ -21,8 +21,8 @@ import { clear } from "./actions/clear";
  */
 export function makeTodos(
   { connect, computed, observe }: Tilia,
-  auth: Auth,
-  repo: Repo
+  auth: AuthAuthenticated,
+  repo: RepoReady
 ) {
   const todos: Todos = connect({
     // State

@@ -360,6 +360,13 @@ function _observe(p, notify) {
 
 function connect(root) {
   return function (branchp) {
+    if (!proxiable(branchp)) {
+      throw {
+            RE_EXN_ID: "Invalid_argument",
+            _1: "connect: value is not an object or array",
+            Error: new Error()
+          };
+    }
     var base = {
       proxy: undefined
     };
@@ -381,7 +388,7 @@ function observe(root) {
       root.observer = observer;
       var o = observer;
       callback();
-      _ready(o, false);
+      _ready(o, true);
     };
     notify();
   };
@@ -396,8 +403,96 @@ function computed(callback) {
   return v;
 }
 
-function connector(connect, observe, computed) {
-  return {connect, observe, computed};
+function update(root) {
+  return function (v, callback) {
+    if (!proxiable(v)) {
+      throw {
+            RE_EXN_ID: "Invalid_argument",
+            _1: "move: value is not an object or array",
+            Error: new Error()
+          };
+    }
+    if (Reflect.get(v, metaKey) === undefined) {
+      throw {
+            RE_EXN_ID: "Invalid_argument",
+            _1: "move: value is not a tilia proxy",
+            Error: new Error()
+          };
+    }
+    var notify = function () {
+      var observer_observing = [];
+      var observer = {
+        notify: notify,
+        observing: observer_observing,
+        root: root
+      };
+      root.observer = observer;
+      var o = observer;
+      var nv = callback(v);
+      if (nv !== v) {
+        Object.assign(v, nv);
+        Reflect.ownKeys(v).forEach(function (key) {
+              if (!Object.hasOwn(nv, key)) {
+                Reflect.deleteProperty(v, key);
+                return ;
+              }
+              
+            });
+      }
+      _ready(o, true);
+    };
+    notify();
+  };
+}
+
+function move(root) {
+  return function (v, callback) {
+    if (!proxiable(v)) {
+      throw {
+            RE_EXN_ID: "Invalid_argument",
+            _1: "move: value is not an object or array",
+            Error: new Error()
+          };
+    }
+    if (Reflect.get(v, metaKey) === undefined) {
+      throw {
+            RE_EXN_ID: "Invalid_argument",
+            _1: "move: value is not a tilia proxy",
+            Error: new Error()
+          };
+    }
+    var enter = function (nv) {
+      if (nv !== v) {
+        Object.assign(v, nv);
+        Reflect.ownKeys(v).forEach(function (key) {
+              if (!Object.hasOwn(nv, key)) {
+                Reflect.deleteProperty(v, key);
+                return ;
+              }
+              
+            });
+        return ;
+      }
+      
+    };
+    var notify = function () {
+      var observer_observing = [];
+      var observer = {
+        notify: notify,
+        observing: observer_observing,
+        root: root
+      };
+      root.observer = observer;
+      var o = observer;
+      callback(enter);
+      _ready(o, true);
+    };
+    notify();
+  };
+}
+
+function connector(connect, observe, computed, update, move) {
+  return {connect, observe, computed, update, move};
 }
 ;
 
@@ -408,7 +503,7 @@ function make(flushOpt) {
     expired: undefined,
     flush: flush
   };
-  return connector(connect(root), observe(root), computed);
+  return connector(connect(root), observe(root), computed, update(root), move(root));
 }
 
 export {

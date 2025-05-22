@@ -1,16 +1,10 @@
 import type { Tilia } from "tilia";
 import type { Display } from "../interface/display";
-import {
-  isFail,
-  isReady,
-  isSuccess,
-  success,
-  type Repo,
-} from "../interface/repo";
+import { isFail, isSuccess, success, type RepoReady } from "../interface/repo";
 
 const darkModeKey = "display.darkMode";
 
-export function makeDisplay({ connect, observe }: Tilia, repo: Repo) {
+export function makeDisplay({ connect, observe }: Tilia, repo: RepoReady) {
   const display: Display = connect({
     darkMode: false,
 
@@ -29,7 +23,7 @@ export function makeDisplay({ connect, observe }: Tilia, repo: Repo) {
   });
 
   observe(() => {
-    if (isReady(repo)) {
+    if (repo.t === "Ready") {
       fetchSettings(repo, display);
     }
   });
@@ -37,7 +31,7 @@ export function makeDisplay({ connect, observe }: Tilia, repo: Repo) {
   return display;
 }
 
-async function fetchSettings(repo: Repo, display: Display) {
+async function fetchSettings(repo: RepoReady, display: Display) {
   const result = await repo.fetchSetting(darkModeKey);
   if (isSuccess(result)) {
     display.darkMode = result.value === "true";

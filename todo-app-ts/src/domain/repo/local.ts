@@ -1,5 +1,5 @@
 import type { Tilia } from "tilia";
-import { isAuthenticated, type Auth } from "../interface/auth";
+import { type Auth } from "../interface/auth";
 import { fail, success, type Repo, type Result } from "../interface/repo";
 import type { Todo } from "../model/todo";
 
@@ -7,30 +7,36 @@ type IndexedDBRepo = Repo & {
   db?: IDBDatabase;
 };
 
-export function localStore({ connect, observe }: Tilia, auth: Auth): Repo {
-  // auth not used with local storage
-  const repo: IndexedDBRepo = connect({
-    state: { t: "NotAuthenticated" },
-    // Operations
-    saveTodo: (todo) => saveTodo(repo, todo),
-    removeTodo: (id) => removeTodo(repo, id),
-    fetchTodos: () => fetchTodos(repo),
-    saveSetting: (key, value) => saveSetting(repo, key, value),
-    fetchSetting: (key) => fetchSetting(repo, key),
+export function localRepo({ connect, move }: Tilia, auth: Auth): Repo {
+  const repo = connect<IndexedDBRepo>({
+    t: "NotAuthenticated",
   });
 
-  observe(() => {
-    if (isAuthenticated(auth.auth)) {
-      if (!repo.db) {
-        repo.state = { t: "Opening" };
-        getDb(repo, auth.auth.user.id);
+  move(repo, (enter) => {
+    switch (repo.t) {
+      case "NotAuthenticated": {
+        if (auth.t === "Authenticated") {
+          enter({ t: "Opening" });
+          getDb(auth.user.id, enter);
+        } else if (repo.db) {
+          repo.db.close();
+          enter({ t: "Closed" });
+        }
+        break;
       }
-    } else {
-      if (repo.db) {
-        repo.db.close();
-        repo.db = undefined;
+      case "Opened": {
+        enter({
+          t: "Ready",
+          db: repo.db,
+          // Operations
+          saveTodo: (todo) => saveTodo(repo, todo),
+          removeTodo: (id) => removeTodo(repo, id),
+          fetchTodos: () => fetchTodos(repo),
+          saveSetting: (key, value) => saveSetting(repo, key, value),
+          fetchSetting: (key) => fetchSetting(repo, key),
+        });
+        break;
       }
-      repo.state = { t: "NotAuthenticated" };
     }
   });
   return repo;
@@ -146,7 +152,7 @@ async function fetchSetting(
 
 // ======= PRIVATE ========================
 
-function getDb(repo: IndexedDBRepo, userId: string) {
+function getDb(userId: string, enter: (repo: IndexedDBRepo) => void) {
   const dbName = `todoapp_${userId}`;
   const request = indexedDB.open(dbName, 1);
 
@@ -164,23 +170,22 @@ function getDb(repo: IndexedDBRepo, userId: string) {
 
   request.onerror = function () {
     console.error("Database error:", request.error);
-    repo.state = {
+    enter({
       t: "Error",
-      message: `Database error: ${request.error?.message || "Unknown error"}`,
-    };
+      error: `Database error: ${request.error?.message || "Unknown error"}`,
+    });
   };
 
   request.onsuccess = function (event) {
     const db = (event.target as IDBRequest).result;
-    repo.db = db;
-    repo.state = { t: "Ready" };
+    enter({ t: "Opened", db });
 
     db.onerror = function () {
       console.error("Database error:", db.error);
-      repo.state = {
+      enter({
         t: "Error",
-        message: `Database error: ${db.error?.message || "Unknown error"}`,
-      };
+        error: `Database error: ${db.error?.message || "Unknown error"}`,
+      });
     };
   };
 }

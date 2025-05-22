@@ -5,20 +5,8 @@ export type Fail = { t: "Fail"; message: string };
 
 export type Result<T> = Success<T> | Fail;
 
-export type RepoError = {
-  t: "Error";
-  message: string;
-};
-
-export type RepoNotReady =
-  | { t: "NotAuthenticated" }
-  | { t: "Opening" }
-  | { t: "Opened" }
-  | { t: "Error"; error: string }
-  | { t: "Closed" };
-
-export type RepoReady = {
-  t: "Ready";
+export type Repo = {
+  state: { t: "Ready" }
 
   // Operations
   saveTodo: (todo: Todo) => Promise<Result<Todo>>;
@@ -27,8 +15,6 @@ export type RepoReady = {
   saveSetting: (key: string, value: string) => Promise<Result<string>>;
   fetchSetting: (key: string) => Promise<Result<string>>;
 };
-
-export type Repo = RepoNotReady | RepoReady;
 
 export function success<T>(value: T): Success<T> {
   return { t: "Success", value };
@@ -44,4 +30,8 @@ export function isSuccess<T>(result: Result<T>): result is Success<T> {
 
 export function isFail<T>(result: Result<T>): result is Fail {
   return result.t === "Fail";
+}
+
+export function isReady(repo: Repo): boolean {
+  return repo.state.t === "Ready";
 }

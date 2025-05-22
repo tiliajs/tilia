@@ -1,12 +1,17 @@
 import { newTodo, saveTodo } from "@feature/todos/actions/_utils";
-import type { Auth } from "@interface/auth";
-import { isSuccess, type Repo } from "@interface/repo";
+import type { AuthAuthenticated } from "@interface/auth";
+import { isSuccess, type RepoReady } from "@interface/repo";
 import type { Todos } from "@interface/todos";
 import { isLoaded } from "@model/loadable";
 import type { Todo } from "@model/todo";
 import { v4 as uuid } from "uuid";
 
-export async function save(auth: Auth, repo: Repo, todos: Todos, atodo: Todo) {
+export async function save(
+  auth: AuthAuthenticated,
+  repo: RepoReady,
+  todos: Todos,
+  atodo: Todo
+) {
   if (isLoaded(todos.data)) {
     const isNew = atodo.id === "";
     const todo = { ...atodo };
@@ -24,7 +29,6 @@ export async function save(auth: Auth, repo: Repo, todos: Todos, atodo: Todo) {
         // mutate in place
         Object.assign(todo, result.value);
       }
-      return todo;
     } else {
       throw new Error(`Cannot save (${result.message})`);
     }

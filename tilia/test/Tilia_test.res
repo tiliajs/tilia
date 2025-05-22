@@ -55,6 +55,8 @@ let tilia = make(~flush=apply)
 let connect = tilia.connect
 let observe = tilia.observe
 let computed = tilia.computed
+let update = tilia.update
+let move = tilia.move
 
 let person = () => {
   name: "John",
@@ -121,7 +123,9 @@ test("Should allow mutating in observed", t => {
   let p = {name: "John", username: "jo"}
   let p = connect(p)
   observe(() => {
-    p.name = p.name ++ " OK"
+    if !(p.name->String.endsWith("OK")) {
+      p.name = p.name ++ " OK"
+    }
   })
 
   t->is(p.name, "John OK")
@@ -466,10 +470,7 @@ test("Should support sub-object in array", t => {
     sorted: [],
     selected: None,
   })
-  observe(() => {
-    items.sorted = [...items.all]
-    Array.sort(items.sorted, (a, b) => String.compare(a.name, b.name))
-  })
+  items.sorted = computed(() => Array.toSorted(items.all, (a, b) => String.compare(a.name, b.name)))
   let o = _observe(items, () => m.called = true)
   t->is(getExn(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
   _ready(o)
@@ -897,4 +898,108 @@ test("Should not proxify class instance", t => {
     ignore(Tilia._observe(p.date, () => m.called = true))
   })
   t->is(p.date->Js.Date.getMilliseconds, %raw(`p.date.getMilliseconds()`))
+})
+
+// Note that we need all states to be objects, hence the Blank(unit) type.
+type machine = Blank(unit) | Loading(string) | Loaded(string)
+
+type state = {mutable state: machine}
+
+type auths = NotAuthenticated | Authenticating | Authenticated(string)
+
+type auth = {mutable s: auths}
+
+test("Should allow state machines in observed", t => {
+  let p = connect({state: Blank()})
+  let auth = connect({s: NotAuthenticated})
+  observe(() => {
+    switch (p.state, auth.s) {
+    | (Blank(), Authenticating) => p.state = Loading("Loading")
+    | (Loading(_), Authenticated(s)) => p.state = Loaded(s)
+    | (Loaded(_), NotAuthenticated) => p.state = Blank()
+    | _ => ()
+    }
+  })
+
+  t->deepEqual(p.state, Blank())
+
+  // Update dependency
+  auth.s = Authenticating
+  t->deepEqual(p.state, Loading("Loading"))
+
+  // Update dependency
+  auth.s = Authenticated("Alice")
+  t->deepEqual(p.state, Loaded("Alice"))
+
+  auth.s = NotAuthenticated
+  t->deepEqual(p.state, Blank())
+})
+
+test("Should use update for state machines", t => {
+  let p = connect(Blank())
+  let auth = connect({s: NotAuthenticated})
+
+  update(p, () => {
+    switch (p, auth.s) {
+    | (Blank(_), Authenticating) => Loading("Loading")
+    | (Loading(_), Authenticated(s)) => Loaded(s)
+    | (Loaded(_), NotAuthenticated) => Blank()
+    | _ => p
+    }
+  })
+  t->deepEqual(p, Blank())
+
+  // Update dependency
+  auth.s = Authenticating
+  t->deepEqual(p, Loading("Loading"))
+
+  // Update dependency
+  auth.s = Authenticated("Alice")
+  t->deepEqual(p, Loaded("Alice"))
+
+  auth.s = NotAuthenticated
+  t->deepEqual(p, Blank())
+})
+
+type enter = {mutable enter: machine => unit}
+
+let sleep: unit => promise<unit> = async () =>
+  %raw(`new Promise(resolve => setTimeout(resolve, 10))`)
+
+asyncTest("Should use move for (async) state machines", async t => {
+  let {connect, move} = make()
+  let p = connect(Blank())
+  let auth = connect({s: NotAuthenticated})
+  let en = {enter: _ => ()}
+
+  move(p, enter => {
+    en.enter = enter
+    switch (p, auth.s) {
+    | (Blank(_), Authenticating) => enter(Loading("Loading"))
+    | (Loading(_), Authenticated(s)) => enter(Loaded(s))
+    | (Loaded(_), NotAuthenticated) => enter(Blank())
+    | _ => ()
+    }
+  })
+  t->deepEqual(p, Blank())
+
+  // Use the enter function outside of the step
+  en.enter(Loaded("Not good")) // This should make the state machine move back into Blank() because it is not Authenticated
+  t->deepEqual(p, Loaded("Not good"))
+  await sleep()
+  t->deepEqual(p, Blank())
+
+  // Update dependency
+  auth.s = Authenticating
+  await sleep()
+  t->deepEqual(p, Loading("Loading"))
+
+  // Update dependency
+  auth.s = Authenticated("Alice")
+  await sleep()
+  t->deepEqual(p, Loaded("Alice"))
+
+  auth.s = NotAuthenticated
+  await sleep()
+  t->deepEqual(p, Blank())
 })

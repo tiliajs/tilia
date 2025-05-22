@@ -1,5 +1,5 @@
-import { isAuthenticated, type Auth } from "@interface/auth";
-import { fail, type Repo } from "@interface/repo";
+import { type AuthAuthenticated } from "@interface/auth";
+import { type RepoReady } from "@interface/repo";
 import type { Todo } from "../../../model/todo";
 
 export const filterKey = "todos.filter";
@@ -14,10 +14,11 @@ export function newTodo(): Todo {
   };
 }
 
-export async function saveTodo(auth: Auth, repo: Repo, atodo: Todo) {
-  if (!isAuthenticated(auth.auth)) {
-    return fail("Not authenticated");
-  }
-  const todo = { ...atodo, userId: auth.auth.user.id };
+export async function saveTodo(
+  auth: AuthAuthenticated,
+  repo: RepoReady,
+  atodo: Todo
+) {
+  const todo = { ...atodo, userId: auth.user.id };
   return repo.saveTodo(todo);
 }

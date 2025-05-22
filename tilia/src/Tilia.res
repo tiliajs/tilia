@@ -58,6 +58,7 @@ function(v) {
 module Object = {
   type descriptor<'a> = {writable: bool, value: 'a}
   external hasOwn: ('a, string) => bool = "Object.hasOwn"
+  external assign: ('a, 'a) => unit = "Object.assign"
   external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
     "Object.getOwnPropertyDescriptor"
   let readonly: ('a, string) => bool = (o, k) => {
@@ -123,6 +124,8 @@ type t<'a> = {
   connect: 'a. 'a => 'a,
   observe: (unit => unit) => unit,
   computed: 'b. ('a => 'b) => 'b,
+  update: 'a. ('a, unit => 'a) => unit,
+  move: 'a. ('a, ('a => unit) => unit) => unit,
 }
 
 type rec meta<'a> = {
@@ -512,6 +515,9 @@ let _observe = (p: 'a, notify) => {
 }
 
 let connect = (root: root) => (branchp: branchp) => {
+  if !Typeof.proxiable(branchp) {
+    raise(Invalid_argument("connect: value is not an object or array"))
+  }
   // We cheat with types on initial proxy creation.
   let base = {proxy: %raw(`undefined`)}
 
@@ -525,12 +531,10 @@ let observe = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
     let o = _setObserver(root, notify)
     callback()
-    _ready(o, ~notifyIfChanged=false)
+    _ready(o, ~notifyIfChanged=true)
   }
   notify()
 }
-
-type computed<'p, 'a> = ('a, 'p => 'a) => 'a
 
 let computed = (callback: 'p => 'a) => {
   let v = {clear: noop, rebuild: callback}
@@ -538,16 +542,81 @@ let computed = (callback: 'p => 'a) => {
   %raw(`v`)
 }
 
-external connector: (branchp => branchp, (unit => unit) => unit, ('p => 'a) => 'b) => t<'a> =
-  "connector"
+let update = (root: root) => (v: 'a, callback: unit => 'a) => {
+  if !Typeof.proxiable(v) {
+    raise(Invalid_argument("move: value is not an object or array"))
+  }
+  if _nmeta(v) === %raw(`undefined`) {
+    raise(Invalid_argument("move: value is not a tilia proxy"))
+  }
+  let rec notify = () => {
+    let o = _setObserver(root, notify)
+    let nv = callback(v)
+    if nv !== v {
+      Object.assign(v, nv)
+      Reflect.ownKeys(v)->Array.forEach(key => {
+        if !Object.hasOwn(nv, key) {
+          ignore(Reflect.deleteProperty(v, key))
+        }
+      })
+    }
+    _ready(o, ~notifyIfChanged=true)
+  }
+  notify()
+}
+
+/** This is used by TypeScript with an `enter` callback instead of using a return
+ * value (required for type safety).
+ */
+let move = (root: root) => (v: 'a, callback: ('a => unit) => unit) => {
+  if !Typeof.proxiable(v) {
+    raise(Invalid_argument("move: value is not an object or array"))
+  }
+  if _nmeta(v) === %raw(`undefined`) {
+    raise(Invalid_argument("move: value is not a tilia proxy"))
+  }
+  // Note that `enter` can be used outside of the callback.
+  let enter = nv =>
+    if nv !== v {
+      Object.assign(v, nv)
+      Reflect.ownKeys(v)->Array.forEach(key => {
+        if !Object.hasOwn(nv, key) {
+          ignore(Reflect.deleteProperty(v, key))
+        }
+      })
+    }
+
+  let rec notify = () => {
+    let o = _setObserver(root, notify)
+    callback(enter)
+    _ready(o, ~notifyIfChanged=true)
+  }
+  notify()
+}
+
+/* We use this external hack to have polymorphic functions (without this, they
+ * become monomorphic).
+ */
+external connector: (
+  // connect
+  branchp => branchp,
+  // observe
+  (unit => unit) => unit,
+  // computed
+  ('p => 'a) => 'b,
+  // update
+  ('b, 'b => 'b) => unit,
+  // move
+  ('b, ('b => unit) => unit) => unit,
+) => t<'a> = "connector"
 
 %%raw(`
-function connector(connect, observe, computed) {
-  return {connect, observe, computed};
+function connector(connect, observe, computed, update, move) {
+  return {connect, observe, computed, update, move};
 }
 `)
 
 let make = (~flush=timeOutFlush): t<'a> => {
   let root = {flush, observer: Undefined, expired: Undefined}
-  connector(connect(root), observe(root), computed)
+  connector(connect(root), observe(root), computed, update(root), move(root))
 }
