@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { loaded } from "../../model/loadable";
 import type { Todo } from "../../model/todo";
 
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const rice: Todo = {
   id: "1",
   createdAt: "2025-05-18T20:15:03.000Z",
@@ -38,7 +40,7 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
   return new Promise<AppReady>((resolve) => {
     observe(() => {
       const app = app_.value;
-      if (isAppReady(app)) {
+      if (isAppReady(app) && app.todos.data.t === "Loaded") {
         resolve(app);
       }
     });
@@ -97,15 +99,18 @@ describe("Todos", () => {
   it("should update list on filters change", async () => {
     const { todos } = await setup();
     expect(todos.list).toEqual([plants, rice, hug]);
-    await todos.setFilter("active");
+    todos.setFilter("active");
+    await tick();
     expect(todos.list).toEqual([plants, hug]);
   });
 
   it("should update list on toggle", async () => {
     const { todos } = await setup();
-    await todos.setFilter("active");
+    todos.setFilter("active");
+    await tick();
     expect(todos.list).toEqual([plants, hug]);
     todos.toggle("2");
+    await tick();
     expect(todos.list).toEqual([plants]);
   });
 });

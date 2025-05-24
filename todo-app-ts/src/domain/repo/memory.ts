@@ -1,5 +1,5 @@
 import type { Auth } from "@interface/auth";
-import { signal, type Signal } from "tilia";
+import { update, type Signal } from "tilia";
 import { fail, success, type Repo } from "../interface/repo";
 import type { Todo } from "../model/todo";
 
@@ -10,23 +10,26 @@ export function memoryStore(
     ["display.darkMode"]: "false",
   } as Record<string, string>
 ): (auth: Signal<Auth>) => Signal<Repo> {
-  return (_auth: Signal<Auth>) => {
-    // auth not used with local storage
-    const [repo] = signal<Repo>({
-      t: "Ready",
-      // Operations
-      saveTodo: async (todo: Todo) => success(todo),
-      removeTodo: async (id: string) => success(id),
-      fetchTodos: async () => success(initialTodos),
-      saveSetting: async (_key, value) => success(value),
-      fetchSetting: async (key) => {
-        const f = initialSettings[key];
-        if (f) {
-          return success(f);
-        }
-        return fail("No settings");
-      },
+  return (auth_: Signal<Auth>) => {
+    return update<Repo>({ t: "NotAuthenticated" }, (prev, set) => {
+      if (prev.t !== "Ready" && auth_.value.t === "Authenticated") {
+        const userId = auth_.value.user.id;
+        set({
+          t: "Ready",
+          // Operations
+          saveTodo: async (todo: Todo) => success({ ...todo, userId }),
+          removeTodo: async (id: string) => success(id),
+          fetchTodos: async () => success(initialTodos),
+          saveSetting: async (_key, value) => success(value),
+          fetchSetting: async (key) => {
+            const f = initialSettings[key];
+            if (f) {
+              return success(f);
+            }
+            return fail("No settings");
+          },
+        });
+      }
     });
-    return repo;
   };
 }

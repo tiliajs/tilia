@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc -b && vite build",
+    "buildx": "tsc -b && vite build",
     "dev": "vite",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -12,7 +12,7 @@
     "res:clean": "rescript clean",
     "res:dev-build": "rescript build -with-deps",
     "res:dev": "rescript -w",
-    "test": "vitest"
+    "testx": "vitest"
   },
   "dependencies": {
     "@tilia/react": "workspace:^",

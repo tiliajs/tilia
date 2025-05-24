@@ -1,35 +1,27 @@
-# Tilia driven todo app (TypeScript version)
+# A todo app
 
-This application is a simple demo built with [Tilia](https://github.com/tiliajs/tilia) and leveraging the hexagonal architecture.
+This application is a simple demo built with
+[Tilia](https://github.com/tiliajs/tilia).
 
-## domain/feature (adaptors / implementation / use cases)
+**install and run**
 
-The feature folder contains implementations of the features defined in the interfaces.
+In the root of the monorepo, run:
 
-## domain/interface (ports)
+```sh
+# Install dependencies
+pnpm i
+# Build all packages
+pnpm build
+# Start the app
+pnpm todo-ts dev
+```
 
-This contains the interfaces for the different features (aka "use cases") of the application.
+Then open http://localhost:5173/ in your browser.
 
-## domain/model (types)
+## Documentation
 
-The files in the model folder define the shape of the data that the domain code uses such as what a Todo is.
+Some interesting files to look at:
 
-## domain/repo (persistence layer, drivers)
-
-This contains data source and other dependencies that are required to run the domain code.
-
-# Todos feature
-
-The feature is organized into 3 folders:
-
-- actions: contains the actions that are triggered by the user
-- computed: contains the computed state
-- observers: contains the observers that are triggered when the state changes
-
-The `todos.spec.ts` file contains the tests for the todos feature.
-
-# Context
-
-The context is used to connect the different features to communicate with each other in an FRP-like manner. All object created by the same `connect` function share the same observing context and can be observed in `computed` or `observe` callbacks.
-
-During testing, we create a separate context for each test so that these can run in parallel.
+- [app.ts](./src/domain/feature/app.ts): The app is a state machine.
+- [todos.ts](./src/domain/feature/todos/todos.ts): The todos feature.
+- [App.tsx](./src/App.tsx): The main app component (React) as a single file for simplicity.
