@@ -24,11 +24,10 @@ let noop = () => ()
 // This type is never used and only used to pass value.
 type opaque
 type branchp
-type base = {mutable proxy: branchp}
 
 type compute<'p, 'a> = {
   mutable clear: unit => unit,
-  mutable rebuild: 'p => 'a,
+  mutable rebuild: unit => 'a,
 }
 
 module Typeof = {
@@ -261,7 +260,6 @@ type lastValue<'a> = {mutable v: 'a}
 
 let rec set = (
   root: root,
-  base: base,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
@@ -300,10 +298,10 @@ let rec set = (
           }
         | _ => ()
         }
-        setupComputed(root, base, observed, proxied, computes, target, key, compute)
+        setupComputed(root, observed, proxied, computes, target, key, compute)
         if Dict.has(observed, key) {
           // Computed value is observed: notify
-          set(root, base, observed, proxied, computes, target, key, compute.rebuild(base.proxy))
+          set(root, observed, proxied, computes, target, key, compute.rebuild())
         } else {
           true
         }
@@ -322,7 +320,6 @@ let rec set = (
 
 and setupComputed = (
   root: root,
-  base: base,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
@@ -344,7 +341,7 @@ and setupComputed = (
     if Dict.has(observed, key) {
       // We have observers on this key: rebuild() and if the key changed, it
       // will notify cache observers.
-      ignore(set(root, base, observed, proxied, computes, target, key, rebuild(base.proxy)))
+      ignore(set(root, observed, proxied, computes, target, key, rebuild()))
     } else {
       // We do not have observers: reset value.
       // Make sure the previous proxy (if any) is removed so that it is not
@@ -408,7 +405,6 @@ let deleteProperty = (
 
 let rec get = (
   root: root,
-  base: base,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<branchp, opaque>>,
@@ -445,12 +441,12 @@ let rec get = (
         | Value(compute) => {
             if compute.clear === noop {
               // New compute: need setup
-              setupComputed(root, base, observed, proxied, computes, target, key, compute)
+              setupComputed(root, observed, proxied, computes, target, key, compute)
             }
-            let v = compute.rebuild(base.proxy)
+            let v = compute.rebuild()
             ignore(Reflect.set(target, key, v))
             if Typeof.proxiable(v) && !Object.readonly(target, key) {
-              let m = proxify(root, base, v)
+              let m = proxify(root, v)
               Dict.set(proxied, key, m)
               m.proxy
             } else {
@@ -461,7 +457,7 @@ let rec get = (
           switch Dict.get(proxied, key) {
           | Value(m) => m.proxy
           | _ =>
-            let m = proxify(root, base, v)
+            let m = proxify(root, v)
             Dict.set(proxied, key, m)
             m.proxy
           }
@@ -475,7 +471,7 @@ let rec get = (
   }
 }
 
-and proxify = (root: root, base: base, target: 'a): meta<'a> => {
+and proxify = (root: root, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
   let computes: dict<compute<branchp, opaque>> = Dict.make()
@@ -483,16 +479,16 @@ and proxify = (root: root, base: base, target: 'a): meta<'a> => {
   switch _meta(target) {
   | Value(m) if m.root === root => /* same tree, reuse proxy */
     m
-  | Value(m) => proxify(root, base, m.target) /* external tree: clear */
+  | Value(m) => proxify(root, m.target) /* external tree: clear */
   | _ =>
     let meta: meta<'a> = %raw(`{root, target, observed, proxied, computes}`)
     let isArray = Typeof.array(target)
     let proxy = Proxy.make(
       target,
       {
-        "set": set(root, base, observed, proxied, computes, ...),
+        "set": set(root, observed, proxied, computes, ...),
         "deleteProperty": deleteProperty(root, observed, proxied, computes, ...),
-        "get": get(root, base, observed, proxied, computes, meta, isArray, ...),
+        "get": get(root, observed, proxied, computes, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
       },
     )
@@ -512,14 +508,7 @@ let makeConnect = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
     raise(Invalid_argument("connect: value is not an object or array"))
   }
-  // We cheat with types on initial proxy creation.
-  // TODO: Remove the access to the base object now ?
-  let base = {proxy: %raw(`undefined`)}
-
-  // We hide the type of base to avoid typing everything to rootp.
-  let proxy = proxify(root, base, value).proxy
-  base.proxy = %raw(`proxy`)
-  proxy
+  proxify(root, value).proxy
 }
 
 let makeObserve = (root: root) => (callback: unit => unit) => {

@@ -125,7 +125,7 @@ function notify(root, observed, key) {
       });
 }
 
-function set(root, base, observed, proxied, computes, target, key, _value) {
+function set(root, observed, proxied, computes, target, key, _value) {
   while(true) {
     var value = _value;
     var hadKey = Reflect.has(target, key);
@@ -159,11 +159,11 @@ function set(root, base, observed, proxied, computes, target, key, _value) {
         clear();
         computes.delete(key);
       }
-      setupComputed(root, base, observed, proxied, computes, target, key, compute$1);
+      setupComputed(root, observed, proxied, computes, target, key, compute$1);
       if (!observed.has(key)) {
         return true;
       }
-      _value = compute$1.rebuild(base.proxy);
+      _value = compute$1.rebuild();
       continue ;
     }
     notify(root, observed, key);
@@ -174,7 +174,7 @@ function set(root, base, observed, proxied, computes, target, key, _value) {
   };
 }
 
-function setupComputed(root, base, observed, proxied, computes, target, key, compute) {
+function setupComputed(root, observed, proxied, computes, target, key, compute) {
   var lastValue = {
     v: undefined
   };
@@ -188,7 +188,7 @@ function setupComputed(root, base, observed, proxied, computes, target, key, com
       lastValue.v = v;
     }
     if (observed.has(key)) {
-      set(root, base, observed, proxied, computes, target, key, rebuild(base.proxy));
+      set(root, observed, proxied, computes, target, key, rebuild());
     } else {
       Reflect.deleteProperty(proxied, key);
       Reflect.set(target, key, compute);
@@ -221,7 +221,7 @@ function setupComputed(root, base, observed, proxied, computes, target, key, com
   computes.set(key, compute);
 }
 
-function proxify(root, base, _target) {
+function proxify(root, _target) {
   while(true) {
     var target = _target;
     var proxied = new Map();
@@ -242,7 +242,7 @@ function proxify(root, base, _target) {
     var proxy = new Proxy(target, {
           set: (function(proxied,observed,computes){
           return function (extra, extra$1, extra$2) {
-            return set(root, base, observed, proxied, computes, extra, extra$1, extra$2);
+            return set(root, observed, proxied, computes, extra, extra$1, extra$2);
           }
           }(proxied,observed,computes)),
           deleteProperty: (function(proxied,observed,computes){
@@ -290,14 +290,14 @@ function proxify(root, base, _target) {
               exit = 1;
             } else {
               if (compute$1.clear === noop) {
-                setupComputed(root, base, observed, proxied, computes, extra, extra$1, compute$1);
+                setupComputed(root, observed, proxied, computes, extra, extra$1, compute$1);
               }
-              var v$1 = compute$1.rebuild(base.proxy);
+              var v$1 = compute$1.rebuild();
               Reflect.set(extra, extra$1, v$1);
               if (!(proxiable(v$1) && !readonly(extra, extra$1))) {
                 return v$1;
               }
-              var m = proxify(root, base, v$1);
+              var m = proxify(root, v$1);
               proxied.set(extra$1, m);
               return m.proxy;
             }
@@ -309,7 +309,7 @@ function proxify(root, base, _target) {
               }
               exit$1 = 2;
               if (exit$1 === 2) {
-                var m$2 = proxify(root, base, v);
+                var m$2 = proxify(root, v);
                 proxied.set(extra$1, m$2);
                 return m$2.proxy;
               }
@@ -352,12 +352,7 @@ function makeConnect(root) {
             Error: new Error()
           };
     }
-    var base = {
-      proxy: undefined
-    };
-    var proxy = proxify(root, base, value).proxy;
-    base.proxy = proxy;
-    return proxy;
+    return proxify(root, value).proxy;
   };
 }
 
