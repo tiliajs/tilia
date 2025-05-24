@@ -23,12 +23,12 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
       auth: auth_.value as AuthNotAuthenticated,
       display,
     },
-    (app, enter) => {
+    (app, set) => {
       const auth = auth_.value;
       const repo = repo_.value;
       if (!isAuthenticated(auth)) {
         if (app.t !== "NotAuthenticated") {
-          enter({ t: "NotAuthenticated", auth, display });
+          set({ t: "NotAuthenticated", auth, display });
         }
         return;
       }
@@ -36,7 +36,7 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
       switch (app.t) {
         case "NotAuthenticated": {
           // ========== enter Loading state
-          enter({ t: "Loading", auth, display });
+          set({ t: "Loading", auth, display });
           break;
         }
 
@@ -44,7 +44,7 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
           switch (repo.t) {
             case "Ready": {
               // ========== enter Ready state
-              enter({
+              set({
                 t: "Ready",
                 auth: auth,
                 display,
@@ -54,7 +54,7 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
             }
             case "Error": {
               // ========== enter Error state
-              enter({
+              set({
                 t: "Error",
                 auth,
                 display,
@@ -67,7 +67,7 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
               if (auth.t === "Authenticated") {
                 auth.logout();
               } else {
-                enter({ t: "NotAuthenticated", auth, display });
+                set({ t: "NotAuthenticated", auth, display });
                 break;
               }
             }

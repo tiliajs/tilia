@@ -14,10 +14,6 @@ import type { Todos } from "@interface/todos";
 import { computed, connect, observe } from "tilia";
 import { clear } from "./actions/clear";
 
-/** Bind todos to the auth service. This is the todos adapter = implementation
- * of the todos port
- *
- */
 export function makeTodos(repo: RepoReady) {
   const todos: Todos = connect({
     // State

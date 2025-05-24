@@ -13,12 +13,12 @@ export function localRepo(auth_: Signal<Auth>): Signal<Repo> {
     { t: "NotAuthenticated" },
 
     // Update function
-    (repo, enter) => {
+    (repo, set) => {
       const auth = auth_.value;
       if (auth.t !== "Authenticated") {
         if (repo.t === "Ready") {
           repo.db?.close();
-          enter({ t: "Closed" });
+          set({ t: "Closed" });
         }
         return;
       }
@@ -26,12 +26,12 @@ export function localRepo(auth_: Signal<Auth>): Signal<Repo> {
       switch (repo.t) {
         case "Closed": // Continue (authenticated and closed)
         case "NotAuthenticated": {
-          enter({ t: "Opening" });
-          getDb(enter, auth.user.id);
+          set({ t: "Opening" });
+          getDb(set, auth.user.id);
           break;
         }
         case "Opened": {
-          enter({
+          set({
             t: "Ready",
             db: repo.db,
             // Operations
