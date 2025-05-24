@@ -5,16 +5,10 @@ import {
   type AuthNotAuthenticated,
 } from "@interface/auth";
 import type { Repo } from "@interface/repo";
-import { observe, signal, type Signal } from "tilia";
+import { update, type Signal } from "tilia";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";
 import { makeTodos } from "./todos/todos";
-
-function update<a>(init: a, fn: (p: a) => a): Signal<a> {
-  const [s, set] = signal(init);
-  observe(() => set(fn(s.value)));
-  return s;
-}
 
 export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
   // Create the auth signal.
@@ -29,41 +23,43 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
       auth: auth_.value as AuthNotAuthenticated,
       display,
     },
-    (app) => {
+    (app, enter) => {
       const auth = auth_.value;
       const repo = repo_.value;
       if (!isAuthenticated(auth)) {
         if (app.t !== "NotAuthenticated") {
-          return { t: "NotAuthenticated", auth, display };
+          enter({ t: "NotAuthenticated", auth, display });
         }
-        return app;
+        return;
       }
 
       switch (app.t) {
         case "NotAuthenticated": {
           // ========== enter Loading state
-          return { t: "Loading", auth, display };
+          enter({ t: "Loading", auth, display });
+          break;
         }
 
         case "Loading": {
           switch (repo.t) {
             case "Ready": {
               // ========== enter Ready state
-              return {
+              enter({
                 t: "Ready",
                 auth: auth,
                 display,
                 todos: makeTodos(repo),
-              };
+              });
+              break;
             }
             case "Error": {
               // ========== enter Error state
-              return {
+              enter({
                 t: "Error",
                 auth,
                 display,
                 error: repo.error,
-              };
+              });
               break;
             }
             case "Closed": {
@@ -71,15 +67,13 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
               if (auth.t === "Authenticated") {
                 auth.logout();
               } else {
-                return { t: "NotAuthenticated", auth, display };
+                enter({ t: "NotAuthenticated", auth, display });
+                break;
               }
             }
           }
         }
       }
-      return app;
     }
   );
 }
-
-// ======= PRIVATE ========================

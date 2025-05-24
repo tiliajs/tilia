@@ -3,7 +3,7 @@
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as React from "react";
 
-function makeUse(_observe, _ready, _clear) {
+function makeUseTilia(_observe, _ready, _clear) {
   return function () {
     var match = React.useState(0);
     var setCount = match[1];
@@ -21,9 +21,10 @@ function makeUse(_observe, _ready, _clear) {
   };
 }
 
-var useTilia = makeUse(Tilia._observe, Tilia._ready, Tilia._clear);
+var useTilia = makeUseTilia(Tilia._observe, Tilia._ready, Tilia._clear);
 
 export {
   useTilia ,
+  makeUseTilia ,
 }
 /* useTilia Not a pure module */

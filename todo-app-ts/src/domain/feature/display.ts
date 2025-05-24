@@ -12,7 +12,7 @@ const darkModeKey = "display.darkMode";
 
 export function makeDisplay(repo_: Signal<Repo>) {
   const display: Display = connect({
-    darkMode: false,
+    darkMode: true,
 
     // Operations
     setDarkMode: async (darkMode: boolean) => {

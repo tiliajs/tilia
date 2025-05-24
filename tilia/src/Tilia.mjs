@@ -417,6 +417,24 @@ function makeUpdate(signal, observe) {
   };
 }
 
+function makeObserve_(root) {
+  return function (notify) {
+    var observer_observing = [];
+    var observer = {
+      notify: notify,
+      observing: observer_observing
+    };
+    root.observer = observer;
+    return observer;
+  };
+}
+
+function makeReady_(root) {
+  return function (observer, notifyIfChanged) {
+    setReady(root, observer, notifyIfChanged);
+  };
+}
+
 function connector(connect, computed, observe, signal, derived, update, _observe, _ready, _clear) {
   return {
     // 
@@ -444,20 +462,22 @@ function make(flushOpt) {
   var connect = makeConnect(root);
   var observe = makeObserve(root);
   var signal = makeSignal(connect);
-  return connector(connect, computed, observe, signal, makeDerive(connect), makeUpdate(signal, observe), (function (extra) {
-                var observer_observing = [];
-                var observer = {
-                  notify: extra,
-                  observing: observer_observing
-                };
-                root.observer = observer;
-                return observer;
-              }), (function (extra, extra$1) {
-                return setReady(root, extra, extra$1);
-              }), _clear, _meta);
+  return connector(connect, computed, observe, signal, makeDerive(connect), makeUpdate(signal, observe), makeObserve_(root), makeReady_(root), _clear, _meta);
 }
 
-var ctx = make(timeOutFlush);
+function makeDefault(flushOpt) {
+  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
+  var tilia = globalThis.__tilia_ctx;
+  if (!(tilia === null || tilia === undefined)) {
+    return tilia;
+  }
+  tilia === null;
+  var ctx = make(flush);
+  Reflect.set(globalThis, "__tilia_ctx", ctx);
+  return ctx;
+}
+
+var ctx = makeDefault(timeOutFlush);
 
 var connect = ctx.connect;
 

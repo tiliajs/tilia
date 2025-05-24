@@ -59,7 +59,7 @@ let signal = tilia.signal
 let derived = tilia.derived
 let update = tilia.update
 let _observe = tilia._observe
-let _ready = o => tilia._ready(o, ~notifyIfChanged=true)
+let _ready = o => tilia._ready(o, true)
 let _clear = tilia._clear
 let _meta = tilia._meta
 

@@ -133,7 +133,7 @@ type t = {
   update: 'a. ('a, ('a, 'a => unit) => unit) => s<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
-  _ready: (observer, ~notifyIfChanged: bool) => unit,
+  _ready: (observer, bool) => unit,
   _clear: observer => unit,
   _meta: 'a. 'a => nullable<meta<'a>>,
 }
@@ -142,7 +142,7 @@ let _meta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 
 @inline
 let setObserver = (root, notify) => {
-  let observer: observer = {notify, observing: []}
+  let observer = {notify, observing: []}
   root.observer = Value(observer)
   observer
 }
@@ -178,7 +178,7 @@ let _clear = (observer: observer) => {
   })
 }
 
-let setReady = (root: root, observer: observer, ~notifyIfChanged: bool) => {
+let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
   switch root.observer {
   | Value(o) if o === observer => root.observer = Undefined
   | _ => ()
@@ -361,7 +361,7 @@ and setupComputed = (
     let v = callback(p)
     // Computed should not rebuild on change (recursion is bad in computed
     // because it is not meant to have access to the previous value).
-    setReady(root, o, ~notifyIfChanged=false)
+    setReady(root, o, false)
     root.observer = previous
 
     v
@@ -510,7 +510,7 @@ let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
     let o = setObserver(root, notify)
     callback()
-    setReady(root, o, ~notifyIfChanged=true)
+    setReady(root, o, true)
   }
   notify()
 }
@@ -540,6 +540,16 @@ let makeUpdate = (signal, observe) => (value, update) => {
   s
 }
 
+let makeObserve_ = (root: root) => (notify) => {
+  let observer = {notify, observing: []}
+  root.observer = Value(observer)
+  observer
+}
+
+let makeReady_ = (root: root) => (observer, notifyIfChanged) => {
+  setReady(root, observer, notifyIfChanged)
+}
+
 /* We use this external hack to have polymorphic functions (without this, they
  * become monomorphic).
  */
@@ -560,7 +570,7 @@ external connector: (
   // _observe
   (unit => unit) => observer,
   // _ready
-  (observer, ~notifyIfChanged: bool) => unit,
+  (observer, bool) => unit,
   // _clear
   observer => unit,
   // _meta
@@ -599,15 +609,27 @@ let make = (~flush=timeOutFlush): t => {
     signal,
     makeDerive(connect),
     makeUpdate(signal, observe),
-    setObserver(root, ...),
-    setReady(root, ...),
+    makeObserve_(root),
+    makeReady_(root),
     _clear,
     _meta
   )
 }
 
+let makeDefault = (~flush=timeOutFlush) => {
+  let tilia: nullable<t> = %raw(`globalThis.__tilia_ctx`)
+  switch tilia {
+  | Value(v) => v
+  | _ => {
+    let ctx = make(~flush)
+    ignore(Reflect.set(%raw(`globalThis`), "__tilia_ctx", ctx))
+    ctx
+  }
+  }
+}
+
 // Default context
-let ctx = make(~flush=timeOutFlush)
+let ctx = makeDefault(~flush=timeOutFlush)
 let connect = ctx.connect
 let observe = ctx.observe
 let signal = ctx.signal

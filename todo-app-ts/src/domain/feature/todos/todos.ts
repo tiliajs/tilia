@@ -11,9 +11,8 @@ import { remaining } from "@feature/todos/computed/remaining";
 import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
 import { type RepoReady } from "@interface/repo";
 import type { Todos } from "@interface/todos";
-import { computed, connect, observe, signal } from "tilia";
+import { computed, connect, observe } from "tilia";
 import { clear } from "./actions/clear";
-import type { Todo } from "@model/todo";
 
 /** Bind todos to the auth service. This is the todos adapter = implementation
  * of the todos port

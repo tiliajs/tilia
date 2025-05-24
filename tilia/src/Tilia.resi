@@ -31,7 +31,7 @@ type t = {
   /** Internal */
   _observe: (unit => unit) => observer,
   /** Internal */
-  _ready: (observer, ~notifyIfChanged: bool) => unit,
+  _ready: (observer, bool) => unit,
   /** Internal */
   _clear: observer => unit,
   /** Internal */
@@ -78,7 +78,7 @@ let update: ('a, ('a, 'a => unit) => unit) => s<'a>
 /** internal */
 let _observe: (unit => unit) => observer
 /** internal */
-let _ready: (observer, ~notifyIfChanged: bool) => unit
+let _ready: (observer, bool) => unit
 /** Dispose of an observer */
 let _clear: observer => unit
 /** Get meta information (mostly for stats) */

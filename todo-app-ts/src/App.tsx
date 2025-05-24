@@ -7,6 +7,7 @@ import {
   CheckCircle,
   Circle,
   Edit,
+  LogIn,
   LogOut,
   Moon,
   Sparkles,
@@ -23,8 +24,17 @@ import {
 } from "react";
 import { app_ } from "src/boot";
 
-export default function App() {
-  const app = useTilia(app_).value;
+export function App() {
+  return (
+    <Layout>
+      <AppSwitch />
+    </Layout>
+  );
+}
+
+function AppSwitch() {
+  useTilia();
+  const app = app_.value;
   switch (app.t) {
     case "NotAuthenticated":
       return <NotAuthenticatedApp app={app} />;
@@ -40,11 +50,11 @@ export default function App() {
 function Layout({ children }: { children: React.ReactNode }) {
   useTilia();
   const {
-    value: {
-      display: { darkMode, setDarkMode },
-    },
-  } = app_;
+    display: { darkMode, setDarkMode },
+    auth,
+  } = app_.value;
 
+  // <div className="min-h-screen transition-colors duration-300 bg-gray-900 text-pink-200 flex flex-col items-center justify-center">
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
@@ -73,7 +83,7 @@ function Layout({ children }: { children: React.ReactNode }) {
           <div className="flex flex-row items-center">
             <button
               onClick={() => setDarkMode(!darkMode)}
-              className={`p-2 rounded-full ${
+              className={`p-2 cursor-pointer rounded-full ${
                 darkMode
                   ? "bg-gray-800 text-pink-300"
                   : "bg-pink-100 text-pink-600"
@@ -86,126 +96,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 className="absolute p-2 rounded-full"
                 style={{ top: "-1.7rem", right: "-4.5rem" }}
               >
-                <button
-                  onClick={() => auth.logout()}
-                  className={`p-2 rounded-full cursor-pointer ${
-                    darkMode
-                      ? "bg-gray-800 text-pink-300"
-                      : "bg-pink-100 text-pink-600"
-                  }`}
-                >
-                  <LogOut size={20} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-        {chidlren}
-      </div>
-    </div>
-  );
-}
-
-function Modal(props: { children: React.ReactNode; onClick?: () => void }) {
-  return (
-    <div className="min-h-screen transition-colors duration-300 bg-gray-900 text-pink-200 flex flex-col items-center justify-center">
-      <div
-        className="flex flex-col items-center justify-center border-2 border-pink-500 p-4 rounded-lg bg-pink-900 text-pink-600 cursor-pointer"
-        onClick={props.onClick}
-      >
-        {props.children}
-      </div>
-    </div>
-  );
-}
-
-function LoadingApp() {
-  return <Modal>Loading...</Modal>;
-}
-
-function ErrorApp(props: { app: AppError }) {
-  const { error } = useTilia(props.app);
-  return <Modal>Error: {error}</Modal>;
-}
-
-function NotAuthenticatedApp(props: { app: AppNotAuthenticated }) {
-  const { auth } = useTilia(props.app);
-  return (
-    <Modal onClick={() => auth.login({ id: "main", name: "Main" })}>
-      <div>{auth.t}</div>
-      <div>Click to Login</div>
-    </Modal>
-  );
-}
-
-const appContext = createContext<AppReady>({} as AppReady);
-const AppProvider = appContext.Provider;
-const useApp = () => useTilia(useContext(appContext));
-
-export function ReadyApp(props: { app: AppReady }) {
-  const { todos, display, auth } = useTilia(props.app);
-  const darkMode = display.darkMode;
-
-  const toggleDarkMode = (): void => {
-    display.setDarkMode(!darkMode);
-  };
-
-  if (!isLoaded(todos.data)) {
-    return (
-      <div
-        className={`min-h-screen transition-colors duration-300 ${
-          darkMode ? "bg-gray-900 text-pink-200" : "bg-pink-50 text-gray-800"
-        }`}
-      ></div>
-    );
-  }
-
-  return (
-    <AppProvider value={props.app}>
-      <div
-        className={`min-h-screen transition-colors duration-300 ${
-          darkMode ? "bg-gray-900 text-pink-200" : "bg-pink-50 text-gray-800"
-        }`}
-      >
-        <div className="max-w-md mx-auto p-6">
-          {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold flex items-center">
-              <span
-                className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}
-              >
-                Tilia
-              </span>
-              <Sparkles
-                className={`ml-2 ${
-                  darkMode ? "text-pink-300" : "text-pink-500"
-                }`}
-                size={24}
-              />
-              <span
-                className={`ml-2 ${
-                  darkMode ? "text-purple-300" : "text-purple-500"
-                }`}
-              >
-                todo
-              </span>
-            </h1>
-            <div className="flex flex-row items-center">
-              <button
-                onClick={toggleDarkMode}
-                className={`p-2 rounded-full ${
-                  darkMode
-                    ? "bg-gray-800 text-pink-300"
-                    : "bg-pink-100 text-pink-600"
-                }`}
-              >
-                {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-              </button>
-              <div className="relative">
-                <div
-                  className="absolute p-2 rounded-full"
-                  style={{ top: "-1.7rem", right: "-4.5rem" }}
-                >
+                {auth.t === "Authenticated" ? (
                   <button
                     onClick={() => auth.logout()}
                     className={`p-2 rounded-full cursor-pointer ${
@@ -216,78 +107,144 @@ export function ReadyApp(props: { app: AppReady }) {
                   >
                     <LogOut size={20} />
                   </button>
-                </div>
+                ) : (
+                  <button
+                    onClick={() => auth.login({ id: "main", name: "Main" })}
+                    className={`p-2 rounded-full cursor-pointer ${
+                      darkMode
+                        ? "bg-gray-800 text-pink-300"
+                        : "bg-pink-100 text-pink-600"
+                    }`}
+                  >
+                    <LogIn size={20} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
-
-          {/* Add Todo Input */}
-          <div className="mb-6">
-            <div className="flex">
-              <input
-                type="text"
-                value={todos.selected.title}
-                onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                  todos.setTitle(e.target.value)
-                }
-                placeholder="Add a task..."
-                className={`flex-grow p-3 rounded-l-lg border-2 focus:outline-none ${
-                  darkMode
-                    ? "bg-gray-800 border-pink-500 text-pink-100 placeholder-pink-300"
-                    : "bg-white border-pink-300 text-gray-800 placeholder-pink-300"
-                }`}
-                onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                  if (e.key === "Enter") {
-                    todos.save(todos.selected);
-                  } else if (e.key === "Escape") {
-                    todos.clear();
-                  }
-                }}
-              />
-              <button
-                onClick={() => todos.save(todos.selected)}
-                className={`px-4 py-2 rounded-r-lg font-bold min-w-20 ${
-                  darkMode
-                    ? "bg-pink-600 hover:bg-pink-700 text-white"
-                    : "bg-pink-400 hover:bg-pink-500 text-white"
-                }`}
-              >
-                {todos.selected.id === "" ? "Add" : "Save"}
-              </button>
-            </div>
-          </div>
-
-          <div className="flex justify-center space-x-2 mb-6">
-            {todosFilterValues.map((f) => (
-              <button
-                key={f}
-                onClick={() => todos.setFilter(f)}
-                className={`px-4 py-2 rounded-full capitalize transition-colors ${
-                  todos.filter === f
-                    ? darkMode
-                      ? "bg-pink-600 text-white"
-                      : "bg-pink-400 text-white"
-                    : darkMode
-                    ? "bg-gray-800 text-pink-300 hover:bg-gray-700"
-                    : "bg-pink-100 text-pink-600 hover:bg-pink-200"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-
-          <TodoList />
-
-          {todos.list.length > 0 && (
-            <div className="mt-6 text-center">
-              <p className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
-                {todos.remaining} tasks remaining
-              </p>
-            </div>
-          )}
         </div>
+        {children}
       </div>
+    </div>
+  );
+}
+
+function Modal(props: { children: React.ReactNode; onClick?: () => void }) {
+  return (
+    <div
+      className="flex flex-col items-center justify-center border-2 border-pink-500 p-4 rounded-lg bg-pink-900 text-pink-600 cursor-pointer"
+      onClick={props.onClick}
+    >
+      {props.children}
+    </div>
+  );
+}
+
+function LoadingApp() {
+  return <Modal>Loading...</Modal>;
+}
+
+function ErrorApp({ app }: { app: AppError }) {
+  useTilia();
+  return <Modal>Error: {app.error}</Modal>;
+}
+
+function NotAuthenticatedApp({ app }: { app: AppNotAuthenticated }) {
+  useTilia();
+  const { auth } = app;
+  return (
+    <Modal onClick={() => auth.login({ id: "main", name: "Main" })}>
+      <div>{auth.t}</div>
+      <div>Click to Login</div>
+    </Modal>
+  );
+}
+
+const appContext = createContext<AppReady>({} as AppReady);
+const AppProvider = appContext.Provider;
+const useApp = () => {
+  useTilia();
+  return useContext(appContext);
+};
+
+export function ReadyApp({ app }: { app: AppReady }) {
+  useTilia();
+  const { todos, display } = app;
+  const darkMode = display.darkMode;
+
+  if (!isLoaded(todos.data)) {
+    return null;
+  }
+
+  return (
+    <AppProvider value={app}>
+      <>
+        {/* Add Todo Input */}
+        <div className="mb-6">
+          <div className="flex">
+            <input
+              type="text"
+              value={todos.selected.title}
+              onChange={(e: ChangeEvent<HTMLInputElement>) =>
+                todos.setTitle(e.target.value)
+              }
+              placeholder="Add a task..."
+              className={`flex-grow p-3 rounded-l-lg border-2 focus:outline-none ${
+                darkMode
+                  ? "bg-gray-800 border-pink-500 text-pink-100 placeholder-pink-300"
+                  : "bg-white border-pink-300 text-gray-800 placeholder-pink-300"
+              }`}
+              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                if (e.key === "Enter") {
+                  todos.save(todos.selected);
+                } else if (e.key === "Escape") {
+                  todos.clear();
+                }
+              }}
+            />
+            <button
+              onClick={() => todos.save(todos.selected)}
+              className={`px-4 py-2 rounded-r-lg font-bold min-w-20 ${
+                darkMode
+                  ? "bg-pink-600 hover:bg-pink-700 text-white"
+                  : "bg-pink-400 hover:bg-pink-500 text-white"
+              }`}
+            >
+              {todos.selected.id === "" ? "Add" : "Save"}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-center space-x-2 mb-6">
+          {todosFilterValues.map((f) => (
+            <button
+              key={f}
+              onClick={() => todos.setFilter(f)}
+              className={`px-4 py-2 rounded-full capitalize transition-colors ${
+                todos.filter === f
+                  ? darkMode
+                    ? "bg-pink-600 text-white"
+                    : "bg-pink-400 text-white"
+                  : darkMode
+                  ? "bg-gray-800 text-pink-300 hover:bg-gray-700"
+                  : "bg-pink-100 text-pink-600 hover:bg-pink-200"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+
+        <TodoList />
+
+        {todos.list.length > 0 && (
+          <div className="mt-6 text-center">
+            <p className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
+              {todos.remaining} tasks remaining
+            </p>
+          </div>
+        )}
+      </>
     </AppProvider>
   );
 }
@@ -326,12 +283,11 @@ export function TodoList() {
   );
 }
 
-function TodoView(props: { todo: Todo }) {
+function TodoView({ todo }: { todo: Todo }) {
   const {
     todos,
     display: { darkMode },
   } = useApp();
-  const todo = useTilia(props.todo);
 
   return (
     <li
@@ -384,12 +340,11 @@ function TodoView(props: { todo: Todo }) {
   );
 }
 
-function TodoTitle({ todo: atodo }: { todo: Todo }) {
+function TodoTitle({ todo }: { todo: Todo }) {
   const {
     todos,
     display: { darkMode },
   } = useApp();
-  const todo = useTilia(atodo);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(todo.title);
   const inputRef = useRef<HTMLInputElement>(null);
