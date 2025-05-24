@@ -7,7 +7,7 @@ on:
       - "todo-app-ts/**"
       - "tilia/**"
       - "react/**"
-      - ".github/workflows/deploy.yml"
+      - ".github/workflows/deploy-todo-ts.yml"
 
 permissions:
   contents: read
@@ -15,7 +15,7 @@ permissions:
   id-token: write
 
 jobs:
-  build-and-deploy:
+  deploy-todo-ts:
     runs-on: ubuntu-latest
 
     steps:
@@ -25,7 +25,7 @@ jobs:
       - name: Set up pnpm
         uses: pnpm/action-setup@v2
         with:
-          version: 8
+          version: 9
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
