@@ -204,6 +204,10 @@ function App() {
 }
 ```
 
+## ReScript example
+
+Look at [tilia tests](./tilia/test/Tilia_test.res) for a working examples using ReScript.
+
 ## Main features
 
 - Zero dependencies
@@ -216,83 +220,9 @@ function App() {
 - Computed values (cached calculations, recomputed on read when changed).
 - Forest mode: tracking across multiple instances.
 
-## Internals
+### Changelog
 
-To be used for binding to other frameworks/libraries:
-
-```ts
-// Create an observer by connecting a callback to a Tilia object
-// or array and start recording viewed nodes.
-export function _observe<a>(tree: a, callback: () => void): observer;
-// Register the observer as ready. If a watched field changed during recording, notify
-// if notifyIfChanged is true.
-export function _ready(
-  observer: observer,
-  notifyIfChanged: boolean = true
-): void;
-// Remove observer.
-export function clear(observer: observer): void;
-```
-
-# ReScript example
-
-```res
-open Tilia
-
-type clouds = {
-  mutable morning: string,
-  mutable evening: string,
-}
-type state = {
-  mutable flowers: string,
-  mutable clouds: clouds,
-}
-
-// Create a tracked object or array:
-let tilia = make()
-
-let tree = tilia.connect({
-  flowers: "are beautiful",
-  clouds: { morning: "can be pink", evening: "can be orange" },
-})
-
-// Observe and react to changes
-tilia.observe(() => {
-  Js.log2("Evening Clouds", tree.clouds.evening)
-})
-```
-
-The call to `Tilia.make` creates a tilia context with `connect` and `observe` functions.
-
-We then create an observer that will run if anything that it reads from the
-tree changes. For example, the observer above watches "clouds" and "evening" inside the clouds
-object but not "flowers" or "morning".
-
-Now, changing the color of the evening clouds like this:
-
-```res
-tree.clouds.evening = "fiery blue"
-```
-
-Will trigger the logging of the cloud color.
-
-## Main Features
-
-- Zero dependencies
-- Single proxy tracking (should be fast)
-- Compatible with ReScript and TypeScript
-- Inserted objects are not cloned.
-- Tracking follows moved objects and objects in arrays or other objects.
-- Simple API for reactive programming.
-- Respects readonly properties and classes.
-- Leaf-tracking: observes only what is read.
-- Supports computed values (cached calculations).
-- Supports forest mode: tracking across multiple instances.
-- Supports context isolation for SSR or other environments.
-
-### Changelog (for tilia)
-
-- 2025-05-09 **2.0.0** (not yet release: canary version)
+- 2025-05-24 **2.0.0** (not yet release: canary version)
   - Moved core to npm "tilia" package.
   - Changed `make` signature to build tilia context (provides the full API running in a separate context).
   - Enable **forest mode** to observve across separated objects.
