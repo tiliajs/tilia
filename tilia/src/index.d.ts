@@ -1,17 +1,27 @@
 declare const o: unique symbol;
 declare const r: unique symbol;
 export type Observer = { readonly [o]: true };
+export type Signal<a> = { value: a };
+export type Setter<a> = (v: a) => void;
 export type Tilia = {
   connect: <a>(branch: a) => a;
-  observe: (fn: () => void) => void;
-  // We could expose the first argument of the computed function if needed but in
-  // TS, we can have p referenced in computed through the closure so we don't need
-  // it.
   computed: <a>(fn: () => a) => a;
-  update: <a>(v: a, fn: () => a) => void;
-  move: <a>(v: a, fn: (setter: (v: a) => void) => void) => void;
+  observe: (fn: () => void) => void;
+  signal: <a>(v: a) => readonly [Signal<a>, (v: a) => void];
+  derived: <a>(fn: () => a) => Signal<a>;
+  update: <a>(v: a, fn: (prev: a, setter: Setter<a>) => void) => Signal<a>;
 };
 export function make(flush?: (fn: () => void) => void): Tilia;
+
+// Default global context
+
+export function connect<a>(branch: a): a;
+export function computed<a>(fn: () => a): a;
+export function observe(fn: () => void): void;
+
+export function signal<a>(v: a): readonly [Signal<a>, (v: a) => void];
+export function derived<a>(fn: () => a): Signal<a>;
+export function update<a>(v: a, fn: (prev: a, set: Setter<a>) => void): Signal<a>;
 export function _clear(observer: Observer): void;
 export function _observe<a>(tree: a, callback: () => void): Observer;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;

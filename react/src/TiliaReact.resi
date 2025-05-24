@@ -1,1 +1,1 @@
-let use: 'a => 'a
+let useTilia: unit => unit

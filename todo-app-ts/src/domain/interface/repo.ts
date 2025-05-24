@@ -23,7 +23,7 @@ export type RepoReady = {
   // Operations
   saveTodo: (todo: Todo) => Promise<Result<Todo>>;
   removeTodo: (id: string) => Promise<Result<string>>;
-  fetchTodos: (userId: string) => Promise<Result<Todo[]>>;
+  fetchTodos: () => Promise<Result<Todo[]>>;
   saveSetting: (key: string, value: string) => Promise<Result<string>>;
   fetchSetting: (key: string) => Promise<Result<string>>;
 };

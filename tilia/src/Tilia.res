@@ -6,10 +6,6 @@ module Reflect = {
   external ownKeys: 'a => 'b = "Reflect.ownKeys"
 }
 
-module Exn = {
-  @new external makeError: string => exn = "Error"
-  let raiseError = str => raise(makeError(str))
-}
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
@@ -58,7 +54,6 @@ function(v) {
 module Object = {
   type descriptor<'a> = {writable: bool, value: 'a}
   external hasOwn: ('a, string) => bool = "Object.hasOwn"
-  external assign: ('a, 'a) => unit = "Object.assign"
   external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
     "Object.getOwnPropertyDescriptor"
   let readonly: ('a, string) => bool = (o, k) => {
@@ -89,8 +84,6 @@ type rec observer = {
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
   observing: observing,
-  // Reference to the root is needed for ready call.
-  root: root,
 }
 // Observed key => watchers
 and observed = dict<watchers>
@@ -120,14 +113,6 @@ and root = {
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
 
-type t<'a> = {
-  connect: 'a. 'a => 'a,
-  observe: (unit => unit) => unit,
-  computed: 'b. ('a => 'b) => 'b,
-  update: 'a. ('a, unit => 'a) => unit,
-  move: 'a. ('a, ('a => unit) => unit) => unit,
-}
-
 type rec meta<'a> = {
   target: 'a,
   root: root,
@@ -143,16 +128,26 @@ type rec meta<'a> = {
   mutable proxy: 'a,
 }
 
-let _nmeta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
-let _meta: 'a => meta<'a> = p => Reflect.get(p, metaKey)
+type s<'a> = {mutable value: 'a}
+type t = {
+  connect: 'a. 'a => 'a,
+  computed: 'a 'b. (unit => 'b) => 'b,
+  observe: (unit => unit) => unit,
+  signal: 'a. 'a => (s<'a>, 'a => unit),
+  derived: 'a. (unit => 'a) => s<'a>,
+  update: 'a. ('a, ('a, 'a => unit) => unit) => s<'a>,
+  /** internal */
+  _observe: (unit => unit) => observer,
+  _ready: (observer, ~notifyIfChanged: bool) => unit,
+  _clear: observer => unit,
+  _meta: 'a. 'a => nullable<meta<'a>>,
+}
+
+let _meta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 
 @inline
-let _setObserver = (root, notify) => {
-  let observer: observer = {
-    notify,
-    observing: [],
-    root,
-  }
+let setObserver = (root, notify) => {
+  let observer: observer = {notify, observing: []}
   root.observer = Value(observer)
   observer
 }
@@ -188,8 +183,7 @@ let _clear = (observer: observer) => {
   })
 }
 
-let _ready = (observer: observer, ~notifyIfChanged: bool=true) => {
-  let {root} = observer
+let setReady = (root: root, observer: observer, ~notifyIfChanged: bool) => {
   switch root.observer {
   | Value(o) if o === observer => root.observer = Undefined
   | _ => ()
@@ -277,13 +271,22 @@ let rec set = (
 ) => {
   let hadKey = Reflect.has(target, key)
   let prev = Reflect.get(target, key)
-  if prev === value {
+  let proxiable = Typeof.proxiable(value)
+  let same = if proxiable {
+    switch _meta(value) {
+    | Value(m) => m.target === prev
+    | _ => prev === value
+    }
+  } else {
+    prev === value
+  }
+  if same {
     true
   } else {
     switch Reflect.set(target, key, value) {
     | false => false
     | true =>
-      if Typeof.proxiable(prev) {
+      if proxiable {
         Dict.delete(proxied, key)
       }
       switch Typeof.compute(value) {
@@ -357,17 +360,15 @@ and setupComputed = (
     // should avoid accessing this value because it can be undefined on first
     // run and breaks typing.
     ignore(Reflect.set(target, key, lastValue.v))
-    let o: observer = {
-      notify,
-      observing: [],
-      root,
-    }
+    let o: observer = {notify, observing: []}
     observer.o = Value(o)
 
     let previous = root.observer
     root.observer = Value(o)
     let v = callback(p)
-    _ready(o, ~notifyIfChanged=false)
+    // Computed should not rebuild on change (recursion is bad in computed
+    // because it is not meant to have access to the previous value).
+    setReady(root, o, ~notifyIfChanged=false)
     root.observer = previous
 
     v
@@ -479,7 +480,7 @@ and proxify = (root: root, base: base, target: 'a): meta<'a> => {
   let observed: observed = Dict.make()
   let computes: dict<compute<branchp, opaque>> = Dict.make()
 
-  switch _nmeta(target) {
+  switch _meta(target) {
   | Value(m) if m.root === root => /* same tree, reuse proxy */
     m
   | Value(m) => proxify(root, base, m.target) /* external tree: clear */
@@ -506,32 +507,26 @@ let timeOutFlush = (fn: unit => unit) => {
     }, 0))
 }
 
-// Public for library developers.
-let _observe = (p: 'a, notify) => {
-  switch _nmeta(p) {
-  | Value({root}) => _setObserver(root, notify)
-  | _ => Exn.raiseError("Observed state is not a tilia proxy.")
-  }
-}
-
-let connect = (root: root) => (branchp: branchp) => {
-  if !Typeof.proxiable(branchp) {
+// We use branchp to hide type.
+let makeConnect = (root: root) => (value: 'a) => {
+  if !Typeof.proxiable(value) {
     raise(Invalid_argument("connect: value is not an object or array"))
   }
   // We cheat with types on initial proxy creation.
+  // TODO: Remove the access to the base object now ?
   let base = {proxy: %raw(`undefined`)}
 
   // We hide the type of base to avoid typing everything to rootp.
-  let proxy = proxify(root, base, branchp).proxy
+  let proxy = proxify(root, base, value).proxy
   base.proxy = %raw(`proxy`)
   proxy
 }
 
-let observe = (root: root) => (callback: unit => unit) => {
+let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
-    let o = _setObserver(root, notify)
+    let o = setObserver(root, notify)
     callback()
-    _ready(o, ~notifyIfChanged=true)
+    setReady(root, o, ~notifyIfChanged=true)
   }
   notify()
 }
@@ -542,56 +537,23 @@ let computed = (callback: 'p => 'a) => {
   %raw(`v`)
 }
 
-let update = (root: root) => (v: 'a, callback: unit => 'a) => {
-  if !Typeof.proxiable(v) {
-    raise(Invalid_argument("move: value is not an object or array"))
-  }
-  if _nmeta(v) === %raw(`undefined`) {
-    raise(Invalid_argument("move: value is not a tilia proxy"))
-  }
-  let rec notify = () => {
-    let o = _setObserver(root, notify)
-    let nv = callback(v)
-    if nv !== v {
-      Object.assign(v, nv)
-      Reflect.ownKeys(v)->Array.forEach(key => {
-        if !Object.hasOwn(nv, key) {
-          ignore(Reflect.deleteProperty(v, key))
-        }
-      })
-    }
-    _ready(o, ~notifyIfChanged=true)
-  }
-  notify()
+// syntax sugar
+
+let makeSignal = (connect: s<branchp> => s<branchp>) => (value: branchp) => {
+  let s = connect({value: value})
+  let set = v => s.value = v
+  (s, set)
 }
 
-/** This is used by TypeScript with an `enter` callback instead of using a return
- * value (required for type safety).
- */
-let move = (root: root) => (v: 'a, callback: ('a => unit) => unit) => {
-  if !Typeof.proxiable(v) {
-    raise(Invalid_argument("move: value is not an object or array"))
-  }
-  if _nmeta(v) === %raw(`undefined`) {
-    raise(Invalid_argument("move: value is not a tilia proxy"))
-  }
-  // Note that `enter` can be used outside of the callback.
-  let enter = nv =>
-    if nv !== v {
-      Object.assign(v, nv)
-      Reflect.ownKeys(v)->Array.forEach(key => {
-        if !Object.hasOwn(nv, key) {
-          ignore(Reflect.deleteProperty(v, key))
-        }
-      })
-    }
+let makeDerive = connect => update =>
+  connect({
+    value: computed(update),
+  })
 
-  let rec notify = () => {
-    let o = _setObserver(root, notify)
-    callback(enter)
-    _ready(o, ~notifyIfChanged=true)
-  }
-  notify()
+let makeUpdate = (signal, observe) => (value, update) => {
+  let (s, set) = signal(value)
+  observe(() => update(s.value, set))
+  s
 }
 
 /* We use this external hack to have polymorphic functions (without this, they
@@ -599,24 +561,75 @@ let move = (root: root) => (v: 'a, callback: ('a => unit) => unit) => {
  */
 external connector: (
   // connect
-  branchp => branchp,
+  'a => 'a,
+  // computed
+  ('x => 'b) => 'b,
   // observe
   (unit => unit) => unit,
-  // computed
-  ('p => 'a) => 'b,
+  // signal
+  'c => (s<'c>, 'c => unit),
+  // derived
+  (unit => 'd) => s<'d>,
   // update
-  ('b, 'b => 'b) => unit,
-  // move
-  ('b, ('b => unit) => unit) => unit,
-) => t<'a> = "connector"
+  ('e, ('e, 'e => unit) => unit) => s<'e>,
+  // internal
+  // _observe
+  (unit => unit) => observer,
+  // _ready
+  (observer, ~notifyIfChanged: bool) => unit,
+  // _clear
+  observer => unit,
+  // _meta
+  'f => nullable<meta<'f>>,
+) => t = "connector"
 
 %%raw(`
-function connector(connect, observe, computed, update, move) {
-  return {connect, observe, computed, update, move};
+function connector(connect, computed, observe, signal, derived, update, _observe, _ready, _clear) {
+  return {
+    // 
+    connect,
+    computed, 
+    observe,
+    signal,
+    derived,
+    update,
+    _observe,
+    _ready,
+    _clear,
+    _meta,
+  };
 }
 `)
 
-let make = (~flush=timeOutFlush): t<'a> => {
+let make = (~flush=timeOutFlush): t => {
   let root = {flush, observer: Undefined, expired: Undefined}
-  connector(connect(root), observe(root), computed, update(root), move(root))
+  // We need to use raw to hide the types here.
+  let connect = makeConnect(root)
+  let observe = makeObserve(root)
+  let signal = makeSignal(connect)
+  connector(
+    //
+    connect,
+    computed,
+    observe,
+    signal,
+    makeDerive(connect),
+    makeUpdate(signal, observe),
+    setObserver(root, ...),
+    setReady(root, ...),
+    _clear,
+    _meta
+  )
 }
+
+// Default context
+let ctx = make(~flush=timeOutFlush)
+let connect = ctx.connect
+let observe = ctx.observe
+let signal = ctx.signal
+let derived = ctx.derived
+let update = ctx.update
+let _observe = ctx._observe
+let _ready = ctx._ready
+// _clear (does not need context)
+// _meta (does not need context)

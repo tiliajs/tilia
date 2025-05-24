@@ -1,1 +1,1 @@
-export const useTilia: <a>(tree: a) => a;
+export const useTilia: () => void;

@@ -1,23 +1,17 @@
 import type { User } from "@model/user";
-import type { Tilia } from "tilia";
+import { signal, type Signal } from "tilia";
 import { type Auth } from "../interface/auth";
 
-function move<T>(ctx: Tilia, callback: (enter: (v: T) => void) => T): T {
-  let clbk = { enter: (_: T) => {} };
-  const enter = (v: T) => clbk.enter(v);
-  return ctx.computed<T>(() => callback(enter));
+// We use the convention of naming signals with a trailing
+// underscore.
+
+export function makeAuth(): Signal<Auth> {
+  const [auth_, enter] = signal<Auth>({} as Auth);
+  logout(enter);
+  return auth_;
 }
 
-export function makeAuth(ctx: Tilia) {
-  return move<Auth>(ctx, (enter) => ({
-    t: "NotAuthenticated",
-    login: (user) => login(enter, user),
-  }));
-}
-
-// ======= PRIVATE ========================
-
-function login(enter: (a: Auth) => void, user: User) {
+function login(enter: (a: Auth) => void, user: User): void {
   enter({
     t: "Authenticated",
     user,
@@ -25,9 +19,9 @@ function login(enter: (a: Auth) => void, user: User) {
   });
 }
 
-function logout(enter: (a: Auth) => void) {
+function logout(enter: (a: Auth) => void): void {
   enter({
     t: "NotAuthenticated",
-    login: (user) => login(enter, user),
+    login: (user: User) => login(enter, user),
   });
 }

@@ -20,93 +20,173 @@ npm install tilia
 
 ## Usage
 
+### connect
+
+Connect an object to the forest so that it can be observed.
+
 ```ts
-import { make, clear } from "tilia";
+// We use the default context (forest). If we want to have multiple contexts,
+// we can create them with `make`.
+import { connect } from "tilia";
 
-// Create a tilia context:
-const { connect, observe, computed } = make();
-
-// Add an object to the "forest" so that it can be observed.
-const tree = connect({
-  flowers: "are beautiful",
-  clouds: { morning: "can be pink", evening: "can be orange" },
+const alice = connect({
+  name: "Alice",
+  birthday: dayjs("2015-05-24"),
+  age: 10,
 });
+```
 
-// Observe and react to changes from what was seen in the
-// callback (here key "clouds" in tree and key "evening" in clouds).
-// Note that the observe function will see changes from trees in
-// the same forest (tilia context).
+Now alice can be observed. Who knows what she will be doing ?
+
+### observe
+
+Observe and react to changes from what was seen in the callback.
+
+```ts
+import { observe } from "tilia";
+
 observe(() => {
-  console.log("Evening Clouds", tree.clouds.evening);
-  // We can write to observed data in the callback (for computations for example)
-  tree.clouds.evening = tree.clouds.evening + " are nice";
-});
-
-// NB: to stop tracking with `observe`, simply avoid reading anything in the callback.
-
-const mimic = connect({
-  clouds: {
-    morning: computed(() => tree.clouds.morning),
-    evening: "can be orange",
-  },
-});
-
-// Todo example
-type Auth = {
-  user?: { id: number };
-};
-
-const auth: Auth = connect({
-  user: undefined,
-});
-
-async function fetchTodos(authUser: Auth["user"], todos: Todos) {
-  const response = await fetch(`https://jsonplaceholder.typicode.com/todos`);
-  todos.data = (await response.json()).filter(
-    (todo) => todo.userId === owner.id
-  );
-  todos.state = "loaded";
-}
-
-const todos = connect({
-  state: "locked",
-  data: computed(() => {
-    if (auth.user) {
-      todos.state = "loading";
-      fetchTodos(auth.user, todos);
-    } else {
-      todos.state = "locked";
-    }
-    return []; // Temporary data while loading
-  }),
-  selectedId: undefined,
-  selected: computed(() => data.find((todo) => todo.id === todos.selectedId)),
+  console.log("Alice is now", alice.age, "years old !!");
 });
 ```
 
-The call to `make` creates a tiia context. We can then create a proxy object or array by using the `connect` function from this context.
+Now every time alice's age changes, the callback will be called.
 
-And then we create observers that will run if anything that it reads from the
-tree changes. For example, the observer above watches "clouds" and "evening" inside the clouds
-object but not "flowers" or "morning".
+But I want to update her age automagically from today's date!
 
-Now, changing the color of the evening clouds like this:
+### signal
+
+Use `signal` to represent a value that changes, such as a date.
 
 ```ts
-tree.clouds.evening = "fiery blue";
+import { signal } from "tilia";
+
+const [now, setNow] = signal(dayjs());
+
+setInterval(() => setNow(dayjs()), 1000 * 60);
 ```
 
-Will trigger the logging of the cloud color.
+Ok, we now have a "now" signal, let's use it to update alice's age. But before, I must share a little secret: the `signal` function is just syntax sugar on top of `connect`.
 
-## Features
+```ts
+function signal<a>(value: a): Signal<a> {
+  const s = connect({ value });
+  const set = (v) => (s.value = v);
+  return [s, set];
+}
+```
+
+### computed
+
+Compute a value from other connected objects (other signals or values).
+
+```ts
+import { computed } from "tilia";
+
+const alice = connect({
+  name: "Alice",
+  birthday: dayjs("2015-05-24"),
+  age: computed(() => now.diff(alice.birthday, "year")),
+});
+```
+
+The computed is _not_ just syntax sugar. It is an important feature of the library and only recomputes (or notifies) when needed. The rule goes like this:
+
+1. If there are observers on "alice.age" and a dependency for the calculation changes, the computation is run.
+2. If the result of a new computation is different from the previous one, the observers are notified.
+3. Without observers, the computation is only run on first read (and then saved for next reads).
+
+With this in place, our message on Alice's age will only be printed when the age changes, so we can use it to wish Alice a happy birthday:
+
+```ts
+import { observe } from "tilia";
+
+observe(() => {
+  console.log("Alice is now", alice.age, "years old !! Happy birthday Alice !");
+});
+```
+
+This is nice but it will print the message when our app starts, printing a wish that does not correspond to an age change.
+
+### update
+
+Update a value from the current value and other connected objects (other signals or values).
+
+```ts
+import { update } from "tilia";
+
+update(alice.age, (previous) => {
+  if (alice.age !== previous) {
+    console.log("Alice is now", alice.age, "years old !!");
+    console.log("*** 🥳🩷 Happy Birthday Alice !! 🩷🥳 **");
+  }
+  return alice.age;
+});
+```
+
+This `update` mechanism let's us create state machines that are very useful for initialisation or other complex states. Look at `app.ts` in the [todo app](../todo-app-ts/src/app.ts) for an example.
+
+Just as `signal` is syntactic sugar on top of `connect`, `update` is syntactic sugar on top of `observe` and `signal`:
+
+```ts
+export function update<a>(init: a, fn: (p: a) => a): Signal<a> {
+  const [s, set] = signal(init);
+  observe(() => set(fn(s.value)));
+  return s;
+}
+```
+
+Now we want to allow Alice to use social media if and only if she is old enough. Let's derive a signal from alice's age.
+
+### derived
+
+Derive a signal from other connected objects (other signals or values).
+
+```ts
+import { derive } from "tilia";
+
+const socialMediaAllowed_ = derived(() => alice.age > 18);
+```
+
+As you may have guessed, `derived` is syntactic sugar on top of `computed`:
+
+```ts
+function derived<a>(fn: () => a): Signal<a> {
+  return connect({
+    value: computed(fn),
+  });
+}
+```
+
+Now that we have a `socialMediaAllowed_` signal, we can use it to decide whether to show the social media content or not or our app.
+
+### useTilia
+
+Begin observing connected objects and automatically respond to their changes. When using this call, the render function of the React component will behave like the callback passed to the `observe` function.
+
+```ts
+import { useTilia } from "@tilia/react";
+
+function App() {
+  useTilia();
+
+  if (socialMediaAllowed_.value === true) {
+    return <SocialMedia />;
+  } else {
+    return <NormalApp />;
+  }
+}
+```
+
+## Main features
 
 - Zero dependencies
 - Single proxy tracking
 - Compatible with ReScript and TypeScript
 - Inserted objects are not cloned.
 - Tracking follows moved or copied objects.
-- Respects `readonly` properties.
-- Leaf-tracking (observe read values).
+- Respects `readonly` or classes (these elements are not proxied).
+- Leaf-tracking (observe read values only).
 - Computed values (cached calculations, recomputed on read when changed).
 - Forest mode: tracking across multiple instances.
 

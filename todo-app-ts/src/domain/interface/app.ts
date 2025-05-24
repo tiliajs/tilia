@@ -4,30 +4,30 @@ import type {
   AuthNotAuthenticated,
 } from "@interface/auth";
 import type { Display } from "@interface/display";
-import type { Repo, RepoReady } from "@interface/repo";
 import type { Todos } from "@interface/todos";
 
 export type AppNotAuthenticated = {
   t: "NotAuthenticated";
   auth: AuthNotAuthenticated;
+  display: Display;
 };
 
 export type AppLoading = {
   t: "Loading";
   auth: AuthAuthenticated;
-  repo: Repo;
+  display: Display;
 };
 
 export type AppError = {
   t: "Error";
   auth: Auth;
+  display: Display;
   error: string;
 };
 
 export type AppReady = {
   t: "Ready";
   auth: AuthAuthenticated;
-  repo: RepoReady;
   display: Display;
   todos: Todos;
 };

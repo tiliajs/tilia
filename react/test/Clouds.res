@@ -8,21 +8,22 @@ type state = {
 }
 
 open JsxEvent.Form
+open TiliaReact
 
 @react.component
 let make = (~tree: state, ~onClick: unit => unit) => {
-  let c = TiliaReact.use(tree)
+  useTilia()
 
   let onChange = e => {
-    c.clouds.evening = target(e)["value"]
+    tree.clouds.evening = target(e)["value"]
   }
 
   <div>
     <div role="cloud">
       {"Evening clouds are "->React.string}
-      {React.string(c.clouds.evening)}
+      {React.string(tree.clouds.evening)}
     </div>
     <button onClick={_ => onClick()}> {"Change"->React.string} </button>
-    <input value={c.clouds.evening} onChange />
+    <input value={tree.clouds.evening} onChange />
   </div>
 }

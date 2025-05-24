@@ -5,16 +5,17 @@ import * as JsxRuntime from "react/jsx-runtime";
 
 function Clouds(props) {
   var onClick = props.onClick;
-  var c = TiliaReact.use(props.tree);
+  var tree = props.tree;
+  TiliaReact.useTilia();
   var onChange = function (e) {
-    c.clouds.evening = e.target.value;
+    tree.clouds.evening = e.target.value;
   };
   return JsxRuntime.jsxs("div", {
               children: [
                 JsxRuntime.jsxs("div", {
                       children: [
                         "Evening clouds are ",
-                        c.clouds.evening
+                        tree.clouds.evening
                       ],
                       role: "cloud"
                     }),
@@ -25,7 +26,7 @@ function Clouds(props) {
                         })
                     }),
                 JsxRuntime.jsx("input", {
-                      value: c.clouds.evening,
+                      value: tree.clouds.evening,
                       onChange: onChange
                     })
               ]

@@ -63,9 +63,7 @@ function _clear(observer) {
       });
 }
 
-function _ready(observer, notifyIfChangedOpt) {
-  var notifyIfChanged = notifyIfChangedOpt !== undefined ? notifyIfChangedOpt : true;
-  var root = observer.root;
+function setReady(root, observer, notifyIfChanged) {
   var o = root.observer;
   if (o === null || o === undefined) {
     o === null;
@@ -132,13 +130,21 @@ function set(root, base, observed, proxied, computes, target, key, _value) {
     var value = _value;
     var hadKey = Reflect.has(target, key);
     var prev = Reflect.get(target, key);
-    if (prev === value) {
+    var proxiable$1 = proxiable(value);
+    var same;
+    if (proxiable$1) {
+      var m = _meta(value);
+      same = m === null || m === undefined ? prev === value : m.target === prev;
+    } else {
+      same = prev === value;
+    }
+    if (same) {
       return true;
     }
     if (!Reflect.set(target, key, value)) {
       return false;
     }
-    if (proxiable(prev)) {
+    if (proxiable$1) {
       proxied.delete(key);
     }
     var compute$1 = compute(value);
@@ -193,14 +199,13 @@ function setupComputed(root, base, observed, proxied, computes, target, key, com
     var o_observing = [];
     var o = {
       notify: notify,
-      observing: o_observing,
-      root: root
+      observing: o_observing
     };
     observer.o = o;
     var previous = root.observer;
     root.observer = o;
     var v = callback(p);
-    _ready(o, false);
+    setReady(root, o, false);
     root.observer = previous;
     return v;
   };
@@ -222,7 +227,7 @@ function proxify(root, base, _target) {
     var proxied = new Map();
     var observed = new Map();
     var computes = new Map();
-    var m = Reflect.get(target, metaKey);
+    var m = _meta(target);
     if (m === null || m === undefined) {
       m === null;
     } else {
@@ -338,29 +343,9 @@ function timeOutFlush(fn) {
         }), 0);
 }
 
-function _observe(p, notify) {
-  var match = Reflect.get(p, metaKey);
-  if (match === null || match === undefined) {
-    if (match === null) {
-      throw new Error("Observed state is not a tilia proxy.");
-    }
-    throw new Error("Observed state is not a tilia proxy.");
-  } else {
-    var root = match.root;
-    var observer_observing = [];
-    var observer = {
-      notify: notify,
-      observing: observer_observing,
-      root: root
-    };
-    root.observer = observer;
-    return observer;
-  }
-}
-
-function connect(root) {
-  return function (branchp) {
-    if (!proxiable(branchp)) {
+function makeConnect(root) {
+  return function (value) {
+    if (!proxiable(value)) {
       throw {
             RE_EXN_ID: "Invalid_argument",
             _1: "connect: value is not an object or array",
@@ -370,25 +355,24 @@ function connect(root) {
     var base = {
       proxy: undefined
     };
-    var proxy = proxify(root, base, branchp).proxy;
+    var proxy = proxify(root, base, value).proxy;
     base.proxy = proxy;
     return proxy;
   };
 }
 
-function observe(root) {
+function makeObserve(root) {
   return function (callback) {
     var notify = function () {
       var observer_observing = [];
       var observer = {
         notify: notify,
-        observing: observer_observing,
-        root: root
+        observing: observer_observing
       };
       root.observer = observer;
       var o = observer;
       callback();
-      _ready(o, true);
+      setReady(root, o, true);
     };
     notify();
   };
@@ -403,96 +387,55 @@ function computed(callback) {
   return v;
 }
 
-function update(root) {
-  return function (v, callback) {
-    if (!proxiable(v)) {
-      throw {
-            RE_EXN_ID: "Invalid_argument",
-            _1: "move: value is not an object or array",
-            Error: new Error()
-          };
-    }
-    if (Reflect.get(v, metaKey) === undefined) {
-      throw {
-            RE_EXN_ID: "Invalid_argument",
-            _1: "move: value is not a tilia proxy",
-            Error: new Error()
-          };
-    }
-    var notify = function () {
-      var observer_observing = [];
-      var observer = {
-        notify: notify,
-        observing: observer_observing,
-        root: root
-      };
-      root.observer = observer;
-      var o = observer;
-      var nv = callback(v);
-      if (nv !== v) {
-        Object.assign(v, nv);
-        Reflect.ownKeys(v).forEach(function (key) {
-              if (!Object.hasOwn(nv, key)) {
-                Reflect.deleteProperty(v, key);
-                return ;
-              }
-              
-            });
-      }
-      _ready(o, true);
+function makeSignal(connect) {
+  return function (value) {
+    var s = connect({
+          value: value
+        });
+    var set = function (v) {
+      s.value = v;
     };
-    notify();
+    return [
+            s,
+            set
+          ];
   };
 }
 
-function move(root) {
-  return function (v, callback) {
-    if (!proxiable(v)) {
-      throw {
-            RE_EXN_ID: "Invalid_argument",
-            _1: "move: value is not an object or array",
-            Error: new Error()
-          };
-    }
-    if (Reflect.get(v, metaKey) === undefined) {
-      throw {
-            RE_EXN_ID: "Invalid_argument",
-            _1: "move: value is not a tilia proxy",
-            Error: new Error()
-          };
-    }
-    var enter = function (nv) {
-      if (nv !== v) {
-        Object.assign(v, nv);
-        Reflect.ownKeys(v).forEach(function (key) {
-              if (!Object.hasOwn(nv, key)) {
-                Reflect.deleteProperty(v, key);
-                return ;
-              }
-              
-            });
-        return ;
-      }
-      
-    };
-    var notify = function () {
-      var observer_observing = [];
-      var observer = {
-        notify: notify,
-        observing: observer_observing,
-        root: root
-      };
-      root.observer = observer;
-      var o = observer;
-      callback(enter);
-      _ready(o, true);
-    };
-    notify();
+function makeDerive(connect) {
+  return function (update) {
+    return connect({
+                value: computed(update)
+              });
   };
 }
 
-function connector(connect, observe, computed, update, move) {
-  return {connect, observe, computed, update, move};
+function makeUpdate(signal, observe) {
+  return function (value, update) {
+    var match = signal(value);
+    var set = match[1];
+    var s = match[0];
+    observe(function () {
+          return update(s.value, set);
+        });
+    return s;
+  };
+}
+
+function connector(connect, computed, observe, signal, derived, update, _observe, _ready, _clear) {
+  return {
+    // 
+    connect,
+    computed, 
+    observe,
+    signal,
+    derived,
+    update,
+    _observe,
+    _ready,
+    _clear,
+    _meta,
+  };
 }
 ;
 
@@ -503,14 +446,49 @@ function make(flushOpt) {
     expired: undefined,
     flush: flush
   };
-  return connector(connect(root), observe(root), computed, update(root), move(root));
+  var connect = makeConnect(root);
+  var observe = makeObserve(root);
+  var signal = makeSignal(connect);
+  return connector(connect, computed, observe, signal, makeDerive(connect), makeUpdate(signal, observe), (function (extra) {
+                var observer_observing = [];
+                var observer = {
+                  notify: extra,
+                  observing: observer_observing
+                };
+                root.observer = observer;
+                return observer;
+              }), (function (extra, extra$1) {
+                return setReady(root, extra, extra$1);
+              }), _clear, _meta);
 }
+
+var ctx = make(timeOutFlush);
+
+var connect = ctx.connect;
+
+var observe = ctx.observe;
+
+var signal = ctx.signal;
+
+var derived = ctx.derived;
+
+var update = ctx.update;
+
+var _observe = ctx._observe;
+
+var _ready = ctx._ready;
 
 export {
   make ,
+  connect ,
+  computed ,
+  observe ,
+  signal ,
+  derived ,
+  update ,
   _observe ,
   _ready ,
-  _meta ,
   _clear ,
+  _meta ,
 }
 /* indexKey Not a pure module */

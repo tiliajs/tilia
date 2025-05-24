@@ -1,10 +1,10 @@
 import { localRepo } from "src/domain/repo/local";
-import { make } from "tilia";
 import { makeApp } from "./domain/feature/app";
 
-const ctx = make();
-export const app = makeApp(ctx, localRepo);
+export const app_ = makeApp(localRepo);
 
-if (app.auth.t === "NotAuthenticated") {
-  app.auth.login({ id: "main", name: "Main" });
+const auth = app_.value.auth;
+
+if (auth.t === "NotAuthenticated") {
+  auth.login({ id: "main", name: "Main" });
 }

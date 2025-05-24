@@ -1,4 +1,4 @@
-import type { Tilia } from "tilia";
+import { update, type Setter, type Signal } from "tilia";
 import { type Auth } from "../interface/auth";
 import { fail, success, type Repo, type Result } from "../interface/repo";
 import type { Todo } from "../model/todo";
@@ -7,39 +7,43 @@ type IndexedDBRepo = Repo & {
   db?: IDBDatabase;
 };
 
-export function localRepo({ connect, move }: Tilia, auth: Auth): Repo {
-  const repo = connect<IndexedDBRepo>({
-    t: "NotAuthenticated",
-  });
+export function localRepo(auth_: Signal<Auth>): Signal<Repo> {
+  return update<IndexedDBRepo>(
+    // Initial state
+    { t: "NotAuthenticated" },
 
-  move(repo, (enter) => {
-    switch (repo.t) {
-      case "NotAuthenticated": {
-        if (auth.t === "Authenticated") {
-          enter({ t: "Opening" });
-          getDb(auth.user.id, enter);
-        } else if (repo.db) {
-          repo.db.close();
-          enter({ t: "Closed" });
+    // Update function
+    (repo, enter) => {
+      const auth = auth_.value;
+      if (auth.t !== "Authenticated") {
+        if (repo.t === "Ready") {
+          repo.db?.close();
+          return { t: "Closed" };
         }
-        break;
+        return repo;
       }
-      case "Opened": {
-        enter({
-          t: "Ready",
-          db: repo.db,
-          // Operations
-          saveTodo: (todo) => saveTodo(repo, todo),
-          removeTodo: (id) => removeTodo(repo, id),
-          fetchTodos: () => fetchTodos(repo),
-          saveSetting: (key, value) => saveSetting(repo, key, value),
-          fetchSetting: (key) => fetchSetting(repo, key),
-        });
-        break;
+
+      switch (repo.t) {
+        case "NotAuthenticated": {
+          getDb(enter, auth.user.id);
+          return { t: "Opening" };
+        }
+        case "Opened": {
+          return {
+            t: "Ready",
+            db: repo.db,
+            // Operations
+            saveTodo: (todo) => saveTodo(repo, todo, auth.user.id),
+            removeTodo: (id) => removeTodo(repo, id),
+            fetchTodos: () => fetchTodos(repo),
+            saveSetting: (key, value) => saveSetting(repo, key, value),
+            fetchSetting: (key) => fetchSetting(repo, key),
+          };
+        }
       }
+      return repo;
     }
-  });
-  return repo;
+  );
 }
 
 const TODOS_TABLE = "todos";
@@ -47,11 +51,14 @@ const SETTINGS_TABLE = "settings";
 
 async function saveTodo(
   repo: IndexedDBRepo,
-  todo: Todo
+  atodo: Todo,
+  userId: string
 ): Promise<Result<Todo>> {
   if (!repo.db) {
     return fail("Database not open");
   }
+  const todo: Todo = { ...atodo, userId };
+
   const transaction = repo.db.transaction(TODOS_TABLE, "readwrite");
   const objectStore = transaction.objectStore(TODOS_TABLE);
   const request = objectStore.put(todo);
@@ -152,7 +159,7 @@ async function fetchSetting(
 
 // ======= PRIVATE ========================
 
-function getDb(userId: string, enter: (repo: IndexedDBRepo) => void) {
+function getDb(enter: Setter<IndexedDBRepo>, userId: string) {
   const dbName = `todoapp_${userId}`;
   const request = indexedDB.open(dbName, 1);
 

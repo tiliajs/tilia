@@ -9,28 +9,24 @@ import { data } from "@feature/todos/computed/data";
 import { list } from "@feature/todos/computed/list";
 import { remaining } from "@feature/todos/computed/remaining";
 import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
-import { type AuthAuthenticated } from "@interface/auth";
 import { type RepoReady } from "@interface/repo";
 import type { Todos } from "@interface/todos";
-import type { Tilia } from "tilia";
+import { computed, connect, observe, signal } from "tilia";
 import { clear } from "./actions/clear";
+import type { Todo } from "@model/todo";
 
 /** Bind todos to the auth service. This is the todos adapter = implementation
  * of the todos port
  *
  */
-export function makeTodos(
-  { connect, computed, observe }: Tilia,
-  auth: AuthAuthenticated,
-  repo: RepoReady
-) {
+export function makeTodos(repo: RepoReady) {
   const todos: Todos = connect({
     // State
     filter: "all",
     selected: newTodo(),
 
     // Computed state
-    data: computed(() => data(auth, repo, todos)),
+    data: computed(() => data(repo, todos)),
     list: computed(() => list(todos)),
     remaining: computed(() => remaining(todos)),
 
@@ -38,10 +34,10 @@ export function makeTodos(
     clear: () => clear(todos),
     edit: (todo) => edit(todos, todo),
     remove: (id) => remove(repo, todos, id),
-    save: async (todo) => save(auth, repo, todos, todo),
+    save: async (todo) => save(repo, todos, todo),
     setFilter: (filter) => setFilter(repo, todos, filter),
     setTitle: (title) => setTitle(todos, title),
-    toggle: (id) => toggle(auth, repo, todos, id),
+    toggle: (id) => toggle(repo, todos, id),
   });
 
   observe(() => fetchFilterOnReady(repo, todos));

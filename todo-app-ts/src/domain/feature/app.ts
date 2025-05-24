@@ -1,78 +1,85 @@
-import { type App } from "@interface/app";
-import { type Auth, type AuthNotAuthenticated } from "@interface/auth";
+import type { App } from "@interface/app";
+import {
+  isAuthenticated,
+  type Auth,
+  type AuthNotAuthenticated,
+} from "@interface/auth";
 import type { Repo } from "@interface/repo";
-import { type Tilia } from "tilia";
+import { observe, signal, type Signal } from "tilia";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";
 import { makeTodos } from "./todos/todos";
 
-function step<T>(ctx: Tilia, init: T, callback: (prec: T) => T): T {
-  let prec = init;
-  return ctx.computed<T>(() => {
-    prec = callback(prec);
-    return prec;
-  });
+function update<a>(init: a, fn: (p: a) => a): Signal<a> {
+  const [s, set] = signal(init);
+  observe(() => set(fn(s.value)));
+  return s;
 }
 
-export function makeApp(
-  ctx: Tilia,
-  makeRepo: (ctx: Tilia, auth: Auth) => Repo
-) {
-  const app = ctx.connect<App>({
-    t: "NotAuthenticated",
-    auth: makeAuth(ctx),
-  });
+export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
+  // Create the auth signal.
+  // A signal is a varying value: basically `{ value }` that is observable.
+  const auth_ = makeAuth();
+  const repo_ = makeRepo(auth_);
+  const display = makeDisplay(repo_);
 
-  return ctx.connect({
-    app: step(ctx, app, (app) => {
+  return update<App>(
+    {
+      t: "NotAuthenticated",
+      auth: auth_.value as AuthNotAuthenticated,
+      display,
+    },
+    (app) => {
+      const auth = auth_.value;
+      const repo = repo_.value;
+      if (!isAuthenticated(auth)) {
+        if (app.t !== "NotAuthenticated") {
+          return { t: "NotAuthenticated", auth, display };
+        }
+        return app;
+      }
+
       switch (app.t) {
         case "NotAuthenticated": {
-          if (app.auth.t === "Authenticated" /* Authentication event */) {
-            // ========== enter Loading state
-            return { t: "Loading", auth: app.auth, repo: makeRepo(ctx, auth) };
-          }
-          break;
+          // ========== enter Loading state
+          return { t: "Loading", auth, display };
         }
 
-        case "Loading": // continue
-        case "Ready": {
-          switch (app.repo.t) {
+        case "Loading": {
+          switch (repo.t) {
             case "Ready": {
-              if (app.t === "Loading") {
-                // ========== enter Ready state
-                enter({
-                  t: "Ready",
-                  auth: app.auth,
-                  repo: app.repo,
-                  display: makeDisplay(ctx, app.repo),
-                  todos: makeTodos(ctx, app.auth, app.repo),
-                });
-              }
-              break;
+              // ========== enter Ready state
+              return {
+                t: "Ready",
+                auth: auth,
+                display,
+                todos: makeTodos(repo),
+              };
             }
             case "Error": {
               // ========== enter Error state
-              enter({
+              return {
                 t: "Error",
                 auth,
-                error: app.repo.error,
-              });
+                display,
+                error: repo.error,
+              };
               break;
             }
             case "Closed": {
               // ========== enter NotAuthenticated state
-              enter({
-                t: "NotAuthenticated",
-                auth: makeAuth(ctx) as AuthNotAuthenticated,
-              });
-              break;
+              if (auth.t === "Authenticated") {
+                auth.logout();
+              } else {
+                return { t: "NotAuthenticated", auth, display };
+              }
             }
           }
-          break;
         }
       }
-    }),
-  });
+      return app;
+    }
+  );
 }
 
 // ======= PRIVATE ========================

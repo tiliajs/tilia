@@ -18,3 +18,7 @@ export type AuthAuthenticated = {
 };
 
 export type Auth = AuthNotAuthenticated | AuthAuthenticated;
+
+export function isAuthenticated(auth: Auth): auth is AuthAuthenticated {
+  return auth.t === "Authenticated";
+}

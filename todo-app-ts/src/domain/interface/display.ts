@@ -1,7 +1,5 @@
 import type { Result } from "./repo";
 
-export type Settings = {};
-
 export type Display = {
   darkMode: boolean;
 

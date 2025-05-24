@@ -3,24 +3,27 @@
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as React from "react";
 
-function use(p) {
-  var match = React.useState(0);
-  var setCount = match[1];
-  var o = Tilia._observe(p, (function () {
+function makeUse(_observe, _ready, _clear) {
+  return function () {
+    var match = React.useState(0);
+    var setCount = match[1];
+    var o = _observe(function () {
           setCount(function (i) {
                 return i + 1 | 0;
               });
-        }));
-  React.useEffect(function () {
-        Tilia._ready(o, undefined);
-        return (function () {
-                  Tilia._clear(o);
-                });
-      });
-  return p;
+        });
+    React.useEffect(function () {
+          _ready(o, true);
+          return (function () {
+                    _clear(o);
+                  });
+        });
+  };
 }
 
+var useTilia = makeUse(Tilia._observe, Tilia._ready, Tilia._clear);
+
 export {
-  use ,
+  useTilia ,
 }
-/* Tilia Not a pure module */
+/* useTilia Not a pure module */

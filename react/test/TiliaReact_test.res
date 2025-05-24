@@ -24,15 +24,16 @@ module Testing = {
 let user = Testing.userEvent //.setup()
 
 open Testing
+open Tilia
+let tree = connect({
+  Clouds.flowers: "Are nice",
+  clouds: {
+    morning: "can be pink",
+    evening: "can be dark",
+  },
+})
 
 asyncTest("re-render on changes", async t => {
-  let tree = TiliaReact.use({
-    Clouds.flowers: "Are nice",
-    clouds: {
-      morning: "can be pink",
-      evening: "can be dark",
-    },
-  })
   let onClick = () => {
     tree.clouds.evening = "Blue"
   }

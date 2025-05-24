@@ -1,5 +1,5 @@
 import type { Auth } from "@interface/auth";
-import type { Tilia } from "tilia";
+import { signal, type Signal } from "tilia";
 import { fail, success, type Repo } from "../interface/repo";
 import type { Todo } from "../model/todo";
 
@@ -9,10 +9,10 @@ export function memoryStore(
     ["todos.filter"]: "all",
     ["display.darkMode"]: "false",
   } as Record<string, string>
-): (ctx: Tilia, auth: Auth) => Repo {
-  return ({ connect }: Tilia, _auth: Auth) => {
+): (auth: Signal<Auth>) => Signal<Repo> {
+  return (_auth: Signal<Auth>) => {
     // auth not used with local storage
-    const repo: Repo = connect({
+    const [repo] = signal<Repo>({
       t: "Ready",
       // Operations
       saveTodo: async (todo: Todo) => success(todo),

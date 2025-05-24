@@ -1,7 +1,7 @@
 import { makeApp } from "@feature/app";
 import { isAppReady, type AppReady } from "@interface/app";
 import { memoryStore } from "src/domain/repo/memory";
-import { make } from "tilia";
+import { observe } from "tilia";
 import { describe, expect, it } from "vitest";
 import { loaded } from "../../model/loadable";
 import type { Todo } from "../../model/todo";
@@ -31,13 +31,13 @@ const plants: Todo = {
 const baseTodos = () => [hug, rice, plants];
 
 async function setup(initialTodos: Todo[] = baseTodos()) {
-  const ctx = make();
-  const app = makeApp(ctx, memoryStore(initialTodos));
-  if (app.auth.t !== "Authenticated") {
-    app.auth.login({ id: "main", name: "Main" });
+  const app_ = makeApp(memoryStore(initialTodos));
+  if (app_.value.auth.t !== "Authenticated") {
+    app_.value.auth.login({ id: "main", name: "Main" });
   }
   return new Promise<AppReady>((resolve) => {
-    ctx.observe(() => {
+    observe(() => {
+      const app = app_.value;
       if (isAppReady(app)) {
         resolve(app);
       }
