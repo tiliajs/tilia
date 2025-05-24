@@ -26,8 +26,10 @@ You can check the [todo app](./todo-app-ts/README.md) for a working example usin
 
 **install**
 
+Use the **canary** version (not yet released because the API might still change, but it is stable):
+
 ```sh
-npm install tilia
+npm install tilia@canary
 ```
 
 ### connect

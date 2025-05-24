@@ -1,0 +1,48 @@
+name: Deploy Todo App TS to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "todo-app-ts/**"
+      - "tilia/**"
+      - "react/**"
+      - ".github/workflows/deploy.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build app with base path
+        run: pnpm build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./todo-app-ts/dist
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4

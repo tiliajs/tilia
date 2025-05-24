@@ -7,12 +7,21 @@ This application is a simple demo built with
 
 In the root of the monorepo, run:
 
+Install dependencies:
+
 ```sh
-# Install dependencies
 pnpm i
-# Build all packages
+```
+
+Build all packages:
+
+```sh
 pnpm build
-# Start the app
+```
+
+Start the app:
+
+```sh
 pnpm todo-ts dev
 ```
 
