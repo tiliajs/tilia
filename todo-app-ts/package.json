@@ -11,6 +11,7 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
     "@tilia/react": "workspace:^",
     "lucide-react": "^0.509.0",
     "react": "^19.1.0",
