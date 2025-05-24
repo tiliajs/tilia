@@ -21,11 +21,7 @@ let computeKey = %raw(`Symbol()`)
 // function).
 let noop = () => ()
 
-// This type is never used and only used to pass value.
-type opaque
-type branchp
-
-type compute<'p, 'a> = {
+type compute<'a> = {
   mutable clear: unit => unit,
   mutable rebuild: unit => 'a,
 }
@@ -43,7 +39,7 @@ function(v) {
 }
   `)
 
-  let compute: 'a => nullable<compute<branchp, 'a>> = %raw(`
+  let compute: 'a => nullable<compute<'a>> = %raw(`
 function(v) {
   return typeof v === 'object' && v !== null && v[computeKey] ? v : undefined;
 }
@@ -122,7 +118,7 @@ type rec meta<'a> = {
   // Cached children proxy.
   proxied: dict<meta<'a>>,
   // Compute functions.
-  computes: dict<compute<branchp, opaque>>,
+  computes: 'b. dict<compute<'b>>,
   // The proxy itself (used by proxied).
   mutable proxy: 'a,
 }
@@ -262,7 +258,7 @@ let rec set = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<branchp, opaque>>,
+  computes: dict<compute<'b>>,
   target: 'a,
   key: string,
   value: 'b,
@@ -322,10 +318,10 @@ and setupComputed = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<branchp, opaque>>,
+  computes: dict<compute<'b>>,
   target: 'a,
   key: string,
-  compute: compute<branchp, 'b>,
+  compute: compute<'b>,
 ) => {
   let lastValue: lastValue<'b> = {v: %raw(`undefined`)}
   let observer = {o: Undefined}
@@ -386,7 +382,7 @@ let deleteProperty = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<branchp, opaque>>,
+  computes: dict<compute<'b>>,
   target: 'a,
   key: string,
 ) => {
@@ -407,7 +403,7 @@ let rec get = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<branchp, opaque>>,
+  computes: dict<compute<'d>>,
   meta: meta<'a>,
   isArray: bool,
   target: 'a,
@@ -474,7 +470,7 @@ let rec get = (
 and proxify = (root: root, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
-  let computes: dict<compute<branchp, opaque>> = Dict.make()
+  let computes: dict<compute<'c>> = Dict.make()
 
   switch _meta(target) {
   | Value(m) if m.root === root => /* same tree, reuse proxy */
@@ -503,7 +499,6 @@ let timeOutFlush = (fn: unit => unit) => {
     }, 0))
 }
 
-// We use branchp to hide type.
 let makeConnect = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
     raise(Invalid_argument("connect: value is not an object or array"))
@@ -520,7 +515,7 @@ let makeObserve = (root: root) => (callback: unit => unit) => {
   notify()
 }
 
-let computed = (callback: 'p => 'a) => {
+let computed = (callback: unit => 'a) => {
   let v = {clear: noop, rebuild: callback}
   ignore(Reflect.set(v, computeKey, true))
   %raw(`v`)
@@ -528,7 +523,7 @@ let computed = (callback: 'p => 'a) => {
 
 // syntax sugar
 
-let makeSignal = (connect: s<branchp> => s<branchp>) => (value: branchp) => {
+let makeSignal = (connect: s<'a> => s<'a>) => (value: 'c) => {
   let s = connect({value: value})
   let set = v => s.value = v
   (s, set)
