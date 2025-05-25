@@ -47,6 +47,7 @@ jobs:
           cp index.html dist/
           cp logo.svg dist/
           cp prism-shades.css dist/
+          cp docs.html dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./prism-shades.css" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'sans': ['Inter', 'system-ui', 'sans-serif']
+          }
+        }
+      }
+    }
+    let lang = 'typescript'
+    function toggleLang() {
+      document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el => el.classList.add('hidden'))
+      lang = lang === 'typescript' ? 'rescript' : 'typescript'
+      document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el =>
+        el.classList.remove('hidden')
+      )
+      document.querySelectorAll('.toggle').forEach(toggle => {
+        if (lang === 'typescript') {
+          toggle.innerHTML = `<strong class="text-white">ts</strong> | res`
+        } else {
+          toggle.innerHTML = `ts | <strong class="text-white">res</strong>`
+        }
+      })
+    }
+    function addToggle() {
+      document.querySelectorAll('pre').forEach(pre => {
+        if (pre.querySelector('code[class*="language-rescript"]')) {
+          const toggle = document.createElement('button')
+          toggle.innerText = 'ts | res'
+          toggle.classList.add('toggle', 'absolute', 'right-0', 'top-0', 'p-2', 'rounded-tr-xl', 'rounded-bl-xl', 'bg-gray-800', 'text-gray-600', 'hover:bg-gray-700', 'text-sm')
+          toggle.addEventListener('click', () => {
+            toggleLang()
+          })
+          pre.style.position = 'relative'
+          pre.appendChild(toggle)
+        }
+      })
+    }
+  </script>
+  <title>Tilia Documentation - Simple State Management</title>
+</head>
+
+<body class="bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen">
+  <nav class="p-6 flex justify-between items-center bg-black/20 sticky top-0 z-50 backdrop-blur-lg">
+    <div class="flex items-center space-x-4">
+      <a href="/">
+        <img src="./logo.svg" alt="Tilia Logo" class="w-10 h-10">
+      </a>
+      <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-green-300">
+        <a href="/">
+          tilia
+        </a>
+      </h1>
+    </div>
+    <div class="space-x-6 text-sm font-medium">
+      <a href="./" class="hover:text-green-300 transition-colors">Home</a>
+      <a href="https://github.com/tiliajs/tilia" class="hover:text-green-300 transition-colors">GitHub</a>
+      <a href="/todo-app-ts/" class="hover:text-green-300 transition-colors">Todo App</a>
+    </div>
+  </nav>
+
+  <main class="container mx-auto px-6 py-8 max-w-4xl">
+    <!-- Header -->
+    <section class="text-center mb-16">
+      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 mb-6">
+        Documentation
+      </h1>
+      <p class="text-xl text-white/80 max-w-2xl mx-auto">
+        Complete guide to using Tilia for simple and fast state management in TypeScript and ReScript applications.
+      </p>
+    </section>
+
+    <!-- Installation -->
+    <section class="mb-16">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+          Installation
+        </h2>
+        <p class="text-lg mb-4 text-white/90">
+          Use the <strong>canary</strong> version (not yet released because the API might still change, but it is
+          stable):
+        </p>
+        <pre
+          class="rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install tilia@canary</code></pre>
+      </div>
+    </section>
+
+    <!-- Goals -->
+    <section class="mb-16">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-600">
+          Goals and Non-goals
+        </h2>
+        <div class="space-y-4 text-lg text-white/90">
+          <p>
+            <strong class="text-green-300">The goal</strong> with Tilia is to be minimal and fast while staying as much
+            as
+            possible out of the way. A special effort was made to keep the API as simple and
+            intuitive as possible, while still supporting best practices (type safety,
+            proper management of transitive states, etc).
+          </p>
+          <p>
+            <strong class="text-red-300">Non-goal</strong>: Tilia is not a framework.
+          </p>
+          <p>
+            We haven't measured the performance yet, but everything was designed to make it
+            as fast and lightweight as possible. If someone wants to help us benchmarking,
+            we'd be happy to add it to the documentation.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Reference -->
+    <section class="space-y-12">
+      <h2
+        class="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 mb-12">
+        API Reference
+      </h2>
+
+      <!-- connect -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-green-300">connect</h3>
+        <p class="text-lg mb-6 text-white/90">
+          Connect an object or array to the forest so that it can be observed.
+        </p>
+
+        <p class="text-xs mb-2">We use the default context (forest). If we want to have multiple contexts, we can create
+          them with <code class="text-yellow-300">make</code>.
+        </p>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { connect } from "tilia"
+
+const alice = connect({
+  name: "Alice",
+  birthday: dayjs("2015-05-24"),
+  age: 10,
+})</code><code class="language-rescript hidden">open Tilia
+
+let alice = connect({
+  name: "Alice",
+  birthday: dayjs("2015-05-24"),
+  age: 10,
+})</code></pre>
+        <p class="mt-4 text-gray-700 italic">
+          Alice can now be observed. Who knows what she will be doing?
+        </p>
+      </div>
+
+      <!-- observe -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-blue-300">observe</h3>
+        <p class="text-lg mb-6 text-white/90">
+          Observe and react to changes. Every time the callback is run, tilia
+          registers which values are read in the connected objects and arrays
+          and will notify the observer if any of these values changed.</p>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { observe } from "tilia"
+
+observe(() => {
+  console.log("Alice is now", alice.age, "years old !!")
+})</code><code class="language-rescript hidden">open Tilia
+
+observe(() => {
+  Js.log3("Alice is now", alice.age, "years old !!")
+})</code></pre>
+        <div class="m-6 p-4 bg-blue-500/20 rounded-lg border border-blue-500/30">
+          <p class="text-blue-900">
+            <strong>📖 Important Note:</strong> If you have mutations of observed values in the
+            <code class="text-blue-300">observe</code> callback,
+            the callback will be immediately re-run (to support state machines).
+          </p>
+        </div>
+        <p class="mt-4 text-gray-700 italic">
+          Now every time alice's age changes, the callback will be called.
+        </p>
+      </div>
+
+      <!-- signal -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-purple-300">signal</h3>
+        <p class="text-lg mb-6 text-white/90">
+          Use <code class="text-yellow-300">signal</code> to represent a value that changes, such as a date, a number, a
+          variant or even the app as it goes through its life cycle.
+        </p>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { signal } from "tilia"
+
+const [now, setNow] = signal(dayjs())
+
+setInterval(() => setNow(dayjs()), 1000 * 60)</code><code class="language-rescript hidden">open Tilia
+
+let (now, setNow) = signal(dayjs())
+
+ignore(setInterval(() => setNow(dayjs()), 1000 * 60))</code></pre>
+        <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
+          <p class="text-yellow-100">
+            <strong>💡 Pro tip:</strong> The <code class="text-yellow-300">signal</code> function is just syntax sugar
+            on top of <code class="text-yellow-300">connect</code>.
+          </p>
+        </div>
+        <pre
+          class="opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function signal&lt;a&gt;(value: a): Signal&lt;a&gt; {
+  const s = connect({ value })
+  const set = (v) => (s.value = v)
+  return [s, set]
+}</code><code class="language-rescript hidden">let signal = (value) => {
+  let s = connect({ value: value })
+  let set = v => s.value = v
+  (s, set)
+}</code></pre>
+        <p class="mt-4 text-gray-700 italic">
+          Our app knows the date ! Let's see how we can update Alice's age from this value.
+        </p>
+      </div>
+
+      <!-- computed -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-cyan-300">computed</h3>
+        <p class="text-lg mb-6 text-white/90">
+          Compute a value from other connected objects.
+        </p>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { computed } from "tilia"
+
+const alice = connect({
+  name: "Alice",
+  birthday: dayjs("2015-05-24"),
+  age: computed(() => now.diff(alice.birthday, "year")),
+})</code><code class="language-rescript hidden">open Tilia
+open Day
+
+let alice = connect({
+  name: "Alice",
+  birthday: dayjs("2015-05-24"),
+  age: 0,
+})
+alice.age = computed(() => now-&gt;diff(alice.birthday, "year"))</code></pre>
+        <div class="m-6 p-4 bg-blue-500/20 rounded-lg border border-blue-500/30">
+          <p class="text-blue-900">
+            <strong>📖 Note:</strong> The <code class="text-blue-300">computed</code> only recomputes or notifies when
+            needed. Notification happens if there are observers, and if the computed value changes.
+          </p>
+        </div>
+        <p class="mt-4 text-gray-700 italic">
+          Nice, the age updates automatically, Alice can grow older. Let's wish her a happy birthday when this happens.
+        </p>
+      </div>
+
+      <!-- update -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-orange-300">update</h3>
+        <p class="text-lg mb-6 text-white/90">
+          Update a value from the current value and other connected objects. This helps to model state changes.
+        </p>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { update } from "tilia"
+
+update(alice.age, (previous, set) => {
+  if (alice.age !== previous) {
+    console.log("Alice is now", alice.age, "years old !!")
+    console.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
+  }
+  set(alice.age)
+})</code><code class="language-rescript hidden">open Tilia
+
+update(alice.age, (previous, set) => {
+  if alice.age !== previous {
+    set(alice.age)
+    Js.log3("Alice is now", alice.age, "years old !!")
+    Js.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
+  }
+})</code></pre>
+        <p class="mt-4 text-white/80">
+          This <code class="text-yellow-300">update</code> mechanism lets us create state machines that are very useful
+          for initialisation or other complex states. See <a
+            href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/app.ts"
+            class="text-blue-300 hover:text-blue-200 underline">app.ts</a> for an example.
+        </p>
+        <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
+          <p class="text-yellow-100">
+            <strong>💡 Pro tip:</strong> The <code class="text-yellow-300">update</code> function is syntax sugar on top
+            of <code class="text-yellow-300">signal</code> and <code class="text-yellow-300">observe</code>.
+          </p>
+        </div>
+        <pre
+          class="opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function update&lt;a&gt;(value: a, fn: (prev: a, setter: (v: a) => void) => void): Signal&lt;a&gt; {
+  const [s, set] = signal(init)
+  observe(() => fn(s.value, set))
+  return s
+}</code><code class="language-rescript hidden">let update = (value, fn) => {
+  let (s, set) = signal(value)
+  observe(() => fn(s.value, set))
+  s
+}</code></pre>
+        <p class="mt-4 text-gray-700 italic">
+          We feel good with our app now. It only wishes a happy birthday when the age changes, it knows the age of
+          Alice.
+        </p>
+        <p class="mt-4 text-gray-700 italic">
+          Maybe we can use this to manage access to a social media ?
+        </p>
+      </div>
+
+      <!-- derived -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-pink-300">derived</h3>
+        <p class="text-lg mb-6 text-white/90">
+          Derive a signal from other connected objects (other signals or values).
+        </p>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
+
+const socialMediaAllowed = derived(() => alice.age > 13)</code><code class="language-rescript hidden">open Tilia
+
+let socialMediaAllowed = derived(() => alice["age"] > 13)</code></pre>
+        <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
+          <p class="text-yellow-100">
+            <strong>💡 Pro tip:</strong> <code class="text-yellow-300">derived</code> is syntactic sugar
+            on top of <code class="text-yellow-300">computed</code>.
+          </p>
+        </div>
+        <pre
+          class="opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function derived&lt;a&gt;(fn: () => a): Signal&lt;a&gt; {
+  return connect({ value: computed(fn) })
+}</code><code class="language-rescript hidden">let derived = fn =>
+  connect({ value: computed(fn) })
+</code></pre>
+      </div>
+
+      <!-- useTilia -->
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h3 class="text-2xl font-bold mb-4 text-red-300">useTilia <span
+            class="ml-2 text-gray-700 opacity-70 text-sm">(React
+            Hook)</span></h3>
+        <p class="text-lg mb-6 text-white/90">
+          The <code class="text-yellow-300">useTilia</code> hook registers the component to observe state changes,
+          automatically triggering a re-render whenever any observed value updates.
+        </p>
+        <p>This hooks makes the component's render function act like an <code class="text-yellow-300">observe</code>
+          callback.</p>
+        <div class="mb-4 mt-4">
+          <h4 class="text-lg font-bold mb-2 text-yellow-300">Installation</h4>
+          <pre
+            class="p-4 rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install @tilia/react</code></pre>
+        </div>
+        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { useTilia } from "@tilia/react"
+
+function App() {
+  useTilia()
+
+  if (socialMediaAllowed.value === true) {
+    return &lt;SocialMedia /&gt;
+  } else {
+    return &lt;NormalApp /&gt;
+  }
+}</code><code class="language-rescript hidden">open TiliaReact
+
+@react.component
+let make = () => {
+  useTilia()
+
+  if (socialMediaAllowed.value === true) {
+    &lt;SocialMedia /&gt;
+  } else {
+    &lt;NormalApp /&gt;
+  }
+}</code></pre>
+      </div>
+    </section>
+
+    <!-- Main Features -->
+    <section class="mb-16 mt-16">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+          Main Features
+        </h2>
+        <div class="grid md:grid-cols-2 gap-6">
+          <div class="space-y-3">
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Zero dependencies</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Single proxy tracking</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Compatible with ReScript and TypeScript</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Inserted objects are not cloned</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Tracking follows moved or copied objects</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Respects readonly or classes</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Leaf-tracking (observe read values only)</span>
+            </div>
+            <div class="flex items-center space-x-2">
+              <span class="text-green-400">✓</span>
+              <span>Forest mode: tracking across multiple instances</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Examples -->
+    <section class="mb-16">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+          Examples
+        </h2>
+        <div class="space-y-4 text-lg text-white/90">
+          <p>
+            You can check the <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/app.ts"
+              class="text-blue-300 hover:text-blue-200 underline">todo app</a>
+            for a working example using TypeScript.
+          </p>
+          <p>
+            Look at <a href="https://github.com/tiliajs/tilia/blob/main/tilia/test/Tilia_test.res"
+              class="text-blue-300 hover:text-blue-200 underline">tilia tests</a> for working examples using ReScript.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Changelog -->
+    <section class="mb-16">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500">
+          Changelog
+        </h2>
+        <div class="space-y-6 text-white/90">
+          <div>
+            <h3 class="text-xl font-bold text-green-300 mb-2">2025-05-24 2.0.0 (canary version)</h3>
+            <ul class="list-disc list-inside space-y-1 ml-4">
+              <li>Moved core to npm "tilia" package.</li>
+              <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context.</li>
+              <li>Enable forest mode to observe across separated objects.</li>
+              <li>Add <code class="text-yellow-300">computed</code> to compute values in branches.</li>
+              <li>Moved <code class="text-yellow-300">observe</code> into tilia context.</li>
+              <li>Added <code class="text-yellow-300">derived</code>, <code class="text-yellow-300">signal</code>, and
+                <code class="text-yellow-300">update</code> for FRP style programming.
+              </li>
+            </ul>
+          </div>
+          <div class="text-sm text-white/70">
+            <p>See the full changelog in the <a href="https://github.com/tiliajs/tilia/blob/main/README.md"
+                class="text-blue-300 hover:text-blue-200 underline">README</a> for previous versions.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bg-black/20 py-8 text-center">
+    <p class="text-sm text-white/70">
+      © 2025 Tilia. Open Source, Open Vibes. 💖
+    </p>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://unpkg.com/prismjs/components/prism-rescript.min.js"></script>
+  <script src="https://unpkg.com/prismjs/components/prism-typescript.min.js"></script>
+  <script src="https://unpkg.com/prismjs/components/prism-bash.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      addToggle();
+      toggleLang();
+    });
+  </script>
+</body>
+
+</html>

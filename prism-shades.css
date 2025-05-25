@@ -7,10 +7,10 @@
 
  code[class*='language-'],
  pre[class*='language-'] {
+  white-space: pre-wrap;
    color: #9efeff;
    direction: ltr;
    text-align: left;
-   white-space: pre;
    word-spacing: normal;
    word-break: normal;
  

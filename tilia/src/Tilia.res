@@ -529,10 +529,7 @@ let makeSignal = (connect: s<'a> => s<'a>) => (value: 'c) => {
   (s, set)
 }
 
-let makeDerive = connect => update =>
-  connect({
-    value: computed(update),
-  })
+let makeDerive = connect => update => connect({value: computed(update)})
 
 let makeUpdate = (signal, observe) => (value, update) => {
   let (s, set) = signal(value)
@@ -540,7 +537,7 @@ let makeUpdate = (signal, observe) => (value, update) => {
   s
 }
 
-let makeObserve_ = (root: root) => (notify) => {
+let makeObserve_ = (root: root) => notify => {
   let observer = {notify, observing: []}
   root.observer = Value(observer)
   observer
@@ -612,7 +609,7 @@ let make = (~flush=timeOutFlush): t => {
     makeObserve_(root),
     makeReady_(root),
     _clear,
-    _meta
+    _meta,
   )
 }
 
@@ -621,10 +618,10 @@ let makeDefault = (~flush=timeOutFlush) => {
   switch tilia {
   | Value(v) => v
   | _ => {
-    let ctx = make(~flush)
-    ignore(Reflect.set(%raw(`globalThis`), "__tilia_ctx", ctx))
-    ctx
-  }
+      let ctx = make(~flush)
+      ignore(Reflect.set(%raw(`globalThis`), "__tilia_ctx", ctx))
+      ctx
+    }
   }
 }
 

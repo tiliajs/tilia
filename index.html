@@ -16,6 +16,29 @@
         }
       }
     }
+    let lang = 'rescript'
+    function toggleLang() {
+      document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el => el.classList.add('hidden'))
+      lang = lang === 'typescript' ? 'rescript' : 'typescript'
+      document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el =>
+        el.classList.remove('hidden')
+      )
+      if (lang === 'typescript') {
+        document.querySelector('.toggle').innerHTML = `<strong class="text-white">ts</strong> | res`
+      } else {
+        document.querySelector('.toggle').innerHTML = `ts | <strong class="text-white">res</strong>`
+      }
+    }
+    function addToggle() {
+      const toggle = document.createElement('button')
+      toggle.innerText = 'ts | res'
+      toggle.classList.add('toggle', 'absolute', 'right-0', 'top-0', 'p-2', 'rounded-tr-xl', 'rounded-bl-xl', 'bg-gray-800', 'text-gray-600', 'hover:bg-gray-700')
+      toggle.addEventListener('click', () => {
+        toggleLang()
+      })
+      document.querySelector('pre').appendChild(toggle)
+    }
+
   </script>
   <title>Tilia - Simple State Management</title>
 </head>
@@ -29,50 +52,64 @@
       </h1>
     </div>
     <div class="space-x-6 text-sm font-medium">
-      <a href="https://github.com/tiliajs/tilia/blob/main/README.md"
-        class="hover:text-green-300 transition-colors">Docs</a>
+      <a href="/docs.html" class="hover:text-green-300 transition-colors">Docs</a>
       <a href="https://github.com/tiliajs/tilia" class="hover:text-green-300 transition-colors">GitHub</a>
       <a href="/todo-app-ts/" class="hover:text-green-300 transition-colors">Todo App</a>
     </div>
   </nav>
 
-  <main class="flex-grow container mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-center">
-    <div class="space-y-6">
-      <h2
-        class="text-3xl xl:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 h-20">
-        Simple State Management
-      </h2>
-      <p class="text-xl font-medium text-white/80">
-        Tilia is a little library to help manage state in TypeScript and ReScript apps.
-      </p>
-      <div class="flex space-x-4">
-        <a href="https://github.com/tiliajs/tilia/blob/main/README.md"
-          class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
-          Get Started
-        </a>
-        <a href="https://github.com/tiliajs/tilia"
-          class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
-          GitHub
-        </a>
+  <main>
+    <section class="flex-grow container mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-center">
+      <div class="space-y-6">
+        <h2
+          class="text-3xl xl:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 h-20">
+          Simple State Management
+        </h2>
+        <p class="text-xl font-medium text-white/80">
+          Tilia is a little library to help manage state in TypeScript and ReScript apps.
+        </p>
+        <div class="flex space-x-4">
+          <a href="/docs.html"
+            class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
+            Get Started
+          </a>
+          <a href="https://github.com/tiliajs/tilia"
+            class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
+            GitHub
+          </a>
+        </div>
       </div>
-    </div>
-    <div class="hidden md:flex justify-center items-center">
-      <pre class="rounded-xl backdrop-blur-lg border border-white/20 shadow-2xl text-md lg:text-lg p-4 py-2"><code class="language-javascript">
-const store = connect({
+      <div class="flex justify-center items-center w-full">
+        <pre class="w-full rounded-xl backdrop-blur-lg border border-white/20 shadow-2xl text-md lg:text-lg p-4 py-2"><code class="language-typescript">
+const vibing = connect({
   vibes: 'immaculate' 🌈
-});
+})
 
 function ShowVibes() {
   useTilia()
-  return &lt;div&gt;{store.vibes}&lt;/div&gt;
+  return &lt;div&gt;{vibing.vibes}&lt;/div&gt;
 }
 
 function elevateVibes() {
-  store.vibes = 'legendary' ✨
+  vibing.vibes = 'legendary' ✨
 }
+</code><code class="language-rescript">
+let vibing = connect({
+  vibes: "immaculate" 🌈
+})
+
+@react.component
+let make = () => {
+  useTilia()
+  &lt;div&gt;{React.string(vibing.vibes)}&lt;/div&gt;
+}
+
+let elevateVibes = () =>
+  vibing.vibes = "legendary" ✨
 </code>
 </pre>
-    </div>
+      </div>
+    </section>
   </main>
 
   <section class="bg-black/10 py-16">
@@ -107,6 +144,14 @@ function elevateVibes() {
     </p>
   </footer>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://unpkg.com/prismjs/components/prism-rescript.min.js"></script>
+  <script src="https://unpkg.com/prismjs/components/prism-typescript.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      addToggle();
+      toggleLang();
+    });
+  </script>
 </body>
 
 </html>
