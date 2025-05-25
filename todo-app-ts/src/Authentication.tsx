@@ -29,7 +29,7 @@ export function Authentication({ auth }: { auth: AuthNotAuthenticated }) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "github",
         options: {
-          redirectTo: window.location.href,
+          redirectTo: window.location.href.split("#")[0],
         },
       });
 
