@@ -1,5 +1,4 @@
-name: Deploy Todo App TS to GitHub Pages
-
+name: Deploy All Apps to GitHub Pages
 on:
   push:
     branches: [main]
@@ -8,41 +7,51 @@ on:
       - "tilia/**"
       - "react/**"
       - ".github/workflows/deploy-todo-ts.yml"
-
 permissions:
   contents: read
   pages: write
   id-token: write
-
 jobs:
-  deploy-todo-ts:
+  deploy-all-apps:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v2
         with:
           version: 9
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build app with base path
+      - name: Create root dist directory
+        run: mkdir -p dist
+
+      - name: Build all apps
         run: pnpm build
+        env:
+          VITE_TODO_APP_TS: /todo-app-ts/
+
+      - name: Copy todo-app-ts to root dist
+        run: |
+          mkdir -p dist/todo-app-ts
+          cp -r todo-app-ts/dist/* dist/todo-app-ts/
+
+      - name: Copy index.html and assets to root dist
+        run: |
+          cp index.html dist/
+          cp logo.svg dist/
+          cp prism-shades.css dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./todo-app-ts/dist
+          path: ./dist
 
       - name: Deploy to GitHub Pages
         uses: actions/deploy-pages@v4

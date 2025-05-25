@@ -5,5 +5,6 @@ import tsPaths from "vite-tsconfig-paths";
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: process.env.VITE_TODO_APP_TS || "/",
   plugins: [react(), tailwind(), tsPaths()],
 });

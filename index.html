@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="./prism-shades.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -16,7 +17,7 @@
       }
     }
   </script>
-  <title>Tilia - Radical State Management</title>
+  <title>Tilia - Simple State Management</title>
 </head>
 
 <body class="bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen flex flex-col">
@@ -28,67 +29,73 @@
       </h1>
     </div>
     <div class="space-x-6 text-sm font-medium">
-      <a href="#" class="hover:text-green-300 transition-colors">Docs</a>
-      <a href="#" class="hover:text-green-300 transition-colors">GitHub</a>
-      <a href="#" class="hover:text-green-300 transition-colors">Playground</a>
+      <a href="https://github.com/tiliajs/tilia/blob/main/README.md"
+        class="hover:text-green-300 transition-colors">Docs</a>
+      <a href="https://github.com/tiliajs/tilia" class="hover:text-green-300 transition-colors">GitHub</a>
+      <a href="/todo-app-ts/" class="hover:text-green-300 transition-colors">Todo App</a>
     </div>
   </nav>
 
   <main class="flex-grow container mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-center">
     <div class="space-y-6">
-      <h2 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 h-20">
-        Manage State Like a Boss 🚀
+      <h2
+        class="text-3xl xl:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 h-20">
+        Simple State Management
       </h2>
       <p class="text-xl font-medium text-white/80">
-        Tilia is the ultra-modern, hyper-performant state management library that makes React developers say "OMG, THIS
-        SLAPS!"
+        Tilia is a little library to help manage state in TypeScript and ReScript apps.
       </p>
       <div class="flex space-x-4">
-        <a href="#"
+        <a href="https://github.com/tiliajs/tilia/blob/main/README.md"
           class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
           Get Started
         </a>
-        <a href="#" class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
+        <a href="https://github.com/tiliajs/tilia"
+          class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
           GitHub
         </a>
       </div>
     </div>
     <div class="hidden md:flex justify-center items-center">
-      <div class="bg-white/10 p-8 rounded-xl backdrop-blur-lg border border-white/20 shadow-2xl">
-        <pre class="text-sm font-mono text-green-300">
-<code>
-import { createStore } from 'tilia';
-
-const store = createStore({
+      <pre class="rounded-xl backdrop-blur-lg border border-white/20 shadow-2xl text-md lg:text-lg p-4 py-2"><code class="language-javascript">
+const store = connect({
   vibes: 'immaculate' 🌈
 });
+
+function ShowVibes() {
+  useTilia()
+  return &lt;div&gt;{store.vibes}&lt;/div&gt;
+}
 
 function elevateVibes() {
   store.vibes = 'legendary' ✨
 }
 </code>
-                </pre>
-      </div>
+</pre>
     </div>
   </main>
 
   <section class="bg-black/10 py-16">
-    <div class="container mx-auto px-6 text-center">
+    <div class="container mx-auto px-6 text-center text-sm">
       <h3 class="text-3xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-600">
-        Why Developers Are Obsessed 🤯
+        Why Developers Are Obsessed 🤯 (or not)
       </h3>
       <div class="grid md:grid-cols-3 gap-8">
         <div class="bg-white/10 p-6 rounded-xl hover:scale-105 transition transform">
           <h4 class="text-xl font-bold mb-4">🚀 Lightning Fast</h4>
-          <p>Performant AF. We don't play when it comes to speed.</p>
+          <p>Performant AF!</p>
+          <p>No, really, we don't know, help us measure 😍</p>
+          <p>But we did our very best so that we can use it for games and highly interactive apps.</p>
         </div>
         <div class="bg-white/10 p-6 rounded-xl hover:scale-105 transition transform">
-          <h4 class="text-xl font-bold mb-4">🤯 Minimal Boilerplate</h4>
-          <p>Write less code, do more magic. No cap.</p>
+          <h4 class="text-xl font-bold mb-4">🤯 No Boilerplate</h4>
+          <p>But we do provide some Functional Reactive Programming (FRP) helpers.</p>
         </div>
         <div class="bg-white/10 p-6 rounded-xl hover:scale-105 transition transform">
           <h4 class="text-xl font-bold mb-4">🌈 Type Safe</h4>
-          <p>TypeScript lovers, this one's for you. Rock-solid typing.</p>
+          <p>The library was written with a strong emphasis on helping to keep code safe (also during transitive
+            states).
+          </p>
         </div>
       </div>
     </div>
@@ -96,9 +103,10 @@ function elevateVibes() {
 
   <footer class="bg-black/20 py-8 text-center">
     <p class="text-sm text-white/70">
-      © 2024 Tilia. Open Source, Open Vibes. 💖
+      © 2025 Tilia. Open Source, Open Vibes. 💖
     </p>
   </footer>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
 </body>
 
 </html>

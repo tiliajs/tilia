@@ -22,7 +22,7 @@ we'd be happy to add it to the documentation.
 
 **This is the documentation for the canary version (2.0.0)**
 
-You can check the [todo app](./todo-app-ts/README.md) for a working example using TypeScript.
+You can check the [todo app](https://github.com/tiliajs/tilia/blob/main/todo-app-ts/README.md) for a working example using TypeScript.
 
 **install**
 

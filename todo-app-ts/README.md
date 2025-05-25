@@ -1,7 +1,7 @@
 # A todo app
 
 This application is a simple demo built with
-[Tilia](https://github.com/tiliajs/tilia).
+[Tilia](https://github.com/tiliajs/tilia/blob/main/README.md).
 
 **install and run**
 
