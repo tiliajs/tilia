@@ -76,18 +76,9 @@
 }
 </script>
   <!-- end SEO -->
+  <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./prism-shades.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            'sans': ['Inter', 'system-ui', 'sans-serif']
-          }
-        }
-      }
-    }
     let lang = 'rescript'
     function toggleLang() {
       document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el => el.classList.add('hidden'))

@@ -62,18 +62,9 @@
 </script>
 
   <!-- END SEO -->
+  <link rel="stylesheet" href="./styles.css" />
   <link rel="stylesheet" href="./prism-shades.css" />
-  <script src="https://cdn.tailwindcss.com"></script>
   <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            'sans': ['Inter', 'system-ui', 'sans-serif']
-          }
-        }
-      }
-    }
     let lang = 'rescript'
     function toggleLang() {
       document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el => el.classList.add('hidden'))
@@ -197,6 +188,18 @@ let elevateVibes = () =>
           <p>The library was written with a strong emphasis on helping to keep code safe (also during transitive
             states).
           </p>
+        </div>
+      </div>
+      <div class="md:hidden flex justify-center items-center w-full">
+        <div class="flex flex-row gap-4 w-full m-8 max-w-64">
+          <a href="/docs"
+            class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
+            Get Started
+          </a>
+          <a href="https://github.com/tiliajs/tilia"
+            class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
+            GitHub
+          </a>
         </div>
       </div>
     </div>

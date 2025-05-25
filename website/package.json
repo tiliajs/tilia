@@ -1,28 +1,17 @@
 {
-  "name": "tilia-website",
-  "private": true,
+  "name": "website",
   "version": "0.0.0",
-  "type": "module",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "res:build": "rescript",
-    "res:clean": "rescript clean",
-    "res:dev": "rescript -w",
-    "dev": "vite",
-    "buildx": "vite build",
-    "preview": "vite preview"
+    "build": "npx @tailwindcss/cli -i ./input.css -o ./src/styles.css",
+    "build:watch": "npx @tailwindcss/cli -i ./input.css -o ./public/styles.css --watch"
   },
-  "dependencies": {
-    "@rescript/core": "^1.6.1",
-    "@rescript/react": "^0.12.1",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "rescript": "^11.1.4"
-  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.2.1",
-    "autoprefixer": "^10.4.15",
-    "postcss": "^8.4.28",
-    "tailwindcss": "^3.3.3",
-    "vite": "^5.0.6"
+    "@tailwindcss/cli": "^4.1.7",
+    "tailwindcss": "^4.1.6"
   }
 }
