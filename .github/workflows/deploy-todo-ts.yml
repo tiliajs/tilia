@@ -2,11 +2,6 @@ name: Deploy All Apps to GitHub Pages
 on:
   push:
     branches: [main]
-    paths:
-      - "todo-app-ts/**"
-      - "tilia/**"
-      - "react/**"
-      - ".github/workflows/deploy-todo-ts.yml"
 permissions:
   contents: read
   pages: write
@@ -36,6 +31,9 @@ jobs:
         run: pnpm build
         env:
           VITE_TODO_APP_TS: /todo-app-ts/
+
+      - name: Test all
+        run: pnpm test
 
       - name: Copy todo-app-ts to root dist
         run: |
