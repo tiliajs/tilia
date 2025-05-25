@@ -1,31 +1,30 @@
 import type { App } from "@interface/app";
-import {
-  isAuthenticated,
-  type Auth,
-  type AuthNotAuthenticated,
-} from "@interface/auth";
-import type { Repo } from "@interface/repo";
-import { update, type Signal } from "tilia";
+import { isAuthenticated, type AuthNotAuthenticated } from "@interface/auth";
+import { update } from "tilia";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";
 import { makeTodos } from "./todos/todos";
 
-export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
+export function makeApp() {
   // Create the auth signal.
   // A signal is a varying value: basically `{ value }` that is observable.
   const auth_ = makeAuth();
-  const repo_ = makeRepo(auth_);
-  const display = makeDisplay(repo_);
+  // Dummy display until authenticated.
+  const display = makeDisplay({ value: { t: "NotAuthenticated" } });
 
-  return update<App>(
+  const app_ = update<App>(
     {
-      t: "NotAuthenticated",
+      t: "Blank",
       auth: auth_.value as AuthNotAuthenticated,
       display,
     },
     (app, set) => {
       const auth = auth_.value;
-      const repo = repo_.value;
+      if (auth.t === "Blank") {
+        // Wait to avoid flicker.
+        return;
+      }
+
       if (!isAuthenticated(auth)) {
         if (app.t !== "NotAuthenticated") {
           set({ t: "NotAuthenticated", auth, display });
@@ -33,7 +32,10 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
         return;
       }
 
+      const repo = auth.repo.value;
+
       switch (app.t) {
+        case "Blank": // continue
         case "NotAuthenticated": {
           // ========== enter Loading state
           set({ t: "Loading", auth, display });
@@ -47,7 +49,7 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
               set({
                 t: "Ready",
                 auth: auth,
-                display,
+                display: makeDisplay(auth.repo),
                 todos: makeTodos(repo),
               });
               break;
@@ -76,4 +78,5 @@ export function makeApp(makeRepo: (auth: Signal<Auth>) => Signal<Repo>) {
       }
     }
   );
+  return { app_, auth_ };
 }

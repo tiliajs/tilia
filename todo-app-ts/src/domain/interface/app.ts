@@ -6,6 +6,12 @@ import type {
 import type { Display } from "@interface/display";
 import type { Todos } from "@interface/todos";
 
+export type AppBlank = {
+  t: "Blank";
+  auth: AuthNotAuthenticated;
+  display: Display;
+};
+
 export type AppNotAuthenticated = {
   t: "NotAuthenticated";
   auth: AuthNotAuthenticated;
@@ -32,7 +38,12 @@ export type AppReady = {
   todos: Todos;
 };
 
-export type App = AppNotAuthenticated | AppLoading | AppReady | AppError;
+export type App =
+  | AppBlank
+  | AppNotAuthenticated
+  | AppLoading
+  | AppReady
+  | AppError;
 
 export function isAppNotAuthenticated(app: App): app is AppNotAuthenticated {
   return app.t === "NotAuthenticated";

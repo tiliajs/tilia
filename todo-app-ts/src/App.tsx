@@ -21,6 +21,7 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
+import { Authentication } from "src/Authentication";
 import { app_ } from "src/boot";
 
 export function App() {
@@ -35,10 +36,12 @@ function AppSwitch() {
   useTilia();
   const app = app_.value;
   switch (app.t) {
+    case "Loading": // continue
+    case "Blank":
+      // To avoid rendering flash.
+      return null;
     case "NotAuthenticated":
       return <NotAuthenticatedApp app={app} />;
-    case "Loading":
-      return <LoadingApp />;
     case "Ready":
       return <ReadyApp app={app} />;
     case "Error":
@@ -62,7 +65,7 @@ function Layout({ children }: { children: React.ReactNode }) {
     >
       <div className="max-w-md mx-auto p-6">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
+        <div className="flex justify-between items-center mb-1">
           <h1 className="text-3xl font-bold flex items-center">
             <a href="http://tiliajs.com">
               <span
@@ -121,6 +124,9 @@ function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </div>
         </div>
+        <div className="text-sm flex justify-end m-2 mb-6">
+          {auth.t === "Authenticated" ? auth.user.name : ""}
+        </div>
         {children}
       </div>
     </div>
@@ -129,11 +135,14 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 function Modal(props: { children: React.ReactNode; onClick?: () => void }) {
   return (
-    <div
-      className="flex flex-col items-center justify-center border-2 border-pink-500 p-4 rounded-lg bg-pink-900 text-pink-600 cursor-pointer"
-      onClick={props.onClick}
-    >
-      {props.children}
+    <div className="flex flex-col items-center">
+      <div className="text-center m-4">Select an option</div>
+      <div
+        className="flex flex-col items-center justify-center border-2 border-pink-500 p-4 rounded-lg bg-pink-900 text-pink-600"
+        onClick={props.onClick}
+      >
+        {props.children}
+      </div>
     </div>
   );
 }
@@ -151,9 +160,8 @@ function NotAuthenticatedApp({ app }: { app: AppNotAuthenticated }) {
   useTilia();
   const { auth } = app;
   return (
-    <Modal onClick={() => auth.login({ id: "main", name: "Main" })}>
-      <div>{auth.t}</div>
-      <div>Click to Login</div>
+    <Modal>
+      <Authentication auth={auth} />
     </Modal>
   );
 }

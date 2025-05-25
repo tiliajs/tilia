@@ -1,6 +1,6 @@
 import type { Todo } from "../../../model/todo";
 
-export const filterKey = "todos.filter";
+export const filterKey = "todos-filter";
 
 export function newTodo(): Todo {
   return {

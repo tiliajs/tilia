@@ -1,10 +1,9 @@
-import { localRepo } from "src/domain/repo/local";
+import { authorize } from "src/domain/repo/authorize";
 import { makeApp } from "./domain/feature/app";
 
-export const app_ = makeApp(localRepo);
+const { app_, auth_ } = makeApp();
 
-const auth = app_.value.auth;
+export { app_, auth_ };
 
-if (auth.t === "NotAuthenticated") {
-  auth.login({ id: "main", name: "Main" });
-}
+// Try to login with Supabase
+authorize(auth_);

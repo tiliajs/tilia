@@ -1,24 +1,40 @@
+import type { Repo } from "@interface/repo";
 import type { User } from "@model/user";
+import type { Signal } from "tilia";
+
+export type AuthBlank = {
+  // State
+  t: "Blank";
+
+  // Operations
+  login: (repo: Signal<Repo>, user: User) => void;
+  logout: () => void;
+};
 
 export type AuthNotAuthenticated = {
   // State
-  t: "NotAuthenticated" | "Authenticating";
+  t: "Blank" | "NotAuthenticated" | "Authenticating";
 
   // Operations
-  login: (user: User) => void;
+  login: (repo: Signal<Repo>, user: User) => void;
 };
 
 export type AuthAuthenticated = {
   // State
   t: "Authenticated";
+  repo: Signal<Repo>;
   user: User;
 
-  // Operations
+  // Operation
   logout: () => void;
 };
 
-export type Auth = AuthNotAuthenticated | AuthAuthenticated;
+export type Auth = AuthBlank | AuthNotAuthenticated | AuthAuthenticated;
 
 export function isAuthenticated(auth: Auth): auth is AuthAuthenticated {
   return auth.t === "Authenticated";
+}
+
+export function isBlank(auth: Auth): auth is AuthBlank {
+  return auth.t === "Blank";
 }

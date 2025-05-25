@@ -12,7 +12,6 @@ export function data(repo: RepoReady, todos: Todos): Loadable<Todo[]> {
 
 async function loadTodos(todos: Todos, fetchTodos: RepoReady["fetchTodos"]) {
   const data = await fetchTodos();
-  console.log("data", data);
   if (isSuccess(data)) {
     todos.data = loaded(data.value);
   } else {

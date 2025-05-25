@@ -8,7 +8,7 @@ import {
   type RepoReady,
 } from "../interface/repo";
 
-const darkModeKey = "display.darkMode";
+const darkModeKey = "display-darkMode";
 
 export function makeDisplay(repo_: Signal<Repo>) {
   const display: Display = connect({

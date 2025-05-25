@@ -1,20 +1,25 @@
+import type { Repo } from "@interface/repo";
 import type { User } from "@model/user";
 import { signal, type Signal } from "tilia";
-import { type Auth } from "../interface/auth";
+import { type Auth, type AuthBlank } from "../interface/auth";
 
 // We use the convention of naming signals with a trailing
 // underscore.
 
 export function makeAuth(): Signal<Auth> {
-  const [auth_, enter] = signal<Auth>({} as Auth);
-  logout(enter);
+  // There is probably a better way to do this, but I don't see it.
+  const [auth_, enter] = signal<Auth>({ t: "Blank" } as AuthBlank);
+  const auth = auth_.value as AuthBlank;
+  auth.login = (repo: Signal<Repo>, user: User) => login(enter, repo, user);
+  auth.logout = () => logout(enter);
   return auth_;
 }
 
-function login(enter: (a: Auth) => void, user: User): void {
+function login(enter: (a: Auth) => void, repo: Signal<Repo>, user: User): void {
   enter({
     t: "Authenticated",
     user,
+    repo,
     logout: () => logout(enter),
   });
 }
@@ -22,6 +27,6 @@ function login(enter: (a: Auth) => void, user: User): void {
 function logout(enter: (a: Auth) => void): void {
   enter({
     t: "NotAuthenticated",
-    login: (user: User) => login(enter, user),
+    login: (repo: Signal<Repo>, user: User) => login(enter, repo, user),
   });
 }
