@@ -465,19 +465,7 @@ function make(flushOpt) {
   return connector(connect, computed, observe, signal, makeDerive(connect), makeUpdate(signal, observe), makeObserve_(root), makeReady_(root), _clear, _meta);
 }
 
-function makeDefault(flushOpt) {
-  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
-  var tilia = globalThis.__tilia_ctx;
-  if (!(tilia === null || tilia === undefined)) {
-    return tilia;
-  }
-  tilia === null;
-  var ctx = make(flush);
-  Reflect.set(globalThis, "__tilia_ctx", ctx);
-  return ctx;
-}
-
-var ctx = makeDefault(timeOutFlush);
+var ctx = make(timeOutFlush);
 
 var connect = ctx.connect;
 

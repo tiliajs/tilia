@@ -613,20 +613,8 @@ let make = (~flush=timeOutFlush): t => {
   )
 }
 
-let makeDefault = (~flush=timeOutFlush) => {
-  let tilia: nullable<t> = %raw(`globalThis.__tilia_ctx`)
-  switch tilia {
-  | Value(v) => v
-  | _ => {
-      let ctx = make(~flush)
-      ignore(Reflect.set(%raw(`globalThis`), "__tilia_ctx", ctx))
-      ctx
-    }
-  }
-}
-
 // Default context
-let ctx = makeDefault(~flush=timeOutFlush)
+let ctx = make(~flush=timeOutFlush)
 let connect = ctx.connect
 let observe = ctx.observe
 let signal = ctx.signal

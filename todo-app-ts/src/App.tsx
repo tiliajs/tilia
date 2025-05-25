@@ -1,6 +1,5 @@
 import type { AppError, AppNotAuthenticated, AppReady } from "@interface/app";
 import { todosFilterValues } from "@interface/todos";
-import { isLoaded } from "@model/loadable";
 import type { Todo } from "@model/todo";
 import { useTilia } from "@tilia/react";
 import {
@@ -65,9 +64,13 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold flex items-center">
-            <span className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
-              Tilia
-            </span>
+            <a href="http://tiliajs.com">
+              <span
+                className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}
+              >
+                Tilia
+              </span>
+            </a>
             <Sparkles
               className={`ml-2 ${darkMode ? "text-pink-300" : "text-pink-500"}`}
               size={24}
@@ -80,7 +83,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               todo
             </span>
           </h1>
-          <div className="flex flex-row items-center">
+          <div className="ml-6 flex flex-row items-center space-between">
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2 cursor-pointer rounded-full ${
@@ -91,35 +94,30 @@ function Layout({ children }: { children: React.ReactNode }) {
             >
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            <div className="relative">
-              <div
-                className="absolute p-2 rounded-full"
-                style={{ top: "-1.7rem", right: "-4.5rem" }}
-              >
-                {auth.t === "Authenticated" ? (
-                  <button
-                    onClick={() => auth.logout()}
-                    className={`p-2 rounded-full cursor-pointer ${
-                      darkMode
-                        ? "bg-gray-800 text-pink-300"
-                        : "bg-pink-100 text-pink-600"
-                    }`}
-                  >
-                    <LogOut size={20} />
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => auth.login({ id: "main", name: "Main" })}
-                    className={`p-2 rounded-full cursor-pointer ${
-                      darkMode
-                        ? "bg-gray-800 text-pink-300"
-                        : "bg-pink-100 text-pink-600"
-                    }`}
-                  >
-                    <LogIn size={20} />
-                  </button>
-                )}
-              </div>
+            <div className="p-2 rounded-full">
+              {auth.t === "Authenticated" ? (
+                <button
+                  onClick={() => auth.logout()}
+                  className={`p-2 rounded-full cursor-pointer ${
+                    darkMode
+                      ? "bg-gray-800 text-pink-300"
+                      : "bg-pink-100 text-pink-600"
+                  }`}
+                >
+                  <LogOut size={20} />
+                </button>
+              ) : (
+                <button
+                  onClick={() => auth.login({ id: "main", name: "Main" })}
+                  className={`p-2 rounded-full cursor-pointer ${
+                    darkMode
+                      ? "bg-gray-800 text-pink-300"
+                      : "bg-pink-100 text-pink-600"
+                  }`}
+                >
+                  <LogIn size={20} />
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -171,10 +169,6 @@ export function ReadyApp({ app }: { app: AppReady }) {
   useTilia();
   const { todos, display } = app;
   const darkMode = display.darkMode;
-
-  if (!isLoaded(todos.data)) {
-    return null;
-  }
 
   return (
     <AppProvider value={app}>
@@ -255,10 +249,6 @@ export function TodoList() {
     display: { darkMode },
   } = useApp();
 
-  if (!isLoaded(todos.data)) {
-    return null;
-  }
-
   return (
     <ul className="space-y-3">
       {todos.list.length > 0 ? (
@@ -292,7 +282,7 @@ function TodoView({ todo }: { todo: Todo }) {
   return (
     <li
       key={todo.id}
-      className={`relative flex-grow flex items-center justify-between rounded-lg transition-all ${
+      className={`px-4 flex-grow flex items-center justify-between rounded-lg transition-all ${
         darkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-white shadow" // hover:bg-pink-50 shadow"
       } ${
         todos.selected.id === todo.id ? "border-pink-500 border inset-0" : ""
@@ -329,10 +319,9 @@ function TodoView({ todo }: { todo: Todo }) {
           e.stopPropagation();
           todos.remove(todo.id);
         }}
-        className={`absolute opacity-40 hover:opacity-100 cursor-pointer text-gray-400 hover:${
+        className={`opacity-40 hover:opacity-100 cursor-pointer text-gray-400 hover:${
           darkMode ? "text-pink-400" : "text-pink-500"
         }`}
-        style={{ right: "-2rem" }}
       >
         <Trash2 size={18} />
       </button>
