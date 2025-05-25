@@ -99,6 +99,19 @@ describe("Todos", () => {
     ]);
   });
 
+  it("should not add empty todo", async () => {
+    const { todos } = await setup([]);
+    await todos.save({
+      id: "",
+      createdAt: "",
+      title: "",
+      completed: false,
+      userId: "",
+    });
+
+    expect(todos.list).toEqual([]);
+  });
+
   it("should update list on filters change", async () => {
     const { todos } = await setup();
     expect(todos.list).toEqual([plants, rice, hug]);

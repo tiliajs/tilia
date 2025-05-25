@@ -9,6 +9,9 @@ export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {
   if (isLoaded(todos.data)) {
     const isNew = atodo.id === "";
     const todo = { ...atodo };
+    if (todo.title === "") {
+      return;
+    }
     if (isNew) {
       todo.createdAt = new Date().toISOString();
       todo.id = uuid();
