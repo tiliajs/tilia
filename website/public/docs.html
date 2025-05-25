@@ -509,8 +509,8 @@ let make = () => {
         <div class="space-y-6 text-white/90">
           <div>
             <h3 class="text-xl font-bold text-green-300 mb-2">2025-05-24 2.0.0 (canary version)</h3>
-            <ul class="list-disc list-inside space-y-1 ml-4">
-              <li>Moved core to npm "tilia" package.</li>
+            <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+              <li>Moved core to "tilia" npm package.</li>
               <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context.</li>
               <li>Enable forest mode to observe across separated objects.</li>
               <li>Add <code class="text-yellow-300">computed</code> to compute values in branches.</li>
@@ -518,6 +518,7 @@ let make = () => {
               <li>Added <code class="text-yellow-300">derived</code>, <code class="text-yellow-300">signal</code>, and
                 <code class="text-yellow-300">update</code> for FRP style programming.
               </li>
+              <li>Simplify <code class="text-yellow-300">useTilia</code> signature.</li>
             </ul>
           </div>
           <div class="text-sm text-white/70">
