@@ -144,7 +144,7 @@
 
     <!-- Installation -->
     <section class="mb-16">
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
           Installation
         </h2>
@@ -153,13 +153,13 @@
           stable):
         </p>
         <pre
-          class="rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install tilia@canary</code></pre>
+          class="text-sm md:text-base rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install tilia@canary</code></pre>
       </div>
     </section>
 
     <!-- Goals -->
     <section class="mb-16">
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-purple-600">
           Goals and Non-goals
         </h2>
@@ -191,7 +191,7 @@
       </h2>
 
       <!-- connect -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-green-300">connect</h3>
         <p class="text-lg mb-6 text-white/90">
           Connect an object or array to the forest so that it can be observed.
@@ -200,7 +200,7 @@
         <p class="text-xs mb-2">We use the default context (forest). If we want to have multiple contexts, we can create
           them with <code class="text-yellow-300">make</code>.
         </p>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { connect } from "tilia"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { connect } from "tilia"
 
 const alice = connect({
   name: "Alice",
@@ -219,13 +219,13 @@ let alice = connect({
       </div>
 
       <!-- observe -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-blue-300">observe</h3>
         <p class="text-lg mb-6 text-white/90">
           Observe and react to changes. Every time the callback is run, tilia
           registers which values are read in the connected objects and arrays
           and will notify the observer if any of these values changed.</p>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { observe } from "tilia"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { observe } from "tilia"
 
 observe(() => {
   console.log("Alice is now", alice.age, "years old !!")
@@ -247,13 +247,13 @@ observe(() => {
       </div>
 
       <!-- signal -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-purple-300">signal</h3>
         <p class="text-lg mb-6 text-white/90">
           Use <code class="text-yellow-300">signal</code> to represent a value that changes, such as a date, a number, a
           variant or even the app as it goes through its life cycle.
         </p>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { signal } from "tilia"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { signal } from "tilia"
 
 const [now, setNow] = signal(dayjs())
 
@@ -269,7 +269,7 @@ ignore(setInterval(() => setNow(dayjs()), 1000 * 60))</code></pre>
           </p>
         </div>
         <pre
-          class="opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function signal&lt;a&gt;(value: a): Signal&lt;a&gt; {
+          class="text-sm md:text-base opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function signal&lt;a&gt;(value: a): Signal&lt;a&gt; {
   const s = connect({ value })
   const set = (v) => (s.value = v)
   return [s, set]
@@ -284,12 +284,12 @@ ignore(setInterval(() => setNow(dayjs()), 1000 * 60))</code></pre>
       </div>
 
       <!-- computed -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-cyan-300">computed</h3>
         <p class="text-lg mb-6 text-white/90">
           Compute a value from other connected objects.
         </p>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { computed } from "tilia"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { computed } from "tilia"
 
 const alice = connect({
   name: "Alice",
@@ -316,12 +316,12 @@ alice.age = computed(() => now-&gt;diff(alice.birthday, "year"))</code></pre>
       </div>
 
       <!-- update -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-orange-300">update</h3>
         <p class="text-lg mb-6 text-white/90">
           Update a value from the current value and other connected objects. This helps to model state changes.
         </p>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { update } from "tilia"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { update } from "tilia"
 
 update(alice.age, (previous, set) => {
   if (alice.age !== previous) {
@@ -351,7 +351,7 @@ update(alice.age, (previous, set) => {
           </p>
         </div>
         <pre
-          class="opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function update&lt;a&gt;(value: a, fn: (prev: a, setter: (v: a) => void) => void): Signal&lt;a&gt; {
+          class="text-sm md:text-base opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function update&lt;a&gt;(value: a, fn: (prev: a, setter: (v: a) => void) => void): Signal&lt;a&gt; {
   const [s, set] = signal(init)
   observe(() => fn(s.value, set))
   return s
@@ -370,12 +370,13 @@ update(alice.age, (previous, set) => {
       </div>
 
       <!-- derived -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-pink-300">derived</h3>
         <p class="text-lg mb-6 text-white/90">
           Derive a signal from other connected objects (other signals or values).
         </p>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
+        <pre
+          class="text-sm md:text-base p-4 text-sm md:text-base rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
 
 const socialMediaAllowed = derived(() => alice.age > 13)</code><code class="language-rescript hidden">open Tilia
 
@@ -387,7 +388,7 @@ let socialMediaAllowed = derived(() => alice["age"] > 13)</code></pre>
           </p>
         </div>
         <pre
-          class="opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function derived&lt;a&gt;(fn: () => a): Signal&lt;a&gt; {
+          class="text-sm md:text-base opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function derived&lt;a&gt;(fn: () => a): Signal&lt;a&gt; {
   return connect({ value: computed(fn) })
 }</code><code class="language-rescript hidden">let derived = fn =>
   connect({ value: computed(fn) })
@@ -395,7 +396,7 @@ let socialMediaAllowed = derived(() => alice["age"] > 13)</code></pre>
       </div>
 
       <!-- useTilia -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-red-300">useTilia <span
             class="ml-2 text-gray-700 opacity-70 text-sm">(React
             Hook)</span></h3>
@@ -408,9 +409,9 @@ let socialMediaAllowed = derived(() => alice["age"] > 13)</code></pre>
         <div class="mb-4 mt-4">
           <h4 class="text-lg font-bold mb-2 text-yellow-300">Installation</h4>
           <pre
-            class="p-4 rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install @tilia/react@canary</code></pre>
+            class="text-sm md:text-base p-4 rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install @tilia/react@canary</code></pre>
         </div>
-        <pre class="p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { useTilia } from "@tilia/react"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { useTilia } from "@tilia/react"
 
 function App() {
   useTilia()
@@ -437,11 +438,11 @@ let make = () => {
 
     <!-- Main Features -->
     <section class="mb-16 mt-16">
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
           Main Features
         </h2>
-        <div class="grid md:grid-cols-2 gap-6">
+        <div class="grid lg:grid-cols-2 lg:gap-6 gap-3">
           <div class="space-y-3">
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>
@@ -459,6 +460,8 @@ let make = () => {
               <span class="text-green-400">✓</span>
               <span>Inserted objects are not cloned</span>
             </div>
+          </div>
+          <div class="space-y-3">
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>
               <span>Tracking follows moved or copied objects</span>
@@ -482,7 +485,7 @@ let make = () => {
 
     <!-- Examples -->
     <section class="mb-16">
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
           Examples
         </h2>
@@ -502,7 +505,7 @@ let make = () => {
 
     <!-- Changelog -->
     <section class="mb-16">
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-8 border border-white/20">
+      <div class="bg-white/10 backdrop-blur-lg rounded-xl p-4 md:p-8 border border-white/20">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500">
           Changelog
         </h2>
