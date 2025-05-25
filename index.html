@@ -2,8 +2,66 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- SEO -->
+  <!-- Primary Meta Tags -->
+  <title>Tilia - Simple State Management for TypeScript & ReScript</title>
+  <meta name="title" content="Tilia - Simple State Management for TypeScript & ReScript">
+  <meta name="description"
+    content="Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers for modern web applications.">
+  <meta name="keywords"
+    content="state management, TypeScript, ReScript, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance">
+  <meta name="author" content="Tilia Team">
+  <meta name="robots" content="index, follow">
+
+  <!-- Canonical URL -->
+  <link rel="canonical" href="https://tiliajs.com/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tiliajs.com/">
+  <meta property="og:title" content="Tilia - Simple State Management for TypeScript & ReScript">
+  <meta property="og:description"
+    content="Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers.">
+  <meta property="og:image" content="https://tiliajs.com/logo.svg">
+  <meta property="og:site_name" content="Tilia">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://tiliajs.com/">
+  <meta property="twitter:title" content="Tilia - Simple State Management for TypeScript & ReScript">
+  <meta property="twitter:description"
+    content="Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers.">
+  <meta property="twitter:image" content="https://tiliajs.com/logo.svg">
+
+  <!-- Additional SEO -->
+  <meta name="theme-color" content="#8B5CF6">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="apple-touch-icon" href="/logo.svg">
+
+  <!-- JSON-LD Schema -->
+  <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Tilia",
+  "description": "Lightning-fast, zero-dependency state management library for TypeScript and ReScript",
+  "url": "https://tiliajs.com",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "programmingLanguage": ["TypeScript", "ReScript", "JavaScript"],
+  "author": {
+    "@type": "Organization",
+    "name": "Tilia Team"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
+
+  <!-- END SEO -->
   <link rel="stylesheet" href="./prism-shades.css" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -23,22 +81,28 @@
       document.querySelectorAll(`code[class*="language-${lang}"]`).forEach(el =>
         el.classList.remove('hidden')
       )
-      if (lang === 'typescript') {
-        document.querySelector('.toggle').innerHTML = `<strong class="text-white">ts</strong> | res`
-      } else {
-        document.querySelector('.toggle').innerHTML = `ts | <strong class="text-white">res</strong>`
-      }
+      document.querySelectorAll('.toggle').forEach(toggle => {
+        if (lang === 'typescript') {
+          toggle.innerHTML = `<strong class="text-white">ts</strong> | res`
+        } else {
+          toggle.innerHTML = `ts | <strong class="text-white">res</strong>`
+        }
+      })
     }
     function addToggle() {
-      const toggle = document.createElement('button')
-      toggle.innerText = 'ts | res'
-      toggle.classList.add('toggle', 'absolute', 'right-0', 'top-0', 'p-2', 'rounded-tr-xl', 'rounded-bl-xl', 'bg-gray-800', 'text-gray-600', 'hover:bg-gray-700')
-      toggle.addEventListener('click', () => {
-        toggleLang()
+      document.querySelectorAll('pre').forEach(pre => {
+        if (pre.querySelector('code[class*="language-rescript"]')) {
+          const toggle = document.createElement('button')
+          toggle.innerText = 'ts | res'
+          toggle.classList.add('toggle', 'absolute', 'right-0', 'top-0', 'p-2', 'rounded-tr-xl', 'rounded-bl-xl', 'bg-gray-800', 'text-gray-600', 'hover:bg-gray-700', 'text-sm')
+          toggle.addEventListener('click', () => {
+            toggleLang()
+          })
+          pre.style.position = 'relative'
+          pre.appendChild(toggle)
+        }
       })
-      document.querySelector('pre').appendChild(toggle)
     }
-
   </script>
   <title>Tilia - Simple State Management</title>
 </head>
@@ -52,7 +116,7 @@
       </h1>
     </div>
     <div class="space-x-6 text-sm font-medium">
-      <a href="/docs.html" class="hover:text-green-300 transition-colors">Docs</a>
+      <a href="/docs" class="hover:text-green-300 transition-colors">Docs</a>
       <a href="https://github.com/tiliajs/tilia" class="hover:text-green-300 transition-colors">GitHub</a>
       <a href="/todo-app-ts/" class="hover:text-green-300 transition-colors">Todo App</a>
     </div>
@@ -69,7 +133,7 @@
           Tilia is a little library to help manage state in TypeScript and ReScript apps.
         </p>
         <div class="flex space-x-4">
-          <a href="/docs.html"
+          <a href="/docs"
             class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
             Get Started
           </a>
