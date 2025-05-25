@@ -33,14 +33,11 @@ const plants: Todo = {
 const baseTodos = () => [hug, rice, plants];
 
 async function setup(initialTodos: Todo[] = baseTodos()) {
-  const { app_, repo_, auth_ } = makeApp();
+  const { app_, auth_ } = makeApp();
 
   if (app_.value.auth.t !== "Authenticated") {
     const repo = memoryStore(auth_, initialTodos);
-    observe(() => {
-      repo_.value = repo.value;
-    });
-    app_.value.auth.login({ id: "main", name: "Main" });
+    app_.value.auth.login(repo, { id: "main", name: "Main" });
   }
 
   return new Promise<AppReady>((resolve) => {

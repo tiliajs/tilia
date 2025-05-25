@@ -6,7 +6,6 @@ import {
   CheckCircle,
   Circle,
   Edit,
-  LogIn,
   LogOut,
   Moon,
   Sparkles,
@@ -98,7 +97,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             <div className="p-2 rounded-full">
-              {auth.t === "Authenticated" ? (
+              {auth.t === "Authenticated" && (
                 <button
                   onClick={() => auth.logout()}
                   className={`p-2 rounded-full cursor-pointer ${
@@ -108,17 +107,6 @@ function Layout({ children }: { children: React.ReactNode }) {
                   }`}
                 >
                   <LogOut size={20} />
-                </button>
-              ) : (
-                <button
-                  onClick={() => auth.login({ id: "main", name: "Main" })}
-                  className={`p-2 rounded-full cursor-pointer ${
-                    darkMode
-                      ? "bg-gray-800 text-pink-300"
-                      : "bg-pink-100 text-pink-600"
-                  }`}
-                >
-                  <LogIn size={20} />
                 </button>
               )}
             </div>
@@ -145,10 +133,6 @@ function Modal(props: { children: React.ReactNode; onClick?: () => void }) {
       </div>
     </div>
   );
-}
-
-function LoadingApp() {
-  return <Modal>Loading...</Modal>;
 }
 
 function ErrorApp({ app }: { app: AppError }) {
