@@ -323,7 +323,7 @@ alice.age = computed(() => now-&gt;diff(alice.birthday, "year"))</code></pre>
         </p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { update } from "tilia"
 
-update(alice.age, (previous, set) => {
+const userAge = update(alice.age, (previous, set) => {
   if (alice.age !== previous) {
     console.log("Alice is now", alice.age, "years old !!")
     console.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
@@ -331,7 +331,7 @@ update(alice.age, (previous, set) => {
   set(alice.age)
 })</code><code class="language-rescript hidden">open Tilia
 
-update(alice.age, (previous, set) => {
+let userAge = update(alice.age, (previous, set) => {
   if alice.age !== previous {
     set(alice.age)
     Js.log3("Alice is now", alice.age, "years old !!")
@@ -378,9 +378,9 @@ update(alice.age, (previous, set) => {
         <pre
           class="text-sm md:text-base p-4 text-sm md:text-base rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
 
-const socialMediaAllowed = derived(() => alice.age > 13)</code><code class="language-rescript hidden">open Tilia
+const socialMediaAllowed = derived(() => userAge > 13)</code><code class="language-rescript hidden">open Tilia
 
-let socialMediaAllowed = derived(() => alice["age"] > 13)</code></pre>
+let socialMediaAllowed = derived(() => userAge > 13)</code></pre>
         <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
           <p class="text-yellow-100">
             <strong>💡 Pro tip:</strong> <code class="text-yellow-300">derived</code> is syntactic sugar
