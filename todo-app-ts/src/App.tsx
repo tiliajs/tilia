@@ -55,7 +55,6 @@ function Layout({ children }: { children: React.ReactNode }) {
     auth,
   } = app_.value;
 
-  // <div className="min-h-screen transition-colors duration-300 bg-gray-900 text-pink-200 flex flex-col items-center justify-center">
   return (
     <div
       className={`min-h-screen transition-colors duration-300 ${
@@ -96,24 +95,43 @@ function Layout({ children }: { children: React.ReactNode }) {
             >
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
-            <div className="p-2 rounded-full">
-              {auth.t === "Authenticated" && (
-                <button
-                  onClick={() => auth.logout()}
-                  className={`p-2 rounded-full cursor-pointer ${
-                    darkMode
-                      ? "bg-gray-800 text-pink-300"
-                      : "bg-pink-100 text-pink-600"
-                  }`}
-                >
-                  <LogOut size={20} />
-                </button>
-              )}
-            </div>
+            {auth.t === "Authenticated" && (
+              <button
+                onClick={() => auth.logout()}
+                className={`ml-4 p-2 rounded-full cursor-pointer ${
+                  darkMode
+                    ? "bg-gray-800 text-pink-300"
+                    : "bg-pink-100 text-pink-600"
+                }`}
+              >
+                <LogOut size={20} />
+              </button>
+            )}
           </div>
         </div>
-        <div className="text-sm flex justify-end m-2 mb-6">
-          {auth.t === "Authenticated" ? auth.user.name : ""}
+        <div
+          className={`text-sm flex justify-between m-2 mb-6 ${
+            darkMode ? "text-pink-300" : "text-pink-500"
+          }`}
+        >
+          <div className="flex flex-row">
+            <span>
+              <span className="opacity-70">demo app using</span>
+              &nbsp;
+              <a className="underline text-blue-200 cursor-pointer opacity-70 hover:opacity-100">
+                tilia
+              </a>
+              <span className="opacity-70">, view</span>
+            </span>
+            &nbsp;
+            <a
+              href="https://github.com/tiliajs/tilia/tree/main/todo-app-ts"
+              className="underline text-blue-200 cursor-pointer opacity-70 hover:opacity-100"
+            >
+              source code
+            </a>
+          </div>
+          <span>{auth.t === "Authenticated" ? auth.user.name : ""}</span>
         </div>
         {children}
       </div>
