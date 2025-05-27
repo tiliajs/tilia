@@ -257,13 +257,21 @@ observe(() => {
         </p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { signal } from "tilia"
 
-const [now, setNow] = signal(dayjs())
+// Ending signals with '_' can be useful to avoid name collisions and to recognize them.
+const [now_, setNow] = signal(dayjs())
 
-setInterval(() => setNow(dayjs()), 1000 * 60)</code><code class="language-rescript hidden">open Tilia
+setInterval(() => setNow(dayjs()), 1000 * 60)
 
-let (now, setNow) = signal(dayjs())
+// To read the value, we simply do
+console.log(now_.value)</code><code class="language-rescript hidden">open Tilia
 
-ignore(setInterval(() => setNow(dayjs()), 1000 * 60))</code></pre>
+// Ending signals with '_' can be useful to avoid name collisions and to recognize them.
+let (now_, setNow) = signal(dayjs())
+
+ignore(setInterval(() => setNow(dayjs()), 1000 * 60))
+
+// To read the value, we simply do
+Js.log(now_.value)</code></pre>
         <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
           <p class="text-yellow-100">
             <strong>💡 Pro tip:</strong> The <code class="text-yellow-300">signal</code> function is just syntax sugar
@@ -296,7 +304,7 @@ ignore(setInterval(() => setNow(dayjs()), 1000 * 60))</code></pre>
 const alice = connect({
   name: "Alice",
   birthday: dayjs("2015-05-24"),
-  age: computed(() => now.diff(alice.birthday, "year")),
+  age: computed(() => now_.value.diff(alice.birthday, "year")),
 })</code><code class="language-rescript hidden">open Tilia
 open Day
 
@@ -305,7 +313,7 @@ let alice = connect({
   birthday: dayjs("2015-05-24"),
   age: 0,
 })
-alice.age = computed(() => now-&gt;diff(alice.birthday, "year"))</code></pre>
+alice.age = computed(() => now_.value-&gt;diff(alice.birthday, "year"))</code></pre>
         <div class="m-6 p-4 bg-blue-500/20 rounded-lg border border-blue-500/30">
           <p class="text-blue-900">
             <strong>📖 Note:</strong> The <code class="text-blue-300">computed</code> only recomputes or notifies when
@@ -325,7 +333,7 @@ alice.age = computed(() => now-&gt;diff(alice.birthday, "year"))</code></pre>
         </p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { update } from "tilia"
 
-const userAge = update(alice.age, (previous, set) => {
+const userAge_ = update(alice.age, (previous, set) => {
   if (alice.age !== previous) {
     console.log("Alice is now", alice.age, "years old !!")
     console.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
@@ -333,7 +341,7 @@ const userAge = update(alice.age, (previous, set) => {
   set(alice.age)
 })</code><code class="language-rescript hidden">open Tilia
 
-let userAge = update(alice.age, (previous, set) => {
+let userAge_ = update(alice.age, (previous, set) => {
   if alice.age !== previous {
     set(alice.age)
     Js.log3("Alice is now", alice.age, "years old !!")
@@ -380,9 +388,9 @@ let userAge = update(alice.age, (previous, set) => {
         <pre
           class="text-sm md:text-base p-4 text-sm md:text-base rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
 
-const socialMediaAllowed = derived(() => userAge > 13)</code><code class="language-rescript hidden">open Tilia
+const socialMediaAllowed_ = derived(() => userAge_.value > 13)</code><code class="language-rescript hidden">open Tilia
 
-let socialMediaAllowed = derived(() => userAge > 13)</code></pre>
+let socialMediaAllowed_ = derived(() => userAge_.value > 13)</code></pre>
         <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
           <p class="text-yellow-100">
             <strong>💡 Pro tip:</strong> <code class="text-yellow-300">derived</code> is syntactic sugar
@@ -418,8 +426,8 @@ let socialMediaAllowed = derived(() => userAge > 13)</code></pre>
 function App() {
   useTilia()
 
-  if (socialMediaAllowed.value === true) {
-    return &lt;SocialMedia /&gt;
+  if (socialMediaAllowed_.value === true) {
+    return &lt;SocialMediaApp /&gt;
   } else {
     return &lt;NormalApp /&gt;
   }
@@ -429,7 +437,7 @@ function App() {
 let make = () => {
   useTilia()
 
-  if (socialMediaAllowed.value === true) {
+  if (socialMediaAllowed_.value === true) {
     &lt;SocialMedia /&gt;
   } else {
     &lt;NormalApp /&gt;
@@ -448,7 +456,7 @@ let make = () => {
           <div class="space-y-3">
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>
-              <span>Zero dependencies</span>
+              <span class="font-bold text-green-300">Zero dependencies</span>
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>
