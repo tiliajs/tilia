@@ -1,6 +1,7 @@
 module Reflect = {
   external has: ('a, string) => bool = "Reflect.has"
   external get: ('a, string) => 'b = "Reflect.get"
+  external maybeGet: ('a, string) => nullable<'b> = "Reflect.get"
   external set: ('a, string, 'b) => bool = "Reflect.set"
   external deleteProperty: ('a, string) => bool = "Reflect.deleteProperty"
   external ownKeys: 'a => 'b = "Reflect.ownKeys"
@@ -10,12 +11,20 @@ module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
 
+let symbol: string => string = %raw(`
+function(s) {
+  return Symbol.for('tilia:' + s);
+}
+`)
+
 // Called when something changes in the index (added or removed keys)
-let indexKey = %raw(`Symbol()`)
+let indexKey = symbol("indexKey")
 // Used to get meta information (mostly for stats)
-let metaKey = %raw(`Symbol()`)
+let metaKey = symbol("metaKey")
 // Mark a function as being a compute value
-let computeKey = %raw(`Symbol()`)
+let computeKey = symbol("computeKey")
+// Default context
+let ctxKey = symbol("ctx")
 
 // This is also used to detect compute in init state (they have a noop clear
 // function).
@@ -614,7 +623,15 @@ let make = (~flush=timeOutFlush): t => {
 }
 
 // Default context
-let ctx = make(~flush=timeOutFlush)
+let ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
+  | Value(ctx) => ctx
+  | _ => {
+    let ctx = make(~flush=timeOutFlush)
+    ignore(Reflect.set(globalThis, ctxKey, ctx))
+    ctx
+  }
+}
+
 let connect = ctx.connect
 let observe = ctx.observe
 let signal = ctx.signal

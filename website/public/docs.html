@@ -198,8 +198,9 @@
           Connect an object or array to the forest so that it can be observed.
         </p>
 
-        <p class="text-xs mb-2">We use the default context (forest). If we want to have multiple contexts, we can create
-          them with <code class="text-yellow-300">make</code>.
+        <p class="text-xs mb-2">We use the default context. If we want to have multiple contexts, we can create
+          them with <code class="text-yellow-300">make</code> which will return a new isolated set of functions
+          (connect, observe, etc.).
         </p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { connect } from "tilia"
 

@@ -1,9 +1,7 @@
-import { useState, useEffect } from "react";
+// We cannot export from the React code because it would bundle tilia again. We need to import "tilia".
+// export { makeUseTilia, useTilia } from "./TiliaReact.mjs";
 import { _observe, _ready, _clear } from "tilia";
-
-// We cannot use the built version in TiliaReact because
-// even if the global context is shared, the synbols are not.
-// I do not know how to ensure that rescript uses the JS version.
+import { useState, useEffect } from "react";
 
 function makeUseTilia(_observe, _ready, _clear) {
   return function () {
