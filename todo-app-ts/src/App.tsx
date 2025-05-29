@@ -1,6 +1,3 @@
-import type { AppError, AppNotAuthenticated, AppReady } from "@interface/app";
-import { todosFilterValues } from "@interface/todos";
-import type { Todo } from "@model/todo";
 import { useTilia } from "@tilia/react";
 import {
   CheckCircle,
@@ -22,6 +19,13 @@ import {
 } from "react";
 import { Authentication } from "src/Authentication";
 import { app_ } from "src/boot";
+import type {
+  AppError,
+  AppNotAuthenticated,
+  AppReady,
+} from "src/domain/api/feature/app";
+import { todosFilterValues } from "src/domain/api/feature/todos";
+import type { Todo } from "src/domain/api/model/todo";
 
 export function App() {
   return (

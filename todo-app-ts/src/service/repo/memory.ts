@@ -1,7 +1,7 @@
-import type { Auth } from "@interface/auth";
+import type { Auth } from "src/domain/api/feature/auth";
 import { update, type Signal } from "tilia";
-import { fail, success, type Repo } from "../interface/repo";
-import type { Todo } from "../model/todo";
+import type { Todo } from "../../domain/api/model/todo";
+import { fail, success, type Repo } from "../../domain/api/service/repo";
 
 export function memoryStore(
   auth_: Signal<Auth>,

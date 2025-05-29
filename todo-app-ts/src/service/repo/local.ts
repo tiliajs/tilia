@@ -1,7 +1,12 @@
 import { update, type Setter, type Signal } from "tilia";
-import { type Auth } from "../interface/auth";
-import { fail, success, type Repo, type Result } from "../interface/repo";
-import type { Todo } from "../model/todo";
+import { type Auth } from "../../domain/api/feature/auth";
+import type { Todo } from "../../domain/api/model/todo";
+import {
+  fail,
+  success,
+  type Repo,
+  type Result,
+} from "../../domain/api/service/repo";
 
 type IndexedDBRepo = Repo & {
   db?: IDBDatabase;

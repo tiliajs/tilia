@@ -1,4 +1,4 @@
-import type { Todo } from "../../../model/todo";
+import type { Todo } from "../../../api/model/todo";
 
 export const filterKey = "todos-filter";
 

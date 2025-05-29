@@ -1,6 +1,6 @@
-import type { Todos, TodosFilter } from "@interface/todos";
-import { isLoaded } from "@model/loadable";
-import type { Todo } from "@model/todo";
+import type { Todos, TodosFilter } from "src/domain/api/feature/todos";
+import { isLoaded } from "src/domain/api/model/loadable";
+import type { Todo } from "src/domain/api/model/todo";
 
 export function list(todos: Todos): Todo[] {
   const { data } = todos;

@@ -1,4 +1,4 @@
-import { authorize } from "src/domain/repo/authorize";
+import { authorize } from "src/service/authorize";
 import { makeApp } from "./domain/feature/app";
 
 const { app_, auth_ } = makeApp();

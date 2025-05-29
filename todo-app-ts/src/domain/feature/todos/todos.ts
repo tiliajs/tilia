@@ -9,8 +9,8 @@ import { data } from "@feature/todos/computed/data";
 import { list } from "@feature/todos/computed/list";
 import { remaining } from "@feature/todos/computed/remaining";
 import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
-import { type RepoReady } from "@interface/repo";
-import type { Todos } from "@interface/todos";
+import type { Todos } from "src/domain/api/feature/todos";
+import { type RepoReady } from "src/domain/api/service/repo";
 import { computed, connect, observe } from "tilia";
 import { clear } from "./actions/clear";
 

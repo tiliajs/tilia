@@ -6,7 +6,7 @@ export type Fail = { t: "Fail"; message: string };
 export type Result<T> = Success<T> | Fail;
 
 export type Repo = {
-  state: { t: "Ready" }
+  state: { t: "Ready" };
 
   // Operations
   saveTodo: (todo: Todo) => Promise<Result<Todo>>;

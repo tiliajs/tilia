@@ -1,10 +1,10 @@
 import { makeApp } from "@feature/app";
-import { isAppReady, type AppReady } from "@interface/app";
-import { memoryStore } from "src/domain/repo/memory";
+import { isAppReady, type AppReady } from "src/domain/api/feature/app";
+import { memoryStore } from "src/service/repo/memory";
 import { observe } from "tilia";
 import { describe, expect, it } from "vitest";
-import { loaded } from "../../model/loadable";
-import type { Todo } from "../../model/todo";
+import { loaded } from "../../api/model/loadable";
+import type { Todo } from "../../api/model/todo";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 

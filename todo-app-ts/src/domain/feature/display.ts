@@ -1,12 +1,12 @@
 import { connect, observe, type Signal } from "tilia";
-import type { Display } from "../interface/display";
+import type { Display } from "../api/feature/display";
 import {
   isFail,
   isSuccess,
   success,
   type Repo,
   type RepoReady,
-} from "../interface/repo";
+} from "../api/service/repo";
 
 const darkModeKey = "display-darkMode";
 

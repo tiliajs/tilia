@@ -1,4 +1,31 @@
 {
   "typescript.preferences.importModuleSpecifier": "non-relative",
-  "javascript.preferences.importModuleSpecifier": "non-relative"
+  "javascript.preferences.importModuleSpecifier": "non-relative",
+  "folder-path-color.folders": [
+    {
+      "path": "api",
+      "symbol": "🖌️",
+      "tooltip": "Interfaces"
+    },
+    {
+      "path": "api/feature",
+      "symbol": "🖌️",
+      "tooltip": "Feature interfaces"
+    },
+    {
+      "path": "feature",
+      "symbol": "🚀",
+      "tooltip": "Business features"
+    },
+    {
+      "path": "service",
+      "symbol": "🍄‍🟫",
+      "tooltip": "External services"
+    },
+  ],
+  "workbench.colorCustomizations": {
+    "folderPathColor.custom1": "#FF4488",
+    "folderPathColor.custom2": "#88ff44",
+    "folderPathColor.custom3": "#4488FF",
+  },
 }

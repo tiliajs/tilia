@@ -1,5 +1,8 @@
-import type { App } from "@interface/app";
-import { isAuthenticated, type AuthNotAuthenticated } from "@interface/auth";
+import type { App } from "src/domain/api/feature/app";
+import {
+  isAuthenticated,
+  type AuthNotAuthenticated,
+} from "src/domain/api/feature/auth";
 import { update } from "tilia";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";

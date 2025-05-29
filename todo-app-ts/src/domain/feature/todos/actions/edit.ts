@@ -1,5 +1,5 @@
-import type { Todos } from "@interface/todos";
-import type { Todo } from "@model/todo";
+import type { Todos } from "src/domain/api/feature/todos";
+import type { Todo } from "src/domain/api/model/todo";
 import { newTodo } from "./_utils";
 
 export function edit(todos: Todos, todo: Todo) {

@@ -1,8 +1,8 @@
 import { newTodo } from "@feature/todos/actions/_utils";
-import { isSuccess, type RepoReady } from "@interface/repo";
-import type { Todos } from "@interface/todos";
-import { isLoaded } from "@model/loadable";
-import type { Todo } from "@model/todo";
+import type { Todos } from "src/domain/api/feature/todos";
+import { isLoaded } from "src/domain/api/model/loadable";
+import type { Todo } from "src/domain/api/model/todo";
+import { isSuccess, type RepoReady } from "src/domain/api/service/repo";
 import { v4 as uuid } from "uuid";
 
 export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {

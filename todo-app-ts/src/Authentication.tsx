@@ -1,8 +1,8 @@
-import type { AuthNotAuthenticated } from "@interface/auth";
 import { useState } from "react";
 import { auth_ } from "src/boot";
-import { localRepo } from "src/domain/repo/local";
-import { supabase } from "src/domain/repo/supabase";
+import type { AuthNotAuthenticated } from "src/domain/api/feature/auth";
+import { localRepo } from "src/service/repo/local";
+import { supabase } from "src/service/repo/supabase";
 
 /** This is a very rough implementation to authorize with supabase.
  * Once we have a working solution, we need to properly think how to handle this

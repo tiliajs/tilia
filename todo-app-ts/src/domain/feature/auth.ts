@@ -1,7 +1,7 @@
-import type { Repo } from "@interface/repo";
-import type { User } from "@model/user";
+import type { User } from "src/domain/api/model/user";
+import type { Repo } from "src/domain/api/service/repo";
 import { signal, type Signal } from "tilia";
-import { type Auth, type AuthBlank } from "../interface/auth";
+import { type Auth, type AuthBlank } from "../api/feature/auth";
 
 // We use the convention of naming signals with a trailing
 // underscore.

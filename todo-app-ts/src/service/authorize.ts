@@ -1,5 +1,5 @@
-import { isBlank, type Auth } from "@interface/auth";
-import { supabase, supabaseRepo } from "src/domain/repo/supabase";
+import { isBlank, type Auth } from "src/domain/api/feature/auth";
+import { supabase, supabaseRepo } from "src/service/repo/supabase";
 import { type Signal } from "tilia";
 
 export async function authorize(auth_: Signal<Auth>) {

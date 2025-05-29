@@ -1,6 +1,6 @@
-import { isSuccess, type RepoReady } from "@interface/repo";
-import type { Todos } from "@interface/todos";
-import { isLoaded } from "@model/loadable";
+import type { Todos } from "src/domain/api/feature/todos";
+import { isLoaded } from "src/domain/api/model/loadable";
+import { isSuccess, type RepoReady } from "src/domain/api/service/repo";
 
 export async function remove(repo: RepoReady, todos: Todos, id: string) {
   if (isLoaded(todos.data)) {

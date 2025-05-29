@@ -3,7 +3,7 @@
     "baseUrl": ".",
     "paths": {
       "@interface/*": [
-        "./src/domain/interface/*"
+        "src/domain/api/feature/*"
       ],
       "@model/*": [
         "./src/domain/model/*"
