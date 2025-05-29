@@ -652,9 +652,6 @@
     --tw-font-weight: var(--font-weight-medium);
     font-weight: var(--font-weight-medium);
   }
-  .text-amber-800 {
-    color: var(--color-amber-800);
-  }
   .text-blue-300 {
     color: var(--color-blue-300);
   }
@@ -673,9 +670,6 @@
   .text-gray-900 {
     color: var(--color-gray-900);
   }
-  .text-green-200 {
-    color: var(--color-green-200);
-  }
   .text-green-300 {
     color: var(--color-green-300);
   }
@@ -687,9 +681,6 @@
   }
   .text-pink-300 {
     color: var(--color-pink-300);
-  }
-  .text-pink-400 {
-    color: var(--color-pink-400);
   }
   .text-purple-300 {
     color: var(--color-purple-300);
