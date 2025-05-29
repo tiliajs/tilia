@@ -132,14 +132,14 @@ type rec meta<'a> = {
   mutable proxy: 'a,
 }
 
-type s<'a> = {mutable value: 'a}
-type t = {
+type signal<'a> = {mutable value: 'a}
+type tilia = {
   connect: 'a. 'a => 'a,
   computed: 'a 'b. (unit => 'b) => 'b,
   observe: (unit => unit) => unit,
-  signal: 'a. 'a => (s<'a>, 'a => unit),
-  derived: 'a. (unit => 'a) => s<'a>,
-  update: 'a. ('a, ('a, 'a => unit) => unit) => s<'a>,
+  signal: 'a. 'a => (signal<'a>, 'a => unit),
+  derived: 'a. (unit => 'a) => signal<'a>,
+  update: 'a. ('a, ('a, 'a => unit) => unit) => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
   _ready: (observer, bool) => unit,
@@ -532,7 +532,7 @@ let computed = (callback: unit => 'a) => {
 
 // syntax sugar
 
-let makeSignal = (connect: s<'a> => s<'a>) => (value: 'c) => {
+let makeSignal = (connect: signal<'a> => signal<'a>) => (value: 'c) => {
   let s = connect({value: value})
   let set = v => s.value = v
   (s, set)
@@ -567,11 +567,11 @@ external connector: (
   // observe
   (unit => unit) => unit,
   // signal
-  'c => (s<'c>, 'c => unit),
+  'c => (signal<'c>, 'c => unit),
   // derived
-  (unit => 'd) => s<'d>,
+  (unit => 'd) => signal<'d>,
   // update
-  ('e, ('e, 'e => unit) => unit) => s<'e>,
+  ('e, ('e, 'e => unit) => unit) => signal<'e>,
   // internal
   // _observe
   (unit => unit) => observer,
@@ -581,7 +581,7 @@ external connector: (
   observer => unit,
   // _meta
   'f => nullable<meta<'f>>,
-) => t = "connector"
+) => tilia = "connector"
 
 %%raw(`
 function connector(connect, computed, observe, signal, derived, update, _observe, _ready, _clear) {
@@ -601,7 +601,7 @@ function connector(connect, computed, observe, signal, derived, update, _observe
 }
 `)
 
-let make = (~flush=timeOutFlush): t => {
+let make = (~flush=timeOutFlush): tilia => {
   let root = {flush, observer: Undefined, expired: Undefined}
   // We need to use raw to hide the types here.
   let connect = makeConnect(root)
@@ -624,8 +624,8 @@ let make = (~flush=timeOutFlush): t => {
 
 // Default context
 let ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
-  | Value(ctx) => ctx
-  | _ => {
+| Value(ctx) => ctx
+| _ => {
     let ctx = make(~flush=timeOutFlush)
     ignore(Reflect.set(globalThis, ctxKey, ctx))
     ctx

@@ -3,29 +3,29 @@
   "javascript.preferences.importModuleSpecifier": "non-relative",
   "folder-path-color.folders": [
     {
-      "path": "api",
-      "symbol": "🖌️",
+      "path": "todo-app-ts/src/domain/api",
+      "symbol": "🪽",
       "tooltip": "Interfaces"
     },
     {
-      "path": "api/feature",
-      "symbol": "🖌️",
-      "tooltip": "Feature interfaces"
+      "path": "todo-app-ts/src/service",
+      "symbol": "☂️",
+      "tooltip": "External services"
     },
     {
-      "path": "feature",
-      "symbol": "🚀",
+      "path": "x red xxx",
+      "symbol": "🖍️",
       "tooltip": "Business features"
     },
     {
-      "path": "service",
-      "symbol": "🍄‍🟫",
-      "tooltip": "External services"
+      "path": "todo-app-ts/src/domain/feature",
+      "symbol": "🪸",
+      "tooltip": "Business features"
     },
-  ],
-  "workbench.colorCustomizations": {
-    "folderPathColor.custom1": "#FF4488",
-    "folderPathColor.custom2": "#88ff44",
-    "folderPathColor.custom3": "#4488FF",
-  },
+    {
+      "path": "todo-app-ts/src/view",
+      "symbol": "️🌱",
+      "tooltip": "Business features"
+    },
+  ]
 }

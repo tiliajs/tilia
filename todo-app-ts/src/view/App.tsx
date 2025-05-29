@@ -17,7 +17,6 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
-import { Authentication } from "src/Authentication";
 import { app_ } from "src/boot";
 import type {
   AppError,
@@ -26,6 +25,7 @@ import type {
 } from "src/domain/api/feature/app";
 import { todosFilterValues } from "src/domain/api/feature/todos";
 import type { Todo } from "src/domain/api/model/todo";
+import { Authentication } from "src/view/Authentication";
 
 export function App() {
   return (
