@@ -22,12 +22,8 @@ type tilia = {
   observe: (unit => unit) => unit,
   /** Syntax sugar to create a signal and a setter */
   signal: 'a. 'a => (signal<'a>, 'a => unit),
-  /** Syntax sugar to create a derived signal */
+  /** Syntax sugar to create a derived signal (a computed inside a signal) */
   derived: 'a. (unit => 'a) => signal<'a>,
-  /** Syntax sugar to create a state machine: the update function receives
-   * the current value and a setter.
-   */
-  update: 'a. ('a, ('a, 'a => unit) => unit) => signal<'a>,
   /** Internal */
   _observe: (unit => unit) => observer,
   /** Internal */
@@ -66,13 +62,8 @@ let observe: (unit => unit) => unit
 /** Syntax sugar to create a signal and a setter */
 let signal: 'a => (signal<'a>, 'a => unit)
 
-/** Syntax sugar to create a derived signal */
+/** Syntax sugar to create a derived signal (a computed inside a signal) */
 let derived: (unit => 'a) => signal<'a>
-
-/** Syntax sugar to create a state machine: the update function receives
- * the current value and a setter.
- */
-let update: ('a, ('a, 'a => unit) => unit) => signal<'a>
 
 /** Internal types for library developers (global context) */
 /** internal */

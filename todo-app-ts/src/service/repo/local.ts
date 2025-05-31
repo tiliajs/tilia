@@ -1,56 +1,48 @@
-import { update, type Setter, type Signal } from "tilia";
-import { type Auth } from "../../domain/api/feature/auth";
-import type { Todo } from "../../domain/api/model/todo";
-import {
-  fail,
-  success,
-  type Repo,
-  type Result,
-} from "../../domain/api/service/repo";
+import { type Auth } from "@feature/auth";
+import type { Todo } from "@model/todo";
+import { fail, success, type Repo, type Result } from "@service/repo";
+import { observe, signal, type Setter, type Signal } from "tilia";
 
 type IndexedDBRepo = Repo & {
   db?: IDBDatabase;
 };
 
 export function localRepo(auth_: Signal<Auth>): Signal<Repo> {
-  return update<IndexedDBRepo>(
-    // Initial state
-    { t: "NotAuthenticated" },
-
-    // Update function
-    (repo, set) => {
-      const auth = auth_.value;
-      if (auth.t !== "Authenticated") {
-        if (repo.t === "Ready") {
-          repo.db?.close();
-          set({ t: "Closed" });
-        }
-        return;
+  const [repo_, set] = signal<IndexedDBRepo>({ t: "NotAuthenticated" });
+  observe(() => {
+    const repo = repo_.value;
+    const auth = auth_.value;
+    if (auth.t !== "Authenticated") {
+      if (repo.t === "Ready") {
+        repo.db?.close();
+        set({ t: "Closed" });
       }
+      return;
+    }
 
-      switch (repo.t) {
-        case "Closed": // Continue (authenticated and closed)
-        case "NotAuthenticated": {
-          set({ t: "Opening" });
-          getDb(set, auth.user.id);
-          break;
-        }
-        case "Opened": {
-          set({
-            t: "Ready",
-            db: repo.db,
-            // Operations
-            saveTodo: (todo) => saveTodo(repo, todo, auth.user.id),
-            removeTodo: (id) => removeTodo(repo, id),
-            fetchTodos: () => fetchTodos(repo),
-            saveSetting: (key, value) => saveSetting(repo, key, value),
-            fetchSetting: (key) => fetchSetting(repo, key),
-          });
-          break;
-        }
+    switch (repo.t) {
+      case "Closed": // Continue (authenticated and closed)
+      case "NotAuthenticated": {
+        set({ t: "Opening" });
+        getDb(set, auth.user.id);
+        break;
+      }
+      case "Opened": {
+        set({
+          t: "Ready",
+          db: repo.db,
+          // Operations
+          saveTodo: (todo) => saveTodo(repo, todo, auth.user.id),
+          removeTodo: (id) => removeTodo(repo, id),
+          fetchTodos: () => fetchTodos(repo),
+          saveSetting: (key, value) => saveSetting(repo, key, value),
+          fetchSetting: (key) => fetchSetting(repo, key),
+        });
+        break;
       }
     }
-  );
+  });
+  return repo_;
 }
 
 const TODOS_TABLE = "todos";

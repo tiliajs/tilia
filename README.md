@@ -22,7 +22,7 @@ Check the [**website**](https://tiliajs.com) for documentation and examples.
   - Removed `track` as this cannot scale to multiple instances and computed.
   - Renamed internal `_connect` to `_observe`.
   - Reworked API to ensure strong typing and avoid runtime errors.
-  - Added `derived`, `signal`, and `update` for FRP style programming.
+  - Added `signal`, and `derived` for FRP style programming.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.
 - 2025-01-17 **1.4.0**

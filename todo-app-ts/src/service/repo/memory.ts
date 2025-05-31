@@ -1,5 +1,5 @@
 import type { Auth } from "src/domain/api/feature/auth";
-import { update, type Signal } from "tilia";
+import { observe, signal, type Signal } from "tilia";
 import type { Todo } from "../../domain/api/model/todo";
 import { fail, success, type Repo } from "../../domain/api/service/repo";
 
@@ -11,9 +11,12 @@ export function memoryStore(
     ["display.darkMode"]: "false",
   } as Record<string, string>
 ): Signal<Repo> {
-  return update<Repo>({ t: "NotAuthenticated" }, (prev, set) => {
-    if (prev.t !== "Ready" && auth_.value.t === "Authenticated") {
-      const userId = auth_.value.user.id;
+  const [repo_, set] = signal<Repo>({ t: "NotAuthenticated" });
+  observe(() => {
+    const repo = repo_.value;
+    const auth = auth_.value;
+    if (repo.t !== "Ready" && auth.t === "Authenticated") {
+      const userId = auth.user.id;
       set({
         t: "Ready",
         // Operations
@@ -31,4 +34,5 @@ export function memoryStore(
       });
     }
   });
+  return repo_;
 }

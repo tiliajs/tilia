@@ -404,22 +404,10 @@ function makeSignal(connect) {
 }
 
 function makeDerive(connect) {
-  return function (update) {
+  return function (fn) {
     return connect({
-                value: computed(update)
+                value: computed(fn)
               });
-  };
-}
-
-function makeUpdate(signal, observe) {
-  return function (value, update) {
-    var match = signal(value);
-    var set = match[1];
-    var s = match[0];
-    observe(function () {
-          return update(s.value, set);
-        });
-    return s;
   };
 }
 
@@ -441,7 +429,7 @@ function makeReady_(root) {
   };
 }
 
-function connector(connect, computed, observe, signal, derived, update, _observe, _ready, _clear) {
+function connector(connect, computed, observe, signal, derived, _observe, _ready, _clear) {
   return {
     // 
     connect,
@@ -449,7 +437,6 @@ function connector(connect, computed, observe, signal, derived, update, _observe
     observe,
     signal,
     derived,
-    update,
     _observe,
     _ready,
     _clear,
@@ -468,7 +455,7 @@ function make(flushOpt) {
   var connect = makeConnect(root);
   var observe = makeObserve(root);
   var signal = makeSignal(connect);
-  return connector(connect, computed, observe, signal, makeDerive(connect), makeUpdate(signal, observe), makeObserve_(root), makeReady_(root), _clear, _meta);
+  return connector(connect, computed, observe, signal, makeDerive(connect), makeObserve_(root), makeReady_(root), _clear, _meta);
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
@@ -497,8 +484,6 @@ var signal = ctx$1.signal;
 
 var derived = ctx$1.derived;
 
-var update = ctx$1.update;
-
 var _observe = ctx$1._observe;
 
 var _ready = ctx$1._ready;
@@ -510,7 +495,6 @@ export {
   observe ,
   signal ,
   derived ,
-  update ,
   _observe ,
   _ready ,
   _clear ,

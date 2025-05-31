@@ -57,7 +57,6 @@ let observe = tilia.observe
 let computed = tilia.computed
 let signal = tilia.signal
 let derived = tilia.derived
-let update = tilia.update
 let _observe = tilia._observe
 let _ready = o => tilia._ready(o, true)
 let _clear = tilia._clear
@@ -979,47 +978,6 @@ type enter<'a> = {mutable enter: 'a => unit}
 let sleep: unit => promise<unit> = async () =>
   %raw(`new Promise(resolve => setTimeout(resolve, 10))`)
 
-asyncTest("Should allow async state machines", async t => {
-  // Using default context (forest)
-  let update = Tilia.update
-  let signal = Tilia.signal
-
-  let (auth_, set) = signal(NotAuthenticated)
-
-  // here we use raw number to show that this works
-  // for any type
-  let p = update(0, (p, enter) => {
-    switch (p, auth_.value) {
-    | (0, Authenticating) => enter(1)
-    | (1, Authenticated) => enter(2)
-    | (_, NotAuthenticated) => enter(0)
-    | _ => ()
-    }
-  })
-  t->is(p.value, 0)
-
-  // Use the enter function outside of the step
-  p.value = 1
-  t->is(p.value, 1)
-  await sleep()
-  // This should make the state machine move back into Blank because it is not Authenticated
-  t->is(p.value, 0)
-
-  // Update dependency
-  set(Authenticating)
-  await sleep()
-  t->is(p.value, 1)
-
-  // Update dependency
-  set(Authenticated)
-  await sleep()
-  t->is(p.value, 2)
-
-  set(NotAuthenticated)
-  await sleep()
-  t->is(p.value, 0)
-})
-
 // Syntax sugar
 
 test("Should create signal", t => {
@@ -1042,35 +1000,6 @@ test("Should derive value", t => {
   t->is("John OK", name.value)
   p.name = "Mary"
   t->is("Mary OK", name.value)
-})
-
-test("Should update value", t => {
-  let (auth_, set) = signal(NotAuthenticated)
-
-  let p = update(0, (prev, enter) => {
-    switch (prev, auth_.value) {
-    | (0, Authenticating) => enter(1)
-    | (1, Authenticated) => enter(2)
-    | (_, NotAuthenticated) => enter(0)
-    | _ => ()
-    }
-  })
-  t->is(p.value, 0)
-
-  // Use the enter function outside of the step
-  p.value = 1
-  t->is(p.value, 0)
-
-  // Update dependency
-  set(Authenticating)
-  t->is(p.value, 1)
-
-  // Update dependency
-  set(Authenticated)
-  t->is(p.value, 2)
-
-  set(NotAuthenticated)
-  t->is(p.value, 0)
 })
 
 test("should not trigger on setting the same proxied object", t => {

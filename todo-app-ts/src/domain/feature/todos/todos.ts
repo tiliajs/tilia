@@ -1,18 +1,18 @@
-import { newTodo } from "@feature/todos/actions/_utils";
-import { edit } from "@feature/todos/actions/edit";
-import { remove } from "@feature/todos/actions/remove";
-import { save } from "@feature/todos/actions/save";
-import { setFilter } from "@feature/todos/actions/setFilter";
-import { setTitle } from "@feature/todos/actions/setTitle";
-import { toggle } from "@feature/todos/actions/toggle";
-import { data } from "@feature/todos/computed/data";
-import { list } from "@feature/todos/computed/list";
-import { remaining } from "@feature/todos/computed/remaining";
-import { fetchFilterOnReady } from "@feature/todos/observers/fetchFilter";
 import type { Todos } from "src/domain/api/feature/todos";
 import { type RepoReady } from "src/domain/api/service/repo";
 import { computed, connect, observe } from "tilia";
+import { newTodo } from "./actions/_utils";
 import { clear } from "./actions/clear";
+import { edit } from "./actions/edit";
+import { remove } from "./actions/remove";
+import { save } from "./actions/save";
+import { setFilter } from "./actions/setFilter";
+import { setTitle } from "./actions/setTitle";
+import { toggle } from "./actions/toggle";
+import { data } from "./computed/data";
+import { list } from "./computed/list";
+import { remaining } from "./computed/remaining";
+import { fetchFilterOnReady } from "./observers/fetchFilter";
 
 export function makeTodos(repo: RepoReady) {
   const todos: Todos = connect({

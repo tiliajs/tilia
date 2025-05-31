@@ -8,5 +8,4 @@ export {
   make,
   observe,
   signal,
-  update,
 } from "./Tilia.mjs";

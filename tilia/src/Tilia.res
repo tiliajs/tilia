@@ -139,7 +139,6 @@ type tilia = {
   observe: (unit => unit) => unit,
   signal: 'a. 'a => (signal<'a>, 'a => unit),
   derived: 'a. (unit => 'a) => signal<'a>,
-  update: 'a. ('a, ('a, 'a => unit) => unit) => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
   _ready: (observer, bool) => unit,
@@ -538,13 +537,7 @@ let makeSignal = (connect: signal<'a> => signal<'a>) => (value: 'c) => {
   (s, set)
 }
 
-let makeDerive = connect => update => connect({value: computed(update)})
-
-let makeUpdate = (signal, observe) => (value, update) => {
-  let (s, set) = signal(value)
-  observe(() => update(s.value, set))
-  s
-}
+let makeDerive = connect => fn => connect({value: computed(fn)})
 
 let makeObserve_ = (root: root) => notify => {
   let observer = {notify, observing: []}
@@ -570,8 +563,6 @@ external connector: (
   'c => (signal<'c>, 'c => unit),
   // derived
   (unit => 'd) => signal<'d>,
-  // update
-  ('e, ('e, 'e => unit) => unit) => signal<'e>,
   // internal
   // _observe
   (unit => unit) => observer,
@@ -584,7 +575,7 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(connect, computed, observe, signal, derived, update, _observe, _ready, _clear) {
+function connector(connect, computed, observe, signal, derived, _observe, _ready, _clear) {
   return {
     // 
     connect,
@@ -592,7 +583,6 @@ function connector(connect, computed, observe, signal, derived, update, _observe
     observe,
     signal,
     derived,
-    update,
     _observe,
     _ready,
     _clear,
@@ -614,7 +604,6 @@ let make = (~flush=timeOutFlush): tilia => {
     observe,
     signal,
     makeDerive(connect),
-    makeUpdate(signal, observe),
     makeObserve_(root),
     makeReady_(root),
     _clear,
@@ -636,7 +625,6 @@ let connect = ctx.connect
 let observe = ctx.observe
 let signal = ctx.signal
 let derived = ctx.derived
-let update = ctx.update
 let _observe = ctx._observe
 let _ready = ctx._ready
 // _clear (does not need context)

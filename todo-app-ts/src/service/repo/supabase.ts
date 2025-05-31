@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { update, type Setter, type Signal } from "tilia";
+import { observe, signal, type Setter, type Signal } from "tilia";
 import { type Auth } from "../../domain/api/feature/auth";
 import type { Todo } from "../../domain/api/model/todo";
 import {
@@ -20,52 +20,54 @@ type SupabaseRepo = Repo & {
 };
 
 export function supabaseRepo(auth_: Signal<Auth>): Signal<Repo> {
-  return update<SupabaseRepo>(
-    // Initial state
-    { t: "NotAuthenticated", db: supabase },
+  const [repo_, set] = signal<SupabaseRepo>({
+    t: "NotAuthenticated",
+    db: supabase,
+  });
 
-    // Update function
-    (repo, set) => {
-      const auth = auth_.value;
-      if (auth.t === "Blank") {
-        // Wait to avoid flicker.
-        return;
+  observe(() => {
+    const auth = auth_.value;
+    const repo = repo_.value;
+
+    if (auth.t === "Blank") {
+      // Wait to avoid flicker.
+      return;
+    }
+
+    if (auth.t !== "Authenticated") {
+      if (repo.t === "Ready") {
+        // Sign out from Supabase when user becomes unauthenticated
+        supabase.auth.signOut();
+        set({ t: "Closed", db: repo.db });
       }
+      return;
+    }
 
-      if (auth.t !== "Authenticated") {
-        if (repo.t === "Ready") {
-          // Sign out from Supabase when user becomes unauthenticated
-          supabase.auth.signOut();
-          set({ t: "Closed", db: repo.db });
-        }
-        return;
+    switch (repo.t) {
+      case "Closed":
+      case "NotAuthenticated": {
+        set({ t: "Opening", db: repo.db });
+        // Set up Supabase session and initialize repo
+        initializeSupabaseRepo(set, auth.user.id);
+        break;
       }
-
-      switch (repo.t) {
-        case "Closed":
-        case "NotAuthenticated": {
-          set({ t: "Opening", db: repo.db });
-          // Set up Supabase session and initialize repo
-          initializeSupabaseRepo(set, auth.user.id);
-          break;
-        }
-        case "Opened": {
-          set({
-            t: "Ready",
-            db: repo.db,
-            // Operations
-            saveTodo: (todo) => saveTodo(repo, todo, auth.user.id),
-            removeTodo: (id) => removeTodo(repo, id, auth.user.id),
-            fetchTodos: () => fetchTodos(repo, auth.user.id),
-            saveSetting: (key, value) =>
-              saveSetting(repo, key, value, auth.user.id),
-            fetchSetting: (key) => fetchSetting(repo, key, auth.user.id),
-          });
-          break;
-        }
+      case "Opened": {
+        set({
+          t: "Ready",
+          db: repo.db,
+          // Operations
+          saveTodo: (todo) => saveTodo(repo, todo, auth.user.id),
+          removeTodo: (id) => removeTodo(repo, id, auth.user.id),
+          fetchTodos: () => fetchTodos(repo, auth.user.id),
+          saveSetting: (key, value) =>
+            saveSetting(repo, key, value, auth.user.id),
+          fetchSetting: (key) => fetchSetting(repo, key, auth.user.id),
+        });
+        break;
       }
     }
-  );
+  });
+  return repo_;
 }
 
 const TODOS_TABLE = "todos";

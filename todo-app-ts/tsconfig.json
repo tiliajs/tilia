@@ -2,14 +2,14 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@interface/*": [
-        "src/domain/api/feature/*"
-      ],
       "@model/*": [
-        "./src/domain/model/*"
+        "./src/domain/api/model/*"
       ],
       "@feature/*": [
-        "./src/domain/feature/*"
+        "./src/domain/api/feature/*"
+      ],
+      "@service/*": [
+        "src/domain/api/service/*"
       ],
     },
     "target": "ES2020",

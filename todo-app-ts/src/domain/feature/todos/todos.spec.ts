@@ -1,5 +1,5 @@
-import { makeApp } from "@feature/app";
 import { isAppReady, type AppReady } from "src/domain/api/feature/app";
+import { makeApp } from "src/domain/feature/app";
 import { memoryStore } from "src/service/repo/memory";
 import { observe } from "tilia";
 import { describe, expect, it } from "vitest";

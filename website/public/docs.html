@@ -327,49 +327,43 @@ alice.age = computed(() => now_.value-&gt;diff(alice.birthday, "year"))</code></
 
       <!-- update -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-orange-300">update</h3>
+        <h3 class="text-2xl font-bold mb-4 text-orange-300">observe to update</h3>
         <p class="text-lg mb-6 text-white/90">
-          Update a value from the current value and other connected objects. This helps to model state changes.
-        </p>
-        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { update } from "tilia"
+          You can also use <code class="text-yellow-300">observe</code> to
+          update a value from the current value and other connected objects.</p>
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { observe, signal } from "tilia"
 
-const userAge_ = update(alice.age, (previous, set) => {
-  if (alice.age !== previous) {
+const [userAge_, setUserAge] = signal(alice.age)
+
+observe(() => {
+  if (alice.age !== userAge_.value) {
+    setUserAge(alice.age)
     console.log("Alice is now", alice.age, "years old !!")
     console.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
   }
-  set(alice.age)
 })</code><code class="language-rescript hidden">open Tilia
 
-let userAge_ = update(alice.age, (previous, set) => {
-  if alice.age !== previous {
-    set(alice.age)
+let (userAge_, setUserAge) = signal(alice.age)
+
+observe(() => {
+  if alice.age !== userAge_.value {
+    setUserAge(alice.age)
     Js.log3("Alice is now", alice.age, "years old !!")
     Js.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
   }
 })</code></pre>
         <p class="mt-4 text-white/80">
-          This <code class="text-yellow-300">update</code> mechanism lets us create state machines that are very useful
+          This pattern lets us create state machines that are very useful
           for initialisation or other complex states. See <a
             href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/app.ts"
             class="text-blue-300 hover:text-blue-200 underline">app.ts</a> for an example.
         </p>
         <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
           <p class="text-yellow-100">
-            <strong>💡 Pro tip:</strong> The <code class="text-yellow-300">update</code> function is syntax sugar on top
-            of <code class="text-yellow-300">signal</code> and <code class="text-yellow-300">observe</code>.
+            <strong>💡 Pro tip:</strong> Mutating an observed value in <code class="text-yellow-300">observe</code> will
+            retrigger the callback.
           </p>
         </div>
-        <pre
-          class="text-sm md:text-base opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function update&lt;a&gt;(value: a, fn: (prev: a, setter: (v: a) => void) => void): Signal&lt;a&gt; {
-  const [s, set] = signal(init)
-  observe(() => fn(s.value, set))
-  return s
-}</code><code class="language-rescript hidden">let update = (value, fn) => {
-  let (s, set) = signal(value)
-  observe(() => fn(s.value, set))
-  s
-}</code></pre>
         <p class="mt-4 text-gray-700 italic">
           We feel good with our app now. It only wishes a happy birthday when the age changes, it knows the age of
           Alice.
@@ -385,8 +379,7 @@ let userAge_ = update(alice.age, (previous, set) => {
         <p class="text-lg mb-6 text-white/90">
           Derive a signal from other connected objects (other signals or values).
         </p>
-        <pre
-          class="text-sm md:text-base p-4 text-sm md:text-base rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
+        <pre class="p-4 text-sm md:text-base rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
 
 const socialMediaAllowed_ = derived(() => userAge_.value > 13)</code><code class="language-rescript hidden">open Tilia
 
@@ -528,8 +521,8 @@ let make = () => {
               <li>Enable forest mode to observe across separated objects.</li>
               <li>Add <code class="text-yellow-300">computed</code> to compute values in branches.</li>
               <li>Moved <code class="text-yellow-300">observe</code> into tilia context.</li>
-              <li>Added <code class="text-yellow-300">derived</code>, <code class="text-yellow-300">signal</code>, and
-                <code class="text-yellow-300">update</code> for FRP style programming.
+              <li>Added <code class="text-yellow-300">signal</code>, and <code class="text-yellow-300">derived</code>
+                for FRP style programming.
               </li>
               <li>Simplify <code class="text-yellow-300">useTilia</code> signature.</li>
             </ul>
