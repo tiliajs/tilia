@@ -171,7 +171,18 @@ let observeKey = (observed, key) => {
   }
 }
 
-let _clear = (observer: observer) => {
+let flush = root => {
+  switch root.expired {
+  | Value(expired) =>
+    root.flush(() => {
+      root.expired = Undefined
+      Set.forEach(expired, observer => observer.notify())
+    })
+  | _ => ()
+  }
+}
+
+let clearObserver = (root: root, observer: observer) => {
   Array.forEach(observer.observing, watchers => {
     if (
       watchers.state == Pristine &&
@@ -184,13 +195,16 @@ let _clear = (observer: observer) => {
       Dict.delete(watchers.observed, watchers.key)
     }
   })
+  switch root.observer {
+  | Value(o) if o === observer => {
+      root.observer = Undefined
+      flush(root)
+    }
+  | _ => ()
+  }
 }
 
 let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
-  switch root.observer {
-  | Value(o) if o === observer => root.observer = Undefined
-  | _ => ()
-  }
   ignore(
     Array.findWithIndex(observer.observing, (w, idx) => {
       switch w.state {
@@ -199,9 +213,9 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
           false
         }
       | Changed if notifyIfChanged => {
-          _clear(observer)
+          clearObserver(root, observer)
           observer.notify()
-          true // abort loop
+          true // abort find
         }
       | _ => {
           let w = observeKey(w.observed, w.key)
@@ -212,6 +226,13 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
       }
     }),
   )
+  switch root.observer {
+  | Value(o) if o === observer => {
+      root.observer = Undefined
+      flush(root)
+    }
+  | _ => ()
+  }
 }
 
 let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
@@ -233,26 +254,26 @@ let notify = (root, observed, key) => {
       Dict.delete(observed, key)
       watchers.state = Changed
 
-      // Notify
-      switch root.expired {
-      | Value(expired) =>
-        Set.forEach(watchers.observers, observer => {
-          _clear(observer)
-          Set.add(expired, observer)
-        })
+      // Get expiry set
+      let expired = switch root.expired {
+      | Value(expired) => expired
       | _ => {
-          // No expired set: create one.
           let expired = Set.make()
-          Set.forEach(watchers.observers, observer => {
-            _clear(observer)
-            Set.add(expired, observer)
-          })
           root.expired = Value(expired)
-          root.flush(() => {
-            root.expired = Undefined
-            Set.forEach(expired, observer => observer.notify())
-          })
+          expired
         }
+      }
+
+      // Notify
+      Set.forEach(watchers.observers, observer => {
+        clearObserver(root, observer)
+        Set.add(expired, observer)
+      })
+
+      switch root.observer {
+      | Value(_) => ()
+      // No observers, we can flush
+      | _ => flush(root)
       }
     }
   | _ => ()
@@ -372,6 +393,8 @@ and setupComputed = (
     setReady(root, o, false)
     root.observer = previous
 
+    // No need to check if root.observer is unddefined to trigger
+    // flush because computed are not supposed to mutate data.
     v
   }
   compute.rebuild = rebuild
@@ -379,7 +402,7 @@ and setupComputed = (
   compute.clear = () => {
     // Clear our cache clearing observer
     switch observer.o {
-    | Value(o) => _clear(o)
+    | Value(o) => clearObserver(root, o)
     | _ => ()
     }
   }
@@ -501,11 +524,7 @@ and proxify = (root: root, target: 'a): meta<'a> => {
   }
 }
 
-let timeOutFlush = (fn: unit => unit) => {
-  ignore(setTimeout(() => {
-      fn()
-    }, 0))
-}
+let immediateFlush = (fn: unit => unit) => fn()
 
 let makeConnect = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
@@ -547,6 +566,10 @@ let makeObserve_ = (root: root) => notify => {
 
 let makeReady_ = (root: root) => (observer, notifyIfChanged) => {
   setReady(root, observer, notifyIfChanged)
+}
+
+let makeClear_ = (root: root) => (observer: observer) => {
+  clearObserver(root, observer)
 }
 
 /* We use this external hack to have polymorphic functions (without this, they
@@ -591,7 +614,7 @@ function connector(connect, computed, observe, signal, derived, _observe, _ready
 }
 `)
 
-let make = (~flush=timeOutFlush): tilia => {
+let make = (~flush=immediateFlush): tilia => {
   let root = {flush, observer: Undefined, expired: Undefined}
   // We need to use raw to hide the types here.
   let connect = makeConnect(root)
@@ -606,26 +629,26 @@ let make = (~flush=timeOutFlush): tilia => {
     makeDerive(connect),
     makeObserve_(root),
     makeReady_(root),
-    _clear,
+    makeClear_(root),
     _meta,
   )
 }
 
 // Default context
-let ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
+let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
 | Value(ctx) => ctx
 | _ => {
-    let ctx = make(~flush=timeOutFlush)
+    let ctx = make(~flush=immediateFlush)
     ignore(Reflect.set(globalThis, ctxKey, ctx))
     ctx
   }
 }
 
-let connect = ctx.connect
-let observe = ctx.observe
-let signal = ctx.signal
-let derived = ctx.derived
-let _observe = ctx._observe
-let _ready = ctx._ready
-// _clear (does not need context)
+let connect = _ctx.connect
+let observe = _ctx.observe
+let signal = _ctx.signal
+let derived = _ctx.derived
+let _observe = _ctx._observe
+let _ready = _ctx._ready
+let _clear = _ctx._clear
 // _meta (does not need context)

@@ -50,18 +50,6 @@ type error = {mutable message: option<string>}
 
 let apply = fn => fn()
 
-// Default context
-let tilia = make(~flush=apply)
-let connect = tilia.connect
-let observe = tilia.observe
-let computed = tilia.computed
-let signal = tilia.signal
-let derived = tilia.derived
-let _observe = tilia._observe
-let _ready = o => tilia._ready(o, true)
-let _clear = tilia._clear
-let _meta = tilia._meta
-
 let person = () => {
   name: "John",
   address: {
@@ -79,11 +67,11 @@ let person = () => {
 
 test("Should observe leaf changes", t => {
   let m = {called: false}
-  let p = tilia.connect({name: "John", username: "jo"})
+  let p = connect({name: "John", username: "jo"})
   let o = _observe(() => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
-  _ready(o)
+  _ready(o, true)
 
   // Update name with same value after ready
   p.name = "John"
@@ -103,10 +91,10 @@ test("Should observe leaf changes", t => {
 })
 
 test("Should observe", t => {
+  open String
   let p = {name: "John", username: "jo"}
-  let p = tilia.connect(p)
-  tilia.observe(() => {
-    open String
+  let p = connect(p)
+  observe(() => {
     p.username = p.name->toLowerCase->slice(~start=0, ~end=2)
   })
 
@@ -170,7 +158,7 @@ test("Should proxy sub-objects", t => {
   let o = _observe(() => m.called = true)
   t->is(p.address.city, "Truth") // observe 'address.city'
   t->is(m.called, false)
-  _ready(o)
+  _ready(o, true)
 
   // Update name with same value after ready
   p.address.city = "Truth"
@@ -195,7 +183,7 @@ test("Should proxy array", t => {
   let p = connect(p)
   let o = _observe(() => m.called = true)
   t->is(p.passions[0], Some("fruits")) // observe key 0
-  _ready(o)
+  _ready(o, true)
 
   // Update entry
   p.passions[0] = "watercolor"
@@ -209,7 +197,7 @@ test("Should watch array index", t => {
   let p = connect(p)
   let o = _observe(() => m.called = true)
   t->is(Array.length(p.passions), 1) // observe length
-  _ready(o)
+  _ready(o, true)
 
   // Insert new entry
   Array.push(p.passions, "watercolor")
@@ -223,7 +211,7 @@ test("Should watch object keys", t => {
   let p = connect(p)
   let o = _observe(() => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 0) // observe keys
-  _ready(o)
+  _ready(o, true)
 
   // Insert new entry
   TestObject.set(p.notes, "2024-12-07", "Rebuilding Tilia in ReScript")
@@ -239,7 +227,7 @@ test("Should not watch each object key", t => {
   let p = connect(p)
   let o = _observe(() => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 2) // observe keys
-  _ready(o)
+  _ready(o, true)
 
   // Insert new entry
   TestObject.set(p.notes, "night", "Full of stars")
@@ -271,7 +259,7 @@ test("Should share tracking in same tree", t => {
   let p = connect(p)
   let o = _observe(() => m.called = true)
   t->is(p.address.city, "Truth") // observe 'city'
-  _ready(o)
+  _ready(o, true)
   t->isFalse(m.called)
   p.other_address = p.address
   p.other_address.city = "Love"
@@ -287,9 +275,12 @@ test("Should not share tracking in another forest", t => {
   let ctx2 = make(~flush=apply)
   let p1 = ctx1.connect(person())
   let p2 = ctx2.connect(person())
-  let o = ctx1._observe(() => m.called = true)
-  t->is(p1.address.city, "Truth") // observe 'city'
-  _ready(o)
+  ctx1.observe(() => {
+    // observe 'city'
+    t->is(p1.address.city, p1.address.city)
+    m.called = true
+  })
+  m.called = false
   t->isFalse(m.called)
 
   // Shares the same target, but not the same proxy
@@ -309,7 +300,7 @@ test("Should notify on key deletion", t => {
   TestObject.set(p.notes, "hello", "Everyone")
   let o = _observe(() => m.called = true)
   t->is(TestObject.get(p.notes, "hello"), "Everyone") // observe "hello" key
-  _ready(o)
+  _ready(o, true)
 
   // Remove entry
   TestObject.remove(p.notes, "hello")
@@ -323,7 +314,7 @@ test("Should not proxy or watch prototype methods", t => {
   let o = _observe(() => m.called = true)
   let x = TestObject.get(p.notes, "constructor")
   t->isTrue(x === TestObject.get(%raw(`{}`), "constructor"))
-  _ready(o)
+  _ready(o, true)
 
   // Edit
   TestObject.set(p.notes, "constructor", "haha")
@@ -341,7 +332,7 @@ test("Should not proxy readonly properties", t => {
   let o = Tilia._observe(() => m.called = true)
   let p2 = AnyObject.get(tree, "person")
   t->isTrue(p2 === p1)
-  _ready(o)
+  _ready(o, true)
 
   // Cannot set
   t->isFalse(AnyObject.set(tree, "person", person()))
@@ -360,7 +351,7 @@ test("Should observe undefined values", t => {
   let o = _observe(() => m.called = true)
   let phone = p.phone
   t->isTrue(phone === Undefined)
-  _ready(o)
+  _ready(o, true)
 
   p.phone = Value("123 456 789")
   // Callback should be called
@@ -379,7 +370,7 @@ test("Should notify if update before ready", t => {
   p.name = "One"
   // Callback should not be called
   t->is(m.called, false)
-  _ready(o)
+  _ready(o, true)
   // Callback should be called during ready
   t->is(m.called, true)
 })
@@ -392,7 +383,7 @@ test("Should notify on many updates before ready", t => {
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
 
-  _ready(o)
+  _ready(o, true)
   p.name = "One"
   p.name = "Two"
   p.name = "Three"
@@ -409,9 +400,9 @@ test("Should clear common key on clear", t => {
   t->is(p.name, "John") // o1 observe 'name'
   let o2 = _observe(() => m2.called = true)
   t->is(p.name, "John") // o2 observe 'name'
-  _ready(o1) // o1 register, o2 not registered
+  _ready(o1, true) // o1 register, o2 not registered
   _clear(o1) // removes watchers (set empty)
-  _ready(o2)
+  _ready(o2, true)
   t->is(m2.called, false)
 
   // Update 'name'
@@ -426,9 +417,9 @@ test("Should support ready, clear, ready", t => {
   let p = connect(p)
   let o = _observe(() => m.called = true)
   t->is(p.name, "John") // o observe 'name'
-  _ready(o)
+  _ready(o, true)
   _clear(o)
-  _ready(o)
+  _ready(o, true)
   t->is(m.called, false)
 
   // Update 'name'
@@ -466,7 +457,7 @@ test("Should support sub-object in array", t => {
   items.sorted = computed(() => Array.toSorted(items.all, (a, b) => String.compare(a.name, b.name)))
   let o = _observe(() => m.called = true)
   t->is(getExn(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
-  _ready(o)
+  _ready(o, true)
   items.selected = items.all[1] // carrot
   t->is(m.called, false)
   getExn(items.selected).name = "avocado"
@@ -514,7 +505,7 @@ test("Should get internals with _meta", t => {
   })
   let o = _observe(_ => ())
   t->is("Los Angleless", p.address.city)
-  _ready(o)
+  _ready(o, true)
 
   switch typeMeta(Tilia._meta(p)) {
   | Value(meta) => {
@@ -567,7 +558,7 @@ test("Should delete observations on set", t => {
   let o = _observe(() => m.called = true)
   let j = Dict.getUnsafe(p, "john")
   t->is(j.name, "John") // o observe 'john.name'
-  _ready(o)
+  _ready(o, true)
 
   switch typeMeta(Tilia._meta(p)) {
   | Value(meta) => {
@@ -590,7 +581,7 @@ test("Should delete observations on delete", t => {
   let o = _observe(() => m.called = true)
   let j = Dict.getUnsafe(p, "john")
   t->is(j.name, "John") // o observe 'john.name'
-  _ready(o)
+  _ready(o, true)
 
   switch typeMeta(Tilia._meta(p)) {
   | Value(meta) => {
@@ -610,9 +601,9 @@ let flush = (t: track, fn) => t.flush = fn
 
 type familiy = dict<person>
 
-asyncTest("Should use setTimeout as default flush", t => {
+asyncTest("Should work with setTimeout as flush", t => {
   let m = {called: false}
-  let r = make()
+  let r = make(~flush=fn => ignore(setTimeout(fn, 0)))
   let p = r.connect(person())
   let _ = r.observe(() => {
     t->is(p.name, p.name)
@@ -724,7 +715,7 @@ test("Should proxify computed object", t => {
   let mo = {called: false}
   let o = _observe(() => mo.called = true)
   t->is(p.address.city, "Wild John")
-  _ready(o)
+  _ready(o, true)
   t->isTrue(m.called)
   m.called = false
   t->isFalse(mo.called)
@@ -872,7 +863,7 @@ test("Should share tracking within the same forest", t => {
   let p2 = connect(person())
   let o = _observe(() => m.called = true)
   t->is(p1.address.city, "Truth") // observe 'city'
-  _ready(o)
+  _ready(o, true)
   t->isFalse(m.called)
 
   // Shares the same target, and the same proxy root
@@ -905,7 +896,7 @@ test("Should share computed between trees", t => {
   t->is(trg.name, "Nila") // observe p2.name
   t->isTrue(mt.called) // To get "Nila" in the computed
   mt.called = false
-  _ready(o)
+  _ready(o, true)
 
   t->isFalse(mo.called)
 
@@ -928,7 +919,7 @@ test("Returned object from a computed should be a proxy", t => {
   t->notThrows(() => {
     let o = _observe(() => m.called = true)
     t->is(p.address.city, "Kernel")
-    _ready(o)
+    _ready(o, true)
   })
   p.address.city = "Image"
   t->isTrue(m.called)
@@ -1027,4 +1018,23 @@ test("should not trigger on setting the same target object", t => {
   // Same target object
   p.address = q.address
   t->isFalse(m.called)
+})
+
+test("should not trigger observer while in a callback", t => {
+  let p = connect(person())
+  let m = {called: false}
+  observe(() => {
+    Js.log("observe1")
+    // observe 'p.address.city'
+    t->is(p.address.city, p.address.city)
+    m.called = true
+  })
+  m.called = false
+
+  observe(() => {
+    t->isFalse(m.called)
+    p.address.city = "Beauty"
+    t->isFalse(m.called)
+  })
+  t->isTrue(m.called)
 })

@@ -23,6 +23,7 @@ Check the [**website**](https://tiliajs.com) for documentation and examples.
   - Renamed internal `_connect` to `_observe`.
   - Reworked API to ensure strong typing and avoid runtime errors.
   - Added `signal`, and `derived` for FRP style programming.
+  - Improved flush strategy to trigger immediately but not in an observing function.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.
 - 2025-01-17 **1.4.0**

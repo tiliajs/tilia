@@ -1,31 +1,11 @@
 {
   "typescript.preferences.importModuleSpecifier": "non-relative",
   "javascript.preferences.importModuleSpecifier": "non-relative",
-  "folder-path-color.folders": [
-    {
-      "path": "todo-app-ts/src/domain/api",
-      "symbol": "🪽",
-      "tooltip": "Interfaces"
-    },
-    {
-      "path": "todo-app-ts/src/service",
-      "symbol": "☂️",
-      "tooltip": "External services"
-    },
-    {
-      "path": "x red xxx",
-      "symbol": "🖍️",
-      "tooltip": "Business features"
-    },
-    {
-      "path": "todo-app-ts/src/domain/feature",
-      "symbol": "🪸",
-      "tooltip": "Business features"
-    },
-    {
-      "path": "todo-app-ts/src/view",
-      "symbol": "️🌱",
-      "tooltip": "Business features"
-    },
-  ]
+  "diagonalArchitecture.badges": {
+    "api": "🥶",
+    "feature": "🌈",
+    "service": "~",
+    "view": "#"
+  },
+  "workbench.iconTheme": "diagonal-architecture-light-icon-theme"
 }

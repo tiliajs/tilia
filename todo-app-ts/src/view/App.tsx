@@ -122,7 +122,10 @@ function Layout({ children }: { children: React.ReactNode }) {
             <span>
               <span className="opacity-70">demo app using</span>
               &nbsp;
-              <a className="underline text-blue-200 cursor-pointer opacity-70 hover:opacity-100">
+              <a
+                href="https://tiliajs.com"
+                className="underline text-blue-200 cursor-pointer opacity-70 hover:opacity-100"
+              >
                 tilia
               </a>
               <span className="opacity-70">, view</span>

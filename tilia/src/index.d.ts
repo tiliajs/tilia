@@ -9,6 +9,10 @@ export type Tilia = {
   observe: (fn: () => void) => void;
   signal: <a>(v: a) => readonly [Signal<a>, (v: a) => void];
   derived: <a>(fn: () => a) => Signal<a>;
+  _clear(observer: Observer): void;
+  _observe<a>(tree: a, callback: () => void): Observer;
+  _ready(observer: Observer, notifyIfChanged?: boolean): void;
+  _meta<a>(tree: a): unknown;
 };
 export function make(flush?: (fn: () => void) => void): Tilia;
 

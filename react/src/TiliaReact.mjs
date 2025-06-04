@@ -3,7 +3,10 @@
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as React from "react";
 
-function makeUseTilia(_observe, _ready, _clear) {
+function makeUseTilia(ctx) {
+  var _clear = ctx._clear;
+  var _ready = ctx._ready;
+  var _observe = ctx._observe;
   return function () {
     var match = React.useState(0);
     var setCount = match[1];
@@ -21,7 +24,7 @@ function makeUseTilia(_observe, _ready, _clear) {
   };
 }
 
-var useTilia = makeUseTilia(Tilia._observe, Tilia._ready, Tilia._clear);
+var useTilia = makeUseTilia(Tilia._ctx);
 
 export {
   useTilia ,

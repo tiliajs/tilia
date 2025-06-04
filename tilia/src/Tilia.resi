@@ -35,7 +35,7 @@ type tilia = {
 }
 
 /** Create a new tilia context and returns the `connect` and `observe` functions.
- * The default flush function is set to notify on the next event loop (setTimeout).
+ * The default flush function is set to notify immediately (as soon as we are not in an observing function).
  */
 let make: (~flush: (unit => unit) => unit=?) => tilia
 
@@ -74,3 +74,5 @@ let _ready: (observer, bool) => unit
 let _clear: observer => unit
 /** Get meta information (mostly for stats) */
 let _meta: 'a => nullable<meta<'a>>
+/** Default context */
+let _ctx: tilia

@@ -58,7 +58,21 @@ function observeKey(observed, key) {
   return w$1;
 }
 
-function _clear(observer) {
+function flush(root) {
+  var expired = root.expired;
+  if (expired === null || expired === undefined) {
+    return ;
+  } else {
+    return root.flush(function () {
+                root.expired = undefined;
+                expired.forEach(function (observer) {
+                      observer.notify();
+                    });
+              });
+  }
+}
+
+function clearObserver(root, observer) {
   observer.observing.forEach(function (watchers) {
         if (watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0) {
           watchers.state = "Cleared";
@@ -67,15 +81,16 @@ function _clear(observer) {
         }
         
       });
+  var o = root.observer;
+  if (o === null || o === undefined || o !== observer) {
+    return ;
+  } else {
+    root.observer = undefined;
+    return flush(root);
+  }
 }
 
 function setReady(root, observer, notifyIfChanged) {
-  var o = root.observer;
-  if (o === null || o === undefined) {
-    o === null;
-  } else if (o === observer) {
-    root.observer = undefined;
-  }
   observer.observing.find(function (w, idx) {
         var match = w.state;
         switch (match) {
@@ -84,7 +99,7 @@ function setReady(root, observer, notifyIfChanged) {
               return false;
           case "Changed" :
               if (notifyIfChanged) {
-                _clear(observer);
+                clearObserver(root, observer);
                 observer.notify();
                 return true;
               }
@@ -98,6 +113,13 @@ function setReady(root, observer, notifyIfChanged) {
         observer.observing[idx] = w$1;
         return false;
       });
+  var o = root.observer;
+  if (o === null || o === undefined || o !== observer) {
+    return ;
+  } else {
+    root.observer = undefined;
+    return flush(root);
+  }
 }
 
 function notify(root, observed, key) {
@@ -108,27 +130,27 @@ function notify(root, observed, key) {
   observed.delete(key);
   watchers.state = "Changed";
   var expired = root.expired;
+  var expired$1;
+  var exit = 0;
   if (expired === null || expired === undefined) {
-    expired === null;
+    exit = 1;
   } else {
-    watchers.observers.forEach(function (observer) {
-          _clear(observer);
-          expired.add(observer);
-        });
-    return ;
+    expired$1 = expired;
   }
-  var expired$1 = new Set();
+  if (exit === 1) {
+    var expired$2 = new Set();
+    root.expired = expired$2;
+    expired$1 = expired$2;
+  }
   watchers.observers.forEach(function (observer) {
-        _clear(observer);
+        clearObserver(root, observer);
         expired$1.add(observer);
       });
-  root.expired = expired$1;
-  root.flush(function () {
-        root.expired = undefined;
-        expired$1.forEach(function (observer) {
-              observer.notify();
-            });
-      });
+  var match = root.observer;
+  if (match === null || match === undefined) {
+    return flush(root);
+  }
+  
 }
 
 function set(root, observed, proxied, computes, target, key, _value) {
@@ -221,7 +243,7 @@ function setupComputed(root, observed, proxied, computes, target, key, compute) 
       if (o === null || o === undefined) {
         return ;
       } else {
-        return _clear(o);
+        return clearObserver(root, o);
       }
     });
   computes.set(key, compute);
@@ -343,10 +365,8 @@ function proxify(root, _target) {
   };
 }
 
-function timeOutFlush(fn) {
-  setTimeout((function () {
-          fn();
-        }), 0);
+function immediateFlush(fn) {
+  fn();
 }
 
 function makeConnect(root) {
@@ -446,7 +466,7 @@ function connector(connect, computed, observe, signal, derived, _observe, _ready
 ;
 
 function make(flushOpt) {
-  var flush = flushOpt !== undefined ? flushOpt : timeOutFlush;
+  var flush = flushOpt !== undefined ? flushOpt : immediateFlush;
   var root = {
     observer: undefined,
     expired: undefined,
@@ -455,38 +475,42 @@ function make(flushOpt) {
   var connect = makeConnect(root);
   var observe = makeObserve(root);
   var signal = makeSignal(connect);
-  return connector(connect, computed, observe, signal, makeDerive(connect), makeObserve_(root), makeReady_(root), _clear, _meta);
+  return connector(connect, computed, observe, signal, makeDerive(connect), makeObserve_(root), makeReady_(root), (function (observer) {
+                clearObserver(root, observer);
+              }), _meta);
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
 
-var ctx$1;
+var _ctx;
 
 var exit = 0;
 
 if (ctx === null || ctx === undefined) {
   exit = 1;
 } else {
-  ctx$1 = ctx;
+  _ctx = ctx;
 }
 
 if (exit === 1) {
-  var ctx$2 = make(timeOutFlush);
-  Reflect.set(globalThis, ctxKey, ctx$2);
-  ctx$1 = ctx$2;
+  var ctx$1 = make(immediateFlush);
+  Reflect.set(globalThis, ctxKey, ctx$1);
+  _ctx = ctx$1;
 }
 
-var connect = ctx$1.connect;
+var connect = _ctx.connect;
 
-var observe = ctx$1.observe;
+var observe = _ctx.observe;
 
-var signal = ctx$1.signal;
+var signal = _ctx.signal;
 
-var derived = ctx$1.derived;
+var derived = _ctx.derived;
 
-var _observe = ctx$1._observe;
+var _observe = _ctx._observe;
 
-var _ready = ctx$1._ready;
+var _ready = _ctx._ready;
+
+var _clear = _ctx._clear;
 
 export {
   make ,
@@ -499,5 +523,6 @@ export {
   _ready ,
   _clear ,
   _meta ,
+  _ctx ,
 }
 /* indexKey Not a pure module */

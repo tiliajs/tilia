@@ -1,9 +1,9 @@
 // We cannot export from the React code because it would bundle tilia again. We need to import "tilia".
 // export { makeUseTilia, useTilia } from "./TiliaReact.mjs";
-import { _observe, _ready, _clear } from "tilia";
+import { _ctx } from "tilia";
 import { useState, useEffect } from "react";
 
-function makeUseTilia(_observe, _ready, _clear) {
+function makeUseTilia({ _observe, _ready, _clear }) {
   return function () {
     var [_, setCount] = useState(0);
     var o = _observe(() => setCount((i) => i + 1));
@@ -14,6 +14,6 @@ function makeUseTilia(_observe, _ready, _clear) {
   };
 }
 
-const useTilia = makeUseTilia(_observe, _ready, _clear);
+const useTilia = makeUseTilia(_ctx);
 
 export { useTilia, makeUseTilia };
