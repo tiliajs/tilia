@@ -112,7 +112,7 @@
   <title>Tilia Documentation - Simple State Management</title>
 </head>
 
-<body class="bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen">
+<body class="bg-gradient-to-br from-blue-900 via-cyan-600 to-indigo-900 text-white min-h-screen">
   <nav class="p-6 flex justify-between items-center bg-black/20 sticky top-0 z-50 backdrop-blur-lg">
     <div class="flex items-center space-x-4">
       <a href="/">
@@ -125,16 +125,17 @@
       </h1>
     </div>
     <div class="space-x-6 text-sm font-medium">
-      <a href="./" class="hover:text-green-300 transition-colors">Home</a>
-      <a href="https://github.com/tiliajs/tilia" class="hover:text-green-300 transition-colors">GitHub</a>
-      <a href="/todo-app-ts/" class="hover:text-green-300 transition-colors">Todo App</a>
+      <a href="./" class="hover:text-green-200/80 transition-colors">Home</a>
+      <a href="/tricks" class="hover:text-green-200/80 transition-colors">Tricks</a>
+      <a href="https://github.com/tiliajs/tilia" class="hover:text-green-200/80 transition-colors">GitHub</a>
+      <a href="/todo-app-ts/" class="hover:text-green-200/80 transition-colors">Todo App</a>
     </div>
   </nav>
 
   <main class="container mx-auto px-6 py-8 max-w-4xl">
     <!-- Header -->
     <section class="text-center mb-16">
-      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 mb-6">
+      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-yellow-600 mb-6">
         Documentation
       </h1>
       <p class="text-xl text-white/80 max-w-2xl mx-auto">
@@ -145,7 +146,8 @@
     <!-- Installation -->
     <section class="mb-16">
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-blue-500">
+        <h2
+          class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to--800 to-emerald-700">
           Installation
         </h2>
         <p class="text-lg mb-4 text-white/90">
@@ -171,14 +173,14 @@
             practices (type safety, proper management of transitive states,
             etc).
           </p>
-          <p class="text-sm text-gray-900 opacity-70">
+          <p class="text-lg text-black/70 opacity-70">
             We haven't measured the performance of the library yet, but
             everything was designed to make it as fast and lightweight as
             possible. If someone wants to help us benchmarking, we'd be happy to
             add this information to the documentation.
           </p>
           <p>
-            <strong class="text-pink-300">Non-goal</strong> Tilia is not a framework.
+            <strong class="text-pink-300/80">Non-goal</strong> Tilia is not a framework.
           </p>
         </div>
       </div>
@@ -187,13 +189,13 @@
     <!-- API Reference -->
     <section class="space-y-12">
       <h2
-        class="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 mb-12">
+        class="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-teal-500 mb-12">
         API Reference
       </h2>
 
       <!-- connect -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-green-300">connect</h3>
+        <h3 class="text-2xl font-bold mb-4 text-green-300/90">connect</h3>
         <p class="text-lg mb-6 text-white/90">
           Connect an object or array to the forest so that it can be observed.
         </p>
@@ -222,7 +224,7 @@ let alice = connect({
 
       <!-- observe -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-blue-300">observe</h3>
+        <h3 class="text-2xl font-bold mb-4 text-blue-300/90">observe</h3>
         <p class="text-lg mb-6 text-white/90">
           Observe and react to changes. Every time the callback is run, tilia
           registers which values are read in the connected objects and arrays
@@ -250,27 +252,28 @@ observe(() => {
 
       <!-- signal -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-purple-300">signal</h3>
+        <h3 class="text-2xl font-bold mb-4 text-purple-300/90">signal</h3>
         <p class="text-lg mb-6 text-white/90">
           Use <code class="text-yellow-300">signal</code> to represent a value that changes, such as a date, a number, a
           variant or even the app as it goes through its life cycle.
         </p>
+        <p class="text-lg mb-6 text-white/90">Ending signals with '_' can be useful to avoid name collisions and to
+          recognize them. To
+          read
+          the value, do <code class="text-yellow-300">signal_.value</code>.
+        </p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { signal } from "tilia"
 
-// Ending signals with '_' can be useful to avoid name collisions and to recognize them.
 const [now_, setNow] = signal(dayjs())
 
 setInterval(() => setNow(dayjs()), 1000 * 60)
 
-// To read the value, we simply do
 console.log(now_.value)</code><code class="language-rescript hidden">open Tilia
 
-// Ending signals with '_' can be useful to avoid name collisions and to recognize them.
 let (now_, setNow) = signal(dayjs())
 
 ignore(setInterval(() => setNow(dayjs()), 1000 * 60))
 
-// To read the value, we simply do
 Js.log(now_.value)</code></pre>
         <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
           <p class="text-yellow-100">
@@ -288,14 +291,14 @@ Js.log(now_.value)</code></pre>
   let set = v => s.value = v
   (s, set)
 }</code></pre>
-        <p class="mt-4 text-gray-700 italic">
+        <p class="mt-4 text-gray-700/80 italic">
           Our app knows the date ! Let's see how we can update Alice's age from this value.
         </p>
       </div>
 
       <!-- computed -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-cyan-300">computed</h3>
+        <h3 class="text-2xl font-bold mb-4 text-cyan-300/90">computed</h3>
         <p class="text-lg mb-6 text-white/90">
           Compute a value from other connected objects.
         </p>
@@ -320,14 +323,14 @@ alice.age = computed(() => now_.value-&gt;diff(alice.birthday, "year"))</code></
             needed. Notification happens if there are observers, and if the computed value changes.
           </p>
         </div>
-        <p class="mt-4 text-gray-700 italic">
+        <p class="mt-4 text-gray-700/90 italic">
           Nice, the age updates automatically, Alice can grow older. Let's wish her a happy birthday when this happens.
         </p>
       </div>
 
       <!-- update -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-orange-300">observe to update</h3>
+        <h3 class="text-2xl font-bold mb-4 text-orange-200/90">observe to update</h3>
         <p class="text-lg mb-6 text-white/90">
           You can also use <code class="text-yellow-300">observe</code> to
           update a value from the current value and other connected objects.</p>
@@ -364,7 +367,7 @@ observe(() => {
             retrigger the callback.
           </p>
         </div>
-        <p class="mt-4 text-gray-700 italic">
+        <p class="mt-4 text-gray-700/90 italic">
           We feel good with our app now. It only wishes a happy birthday when the age changes, it knows the age of
           Alice.
         </p>
@@ -375,7 +378,7 @@ observe(() => {
 
       <!-- derived -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-pink-300">derived</h3>
+        <h3 class="text-2xl font-bold mb-4 text-pink-200/90">derived</h3>
         <p class="text-lg mb-6 text-white/90">
           Derive a signal from other connected objects (other signals or values).
         </p>
@@ -400,19 +403,19 @@ let socialMediaAllowed_ = derived(() => userAge_.value > 13)</code></pre>
 
       <!-- useTilia -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-red-300">useTilia <span
-            class="ml-2 text-gray-700 opacity-70 text-sm">(React
+        <h3 class="text-2xl font-bold mb-4 text-lime-200/80">useTilia <span class="ml-2 text-lime-200/70 text-sm">(React
             Hook)</span></h3>
         <p class="text-lg mb-6 text-white/90">
           The <code class="text-yellow-300">useTilia</code> hook registers the component to observe state changes,
           automatically triggering a re-render whenever any observed value updates.
         </p>
-        <p>This hooks makes the component's render function act like an <code class="text-yellow-300">observe</code>
+        <p class="text-lg text-white/90">This hooks makes the component's render function act like an <code
+            class="text-yellow-300">observe</code>
           callback.</p>
         <div class="mb-4 mt-4">
-          <h4 class="text-lg font-bold mb-2 text-yellow-300">Installation</h4>
+          <h4 class="text-lg font-bold mb-2 text-yellow-300/80">Installation</h4>
           <pre
-            class="text-sm md:text-base p-4 rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install @tilia/react@canary</code></pre>
+            class="text-sm md:text-base rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install @tilia/react@canary</code></pre>
         </div>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { useTilia } from "@tilia/react"
 
@@ -436,6 +439,18 @@ let make = () => {
     &lt;NormalApp /&gt;
   }
 }</code></pre>
+      </div>
+      <div class="md:hidden flex justify-center items-center w-full">
+        <div class="flex flex-row gap-4 w-full m-8 max-w-96 justify-evenly">
+          <a href="/tricks"
+            class="bg-gradient-to-r from-cyan-800 to-pink-500/60 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
+            Tips & Tricks
+          </a>
+          <a href="https://github.com/tiliajs/tilia"
+            class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
+            GitHub
+          </a>
+        </div>
       </div>
     </section>
 
@@ -489,7 +504,7 @@ let make = () => {
     <!-- Examples -->
     <section class="mb-16">
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-600">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-pink-900">
           Examples
         </h2>
         <div class="space-y-4 text-lg text-white/90">
@@ -509,12 +524,12 @@ let make = () => {
     <!-- Changelog -->
     <section class="mb-16">
       <div class="bg-white/10 backdrop-blur-lg rounded-xl p-4 md:p-8 border border-white/20">
-        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500">
+        <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-red-300 to-teal-900">
           Changelog
         </h2>
         <div class="space-y-6 text-white/90">
           <div>
-            <h3 class="text-xl font-bold text-green-300 mb-2">2025-05-24 2.0.0 (canary version)</h3>
+            <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-05-24 2.0.0 (canary version)</h3>
             <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
               <li>Moved core to "tilia" npm package.</li>
               <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context.</li>

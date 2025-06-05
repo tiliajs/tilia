@@ -109,9 +109,10 @@
       </h1>
     </div>
     <div class="space-x-6 text-sm font-medium">
-      <a href="/docs" class="hover:text-green-300 transition-colors">Docs</a>
-      <a href="https://github.com/tiliajs/tilia" class="hover:text-green-300 transition-colors">GitHub</a>
-      <a href="/todo-app-ts/" class="hover:text-green-300 transition-colors">Todo App</a>
+      <a href="/docs" class="hover:text-pink-300/90 transition-colors">Docs</a>
+      <a href="/tricks" class="hover:text-pink-300/90 transition-colors">Tricks</a>
+      <a href="https://github.com/tiliajs/tilia" class="hover:text-pink-300/90 transition-colors">GitHub</a>
+      <a href="/todo-app-ts/" class="hover:text-pink-300/90 transition-colors">Todo App</a>
     </div>
   </nav>
 
@@ -191,9 +192,57 @@ let elevateVibes = () =>
             states).
           </p>
         </div>
+
+
+
+        <!-- Main Features -->
+        <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20 col-span-3">
+          <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+            Main Features
+          </h2>
+          <div class="grid lg:grid-cols-2 lg:gap-6 gap-3">
+            <div class="space-y-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span class="font-bold text-green-300">Zero dependencies</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Single proxy tracking</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Compatible with ReScript and TypeScript</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Inserted objects are not cloned</span>
+              </div>
+            </div>
+            <div class="space-y-3">
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Tracking follows moved or copied objects</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Respects readonly or classes</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Leaf-tracking (observe read values only)</span>
+              </div>
+              <div class="flex items-center space-x-2">
+                <span class="text-green-400">✓</span>
+                <span>Forest mode: tracking across multiple instances</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
       <div class="md:hidden flex justify-center items-center w-full">
-        <div class="flex flex-row gap-4 w-full m-8 max-w-64">
+        <div class="flex flex-row gap-4 w-full m-8 max-w-96 justify-evenly">
           <a href="/docs"
             class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
             Get Started
@@ -205,6 +254,7 @@ let elevateVibes = () =>
         </div>
       </div>
     </div>
+
   </section>
 
   <footer class="bg-black/20 py-8 text-center">

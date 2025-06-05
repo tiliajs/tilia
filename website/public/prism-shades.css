@@ -65,7 +65,10 @@
  .token.comment,
  .token.prolog,
  .token.cdata {
-   color: #b362ff;
+   color: #f9bfff;
+   background-color: #1e1e3f65;
+   padding: 4px 12px;
+   border-radius: 4px;
  }
  
  .token.delimiter,
