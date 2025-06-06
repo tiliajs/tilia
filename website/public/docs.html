@@ -9,9 +9,9 @@
   <title>Tilia Documentation - Complete API Reference & Guide</title>
   <meta name="title" content="Tilia Documentation - Complete API Reference & Guide">
   <meta name="description"
-    content="Complete documentation for Tilia state management library. Learn connect, observe, signal, computed, derived, update functions and React integration with useTilia hook.">
+    content="Complete documentation for Tilia state management library. Learn tilia, observe, signal, computed functions and React integration with useTilia hook.">
   <meta name="keywords"
-    content="tilia documentation, API reference, connect, observe, signal, computed, derived, update, useTilia, React hook, state management guide, TypeScript tutorial, ReScript tutorial">
+    content="tilia documentation, API reference, tila, observe, computed, useTilia, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity">
   <meta name="author" content="Tilia Team">
   <meta name="robots" content="index, follow">
 
@@ -112,7 +112,7 @@
   <title>Tilia Documentation - Simple State Management</title>
 </head>
 
-<body class="bg-gradient-to-br from-blue-900 via-cyan-600 to-indigo-900 text-white min-h-screen">
+<body class="bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen flex flex-col">
   <nav class="p-6 flex justify-between items-center bg-black/20 sticky top-0 z-50 backdrop-blur-lg">
     <div class="flex items-center space-x-4">
       <a href="/">
@@ -135,7 +135,7 @@
   <main class="container mx-auto px-6 py-8 max-w-4xl">
     <!-- Header -->
     <section class="text-center mb-16">
-      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-yellow-600 mb-6">
+      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-yellow-200 mb-6">
         Documentation
       </h1>
       <p class="text-xl text-white/80 max-w-2xl mx-auto">
@@ -169,9 +169,7 @@
           <p>
             <strong class="text-green-300">The goal</strong> with Tilia is to be
             minimal and fast while staying out of the way. A special effort was
-            made to keep the API simple and intuitive, while supporting best
-            practices (type safety, proper management of transitive states,
-            etc).
+            made to keep the API simple and intuitive.
           </p>
           <p class="text-lg text-black/70 opacity-70">
             We haven't measured the performance of the library yet, but
@@ -193,26 +191,22 @@
         API Reference
       </h2>
 
-      <!-- connect -->
+      <!-- tilia -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-green-300/90">connect</h3>
+        <h3 class="text-2xl font-bold mb-4 text-green-300/90">tilia</h3>
         <p class="text-lg mb-6 text-white/90">
-          Connect an object or array to the forest so that it can be observed.
+          Transform an object or array into a tilia value.
         </p>
 
-        <p class="text-xs mb-2">We use the default context. If we want to have multiple contexts, we can create
-          them with <code class="text-yellow-300">make</code> which will return a new isolated set of functions
-          (connect, observe, etc.).
-        </p>
-        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { connect } from "tilia"
+        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { tilia } from "tilia"
 
-const alice = connect({
+const alice = tilia({
   name: "Alice",
   birthday: dayjs("2015-05-24"),
   age: 10,
 })</code><code class="language-rescript hidden">open Tilia
 
-let alice = connect({
+let alice = tilia({
   name: "Alice",
   birthday: dayjs("2015-05-24"),
   age: 10,
@@ -224,25 +218,31 @@ let alice = connect({
 
       <!-- observe -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-blue-300/90">observe</h3>
+        <h3 class="text-2xl font-bold mb-4 text-cyan-300/80">observe</h3>
         <p class="text-lg mb-6 text-white/90">
-          Observe and react to changes. Every time the callback is run, tilia
-          registers which values are read in the connected objects and arrays
-          and will notify the observer if any of these values changed.</p>
+          Observe and react to changes. When an observed value changes, the
+          callback is called (<strong>push</strong> reactivity).
+        </p>
+        <p class="text-lg mb-6 text-white/90">
+          When the callback is run, tilia registers which values are read in the
+          connected objects and arrays. The callback is always run at least
+          once, on creation.</p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { observe } from "tilia"
 
 observe(() => {
   console.log("Alice is now", alice.age, "years old !!")
-})</code><code class="language-rescript hidden">open Tilia
+})
+
+alice.age = 11; // ✨ This triggers the observe callback
+</code><code class="language-rescript hidden">open Tilia
 
 observe(() => {
   Js.log3("Alice is now", alice.age, "years old !!")
 })</code></pre>
         <div class="m-6 p-4 bg-blue-500/20 rounded-lg border border-blue-500/30">
           <p class="text-blue-900">
-            <strong>📖 Important Note:</strong> If you have mutations of observed values in the
-            <code class="text-blue-300">observe</code> callback,
-            the callback will be immediately re-run (to support state machines).
+            <strong>📖 Important Note:</strong> If you mutate observed tilia values during the observe call, the
+            callback will be re-run as soon as it ends (to support state machines).
           </p>
         </div>
         <p class="mt-4 text-gray-700 italic">
@@ -250,77 +250,37 @@ observe(() => {
         </p>
       </div>
 
-      <!-- signal -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-purple-300/90">signal</h3>
-        <p class="text-lg mb-6 text-white/90">
-          Use <code class="text-yellow-300">signal</code> to represent a value that changes, such as a date, a number, a
-          variant or even the app as it goes through its life cycle.
-        </p>
-        <p class="text-lg mb-6 text-white/90">Ending signals with '_' can be useful to avoid name collisions and to
-          recognize them. To
-          read
-          the value, do <code class="text-yellow-300">signal_.value</code>.
-        </p>
-        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { signal } from "tilia"
-
-const [now_, setNow] = signal(dayjs())
-
-setInterval(() => setNow(dayjs()), 1000 * 60)
-
-console.log(now_.value)</code><code class="language-rescript hidden">open Tilia
-
-let (now_, setNow) = signal(dayjs())
-
-ignore(setInterval(() => setNow(dayjs()), 1000 * 60))
-
-Js.log(now_.value)</code></pre>
-        <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
-          <p class="text-yellow-100">
-            <strong>💡 Pro tip:</strong> The <code class="text-yellow-300">signal</code> function is just syntax sugar
-            on top of <code class="text-yellow-300">connect</code>.
-          </p>
-        </div>
-        <pre
-          class="text-sm md:text-base opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function signal&lt;a&gt;(value: a): Signal&lt;a&gt; {
-  const s = connect({ value })
-  const set = (v) => (s.value = v)
-  return [s, set]
-}</code><code class="language-rescript hidden">let signal = (value) => {
-  let s = connect({ value: value })
-  let set = v => s.value = v
-  (s, set)
-}</code></pre>
-        <p class="mt-4 text-gray-700/80 italic">
-          Our app knows the date ! Let's see how we can update Alice's age from this value.
-        </p>
-      </div>
-
       <!-- computed -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-cyan-300/90">computed</h3>
+        <h3 class="text-2xl font-bold mb-4 text-amber-200/90">computed</h3>
         <p class="text-lg mb-6 text-white/90">
-          Compute a value from other connected objects.
+          Compute a value from tilia values. The value is only computed when needed (<strong>pull</strong> reactivity).
         </p>
         <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { computed } from "tilia"
 
-const alice = connect({
+let globals = tilia({ now: dayjs() })
+setInterval(() => globals.now = dayjs(), 1000 * 60)
+
+const alice = tilia({
   name: "Alice",
   birthday: dayjs("2015-05-24"),
-  age: computed(() => now_.value.diff(alice.birthday, "year")),
+  age: computed(() => globals.now.diff(alice.birthday, "year")),
 })</code><code class="language-rescript hidden">open Tilia
 open Day
 
-let alice = connect({
+let globals = tilia({ now: now() })
+setInterval(() => globals.now = now(), 1000 * 60)
+
+let alice = tilia({
   name: "Alice",
   birthday: dayjs("2015-05-24"),
   age: 0,
 })
-alice.age = computed(() => now_.value-&gt;diff(alice.birthday, "year"))</code></pre>
+alice.age = computed(() => globals.now-&gt;diff(alice.birthday, "year"))</code></pre>
         <div class="m-6 p-4 bg-blue-500/20 rounded-lg border border-blue-500/30">
           <p class="text-blue-900">
-            <strong>📖 Note:</strong> The <code class="text-blue-300">computed</code> only recomputes or notifies when
-            needed. Notification happens if there are observers, and if the computed value changes.
+            <strong>📖 Note:</strong> The computed only recomputes or notifies observers when
+            needed: a notification happens if there are observers, and if the computed value changes.
           </p>
         </div>
         <p class="mt-4 text-gray-700/90 italic">
@@ -328,92 +288,40 @@ alice.age = computed(() => now_.value-&gt;diff(alice.birthday, "year"))</code></
         </p>
       </div>
 
-      <!-- update -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-orange-200/90">observe to update</h3>
-        <p class="text-lg mb-6 text-white/90">
-          You can also use <code class="text-yellow-300">observe</code> to
-          update a value from the current value and other connected objects.</p>
-        <pre class="text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { observe, signal } from "tilia"
+    </section>
 
-const [userAge_, setUserAge] = signal(alice.age)
-
-observe(() => {
-  if (alice.age !== userAge_.value) {
-    setUserAge(alice.age)
-    console.log("Alice is now", alice.age, "years old !!")
-    console.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
-  }
-})</code><code class="language-rescript hidden">open Tilia
-
-let (userAge_, setUserAge) = signal(alice.age)
-
-observe(() => {
-  if alice.age !== userAge_.value {
-    setUserAge(alice.age)
-    Js.log3("Alice is now", alice.age, "years old !!")
-    Js.log("🥳🩷 Happy Birthday Alice !! 🩷🥳")
-  }
-})</code></pre>
-        <p class="mt-4 text-white/80">
-          This pattern lets us create state machines that are very useful
-          for initialisation or other complex states. See <a
-            href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/app.ts"
-            class="text-blue-300 hover:text-blue-200 underline">app.ts</a> for an example.
-        </p>
-        <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
-          <p class="text-yellow-100">
-            <strong>💡 Pro tip:</strong> Mutating an observed value in <code class="text-yellow-300">observe</code> will
-            retrigger the callback.
-          </p>
+    <section>
+      <div class="md:hidden flex justify-center items-center w-full">
+        <div class="flex flex-row gap-4 w-full m-8 max-w-96 justify-evenly">
+          <a href="/tricks"
+            class="bg-gradient-to-r from-cyan-200 to-pink-200/60 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition text-black/80 border-2 border-white">
+            Tips & Tricks
+          </a>
+          <a href="https://github.com/tiliajs/tilia"
+            class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
+            GitHub
+          </a>
         </div>
-        <p class="mt-4 text-gray-700/90 italic">
-          We feel good with our app now. It only wishes a happy birthday when the age changes, it knows the age of
-          Alice.
-        </p>
-        <p class="mt-4 text-gray-700 italic">
-          Maybe we can use this to manage access to a social media ?
-        </p>
       </div>
+    </section>
 
-      <!-- derived -->
-      <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-pink-200/90">derived</h3>
-        <p class="text-lg mb-6 text-white/90">
-          Derive a signal from other connected objects (other signals or values).
-        </p>
-        <pre class="p-4 text-sm md:text-base rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia"
-
-const socialMediaAllowed_ = derived(() => userAge_.value > 13)</code><code class="language-rescript hidden">open Tilia
-
-let socialMediaAllowed_ = derived(() => userAge_.value > 13)</code></pre>
-        <div class="m-6 p-4 bg-yellow-500/20 rounded-lg border border-yellow-500/30">
-          <p class="text-yellow-100">
-            <strong>💡 Pro tip:</strong> <code class="text-yellow-300">derived</code> is syntactic sugar
-            on top of <code class="text-yellow-300">computed</code>.
-          </p>
-        </div>
-        <pre
-          class="text-sm md:text-base opacity-50 hover:opacity-100 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function derived&lt;a&gt;(fn: () => a): Signal&lt;a&gt; {
-  return connect({ value: computed(fn) })
-}</code><code class="language-rescript hidden">let derived = fn =>
-  connect({ value: computed(fn) })
-</code></pre>
-      </div>
+    <!-- React integration -->
+    <section class="space-y-12">
+      <h2
+        class="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-500 m-12">
+        React Integration
+      </h2>
 
       <!-- useTilia -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-lime-200/80">useTilia <span class="ml-2 text-lime-200/70 text-sm">(React
             Hook)</span></h3>
         <p class="text-lg mb-6 text-white/90">
-          The <code class="text-yellow-300">useTilia</code> hook registers the component to observe state changes,
-          automatically triggering a re-render whenever any observed value updates.
+          The <code class="text-yellow-300">useTilia</code> should be called at the top of the render function of
+          components that consume tilia values.
         </p>
-        <p class="text-lg text-white/90">This hooks makes the component's render function act like an <code
-            class="text-yellow-300">observe</code>
-          callback.</p>
         <div class="mb-4 mt-4">
-          <h4 class="text-lg font-bold mb-2 text-yellow-300/80">Installation</h4>
+          <h4 class="text-lg font-bold mb-2 text-yellow-200/70">Installation</h4>
           <pre
             class="text-sm md:text-base rounded-lg bg-gray-900/50 p-4 border border-white/20"><code class="language-bash">npm install @tilia/react@canary</code></pre>
         </div>
@@ -422,7 +330,7 @@ let socialMediaAllowed_ = derived(() => userAge_.value > 13)</code></pre>
 function App() {
   useTilia()
 
-  if (socialMediaAllowed_.value === true) {
+  if (alice.age >= 13) {
     return &lt;SocialMediaApp /&gt;
   } else {
     return &lt;NormalApp /&gt;
@@ -433,24 +341,12 @@ function App() {
 let make = () => {
   useTilia()
 
-  if (socialMediaAllowed_.value === true) {
+  if (alice.age >= 13) {
     &lt;SocialMedia /&gt;
   } else {
     &lt;NormalApp /&gt;
   }
 }</code></pre>
-      </div>
-      <div class="md:hidden flex justify-center items-center w-full">
-        <div class="flex flex-row gap-4 w-full m-8 max-w-96 justify-evenly">
-          <a href="/tricks"
-            class="bg-gradient-to-r from-cyan-800 to-pink-500/60 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
-            Tips & Tricks
-          </a>
-          <a href="https://github.com/tiliajs/tilia"
-            class="border-2 border-white/50 px-6 py-3 rounded-full font-bold hover:bg-white/20 transition">
-            GitHub
-          </a>
-        </div>
       </div>
     </section>
 
@@ -476,7 +372,7 @@ let make = () => {
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>
-              <span>Inserted objects are not cloned</span>
+              <span>Combines <strong>push</strong> and <strong>pull</strong> reactivity</span>
             </div>
           </div>
           <div class="space-y-3">

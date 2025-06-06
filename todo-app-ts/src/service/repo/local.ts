@@ -1,7 +1,8 @@
 import { type Auth } from "@feature/auth";
+import { signal, type Signal } from "@model/signal";
 import type { Todo } from "@model/todo";
 import { fail, success, type Repo, type Result } from "@service/repo";
-import { observe, signal, type Setter, type Signal } from "tilia";
+import { observe } from "tilia";
 
 type IndexedDBRepo = Repo & {
   db?: IDBDatabase;
@@ -158,7 +159,7 @@ async function fetchSetting(
 
 // ======= PRIVATE ========================
 
-function getDb(enter: Setter<IndexedDBRepo>, userId: string) {
+function getDb(enter: (v: IndexedDBRepo) => void, userId: string) {
   const dbName = `todoapp_${userId}`;
   const request = indexedDB.open(dbName, 1);
 

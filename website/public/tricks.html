@@ -9,7 +9,8 @@
   <title>Tilia Tips and tricks</title>
   <meta name="title" content="Tilia Tips and Tricks">
   <meta name="description" content="Tips and tricks to help code with tilia.">
-  <meta name="keywords" content="tilia tips and tricks">
+  <meta name="keywords"
+    content="state management, TypeScript, ReScript, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance, pull reactivity, push reactivity">
   <meta name="author" content="Tilia Team">
   <meta name="robots" content="index, follow">
 
@@ -108,7 +109,7 @@
   <title>Tilia Documentation - Simple State Management</title>
 </head>
 
-<body class="bg-gradient-to-br from-cyan-900 via-yellow-900 to-green-800 text-white min-h-screen">
+<body class="bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen flex flex-col">
   <nav class="p-6 flex justify-between items-center bg-black/20 sticky top-0 z-50 backdrop-blur-lg">
     <div class="flex items-center space-x-4">
       <a href="/">
@@ -131,26 +132,31 @@
   <main class="container mx-auto px-6 py-8 max-w-4xl">
     <!-- Header -->
     <section class="text-center mb-16">
-      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 mb-6">
+      <h1 class="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-cyan-200 mb-6">
         Tips and tricks
       </h1>
       <p class="text-xl text-white/80 max-w-2xl mx-auto">
-        Complete guide to using Tilia for simple and fast state management in TypeScript and ReScript applications.
+        Some tips.
       </p>
     </section>
 
 
-    <!-- Tips and tricks -->
     <section class="space-y-12">
+      <!-- Tips and tricks -->
+      <h2
+        class="text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-200 to-pink-300 m-12">
+        React Related
+      </h2>
+
       <!-- mutating during render -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
-        <h3 class="text-2xl font-bold mb-4 text-pink-200/90">
-          mutating during render <span class="text-lg text-pink-300/60">(is <code class="text-yellow-300/80">sort</code>
+        <h3 class="text-2xl font-bold mb-4 text-lime-200/90">
+          mutating during render <span class="text-lg text-cyan-200/80">(is <code class="text-lime-200/80">sort</code>
             of
             bad)</span>
         </h3>
         <p class="text-lg mb-6 text-white/90">
-          Mutating during render should be (probably) be avoided because it can lead to infinite loops: the component
+          Mutating during render should (probably) be avoided because it can lead to infinite loops: the component
           renders, the render phase ends, the watched data for the component is seen as changed, the render phase starts
           again, and so on.
         </p>
@@ -170,7 +176,7 @@
     &lt;div&gt;
       &lt;ul&gt;
         { 
-          app.list
+          projects.list
            // ⬇️ 💥 this mutates the array
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((project) => (
@@ -186,7 +192,7 @@
   TODO TODO
 </code></pre>
         <p class="my-4 text-lg text-white/80">
-          Instead, you can either use a quick fix like this:
+          Instead, you can use a quick fix like this:
         </p>
         <pre
           class="my-2 text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">function MyOkList() {
@@ -196,7 +202,7 @@
     &lt;div&gt;
       &lt;ul&gt;
         { 
-          [...app.list]
+          [...projects.list]
           // ⬇️ now the sort is done in a copy of the array
             .sort((a, b) => a.name.localeCompare(b.name))
             .map((project) => (
@@ -212,14 +218,13 @@
   TODO TODO
 </code></pre>
         <p class="my-4 text-lg text-white/80">
-          Or use a derived array to cache the sorted list.
+          Or save the sorted array as a computed (to also benefit from the caching mechanism).
         </p>
         <pre
-          class="my-2 text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">import { derived } from "tilia";
-
-const sortedList = derived(() =>
-  [...app.list].sort((a, b) => a.name.localeCompare(b.name))
-);
+          class="my-2 text-sm md:text-base p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative"><code class="language-typescript">const projects = tilia({
+  list: [projectA, projectB],
+  sorted: computed(() => [...projects.list].sort((a, b) => a.name.localeCompare(b.name))),
+});
             
 function MyGreatList() {
   useTilia();
@@ -229,7 +234,7 @@ function MyGreatList() {
       &lt;ul&gt;
         { 
           // ⬇️ ✅ Now the sort is only computed when needed
-          sortedList.value.map((project) => (
+          projects.sorted.map((project) => (
               &lt;li key={project.id}&gt;{project.name}&lt;/li&gt;
             ))
         }
@@ -248,7 +253,7 @@ TODO TODO
       <!-- forgeting to call useTilia -->
       <div class="bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20">
         <h3 class="text-2xl font-bold mb-4 text-cyan-200/80">
-          Forgeting to call <span class="text-yellow-200/70">useTilia</span> inside components
+          Forgeting to call <span class="text-yellow-200/70">useTilia</span> inside a component
         </h3>
         <p class="text-lg mb-6 text-white/90">
           <span class="text-yellow-300/90">useTilia</span> sets which component is the current observer. If we forget to

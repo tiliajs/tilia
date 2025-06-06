@@ -25,7 +25,7 @@ let user = Testing.userEvent //.setup()
 
 open Testing
 open Tilia
-let tree = connect({
+let tree = tilia({
   Clouds.flowers: "Are nice",
   clouds: {
     morning: "can be pink",

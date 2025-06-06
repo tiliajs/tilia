@@ -1,6 +1,6 @@
+import type { Signal } from "@model/signal";
 import { isBlank, type Auth } from "src/domain/api/feature/auth";
 import { supabase, supabaseRepo } from "src/service/repo/supabase";
-import { type Signal } from "tilia";
 
 export async function authorize(auth_: Signal<Auth>) {
   const auth = auth_.value;

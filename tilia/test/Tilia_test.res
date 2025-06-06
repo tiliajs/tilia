@@ -67,7 +67,7 @@ let person = () => {
 
 test("Should observe leaf changes", t => {
   let m = {called: false}
-  let p = connect({name: "John", username: "jo"})
+  let p = tilia({name: "John", username: "jo"})
   let o = _observe(() => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
@@ -93,7 +93,7 @@ test("Should observe leaf changes", t => {
 test("Should observe", t => {
   open String
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   observe(() => {
     p.username = p.name->toLowerCase->slice(~start=0, ~end=2)
   })
@@ -113,7 +113,7 @@ test("Should observe", t => {
 
 test("Should allow mutating in observed", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   observe(() => {
     if !(p.name->String.endsWith("OK")) {
       p.name = p.name ++ " OK"
@@ -135,7 +135,7 @@ test("Should allow mutating in observed", t => {
 
 test("Should observe mutated keys", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   observe(() => {
     if p.username === "john" {
       p.username = "not john"
@@ -154,7 +154,7 @@ test("Should observe mutated keys", t => {
 test("Should proxy sub-objects", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(p.address.city, "Truth") // observe 'address.city'
   t->is(m.called, false)
@@ -180,7 +180,7 @@ test("Should proxy sub-objects", t => {
 test("Should proxy array", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(p.passions[0], Some("fruits")) // observe key 0
   _ready(o, true)
@@ -194,7 +194,7 @@ test("Should proxy array", t => {
 test("Should watch array index", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(Array.length(p.passions), 1) // observe length
   _ready(o, true)
@@ -208,7 +208,7 @@ test("Should watch array index", t => {
 test("Should watch object keys", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 0) // observe keys
   _ready(o, true)
@@ -224,7 +224,7 @@ test("Should not watch each object key", t => {
   let p = person()
   TestObject.set(p.notes, "day", "Seems ok")
   TestObject.set(p.notes, "night", "Seems good")
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(Array.length(TestObject.keys(p.notes)), 2) // observe keys
   _ready(o, true)
@@ -241,7 +241,7 @@ test("Should not clone added objects", t => {
     city: "Storm",
     zip: 9999,
   }
-  let p = connect(p)
+  let p = tilia(p)
   p.address = a
 
   t->is(p.address.city, "Storm")
@@ -256,7 +256,7 @@ test("Should not clone added objects", t => {
 test("Should share tracking in same tree", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(p.address.city, "Truth") // observe 'city'
   _ready(o, true)
@@ -273,8 +273,8 @@ test("Should not share tracking in another forest", t => {
   let m = {called: false}
   let ctx1 = make(~flush=apply)
   let ctx2 = make(~flush=apply)
-  let p1 = ctx1.connect(person())
-  let p2 = ctx2.connect(person())
+  let p1 = ctx1.tilia(person())
+  let p2 = ctx2.tilia(person())
   ctx1.observe(() => {
     // observe 'city'
     t->is(p1.address.city, p1.address.city)
@@ -296,7 +296,7 @@ test("Should not share tracking in another forest", t => {
 
 test("Should notify on key deletion", t => {
   let m = {called: false}
-  let p = connect(person())
+  let p = tilia(person())
   TestObject.set(p.notes, "hello", "Everyone")
   let o = _observe(() => m.called = true)
   t->is(TestObject.get(p.notes, "hello"), "Everyone") // observe "hello" key
@@ -310,7 +310,7 @@ test("Should notify on key deletion", t => {
 
 test("Should not proxy or watch prototype methods", t => {
   let m = {called: false}
-  let p = connect(person())
+  let p = tilia(person())
   let o = _observe(() => m.called = true)
   let x = TestObject.get(p.notes, "constructor")
   t->isTrue(x === TestObject.get(%raw(`{}`), "constructor"))
@@ -328,7 +328,7 @@ test("Should not proxy readonly properties", t => {
   let tree = %raw(`{}`)
   AnyObject.setReadonly(tree, "person", p1)
   t->isTrue(AnyObject.readonly(tree, "person"))
-  let tree = connect(tree)
+  let tree = tilia(tree)
   let o = Tilia._observe(() => m.called = true)
   let p2 = AnyObject.get(tree, "person")
   t->isTrue(p2 === p1)
@@ -347,7 +347,7 @@ test("Should not proxy readonly properties", t => {
 test("Should observe undefined values", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   let phone = p.phone
   t->isTrue(phone === Undefined)
@@ -361,7 +361,7 @@ test("Should observe undefined values", t => {
 test("Should notify if update before ready", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
@@ -378,7 +378,7 @@ test("Should notify if update before ready", t => {
 test("Should notify on many updates before ready", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
@@ -395,7 +395,7 @@ test("Should clear common key on clear", t => {
   let m1 = {called: false}
   let m2 = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o1 = _observe(() => m1.called = true)
   t->is(p.name, "John") // o1 observe 'name'
   let o2 = _observe(() => m2.called = true)
@@ -414,7 +414,7 @@ test("Should clear common key on clear", t => {
 test("Should support ready, clear, ready", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   t->is(p.name, "John") // o observe 'name'
   _ready(o, true)
@@ -442,7 +442,7 @@ type items = {
 test("Should support sub-object in array", t => {
   open Option
   let m = {called: false}
-  let items = connect({
+  let items = tilia({
     all: [
       {name: "banana", quantity: 4},
       {name: "carrot", quantity: 8},
@@ -498,7 +498,7 @@ test("Should get internals with _meta", t => {
     username: "mama78",
     address: {city: "Los Angleless", zip: 1234},
   }
-  let p = connect(person)
+  let p = tilia(person)
   observe(() => {
     p.username = p.name
     p.username = p.address.city
@@ -533,7 +533,7 @@ test("Should get internals with _meta", t => {
 test("Should clear if ready never called", t => {
   let m = {called: false}
   let p = person()
-  let p = connect(p)
+  let p = tilia(p)
   let _ = _observe(() => m.called = true)
   t->is(p.name, "John") // o observe 'name'
 
@@ -554,7 +554,7 @@ test("Should delete observations on set", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   let j = Dict.getUnsafe(p, "john")
   t->is(j.name, "John") // o observe 'john.name'
@@ -577,7 +577,7 @@ test("Should delete observations on delete", t => {
   let p: people = Dict.make()
   Dict.set(p, "john", person())
   let m = {called: false}
-  let p = connect(p)
+  let p = tilia(p)
   let o = _observe(() => m.called = true)
   let j = Dict.getUnsafe(p, "john")
   t->is(j.name, "John") // o observe 'john.name'
@@ -604,7 +604,7 @@ type familiy = dict<person>
 asyncTest("Should work with setTimeout as flush", t => {
   let m = {called: false}
   let r = make(~flush=fn => ignore(setTimeout(fn, 0)))
-  let p = r.connect(person())
+  let p = r.tilia(person())
   let _ = r.observe(() => {
     t->is(p.name, p.name)
     m.called = true
@@ -630,7 +630,7 @@ asyncTest("Should work with setTimeout as flush", t => {
 
 test("Should create computed", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   let m = {called: false}
   p.name = computed(() => {
     m.called = true
@@ -646,41 +646,12 @@ test("Should create computed", t => {
   t->isTrue(m.called)
 })
 
-test("Should use signal for recursive computed in object", t => {
-  let m = {called: false}
-
-  // To not reference self in the computed, we need to use
-  // an external signal and sync it with the object.
-  let (username_, set) = signal("milo")
-  let p = connect({
-    name: computed(() => {
-      m.called = true
-      username_.value ++ " is OK"
-    }),
-    username: username_.value,
-  })
-  // This allows users of the "p" object to change the username
-  // without knowing about the signal.
-  observe(() => set(p.username))
-
-  // Not called: does not have observers on 'name'
-  t->isFalse(m.called)
-
-  // On read, the callback is called
-  t->is(p.name, "milo is OK")
-  t->isTrue(m.called)
-  m.called = false
-  t->is(p.name, "milo is OK")
-  // Cached value
-  t->isFalse(m.called)
-})
-
 test("Should set computed for recursive computed in object", t => {
   let m = {called: false}
 
   // To not reference self in the computed, we need first create
   // the object and then the computed.
-  let p = connect({name: "Milo", username: "milo"})
+  let p = tilia({name: "Milo", username: "milo"})
   p.name = computed(() => {
     m.called = true
     p.username ++ " is OK"
@@ -699,8 +670,8 @@ test("Should set computed for recursive computed in object", t => {
 
 test("Should proxify computed object", t => {
   let m = {called: false}
-  let x = connect(person())
-  let p = connect({
+  let x = tilia(person())
+  let p = tilia({
     name: "Louise",
     address: computed(() => {
       m.called = true
@@ -726,7 +697,7 @@ test("Should proxify computed object", t => {
 
 test("Should not notify if unchanged computed", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   let mo = {called: false}
   observe(() => {
     t->is(p.name, p.name) // Read p.name
@@ -759,7 +730,7 @@ test("Should not notify if unchanged computed", t => {
 
 test("Should clear compute on deleting key", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   let m = {called: false}
   p.name = computed(() => {
     m.called = true
@@ -776,7 +747,7 @@ test("Should clear compute on deleting key", t => {
 
 test("Should clear compute on replacing compute", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   let m = {called: false}
   p.name = computed(() => {
     m.called = true
@@ -796,7 +767,7 @@ test("Should clear compute on replacing compute", t => {
 
 test("Compute should notify cache observer on dependency change", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   let mo = {called: false}
   let read = ref(true)
   observe(() => {
@@ -829,7 +800,7 @@ test("Compute should notify cache observer on dependency change", t => {
 
 test("Compute should work with observers", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   p.name = computed(() => {
     p.username ++ " is OK"
   })
@@ -845,7 +816,7 @@ test("Compute should work with observers", t => {
 
 test("Computed should behave like a value", t => {
   let p = {name: "John", username: "jo"}
-  let p = connect(p)
+  let p = tilia(p)
   p.name = computed(() => p.username ++ " is OK")
   let name = ref("")
   observe(() => {
@@ -859,8 +830,8 @@ test("Computed should behave like a value", t => {
 
 test("Should share tracking within the same forest", t => {
   let m = {called: false}
-  let p1 = connect(person())
-  let p2 = connect(person())
+  let p1 = tilia(person())
+  let p2 = tilia(person())
   let o = _observe(() => m.called = true)
   t->is(p1.address.city, "Truth") // observe 'city'
   _ready(o, true)
@@ -879,10 +850,10 @@ test("Should share tracking within the same forest", t => {
 
 test("Should share computed between trees", t => {
   let mo = {called: false}
-  let src = connect(person())
+  let src = tilia(person())
   src.name = "Nila"
   let mt = {called: false}
-  let trg = connect({
+  let trg = tilia({
     name: computed(() => {
       mt.called = true
       src.name
@@ -909,7 +880,7 @@ test("Should share computed between trees", t => {
 })
 
 test("Returned object from a computed should be a proxy", t => {
-  let p = connect(person())
+  let p = tilia(person())
 
   let m = {called: false}
   p.address = computed(() => {
@@ -928,7 +899,7 @@ test("Returned object from a computed should be a proxy", t => {
 type dateo = {date: Js.Date.t}
 
 test("Should not proxify class instance", t => {
-  let p = connect({date: Js.Date.make()})
+  let p = tilia({date: Js.Date.make()})
   t->isTrue(%raw(`p.date instanceof Date`))
   t->is(Tilia._meta(p.date), undefined)
   t->is(p.date->Js.Date.getMilliseconds, %raw(`p.date.getMilliseconds()`))
@@ -939,8 +910,8 @@ type machine = Blank | Loading | Loaded
 type auth = NotAuthenticated | Authenticating | Authenticated
 
 test("Should allow state machines in observed", t => {
-  let p = connect({value: Blank})
-  let auth = connect({value: NotAuthenticated})
+  let p = tilia({value: Blank})
+  let auth = tilia({value: NotAuthenticated})
   observe(() => {
     switch (p.value, auth.value) {
     | (Blank, Authenticating) => p.value = Loading
@@ -969,32 +940,8 @@ type enter<'a> = {mutable enter: 'a => unit}
 let sleep: unit => promise<unit> = async () =>
   %raw(`new Promise(resolve => setTimeout(resolve, 10))`)
 
-// Syntax sugar
-
-test("Should create signal", t => {
-  let q = {name: "Linda", username: "linda"}
-  let p2 = person()
-
-  let (p, set) = signal({name: "Noether", username: "emmy"})
-
-  observe(() => {
-    p2.name = p.value.name
-  })
-  t->is("Noether", p2.name)
-  set(q)
-  t->is("Linda", p2.name)
-})
-
-test("Should derive value", t => {
-  let p = connect(person())
-  let name = derived(() => p.name ++ " OK")
-  t->is("John OK", name.value)
-  p.name = "Mary"
-  t->is("Mary OK", name.value)
-})
-
 test("should not trigger on setting the same proxied object", t => {
-  let p = connect(person())
+  let p = tilia(person())
   let m = {called: false}
   observe(() => {
     t->is(p.address.city, "Truth") // observe 'address.city'
@@ -1007,7 +954,7 @@ test("should not trigger on setting the same proxied object", t => {
 
 test("should not trigger on setting the same target object", t => {
   let q = person()
-  let p = connect(q)
+  let p = tilia(q)
   let m = {called: false}
   observe(() => {
     t->is(p.address.city, "Truth") // observe 'address.city'
@@ -1021,7 +968,7 @@ test("should not trigger on setting the same target object", t => {
 })
 
 test("should not trigger observer while in a callback", t => {
-  let p = connect(person())
+  let p = tilia(person())
   let m = {called: false}
   observe(() => {
     Js.log("observe1")

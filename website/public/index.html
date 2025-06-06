@@ -11,7 +11,7 @@
   <meta name="description"
     content="Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers for modern web applications.">
   <meta name="keywords"
-    content="state management, TypeScript, ReScript, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance">
+    content="state management, TypeScript, ReScript, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance, pull reactivity, push reactivity">
   <meta name="author" content="Tilia Team">
   <meta name="robots" content="index, follow">
 
@@ -123,8 +123,22 @@
           class="text-3xl xl:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-pink-600 h-20">
           Simple State Management
         </h2>
+        <p>
+          <span class="font-bold text-black/90 bg-cyan-300/50 border-3 border-white/70 p-1 rounded-full">
+            <span class="font-bold text-black/90 bg-pink-300/50 border-3 border-white/70 p-2 rounded-full">2.0.0</span>
+          </span>
+
+          <span class="text-black/90 text-xl ml-2">release coming soon !
+            <small>(June 2025)</small></span>
+        </p>
         <p class="text-xl font-medium text-white/80">
-          Tilia is a little library to help manage state in TypeScript and ReScript apps.
+          A little library to help manage state in TypeScript and ReScript applications.
+        </p>
+        <p class="text-xl font-medium text-white/80">
+          Tilia lets you compose, update, and read state using standard patterns -
+          arrays, objects, and familiar methods like `push`, `map`, or direct
+          property access - while providing full reactivity and observability
+          under the hood.
         </p>
         <div class="flex space-x-4">
           <a href="/docs"
@@ -139,20 +153,29 @@
       </div>
       <div class="flex justify-center items-center w-full">
         <pre class="w-full rounded-xl backdrop-blur-lg border border-white/20 shadow-2xl text-md lg:text-lg p-4 py-2"><code class="language-typescript">
-const vibing = connect({
-  vibes: 'immaculate' 🌈
+// Tilia (pure TS)                               //
+
+const sky = tilia({
+  color: 'pink', 🌈
 })
 
-function ShowVibes() {
-  useTilia()
-  return &lt;div&gt;{vibing.vibes}&lt;/div&gt;
-}
+observe(() => {
+  console.log(`The sky is now ${sky.color} !!`)
+})
 
 function elevateVibes() {
-  vibing.vibes = 'legendary' ✨
+  sky.color = 'legendary' ✨
+}
+
+// React integration (one hook!)                 //
+
+function Vibes() {
+  useTilia()
+
+  return &lt;div onClick={elevateVibes}&gt;{sky.color}&lt;/div&gt;
 }
 </code><code class="language-rescript">
-let vibing = connect({
+let vibing = tilia({
   vibes: "immaculate" 🌈
 })
 
@@ -216,7 +239,7 @@ let elevateVibes = () =>
               </div>
               <div class="flex items-center space-x-2">
                 <span class="text-green-400">✓</span>
-                <span>Inserted objects are not cloned</span>
+                <span>Combines <strong>push</strong> and <strong>pull</strong> reactivity</span>
               </div>
             </div>
             <div class="space-y-3">

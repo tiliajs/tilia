@@ -158,15 +158,15 @@ When you copy an object, the library will not clone it. This means that if you m
 This is cool.
 
 ```ts
-const alice = connect({ name: "Alice" });
-const bob = connect({ name: "Bob" });
+const alice = tilia({ name: "Alice" });
+const bob = tilia({ name: "Bob" });
 
 // Alice observer
 observe(() => {
   console.log("Alice :", alice.name);
 });
 
-const app = connect({
+const app = tilia({
   list: [alice, bob],
 });
 

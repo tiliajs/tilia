@@ -3,9 +3,9 @@ type meta<'a>
 
 type signal<'a> = {mutable value: 'a}
 type tilia = {
-  /** Create a new tilia proxy and connect it to the forest.
+  /** Transform a reguarl object or array into a tilia value.
    */
-  connect: 'a. 'a => 'a,
+  tilia: 'a. 'a => 'a,
   /** Return a computed value to be inserted into a tilia proxy. The cached value
    * is computed when the key is read and destroyed when any observed value is
    * changed.
@@ -20,10 +20,6 @@ type tilia = {
    * produced value is read.
    */
   observe: (unit => unit) => unit,
-  /** Syntax sugar to create a signal and a setter */
-  signal: 'a. 'a => (signal<'a>, 'a => unit),
-  /** Syntax sugar to create a derived signal (a computed inside a signal) */
-  derived: 'a. (unit => 'a) => signal<'a>,
   /** Internal */
   _observe: (unit => unit) => observer,
   /** Internal */
@@ -34,14 +30,14 @@ type tilia = {
   _meta: 'a. 'a => nullable<meta<'a>>,
 }
 
-/** Create a new tilia context and returns the `connect` and `observe` functions.
+/** Create a new tilia context and returns the `tilia` and `observe` functions.
  * The default flush function is set to notify immediately (as soon as we are not in an observing function).
  */
 let make: (~flush: (unit => unit) => unit=?) => tilia
 
-/** Create a new tilia proxy and connect it to the default context (forest).
+/** Transform a reguarl object or array into a tilia value.
  */
-let connect: 'a => 'a
+let tilia: 'a => 'a
 
 /** Return a computed value to be inserted into a tilia proxy. The cached value
  * is computed when the key is read and destroyed when any observed value is
@@ -58,12 +54,6 @@ let computed: (unit => 'a) => 'a
   * produced value is read.
   */
 let observe: (unit => unit) => unit
-
-/** Syntax sugar to create a signal and a setter */
-let signal: 'a => (signal<'a>, 'a => unit)
-
-/** Syntax sugar to create a derived signal (a computed inside a signal) */
-let derived: (unit => 'a) => signal<'a>
 
 /** Internal types for library developers (global context) */
 /** internal */

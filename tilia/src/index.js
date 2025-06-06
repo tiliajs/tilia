@@ -5,8 +5,7 @@ export {
   _observe,
   _ready,
   computed,
-  connect,
   make,
   observe,
-  signal,
+  tilia,
 } from "./Tilia.mjs";

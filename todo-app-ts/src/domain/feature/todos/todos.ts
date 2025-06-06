@@ -1,6 +1,6 @@
 import type { Todos } from "src/domain/api/feature/todos";
 import { type RepoReady } from "src/domain/api/service/repo";
-import { computed, connect, observe } from "tilia";
+import { computed, observe, tilia } from "tilia";
 import { newTodo } from "./actions/_utils";
 import { clear } from "./actions/clear";
 import { edit } from "./actions/edit";
@@ -15,7 +15,7 @@ import { remaining } from "./computed/remaining";
 import { fetchFilterOnReady } from "./observers/fetchFilter";
 
 export function makeTodos(repo: RepoReady) {
-  const todos: Todos = connect({
+  const todos: Todos = tilia({
     // State
     filter: "all",
     selected: newTodo(),

@@ -1,9 +1,10 @@
+import { signal } from "@model/signal";
 import type { App } from "src/domain/api/feature/app";
 import {
   isAuthenticated,
   type AuthNotAuthenticated,
 } from "src/domain/api/feature/auth";
-import { observe, signal } from "tilia";
+import { observe } from "tilia";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";
 import { makeTodos } from "./todos/todos";

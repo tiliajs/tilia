@@ -369,7 +369,7 @@ function immediateFlush(fn) {
   fn();
 }
 
-function makeConnect(root) {
+function makeTilia(root) {
   return function (value) {
     if (!proxiable(value)) {
       throw {
@@ -408,29 +408,6 @@ function computed(callback) {
   return v;
 }
 
-function makeSignal(connect) {
-  return function (value) {
-    var s = connect({
-          value: value
-        });
-    var set = function (v) {
-      s.value = v;
-    };
-    return [
-            s,
-            set
-          ];
-  };
-}
-
-function makeDerive(connect) {
-  return function (fn) {
-    return connect({
-                value: computed(fn)
-              });
-  };
-}
-
 function makeObserve_(root) {
   return function (notify) {
     var observer_observing = [];
@@ -449,14 +426,12 @@ function makeReady_(root) {
   };
 }
 
-function connector(connect, computed, observe, signal, derived, _observe, _ready, _clear) {
+function connector(tilia, computed, observe, _observe, _ready, _clear) {
   return {
     // 
-    connect,
+    tilia,
     computed, 
     observe,
-    signal,
-    derived,
     _observe,
     _ready,
     _clear,
@@ -472,10 +447,7 @@ function make(flushOpt) {
     expired: undefined,
     flush: flush
   };
-  var connect = makeConnect(root);
-  var observe = makeObserve(root);
-  var signal = makeSignal(connect);
-  return connector(connect, computed, observe, signal, makeDerive(connect), makeObserve_(root), makeReady_(root), (function (observer) {
+  return connector(makeTilia(root), computed, makeObserve(root), makeObserve_(root), makeReady_(root), (function (observer) {
                 clearObserver(root, observer);
               }), _meta);
 }
@@ -498,13 +470,9 @@ if (exit === 1) {
   _ctx = ctx$1;
 }
 
-var connect = _ctx.connect;
+var tilia = _ctx.tilia;
 
 var observe = _ctx.observe;
-
-var signal = _ctx.signal;
-
-var derived = _ctx.derived;
 
 var _observe = _ctx._observe;
 
@@ -514,11 +482,9 @@ var _clear = _ctx._clear;
 
 export {
   make ,
-  connect ,
+  tilia ,
   computed ,
   observe ,
-  signal ,
-  derived ,
   _observe ,
   _ready ,
   _clear ,

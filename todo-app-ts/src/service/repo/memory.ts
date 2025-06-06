@@ -1,5 +1,6 @@
+import { signal, type Signal } from "@model/signal";
 import type { Auth } from "src/domain/api/feature/auth";
-import { observe, signal, type Signal } from "tilia";
+import { observe } from "tilia";
 import type { Todo } from "../../domain/api/model/todo";
 import { fail, success, type Repo } from "../../domain/api/service/repo";
 

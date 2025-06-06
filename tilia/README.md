@@ -17,11 +17,10 @@ This is taken directly from Tilia.resi file.
 type observer
 type meta<'a>
 
-type signal<'a> = {mutable value: 'a}
 type tilia = {
   /** Create a new tilia proxy and connect it to the forest.
    */
-  connect: 'a. 'a => 'a,
+  tilia: 'a. 'a => 'a,
   /** Return a computed value to be inserted into a tilia proxy. The cached value
    * is computed when the key is read and destroyed when any observed value is
    * changed.
@@ -36,10 +35,7 @@ type tilia = {
    * produced value is read.
    */
   observe: (unit => unit) => unit,
-  /** Syntax sugar to create a signal and a setter */
-  signal: 'a. 'a => (signal<'a>, 'a => unit),
-  /** Syntax sugar to create a derived signal (a computed inside a signal) */
-  derived: 'a. (unit => 'a) => signal<'a>,
+
   /** Internal */
   _observe: (unit => unit) => observer,
   /** Internal */
@@ -57,7 +53,7 @@ let make: (~flush: (unit => unit) => unit=?) => tilia
 
 /** Create a new tilia proxy and connect it to the default context (forest).
  */
-let connect: 'a => 'a
+let tilia: 'a => 'a
 
 /** Return a computed value to be inserted into a tilia proxy. The cached value
  * is computed when the key is read and destroyed when any observed value is
@@ -75,12 +71,6 @@ let computed: (unit => 'a) => 'a
   */
 let observe: (unit => unit) => unit
 
-/** Syntax sugar to create a signal and a setter */
-let signal: 'a => (signal<'a>, 'a => unit)
-
-/** Syntax sugar to create a derived signal (a computed inside a signal) */
-let derived: (unit => 'a) => signal<'a>
-
 /** Internal types for library developers (global context) */
 /** internal */
 let _observe: (unit => unit) => observer
@@ -96,17 +86,15 @@ let _meta: 'a => nullable<meta<'a>>
 
 ```ts
 type Observer = {};
-type Meta<T> = { /* internal implementation details */ };
-
-export interface Signal<T> {
-  mutable value: T;
-}
+type Meta<T> = {
+  /* internal implementation details */
+};
 
 export interface Tilia {
   /**
    * Create a new tilia proxy and connect it to the forest.
    */
-  connect: <T>(value: T) => T;
+  tilia: <T>(value: T) => T;
 
   /**
    * Return a computed value to be inserted into a tilia proxy.
@@ -119,16 +107,6 @@ export interface Tilia {
    * Changes automatically trigger the callback.
    */
   observe: (fn: () => void) => void;
-
-  /**
-   * Create a signal and its setter function
-   */
-  signal: <T>(initial: T) => [Signal<T>, (value: T) => void];
-
-  /**
-   * Create a computed signal that derives its value
-   */
-  derived: <T>(fn: () => T) => Signal<T>;
 
   // Internal methods
   /** @internal */
@@ -145,44 +123,42 @@ export interface Tilia {
  * Create a new Tilia context with optional custom flush timing
  */
 export function make(options?: {
-  flush?: (callback: () => void) => void
+  flush?: (callback: () => void) => void;
 }): Tilia;
 
 // Global context functions
-export const connect: Tilia['connect'];
-export const computed: Tilia['computed'];
-export const observe: Tilia['observe'];
-export const signal: Tilia['signal'];
-export const derived: Tilia['derived'];
+export const tilia: Tilia["tilia"];
+export const computed: Tilia["computed"];
+export const observe: Tilia["observe"];
 
 // Internal global methods
 /** @internal */
-export const _observe: Tilia['_observe'];
+export const _observe: Tilia["_observe"];
 /** @internal */
-export const _ready: Tilia['_ready'];
+export const _ready: Tilia["_ready"];
 /** @internal */
-export const _clear: Tilia['_clear'];
+export const _clear: Tilia["_clear"];
 /** @internal */
-export const _meta: Tilia['_meta'];
+export const _meta: Tilia["_meta"];
 ```
 
 ## Basic Example
 
 ```ts
-import { connect, observe } from "tilia";
+import { tilia, observe } from "tilia";
 
-const alice = connect({
+const alice = tilia({
   name: "Alice",
   age: 0,
   birthday: dayjs("2015-05-24"),
 });
 
-const [now_, setNow] = signal(dayjs());
+const globals = tilia({ now: dayjs() });
 
-setInterval(() => setNow(dayjs()), 1000 * 60);
+setInterval(() => (globals.now = dayjs()), 1000 * 60);
 
 // The cached computed value is reset if now_.value or alice.birthday changes.
-alice.age = computed(() => now_.value.diff(alice.birthday, "year"));
+alice.age = computed(() => globals.now.diff(alice.birthday, "year"));
 
 // This will be called every time alice.age changes.
 observe(() => {

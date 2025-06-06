@@ -1,5 +1,6 @@
+import { signal, type Signal } from "@model/signal";
 import { createClient } from "@supabase/supabase-js";
-import { observe, signal, type Setter, type Signal } from "tilia";
+import { observe } from "tilia";
 import { type Auth } from "../../domain/api/feature/auth";
 import type { Todo } from "../../domain/api/model/todo";
 import {
@@ -213,7 +214,7 @@ async function fetchSetting(
 // ======= PRIVATE ========================
 
 async function initializeSupabaseRepo(
-  set: Setter<SupabaseRepo>,
+  set: (v: SupabaseRepo) => void,
   userId: string
 ) {
   try {

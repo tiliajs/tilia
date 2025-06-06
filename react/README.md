@@ -31,10 +31,10 @@ export const makeUseTilia: (ctx: Tilia) => () => void;
 ## Example
 
 ```tsx
-import { connect } from "tilia";
+import { tilia } from "tilia";
 import { useTilia } from "@tilia/react";
 
-const alice = connect({
+const alice = tilia({
   name: "Alice",
   age: 10,
 });

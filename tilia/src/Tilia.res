@@ -134,11 +134,9 @@ type rec meta<'a> = {
 
 type signal<'a> = {mutable value: 'a}
 type tilia = {
-  connect: 'a. 'a => 'a,
+  tilia: 'a. 'a => 'a,
   computed: 'a 'b. (unit => 'b) => 'b,
   observe: (unit => unit) => unit,
-  signal: 'a. 'a => (signal<'a>, 'a => unit),
-  derived: 'a. (unit => 'a) => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
   _ready: (observer, bool) => unit,
@@ -526,7 +524,7 @@ and proxify = (root: root, target: 'a): meta<'a> => {
 
 let immediateFlush = (fn: unit => unit) => fn()
 
-let makeConnect = (root: root) => (value: 'a) => {
+let makeTilia = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
     raise(Invalid_argument("connect: value is not an object or array"))
   }
@@ -548,16 +546,6 @@ let computed = (callback: unit => 'a) => {
   %raw(`v`)
 }
 
-// syntax sugar
-
-let makeSignal = (connect: signal<'a> => signal<'a>) => (value: 'c) => {
-  let s = connect({value: value})
-  let set = v => s.value = v
-  (s, set)
-}
-
-let makeDerive = connect => fn => connect({value: computed(fn)})
-
 let makeObserve_ = (root: root) => notify => {
   let observer = {notify, observing: []}
   root.observer = Value(observer)
@@ -576,16 +564,12 @@ let makeClear_ = (root: root) => (observer: observer) => {
  * become monomorphic).
  */
 external connector: (
-  // connect
+  // tilia
   'a => 'a,
   // computed
   ('x => 'b) => 'b,
   // observe
   (unit => unit) => unit,
-  // signal
-  'c => (signal<'c>, 'c => unit),
-  // derived
-  (unit => 'd) => signal<'d>,
   // internal
   // _observe
   (unit => unit) => observer,
@@ -598,14 +582,12 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(connect, computed, observe, signal, derived, _observe, _ready, _clear) {
+function connector(tilia, computed, observe, _observe, _ready, _clear) {
   return {
     // 
-    connect,
+    tilia,
     computed, 
     observe,
-    signal,
-    derived,
     _observe,
     _ready,
     _clear,
@@ -617,16 +599,11 @@ function connector(connect, computed, observe, signal, derived, _observe, _ready
 let make = (~flush=immediateFlush): tilia => {
   let root = {flush, observer: Undefined, expired: Undefined}
   // We need to use raw to hide the types here.
-  let connect = makeConnect(root)
-  let observe = makeObserve(root)
-  let signal = makeSignal(connect)
   connector(
-    //
-    connect,
+    makeTilia(root),
     computed,
-    observe,
-    signal,
-    makeDerive(connect),
+    makeObserve(root),
+    // Internal
     makeObserve_(root),
     makeReady_(root),
     makeClear_(root),
@@ -644,10 +621,8 @@ let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
   }
 }
 
-let connect = _ctx.connect
+let tilia = _ctx.tilia
 let observe = _ctx.observe
-let signal = _ctx.signal
-let derived = _ctx.derived
 let _observe = _ctx._observe
 let _ready = _ctx._ready
 let _clear = _ctx._clear

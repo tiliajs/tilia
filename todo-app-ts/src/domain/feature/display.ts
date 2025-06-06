@@ -1,4 +1,5 @@
-import { connect, observe, type Signal } from "tilia";
+import type { Signal } from "@model/signal";
+import { observe, tilia } from "tilia";
 import type { Display } from "../api/feature/display";
 import {
   isFail,
@@ -11,7 +12,7 @@ import {
 const darkModeKey = "display-darkMode";
 
 export function makeDisplay(repo_: Signal<Repo>) {
-  const display: Display = connect({
+  const display: Display = tilia({
     darkMode: true,
 
     // Operations
