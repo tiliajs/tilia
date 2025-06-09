@@ -17,6 +17,6 @@ export function fetchFilterOnReady(repo: Repo, todos: Todos) {
 async function fetchFilter(repo: RepoReady, todos: Todos) {
   const result = await repo.fetchSetting(filterKey);
   if (isSuccess(result)) {
-    todos.filter = result.value as TodosFilter;
+    todos.setFilter(result.value as TodosFilter);
   }
 }

@@ -49,7 +49,7 @@
  
  :not(pre) > code[class*='language-'],
  pre[class*='language-'] {
-   background: #1e1e3f95;
+   background: #00000099;
  }
  
  /* Inline code */
@@ -66,9 +66,28 @@
  .token.prolog,
  .token.cdata {
    color: #f9bfff;
-   background-color: #1e1e3f65;
-   padding: 4px 12px;
-   border-radius: 4px;
+   background-color: #00000045;
+   padding: 4px 8px; 
+   border-radius: 0px;
+   border-radius: 2px;
+   display: inline-block;
+ }
+
+ .wide-comment {
+    .token.comment,
+    .token.prolog,
+    .token.cdata {
+      color: #f9bfff;
+      background-color: #00000055;
+      padding: 8px 12px; 
+      border-radius: 0px;
+      border-radius: 0;
+      display: block;
+      margin-bottom: -0.8rem;
+      padding-left: 16px;
+      margin-left: -16px;
+      margin-right: -16px;
+   }
  }
  
  .token.delimiter,

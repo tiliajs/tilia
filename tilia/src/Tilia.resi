@@ -1,7 +1,8 @@
 type observer
 type meta<'a>
 
-type signal<'a> = {mutable value: 'a}
+type signal<'a> = {value: 'a}
+type setter<'a> = 'a => unit
 type tilia = {
   /** Transform a reguarl object or array into a tilia value.
    */
@@ -20,8 +21,13 @@ type tilia = {
    * produced value is read.
    */
   observe: (unit => unit) => unit,
+  /** extras */
+  /** Create a mutable value and a setter function */
+  signal: 'a. 'a => (signal<'a>, 'a => unit),
+  /** Create a store (a signal with a setter) */
+  store: 'a. (('a => unit) => 'a) => signal<'a>,
   /** Internal */
-  _observe: (unit => unit) => observer,
+  _observe: (unit => unit, bool) => observer,
   /** Internal */
   _ready: (observer, bool) => unit,
   /** Internal */
@@ -55,9 +61,15 @@ let computed: (unit => 'a) => 'a
   */
 let observe: (unit => unit) => unit
 
+/** extras */
+/** Create a mutable value and a setter function */
+let signal: 'a => (signal<'a>, 'a => unit)
+/** Create a store (a signal with a setter) */
+let store: (('a => unit) => 'a) => signal<'a>
+
 /** Internal types for library developers (global context) */
 /** internal */
-let _observe: (unit => unit) => observer
+let _observe: (unit => unit, bool) => observer
 /** internal */
 let _ready: (observer, bool) => unit
 /** Dispose of an observer */

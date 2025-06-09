@@ -7,6 +7,10 @@ module Reflect = {
   external ownKeys: 'a => 'b = "Reflect.ownKeys"
 }
 
+let raise: string => 'a = %raw(`function (message) {
+  throw new Error(message)
+}`)
+
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
@@ -85,6 +89,7 @@ type state =
   | Cleared // No more observer registered: cleared.
 
 type rec observer = {
+  immutable: bool,
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
   observing: observing,
@@ -132,13 +137,17 @@ type rec meta<'a> = {
   mutable proxy: 'a,
 }
 
-type signal<'a> = {mutable value: 'a}
+type signal<'a> = {value: 'a}
+type setter<'a> = 'a => unit
 type tilia = {
   tilia: 'a. 'a => 'a,
   computed: 'a 'b. (unit => 'b) => 'b,
   observe: (unit => unit) => unit,
+  /** extra */
+  signal: 'a. 'a => (signal<'a>, 'a => unit),
+  store: 'a. (('a => unit) => 'a) => signal<'a>,
   /** internal */
-  _observe: (unit => unit) => observer,
+  _observe: (unit => unit, bool) => observer,
   _ready: (observer, bool) => unit,
   _clear: observer => unit,
   _meta: 'a. 'a => nullable<meta<'a>>,
@@ -147,8 +156,8 @@ type tilia = {
 let _meta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 
 @inline
-let setObserver = (root, notify) => {
-  let observer = {notify, observing: []}
+let setObserver = (root, notify, immutable) => {
+  let observer = {notify, observing: [], immutable}
   root.observer = Value(observer)
   observer
 }
@@ -225,7 +234,7 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
     }),
   )
   switch root.observer {
-  | Value(o) if o === observer => {
+  | Value(_) => {
       root.observer = Undefined
       flush(root)
     }
@@ -286,10 +295,18 @@ let rec set = (
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<'b>>,
+  fromComputed: bool,
   target: 'a,
   key: string,
   value: 'b,
 ) => {
+  switch root.observer {
+  | Value(o) if o.immutable => {
+      root.observer = Undefined
+      raise("Cannot mutate state in an immutable observer")
+    }
+  | _ => ()
+  }
   let hadKey = Reflect.has(target, key)
   let prev = Reflect.get(target, key)
   let proxiable = Typeof.proxiable(value)
@@ -324,11 +341,18 @@ let rec set = (
         setupComputed(root, observed, proxied, computes, target, key, compute)
         if Dict.has(observed, key) {
           // Computed value is observed: notify
-          set(root, observed, proxied, computes, target, key, compute.rebuild())
+          set(root, observed, proxied, computes, true, target, key, compute.rebuild())
         } else {
           true
         }
       | _ => {
+          switch Dict.get(computes, key) {
+          | Value(_) if !fromComputed => {
+              root.observer = Undefined
+              raise("Cannot mutate a computed value")
+            }
+          | _ => ()
+          }
           notify(root, observed, key)
           if !hadKey {
             // new key: trigger index
@@ -364,7 +388,7 @@ and setupComputed = (
     if Dict.has(observed, key) {
       // We have observers on this key: rebuild() and if the key changed, it
       // will notify cache observers.
-      ignore(set(root, observed, proxied, computes, target, key, rebuild()))
+      ignore(set(root, observed, proxied, computes, true, target, key, rebuild()))
     } else {
       // We do not have observers: reset value.
       // Make sure the previous proxy (if any) is removed so that it is not
@@ -380,7 +404,7 @@ and setupComputed = (
     // should avoid accessing this value because it can be undefined on first
     // run and breaks typing.
     ignore(Reflect.set(target, key, lastValue.v))
-    let o: observer = {notify, observing: []}
+    let o: observer = {notify, observing: [], immutable: true}
     observer.o = Value(o)
 
     let previous = root.observer
@@ -511,7 +535,7 @@ and proxify = (root: root, target: 'a): meta<'a> => {
     let proxy = Proxy.make(
       target,
       {
-        "set": set(root, observed, proxied, computes, ...),
+        "set": set(root, observed, proxied, computes, false, ...),
         "deleteProperty": deleteProperty(root, observed, proxied, computes, ...),
         "get": get(root, observed, proxied, computes, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
@@ -526,14 +550,14 @@ let immediateFlush = (fn: unit => unit) => fn()
 
 let makeTilia = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
-    raise(Invalid_argument("connect: value is not an object or array"))
+    raise("connect: value is not an object or array")
   }
   proxify(root, value).proxy
 }
 
 let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
-    let o = setObserver(root, notify)
+    let o = setObserver(root, notify, false)
     callback()
     setReady(root, o, true)
   }
@@ -546,8 +570,20 @@ let computed = (callback: unit => 'a) => {
   %raw(`v`)
 }
 
-let makeObserve_ = (root: root) => notify => {
-  let observer = {notify, observing: []}
+let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => {
+  let s = tilia({value: value})
+  let set = v => ignore(Reflect.set(s, "value", v))
+  (s, set)
+}
+
+let makeStore = signal => init => {
+  let (s, set) = signal(%raw(`undefined`))
+  set(init(set))
+  s
+}
+
+let makeObserve_ = (root: root) => (notify, immutable) => {
+  let observer = {notify, observing: [], immutable}
   root.observer = Value(observer)
   observer
 }
@@ -570,9 +606,14 @@ external connector: (
   ('x => 'b) => 'b,
   // observe
   (unit => unit) => unit,
+  // extra
+  // signal
+  's => (signal<'s>, 's => unit),
+  // store
+  (('t => unit) => 't) => signal<'t>,
   // internal
   // _observe
-  (unit => unit) => observer,
+  (unit => unit, bool) => observer,
   // _ready
   (observer, bool) => unit,
   // _clear
@@ -582,12 +623,16 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, computed, observe, _observe, _ready, _clear) {
+function connector(tilia, computed, observe, signal, store, _observe, _ready, _clear) {
   return {
     // 
     tilia,
     computed, 
     observe,
+    // extra
+    signal,
+    store,
+    // internal
     _observe,
     _ready,
     _clear,
@@ -599,10 +644,16 @@ function connector(tilia, computed, observe, _observe, _ready, _clear) {
 let make = (~flush=immediateFlush): tilia => {
   let root = {flush, observer: Undefined, expired: Undefined}
   // We need to use raw to hide the types here.
+  let tilia = makeTilia(root)
+  let signal = makeSignal(tilia)
+
   connector(
-    makeTilia(root),
+    tilia,
     computed,
     makeObserve(root),
+    // extra
+    signal,
+    makeStore(signal),
     // Internal
     makeObserve_(root),
     makeReady_(root),
@@ -623,6 +674,10 @@ let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
 
 let tilia = _ctx.tilia
 let observe = _ctx.observe
+// extra
+let signal = _ctx.signal
+let store = _ctx.store
+// internal
 let _observe = _ctx._observe
 let _ready = _ctx._ready
 let _clear = _ctx._clear

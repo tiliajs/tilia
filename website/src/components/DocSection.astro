@@ -1,0 +1,30 @@
+---
+// src/components/DocSection.astro
+export interface Props {
+  title: string;
+  titleColor?: string;
+  titleGradient?: string;
+  className?: string;
+}
+
+const {
+  title,
+  titleColor = "text-cyan-300/80",
+  titleGradient,
+  className = "",
+} = Astro.props;
+
+const noteStyles = {
+  info: "bg-blue-500/20 border-blue-500/30 text-blue-900",
+  warning: "bg-yellow-500/20 border-yellow-500/30 text-yellow-900",
+};
+
+const titleClass = titleGradient
+  ? `text-transparent bg-clip-text ${titleGradient}`
+  : titleColor;
+---
+
+<div class={`doc-section ${className}`}>
+  <h3 class={`text-2xl font-bold mb-4 ${titleClass}`}>{title}</h3>
+  <slot />
+</div>

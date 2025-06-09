@@ -1,0 +1,26 @@
+---
+import { Prism } from "@astrojs/prism";
+
+export interface Props {
+  typescript?: string;
+  rescript?: string;
+  bash?: string;
+}
+
+const { typescript, rescript, bash } = Astro.props;
+---
+
+{
+  bash ? (
+    <Prism lang="bash" code={bash} class="code-block" />
+  ) : (
+    <>
+      {typescript && (
+        <Prism class="code-block" lang="typescript" code={typescript} />
+      )}
+      {rescript && (
+        <Prism class="code-block hidden" lang="rescript" code={rescript} />
+      )}
+    </>
+  )
+}

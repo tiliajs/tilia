@@ -1,0 +1,230 @@
+@import "tailwindcss";
+
+@layer components {
+  .nav {
+    @apply space-x-6 text-sm font-medium;
+    a {
+      @apply transition-colors;
+      &.active {
+        @apply text-white/40 font-bold;
+      }
+    }
+  }
+
+  .header {
+    @apply text-center mb-16;
+  }
+
+  h1.documentation {
+    @apply text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-yellow-200 mb-6;
+  }
+
+  h1.comparaison {
+    @apply text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-yellow-200 mb-6;
+  }
+
+  p.subtitle {
+    @apply text-xl text-white/80 max-w-2xl mx-auto text-center;
+  }
+
+  h2.api {
+    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-teal-500 mb-12;
+  }
+
+  h2.react {
+    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-500 m-12;
+  }
+
+  h2.topics {
+    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-lime-300 to-cyan-500 m-12;
+  }
+
+  h2.frp {
+    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-red-500 m-12;
+  }
+
+  .intro {
+    @apply flex-grow container mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-start;
+  }
+
+  .doc {
+    @apply bg-white/10 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20 my-12;
+  }
+
+  p.rainbow {
+    @apply m-6 p-4 rounded-lg border border-white/30 text-white/90 bg-gradient-to-r from-cyan-300/20 to-red-500/30 justify-self-center text-center flex flex-row items-center gap-1;
+
+    span {
+      @apply text-4xl font-bold rotate-12 text-cyan-100 text-shadow-lg text-shadow-pink-400/60;
+    }
+  }
+
+  .doc,
+  .intro {
+    p > code {
+      @apply text-yellow-300;
+    }
+
+    h2 {
+      @apply text-3xl font-bold mb-6 text-transparent bg-clip-text;
+    }
+
+    h3 {
+      @apply text-2xl font-bold mb-4;
+    }
+
+    h4 {
+      @apply text-lg font-bold mb-2 text-yellow-200/70;
+    }
+
+    &.installation h2 {
+      @apply bg-gradient-to-r from-amber-200 to-emerald-700;
+    }
+
+    &.frp {
+      h2 {
+        @apply bg-gradient-to-r from-cyan-200 to-red-700;
+      }
+      strong {
+        @apply text-cyan-200/90;
+      }
+    }
+
+    &.goals {
+      h2 {
+        @apply bg-gradient-to-r from-green-200 to-amber-500;
+      }
+
+      p.story {
+        @apply my-4 text-black/60;
+      }
+    }
+
+    &.tilia {
+      h3 {
+        @apply text-green-300/90;
+      }
+    }
+
+    &.observe {
+      h3 {
+        @apply text-cyan-300/80;
+      }
+    }
+
+    &.computed {
+      h3 {
+        @apply text-amber-200/90;
+      }
+    }
+
+    &.immutability {
+      h3 {
+        @apply text-lime-200/80;
+      }
+    }
+
+    &.signal {
+      h3 {
+        @apply text-red-200/80;
+      }
+    }
+
+    &.store {
+      h3 {
+        @apply text-emerald-200/80;
+      }
+    }
+
+    &.react {
+      h3 {
+        @apply text-lime-200/80;
+        small {
+          @apply text-lime-200/70 text-sm;
+        }
+      }
+    }
+
+    &.features {
+      h2 {
+        @apply bg-gradient-to-r from-green-400 to-blue-500;
+      }
+    }
+
+    &.zustand {
+      h2 {
+        @apply bg-gradient-to-r from-orange-200 to-green-800;
+      }
+    }
+
+    &.jotai {
+      h2 {
+        @apply bg-gradient-to-r from-yellow-200/80 to-pink-800;
+      }
+    }
+
+    &.recoil {
+      h2 {
+        @apply bg-gradient-to-r from-purple-200 to-pink-800;
+      }
+    }
+
+    &.nocomp {
+      h2 {
+        @apply bg-gradient-to-r from-green-400 to-pink-100;
+      }
+      h3 {
+        @apply text-amber-200/90;
+      }
+    }
+
+    ul li {
+      @apply text-lg text-white/90;
+      list-style: disc;
+      margin-left: 2rem;
+    }
+
+    p {
+      @apply text-lg my-6 text-white/90;
+
+      a {
+        @apply text-cyan-300 hover:text-yellow-400;
+      }
+    }
+
+    p.note {
+      @apply m-6 p-4 bg-blue-500/20 rounded-lg border border-blue-500/30 text-blue-900;
+    }
+
+    p.pro {
+      @apply m-6 p-4 rounded-lg border bg-yellow-500/20 border-yellow-500/30 text-black/70;
+
+      code {
+        @apply text-yellow-400 m-1;
+      }
+    }
+
+    p.story {
+      @apply my-4 text-black/60 italic;
+    }
+    p:last-child {
+      @apply mb-0;
+    }
+
+    pre[class*="language-"] {
+      @apply text-sm md:text-base my-6 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative bg-red-400;
+      .toggle {
+        @apply absolute right-0 top-0 p-2 rounded-tr-lg rounded-bl-lg bg-gray-800 text-sm cursor-pointer;
+        .on {
+          @apply text-white/80 font-bold;
+        }
+        .off {
+          @apply text-white/30;
+        }
+        &:hover {
+          @apply bg-pink-800/30;
+        }
+      }
+    }
+  }
+}

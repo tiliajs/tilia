@@ -40,9 +40,9 @@ jobs:
           mkdir -p dist/todo-app-ts
           cp -r todo-app-ts/dist/* dist/todo-app-ts/
 
-      - name: Copy index.html and assets to root dist
+      - name: Copy website to root dist
         run: |
-          cp website/public/* dist/
+          cp website/dist/* dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

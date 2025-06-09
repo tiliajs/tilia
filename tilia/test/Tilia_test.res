@@ -15,6 +15,8 @@ module TestObject = {
   external keys: t => array<string> = "Object.keys"
 }
 
+let _observe = fn => _observe(fn, true)
+
 module AnyObject = {
   type descriptor<'a> = {writable: bool, value: 'a}
   external get: ('a, string) => 'b = "Reflect.get"
@@ -329,7 +331,7 @@ test("Should not proxy readonly properties", t => {
   AnyObject.setReadonly(tree, "person", p1)
   t->isTrue(AnyObject.readonly(tree, "person"))
   let tree = tilia(tree)
-  let o = Tilia._observe(() => m.called = true)
+  let o = Tilia._observe(() => m.called = true, true)
   let p2 = AnyObject.get(tree, "person")
   t->isTrue(p2 === p1)
   _ready(o, true)
@@ -362,7 +364,7 @@ test("Should notify if update before ready", t => {
   let m = {called: false}
   let p = person()
   let p = tilia(p)
-  let o = _observe(() => m.called = true)
+  let o = Tilia._observe(() => m.called = true, false)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
 
@@ -910,13 +912,13 @@ type machine = Blank | Loading | Loaded
 type auth = NotAuthenticated | Authenticating | Authenticated
 
 test("Should allow state machines in observed", t => {
-  let p = tilia({value: Blank})
-  let auth = tilia({value: NotAuthenticated})
+  let (p, set) = signal(Blank)
+  let (auth, setAuth) = signal(NotAuthenticated)
   observe(() => {
     switch (p.value, auth.value) {
-    | (Blank, Authenticating) => p.value = Loading
-    | (Loading, Authenticated) => p.value = Loaded
-    | (Loaded, NotAuthenticated) => p.value = Blank
+    | (Blank, Authenticating) => set(Loading)
+    | (Loading, Authenticated) => set(Loaded)
+    | (Loaded, NotAuthenticated) => set(Blank)
     | _ => ()
     }
   })
@@ -924,14 +926,14 @@ test("Should allow state machines in observed", t => {
   t->deepEqual(p.value, Blank)
 
   // Update dependency
-  auth.value = Authenticating
+  setAuth(Authenticating)
   t->is(p.value, Loading)
 
   // Update dependency
-  auth.value = Authenticated
+  setAuth(Authenticated)
   t->is(p.value, Loaded)
 
-  auth.value = NotAuthenticated
+  setAuth(NotAuthenticated)
   t->is(p.value, Blank)
 })
 
@@ -984,4 +986,116 @@ test("should not trigger observer while in a callback", t => {
     t->isFalse(m.called)
   })
   t->isTrue(m.called)
+})
+
+test("Should forbid mutation with immutable observer", t => {
+  let p = tilia(person())
+  let o = Tilia._observe(() => (), true)
+  t->throws(
+    () => p.name = "One",
+    ~expectations={
+      message: "Cannot mutate state in an immutable observer",
+    },
+  )
+  _ready(o, true)
+})
+
+test("Should forbid mutation in computed", t => {
+  let p = tilia(person())
+  p.name = computed(() => {
+    p.phone = Value("123 456 789")
+    "Jill"
+  })
+  t->throws(
+    () => p.name,
+    ~expectations={
+      message: "Cannot mutate state in an immutable observer",
+    },
+  )
+})
+
+test("Should forbid mutating a computed", t => {
+  let p = tilia(person())
+  p.name = computed(() => "Jill")
+  t->throws(
+    () => p.name = "Bob",
+    ~expectations={
+      message: "Cannot mutate a computed value",
+    },
+  )
+})
+
+test("Should forbid sorting a computed", t => {
+  open Array
+  open String
+  let p = tilia(person())
+  let q = tilia(person())
+  q.passions = ["fruits", "vegetables", "ananas"]
+  p.passions = computed(() => {
+    q.passions->sort((a, b) => a->localeCompare(b))
+    q.passions
+  })
+  t->throws(
+    () => p.passions,
+    ~expectations={
+      message: "Cannot mutate state in an immutable observer",
+    },
+  )
+})
+
+// ================ EXTRA ================
+
+test("Should create signal", t => {
+  let q = {name: "Linda", username: "linda"}
+  let p2 = person()
+
+  let (p, set) = signal({name: "Noether", username: "emmy"})
+
+  observe(() => {
+    p2.name = p.value.name
+  })
+  t->is("Noether", p2.name)
+  set(q)
+  t->is("Linda", p2.name)
+})
+
+type loading = {loaded: user => unit}
+
+type ready = {
+  user: user,
+  logout: unit => unit,
+}
+type loggedOut = {loading: unit => unit}
+
+type state =
+  | Loading(loading)
+  | Ready(ready)
+  | LoggedOut(loggedOut)
+
+test("Should manage store", t => {
+  let rec ready = (set: state => unit, user) => Ready({user, logout: () => set(loggedOut(set))})
+  and loggedOut = (set: state => unit) => LoggedOut({loading: () => set(loading(set))})
+  and loading = (set: state => unit) => Loading({loaded: user => set(ready(set, user))})
+
+  let p = store(loggedOut)
+
+  switch p.value {
+  | LoggedOut(app) => app.loading()
+  | _ => t->fail("Not logged out")
+  }
+
+  switch p.value {
+  | Loading(app) => app.loaded({name: "Alice", username: "alice"})
+  | _ => t->fail("Not loading")
+  }
+
+  switch p.value {
+  | Ready(app) => app.logout()
+  | _ => t->fail("Not ready")
+  }
+
+  switch p.value {
+  | LoggedOut(_) => t->pass
+  | _ => t->fail("Not logged out")
+  }
 })

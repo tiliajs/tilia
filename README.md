@@ -9,12 +9,13 @@ Check the [**website**](https://tiliajs.com) for documentation and examples.
 
 ### Changelog
 
-- 2025-05-24 **2.0.0** (not yet release: canary version)
+- 2025-06-09 **2.0.0** (not yet release: canary version)
+  - Add immutability protections.
   - Moved core to npm "tilia" package.
   - Changed `make` signature to build tilia context (provides the full API running in a separate context).
   - Enable **forest mode** to observve across separated objects.
   - Add `computed` to compute values in branches (moved into `tilia` context).
-    Note: computed _will not be called_ for its own mutations.
+    Note: computed _will raise an error_ if it mutates state.
   - Moved `observe` into `tilia` context.
   - `observe` _will be called_ for its own mutations (this is to allow state machines).
   - Removed re-exports in @tilia/react.
@@ -22,7 +23,7 @@ Check the [**website**](https://tiliajs.com) for documentation and examples.
   - Removed `track` as this cannot scale to multiple instances and computed.
   - Renamed internal `_connect` to `_observe`.
   - Reworked API to ensure strong typing and avoid runtime errors.
-  - Added `signal`, and `derived` for FRP style programming.
+  - Add `signal` and `store` for FRP style programming.
   - Improved flush strategy to trigger immediately but not in an observing function.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.

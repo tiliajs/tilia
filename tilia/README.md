@@ -37,7 +37,7 @@ type tilia = {
   observe: (unit => unit) => unit,
 
   /** Internal */
-  _observe: (unit => unit) => observer,
+  _observe: (unit => unit, bool) => observer,
   /** Internal */
   _ready: (observer, bool) => unit,
   /** Internal */
@@ -73,7 +73,7 @@ let observe: (unit => unit) => unit
 
 /** Internal types for library developers (global context) */
 /** internal */
-let _observe: (unit => unit) => observer
+let _observe: (unit => unit, bool) => observer
 /** internal */
 let _ready: (observer, bool) => unit
 /** Dispose of an observer */
@@ -110,7 +110,7 @@ export interface Tilia {
 
   // Internal methods
   /** @internal */
-  _observe: (fn: () => void) => Observer;
+  _observe: (fn: () => void, immutable: boolean) => Observer;
   /** @internal */
   _ready: (observer: Observer, immediate: boolean) => void;
   /** @internal */

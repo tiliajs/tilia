@@ -7,5 +7,7 @@ export {
   computed,
   make,
   observe,
+  signal,
+  store,
   tilia,
 } from "./Tilia.mjs";
