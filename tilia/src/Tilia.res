@@ -89,7 +89,6 @@ type state =
   | Cleared // No more observer registered: cleared.
 
 type rec observer = {
-  immutable: bool,
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
   observing: observing,
@@ -111,12 +110,18 @@ and watchers = {
   // Set of observers to notify on change.
   observers: observers,
 }
+and gc = {
+  cleared: Set.t<watchers>,
+  mutable count: int,
+}
 and root = {
   mutable observer: nullable<observer>,
   // List of watchers to clear on next flush
   // Should rename 'triggers' to 'expired'.
   mutable expired: nullable<Set.t<observer>>,
+  mutable gc: nullable<gc>,
   flush: (unit => unit) => unit,
+  gcThreshold: int,
 }
 
 // List of watchers to which the the observer should add itself on ready
@@ -147,7 +152,7 @@ type tilia = {
   signal: 'a. 'a => (signal<'a>, 'a => unit),
   store: 'a. (('a => unit) => 'a) => signal<'a>,
   /** internal */
-  _observe: (unit => unit, bool) => observer,
+  _observe: (unit => unit) => observer,
   _ready: (observer, bool) => unit,
   _clear: observer => unit,
   _meta: 'a. 'a => nullable<meta<'a>>,
@@ -156,8 +161,8 @@ type tilia = {
 let _meta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 
 @inline
-let setObserver = (root, notify, immutable) => {
-  let observer = {notify, observing: [], immutable}
+let setObserver = (root, notify) => {
+  let observer = {notify, observing: []}
   root.observer = Value(observer)
   observer
 }
@@ -187,6 +192,24 @@ let flush = root => {
     })
   | _ => ()
   }
+  switch root.gc {
+  | Value(gc) => {
+      gc.count = gc.count + 1
+      if gc.count > root.gcThreshold {
+        root.flush(() => {
+          root.gc = Undefined
+          Set.forEach(gc.cleared, w => {
+            w.state = Cleared
+            switch Dict.get(w.observed, w.key) {
+            | Value(cw) if cw === w => Dict.delete(w.observed, w.key)
+            | _ => ()
+            }
+          })
+        })
+      }
+    }
+  | _ => ()
+  }
 }
 
 let clearObserver = (root: root, observer: observer) => {
@@ -197,9 +220,16 @@ let clearObserver = (root: root, observer: observer) => {
       Set.delete(watchers.observers, observer) &&
       Set.size(watchers.observers) === 0
     ) {
-      // Cleanup
-      watchers.state = Cleared
-      Dict.delete(watchers.observed, watchers.key)
+      // Get gc set
+      let gc = switch root.gc {
+      | Value(gc) => gc
+      | _ => {
+          let gc = {cleared: Set.make(), count: 0}
+          root.gc = Value(gc)
+          gc
+        }
+      }
+      Set.add(gc.cleared, watchers)
     }
   })
   switch root.observer {
@@ -219,12 +249,14 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
           ignore(Set.add(w.observers, observer))
           false
         }
-      | Changed if notifyIfChanged => {
+      | Changed | Cleared if notifyIfChanged => {
           clearObserver(root, observer)
           observer.notify()
           true // abort find
         }
       | _ => {
+          // Cleared or Changed, but without notifyIfChanged.
+          // We need to re-subscribe to the key
           let w = observeKey(w.observed, w.key)
           ignore(Set.add(w.observers, observer))
           observer.observing[idx] = w
@@ -300,13 +332,6 @@ let rec set = (
   key: string,
   value: 'b,
 ) => {
-  switch root.observer {
-  | Value(o) if o.immutable => {
-      root.observer = Undefined
-      raise("Cannot mutate state in an immutable observer")
-    }
-  | _ => ()
-  }
   let hadKey = Reflect.has(target, key)
   let prev = Reflect.get(target, key)
   let proxiable = Typeof.proxiable(value)
@@ -327,17 +352,19 @@ let rec set = (
       if proxiable {
         Dict.delete(proxied, key)
       }
-      switch Typeof.compute(value) {
-      | Value(compute) =>
+      if !fromComputed {
         // New computed value (install it and only notify is needed)
         switch Dict.get(computes, key) {
         | Value({clear}) => {
             // Updating the compute function: clear old one.
-            clear()
             Dict.delete(computes, key)
+            clear()
           }
         | _ => ()
         }
+      }
+      switch Typeof.compute(value) {
+      | Value(compute) =>
         setupComputed(root, observed, proxied, computes, target, key, compute)
         if Dict.has(observed, key) {
           // Computed value is observed: notify
@@ -346,13 +373,6 @@ let rec set = (
           true
         }
       | _ => {
-          switch Dict.get(computes, key) {
-          | Value(_) if !fromComputed => {
-              root.observer = Undefined
-              raise("Cannot mutate a computed value")
-            }
-          | _ => ()
-          }
           notify(root, observed, key)
           if !hadKey {
             // new key: trigger index
@@ -397,21 +417,20 @@ and setupComputed = (
       ignore(Reflect.set(target, key, compute))
     }
   }
-  and rebuild = p => {
+  and rebuild = () => {
     // Make sure any further read gets the last value until we are done with
     // rebuilding the value. This is also useful if the callback needs the
     // previous value and to detect unchanged value.  If possible, the callback
     // should avoid accessing this value because it can be undefined on first
     // run and breaks typing.
     ignore(Reflect.set(target, key, lastValue.v))
-    let o: observer = {notify, observing: [], immutable: true}
+    let o: observer = {notify, observing: []}
     observer.o = Value(o)
 
     let previous = root.observer
     root.observer = Value(o)
-    let v = callback(p)
-    // Computed should not rebuild on change (recursion is bad in computed
-    // because it is not meant to have access to the previous value).
+    let v = callback()
+    // Computed should not rebuild on change.
     setReady(root, o, false)
     root.observer = previous
 
@@ -424,7 +443,12 @@ and setupComputed = (
   compute.clear = () => {
     // Clear our cache clearing observer
     switch observer.o {
-    | Value(o) => clearObserver(root, o)
+    | Value(o) => {
+        clearObserver(root, o)
+        // Empty in case "ready" is called after clear (but we only
+        // do this for computed).
+        ignore(%raw(`o.observing.length = 0`))
+      }
     | _ => ()
     }
   }
@@ -468,6 +492,8 @@ let rec get = (
     ignore(meta)
     // We use raw to avoid type
     %raw(`meta`)
+  } else if key === computeKey {
+    %raw(`false`)
   } else {
     // is array and get length
     let v = Reflect.get(target, key)
@@ -547,6 +573,7 @@ and proxify = (root: root, target: 'a): meta<'a> => {
 }
 
 let immediateFlush = (fn: unit => unit) => fn()
+let defaultGc = 50
 
 let makeTilia = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
@@ -557,7 +584,7 @@ let makeTilia = (root: root) => (value: 'a) => {
 
 let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
-    let o = setObserver(root, notify, false)
+    let o = setObserver(root, notify)
     callback()
     setReady(root, o, true)
   }
@@ -578,12 +605,18 @@ let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => {
 
 let makeStore = signal => init => {
   let (s, set) = signal(%raw(`undefined`))
-  set(init(set))
+  set(
+    computed(() => {
+      let v = init(set)
+      set(v)
+      v
+    }),
+  )
   s
 }
 
-let makeObserve_ = (root: root) => (notify, immutable) => {
-  let observer = {notify, observing: [], immutable}
+let makeObserve_ = (root: root) => notify => {
+  let observer = {notify, observing: []}
   root.observer = Value(observer)
   observer
 }
@@ -613,7 +646,7 @@ external connector: (
   (('t => unit) => 't) => signal<'t>,
   // internal
   // _observe
-  (unit => unit, bool) => observer,
+  (unit => unit) => observer,
   // _ready
   (observer, bool) => unit,
   // _clear
@@ -641,8 +674,8 @@ function connector(tilia, computed, observe, signal, store, _observe, _ready, _c
 }
 `)
 
-let make = (~flush=immediateFlush): tilia => {
-  let root = {flush, observer: Undefined, expired: Undefined}
+let make = (~flush=immediateFlush, ~gc=defaultGc): tilia => {
+  let root = {flush, observer: Undefined, expired: Undefined, gc: Undefined, gcThreshold: gc}
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
   let signal = makeSignal(tilia)
@@ -666,7 +699,7 @@ let make = (~flush=immediateFlush): tilia => {
 let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
 | Value(ctx) => ctx
 | _ => {
-    let ctx = make(~flush=immediateFlush)
+    let ctx = make()
     ignore(Reflect.set(globalThis, ctxKey, ctx))
     ctx
   }

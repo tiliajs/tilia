@@ -1,10 +1,10 @@
 import { _ctx } from "tilia";
 import { useState, useEffect } from "react";
 
-function makeUseTilia({ _observe, _ready, _clear }, immutable) {
+function makeUseTilia({ _observe, _ready, _clear }) {
   return function () {
     var [_, setCount] = useState(0);
-    var o = _observe(() => setCount((i) => i + 1), immutable);
+    var o = _observe(() => setCount((i) => i + 1));
     useEffect(() => {
       _ready(o, true);
       return () => _clear(o);
@@ -12,6 +12,6 @@ function makeUseTilia({ _observe, _ready, _clear }, immutable) {
   };
 }
 
-const useTilia = makeUseTilia(_ctx, false);
+const useTilia = makeUseTilia(_ctx);
 
 export { useTilia, makeUseTilia };

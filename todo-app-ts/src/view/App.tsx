@@ -1,3 +1,4 @@
+import { isLoaded } from "@model/loadable";
 import { useTilia } from "@tilia/react";
 import {
   CheckCircle,
@@ -183,6 +184,7 @@ const useApp = () => {
 };
 
 export function ReadyApp({ app }: { app: AppReady }) {
+  // @ts-ignore
   useTilia();
   const { todos, display } = app;
   const darkMode = display.darkMode;
@@ -225,7 +227,6 @@ export function ReadyApp({ app }: { app: AppReady }) {
             </button>
           </div>
         </div>
-
         <div className="flex justify-center space-x-2 mb-6">
           {todosFilterValues.map((f) => (
             <button
@@ -245,16 +246,11 @@ export function ReadyApp({ app }: { app: AppReady }) {
             </button>
           ))}
         </div>
-
+        TODO LIST:
         <TodoList />
-
-        {todos.list.length > 0 && (
-          <div className="mt-6 text-center">
-            <p className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
-              {todos.remaining} tasks remaining
-            </p>
-          </div>
-        )}
+        <br />
+        REMAINING:
+        <Remaining />
       </>
     </AppProvider>
   );
@@ -266,10 +262,16 @@ export function TodoList() {
     display: { darkMode },
   } = useApp();
 
+  if (!isLoaded(todos.list)) {
+    return "Loading";
+  }
+
+  const list = todos.list.value;
+
   return (
     <ul className="space-y-3">
-      {todos.list.length > 0 ? (
-        todos.list.map((todo) => <TodoView key={todo.id} todo={todo} />)
+      {list.length > 0 ? (
+        list.map((todo) => <TodoView key={todo.id} todo={todo} />)
       ) : (
         <div
           className={`text-center p-6 rounded-lg ${
@@ -288,6 +290,24 @@ export function TodoList() {
       )}
     </ul>
   );
+}
+
+function Remaining() {
+  const {
+    display: { darkMode },
+    todos,
+    // @ts-ignore
+  } = useApp();
+
+  return isLoaded(todos.list)
+    ? todos.list.value.length > 0 && (
+        <div className="mt-6 text-center">
+          <p className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
+            {todos.remaining} tasks remaining
+          </p>
+        </div>
+      )
+    : "Loading";
 }
 
 function TodoView({ todo }: { todo: Todo }) {

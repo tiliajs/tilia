@@ -14,11 +14,11 @@ export type Tilia = {
 
   // internal
   _clear(observer: Observer): void;
-  _observe(callback: () => void, immutable: boolean): Observer;
+  _observe(callback: () => void): Observer;
   _ready(observer: Observer, notifyIfChanged?: boolean): void;
   _meta<a>(tree: a): unknown;
 };
-export function make(flush?: (fn: () => void) => void): Tilia;
+export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 
 // Default global context
 
@@ -32,6 +32,6 @@ export function store<a>(init: (setter: Setter<a>) => a): Signal<a>;
 
 // internal
 export function _clear(observer: Observer): void;
-export function _observe(callback: () => void, immutable: boolean): Observer;
+export function _observe(callback: () => void): Observer;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;
 export function _meta<a>(tree: a): unknown;

@@ -15,8 +15,6 @@ module TestObject = {
   external keys: t => array<string> = "Object.keys"
 }
 
-let _observe = fn => _observe(fn, true)
-
 module AnyObject = {
   type descriptor<'a> = {writable: bool, value: 'a}
   external get: ('a, string) => 'b = "Reflect.get"
@@ -331,7 +329,7 @@ test("Should not proxy readonly properties", t => {
   AnyObject.setReadonly(tree, "person", p1)
   t->isTrue(AnyObject.readonly(tree, "person"))
   let tree = tilia(tree)
-  let o = Tilia._observe(() => m.called = true, true)
+  let o = Tilia._observe(() => m.called = true)
   let p2 = AnyObject.get(tree, "person")
   t->isTrue(p2 === p1)
   _ready(o, true)
@@ -364,7 +362,7 @@ test("Should notify if update before ready", t => {
   let m = {called: false}
   let p = person()
   let p = tilia(p)
-  let o = Tilia._observe(() => m.called = true, false)
+  let o = Tilia._observe(() => m.called = true)
   t->is(p.name, "John") // observe 'name'
   t->is(m.called, false)
 
@@ -413,6 +411,7 @@ test("Should clear common key on clear", t => {
   t->is(m2.called, true)
 })
 
+// React strict mode
 test("Should support ready, clear, ready", t => {
   let m = {called: false}
   let p = person()
@@ -973,7 +972,6 @@ test("should not trigger observer while in a callback", t => {
   let p = tilia(person())
   let m = {called: false}
   observe(() => {
-    Js.log("observe1")
     // observe 'p.address.city'
     t->is(p.address.city, p.address.city)
     m.called = true
@@ -988,59 +986,27 @@ test("should not trigger observer while in a callback", t => {
   t->isTrue(m.called)
 })
 
-test("Should forbid mutation with immutable observer", t => {
+test("Should disable computed on replace", t => {
+  let p1 = tilia({name: "Diana", username: "diana"})
   let p = tilia(person())
-  let o = Tilia._observe(() => (), true)
-  t->throws(
-    () => p.name = "One",
-    ~expectations={
-      message: "Cannot mutate state in an immutable observer",
-    },
-  )
-  _ready(o, true)
+  p.name = computed(() => p1.name)
+  t->is("Diana", p.name)
+  p.name = "Lisa"
+  p1.name = "Anabel"
+  // Did not update through computed
+  t->is("Lisa", p.name)
 })
 
-test("Should forbid mutation in computed", t => {
+test("Should allow replacing computed", t => {
+  let p1 = tilia({name: "Diana", username: "diana"})
   let p = tilia(person())
-  p.name = computed(() => {
-    p.phone = Value("123 456 789")
-    "Jill"
-  })
-  t->throws(
-    () => p.name,
-    ~expectations={
-      message: "Cannot mutate state in an immutable observer",
-    },
-  )
-})
-
-test("Should forbid mutating a computed", t => {
-  let p = tilia(person())
-  p.name = computed(() => "Jill")
-  t->throws(
-    () => p.name = "Bob",
-    ~expectations={
-      message: "Cannot mutate a computed value",
-    },
-  )
-})
-
-test("Should forbid sorting a computed", t => {
-  open Array
-  open String
-  let p = tilia(person())
-  let q = tilia(person())
-  q.passions = ["fruits", "vegetables", "ananas"]
-  p.passions = computed(() => {
-    q.passions->sort((a, b) => a->localeCompare(b))
-    q.passions
-  })
-  t->throws(
-    () => p.passions,
-    ~expectations={
-      message: "Cannot mutate state in an immutable observer",
-    },
-  )
+  p.name = computed(() => p1.name)
+  t->is("Diana", p.name)
+  p.name = computed(() => p1.username)
+  t->is("diana", p.name)
+  p1.name = "Anabel"
+  // Did not update through old computed
+  t->is("diana", p.name)
 })
 
 // ================ EXTRA ================
@@ -1098,4 +1064,91 @@ test("Should manage store", t => {
   | LoggedOut(_) => t->pass
   | _ => t->fail("Not logged out")
   }
+})
+
+// This is needed to replace a computed with a regular value, from
+// inside the computed.
+test("Should use store as computed", t => {
+  let m = {called: false}
+  let p1 = tilia(person())
+  let p = store(_ => {
+    m.called = true
+    // This should be used only once.
+    p1.name
+  })
+  t->isFalse(m.called)
+  t->is(p.value, "John")
+  t->isTrue(m.called)
+  m.called = false
+  p1.name = "Lisa"
+  t->is(p.value, "John")
+  t->isFalse(m.called)
+})
+
+test("should work with computed in computed", t => {
+  let m = {called: false}
+  let p1 = tilia(person())
+  let p2 = tilia({
+    name: computed(() => {
+      m.called = true
+      p1.name ++ " p2"
+    }),
+    username: "foo",
+  })
+  let p3 = tilia({
+    name: computed(() => p2.name ++ " p3"),
+    username: "foo",
+  })
+  t->is("John p2 p3", p3.name)
+  m.called = false
+  p1.name = "Kyle"
+  p1.name = "Nana"
+  t->isTrue(m.called)
+  t->is("Nana p2 p3", p3.name)
+})
+
+test("should trigger if changed after cleared", t => {
+  let m = {called: false}
+  let (data, set) = signal("Dana")
+  // Observer 1 watches the data
+  let o1 = _observe(() => m.called = true)
+  t->is("Dana", data.value)
+  m.called = false
+
+  // Observer 2 watches, and clears which clears the watchers list
+  let o2 = _observe(() => ())
+  t->is("Dana", data.value)
+  _ready(o2, true)
+  _clear(o2) // Clears the watchers list
+
+  // Change the data, but nobody is watching it because
+  // the watchers list was cleared.
+  set("Lala")
+
+  // Sees Cleared
+  _ready(o1, true)
+  // Should trigger right away because "Cleared" means that it could be
+  // anything.
+  t->isTrue(m.called)
+  t->is("Lala", data.value)
+})
+
+test("should not trigger if unchanged after cleared", t => {
+  let m = {called: false}
+  let (data, _) = signal("Dana")
+  // Observer 1 watches the data
+  let o1 = _observe(() => m.called = true)
+  t->is("Dana", data.value)
+  m.called = false
+
+  // Observer 2 watches, and clears which clears the watchers list
+  let o2 = _observe(() => ())
+  t->is("Dana", data.value)
+  _ready(o2, true)
+  _clear(o2) // Clears the watchers list
+
+  // Sees Cleared
+  _ready(o1, true)
+  // Should not trigger because the value is unchanged.
+  t->isFalse(m.called)
 })

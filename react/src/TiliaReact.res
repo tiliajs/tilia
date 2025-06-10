@@ -2,11 +2,11 @@
 @module("react") external useEffect: (unit => option<unit => unit>) => unit = "useEffect"
 open Tilia
 
-let makeUseTilia = (ctx, immutable) => {
+let makeUseTilia = ctx => {
   let {_observe, _ready, _clear} = ctx
   () => {
     let (_, setCount) = useState(0)
-    let o = _observe(() => setCount(i => i + 1), immutable)
+    let o = _observe(() => setCount(i => i + 1))
     useEffect(() => {
       _ready(o, true)
       Some(() => _clear(o))
@@ -14,4 +14,4 @@ let makeUseTilia = (ctx, immutable) => {
   }
 }
 
-let useTilia = makeUseTilia(_ctx, false)
+let useTilia = makeUseTilia(_ctx)

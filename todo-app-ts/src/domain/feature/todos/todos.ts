@@ -1,6 +1,6 @@
-import type { Todos } from "src/domain/api/feature/todos";
+import type { Signalx, Todos } from "src/domain/api/feature/todos";
 import { type RepoReady } from "src/domain/api/service/repo";
-import { computed, observe, tilia } from "tilia";
+import { computed, observe, tilia, type Setter } from "tilia";
 import { newTodo } from "./actions/_utils";
 import { clear } from "./actions/clear";
 import { edit } from "./actions/edit";
@@ -14,6 +14,19 @@ import { list } from "./computed/list";
 import { remaining } from "./computed/remaining";
 import { fetchFilterOnReady } from "./observers/fetchFilter";
 
+export function storex<a>(init: (setter: Setter<a>) => a): Signalx<a> {
+  const s = tilia({}) as Signalx<a>;
+  const set = (v: a) => (s.valuex = v);
+  set(
+    computed(() => {
+      const v = init(set);
+      set(v);
+      return v;
+    })
+  );
+  return s;
+}
+
 export function makeTodos(repo: RepoReady) {
   const todos: Todos = tilia({
     // State
@@ -21,8 +34,11 @@ export function makeTodos(repo: RepoReady) {
     selected: newTodo(),
 
     // Computed state
-    data: computed(() => data(repo, todos)),
-    list: computed(() => list(todos)),
+    data_: storex((set) => data(set, repo)),
+    list: computed(() => {
+      console.log("Compute list");
+      return list(todos);
+    }),
     remaining: computed(() => remaining(todos)),
 
     // Actions

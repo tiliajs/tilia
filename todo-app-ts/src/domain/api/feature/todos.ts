@@ -1,5 +1,6 @@
 import type { Loadable, Void } from "../model/loadable";
 import type { Todo } from "../model/todo";
+export type Signalx<T> = { valuex: T };
 
 export type TodosFilter = "all" | "active" | "completed";
 
@@ -12,8 +13,8 @@ export interface Todos {
   selected: Todo;
 
   // Computed state
-  data: Loadable<Todo[]>;
-  list: Todo[];
+  data_: Signalx<Loadable<Todo[]>>;
+  list: Loadable<Todo[]>;
   remaining: number;
 
   // Operations

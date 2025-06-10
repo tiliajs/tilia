@@ -3,7 +3,7 @@ import { makeApp } from "src/domain/feature/app";
 import { memoryStore } from "src/service/repo/memory";
 import { observe } from "tilia";
 import { describe, expect, it } from "vitest";
-import { loaded } from "../../api/model/loadable";
+import { isLoaded, loaded } from "../../api/model/loadable";
 import type { Todo } from "../../api/model/todo";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -43,7 +43,7 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
   return new Promise<AppReady>((resolve) => {
     observe(() => {
       const app = app_.value;
-      if (isAppReady(app) && app.todos.data.t === "Loaded") {
+      if (isAppReady(app) && app.todos.data_.valuex.t === "Loaded") {
         resolve(app);
       }
     });
@@ -53,7 +53,7 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
 describe("Todos", () => {
   it("should set data to loaded after login", async () => {
     const { todos } = await setup([]);
-    expect(todos.data).toEqual(loaded([]));
+    expect(todos.data_).toEqual(loaded([]));
   });
 
   it("should set id to uuid on save", async () => {
@@ -65,8 +65,13 @@ describe("Todos", () => {
       completed: false,
       userId: "",
     });
+    if (!isLoaded(todos.list)) {
+      expect("todos.list").toEqual("loaded");
+      return;
+    }
+    const list = todos.list.value;
 
-    const todo = todos.list[0];
+    const todo = list[0];
     expect(todo.id).toMatch(
       // uuid
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
@@ -86,9 +91,14 @@ describe("Todos", () => {
       completed: false,
       userId: "",
     });
+    if (!isLoaded(todos.list)) {
+      expect("todos.list").toEqual("loaded");
+      return;
+    }
+    const list = todos.list.value;
 
-    const todo = todos.list[0];
-    expect(todos.list).toEqual([
+    const todo = list[0];
+    expect(list).toEqual([
       {
         id: todo.id,
         createdAt: todo.createdAt,

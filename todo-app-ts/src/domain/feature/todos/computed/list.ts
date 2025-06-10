@@ -1,16 +1,27 @@
 import type { Todos, TodosFilter } from "src/domain/api/feature/todos";
-import { isLoaded } from "src/domain/api/model/loadable";
+import {
+  blank,
+  isLoaded,
+  loaded,
+  loading,
+  type Loadable,
+} from "src/domain/api/model/loadable";
 import type { Todo } from "src/domain/api/model/todo";
 
-export function list(todos: Todos): Todo[] {
-  const { data } = todos;
+export function list(todos: Todos): Loadable<Todo[]> {
+  const {
+    data_: { valuex: data },
+  } = todos;
+  console.log("LIST", data.t);
   if (isLoaded(data)) {
     const l = data.value
       .filter(listFilter(todos.filter))
       .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
-    return l;
+    return loaded(l);
+  } else if (data.t === "Blank") {
+    return blank();
   }
-  return [];
+  return loading();
 }
 
 // ======= PRIVATE ========================
