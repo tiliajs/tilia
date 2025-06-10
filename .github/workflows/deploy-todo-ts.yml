@@ -42,7 +42,7 @@ jobs:
 
       - name: Copy website to root dist
         run: |
-          cp website/dist/* dist/
+          cp -r website/dist/* dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
