@@ -165,58 +165,6 @@ let public = tilia({ name: computed(() => alice.name) })
 
 </section>
 
-## Advanced Topics {.topics}
-
-<section class="doc immutability wide-comment">
-
-### Immutability
-
-Tilia enforces immutability around `computed`. It will not allow:
-
-- the replacement of a computed value by a regular value.
-- mutations in the calculation.
-
-```typescript
-import { computed } from "tilia";
-
-const alice = tilia({ name: computed(() => "Alice") });
-// 🚨 Error: Cannot mutate a computed value
-alice.name = "Bob";
-
-// ✅ you can replace the function
-alice.name = computed(() => "Алиса");
-
-const age = tilia({ value: 10 });
-const alice = tilia({
-  name: computed(() => {
-    // 🚨 Error: Cannot mutate state in an immutable observer
-    age.value = 11;
-    return "Alice";
-  }),
-});
-```
-
-```rescript
-open Tilia
-
-let alice = tilia({ name: computed(() => "Alice") })
-alice.name = "Bob" // 🚨 Error: Cannot mutate a computed value
-alice.name = computed(() => "Алиса") // ✅ you can replace the function
-
-let age = tilia({ value: 10 })
-let alice = tilia({
-  name: computed(() => {
-    // 🚨 Error: Cannot mutate state in an immutable observer
-    age.value = 11
-    "Alice"
-  }),
-})
-```
-
-**💡 Pro tip:** If you need deep immutability with TypeScript for a calculated object, you can use `Object.freeze`. With ReScript, mutability is enforced by the compiler. {.pro}
-
-</section>
-
 ## Functional Reactive Programming {.frp}
 
 ✨ **Rainbow architect**, tilia has <span>2</span> more functions for you! ✨ {.rainbow}
@@ -423,7 +371,7 @@ let make = () => {
       </div>
       <div class="flex items-center space-x-2">
         <span class="text-green-400">✓</span>
-        <span>Immutability where it matters</span>
+        <span>Optimized for stability and speed</span>
       </div>
       <div class="flex items-center space-x-2">
         <span class="text-green-400">✓</span>
@@ -489,7 +437,7 @@ let make = () => {
           for FRP style programming.
         </li>
         <li>Simplify <code class="text-yellow-300">useTilia</code> signature.</li>
-        <li>Add immutability protections.</li>
+        <li>Add garbage collection to improve performance.</li>
       </ul>
     </div>
     <div class="text-sm text-white/70">

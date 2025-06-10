@@ -24,7 +24,6 @@ async function loadTodos(
 ) {
   const data = await fetchTodos();
   if (isSuccess(data)) {
-    console.log("SET DATA");
     set(loaded(data.value));
   } else {
     // Error already handled by the store

@@ -6,7 +6,7 @@ import { v4 as uuid } from "uuid";
 import { newTodo } from "./_utils";
 
 export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {
-  const data = todos.data_.valuex;
+  const data = todos.data_.value;
   if (isLoaded(data)) {
     const isNew = atodo.id === "";
     const todo = { ...atodo };

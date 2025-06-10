@@ -10,9 +10,8 @@ import type { Todo } from "src/domain/api/model/todo";
 
 export function list(todos: Todos): Loadable<Todo[]> {
   const {
-    data_: { valuex: data },
+    data_: { value: data },
   } = todos;
-  console.log("LIST", data.t);
   if (isLoaded(data)) {
     const l = data.value
       .filter(listFilter(todos.filter))

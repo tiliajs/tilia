@@ -43,7 +43,7 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
   return new Promise<AppReady>((resolve) => {
     observe(() => {
       const app = app_.value;
-      if (isAppReady(app) && app.todos.data_.valuex.t === "Loaded") {
+      if (isAppReady(app) && app.todos.data_.value.t === "Loaded") {
         resolve(app);
       }
     });
@@ -53,7 +53,7 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
 describe("Todos", () => {
   it("should set data to loaded after login", async () => {
     const { todos } = await setup([]);
-    expect(todos.data_).toEqual(loaded([]));
+    expect(todos.data_.value).toEqual(loaded([]));
   });
 
   it("should set id to uuid on save", async () => {
@@ -119,24 +119,24 @@ describe("Todos", () => {
       userId: "",
     });
 
-    expect(todos.list).toEqual([]);
+    expect(todos.list).toEqual(loaded([]));
   });
 
   it("should update list on filters change", async () => {
     const { todos } = await setup();
-    expect(todos.list).toEqual([plants, rice, hug]);
+    expect(todos.list).toEqual(loaded([plants, rice, hug]));
     todos.setFilter("active");
     await tick();
-    expect(todos.list).toEqual([plants, hug]);
+    expect(todos.list).toEqual(loaded([plants, hug]));
   });
 
   it("should update list on toggle", async () => {
     const { todos } = await setup();
     todos.setFilter("active");
     await tick();
-    expect(todos.list).toEqual([plants, hug]);
+    expect(todos.list).toEqual(loaded([plants, hug]));
     todos.toggle("2");
     await tick();
-    expect(todos.list).toEqual([plants]);
+    expect(todos.list).toEqual(loaded([plants]));
   });
 });

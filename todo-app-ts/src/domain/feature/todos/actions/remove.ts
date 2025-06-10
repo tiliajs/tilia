@@ -3,7 +3,7 @@ import { isLoaded } from "src/domain/api/model/loadable";
 import { isSuccess, type RepoReady } from "src/domain/api/service/repo";
 
 export async function remove(repo: RepoReady, todos: Todos, id: string) {
-  const data = todos.data_.valuex;
+  const data = todos.data_.value;
   if (isLoaded(data)) {
     const result = await repo.removeTodo(id);
     if (isSuccess(result)) {

@@ -246,15 +246,46 @@ export function ReadyApp({ app }: { app: AppReady }) {
             </button>
           ))}
         </div>
-        TODO LIST:
+
         <TodoList />
-        <br />
-        REMAINING:
+
         <Remaining />
+
+        {/*
+        <div className="mt-6">
+          <button onClick={leakTest} className="cursor-pointer">
+            leak test
+          </button>
+        </div>
+        */}
       </>
     </AppProvider>
   );
 }
+
+/*
+function leakTest() {
+  const p = tilia<Record<string, number>>({});
+
+  const o = _observe(() => {});
+  for (let i = 1; i <= 1_000_000; ++i) {
+    // Read with observer
+    if (p[String(i)] !== undefined) {
+      console.log(p[String(i)], "is not undefined");
+    }
+    // Write
+    p[String(i)] = i;
+    _ready(o, true);
+    _clear(o);
+    for (let j = 1; j <= 100; ++j) {
+      // Read without observer
+      p[String(i)];
+    }
+    delete p[String(i)];
+  }
+  console.log("done");
+}
+*/
 
 export function TodoList() {
   const {
