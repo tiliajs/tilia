@@ -52,17 +52,17 @@ function Sky() {
 
 ```rescript
 let vibing = tilia({
-vibes: "immaculate" 🌈
+  vibes: "immaculate" 🌈
 })
 
 @react.component
 let make = () => {
-useTilia()
-&lt;div&gt;{React.string(vibing.vibes)}&lt;/div&gt;
+  useTilia()
+
+  <div>{React.string(vibing.vibes)}</div>
 }
 
-let elevateVibes = () =>
-vibing.vibes = "legendary" ✨
+let elevateVibes = () => vibing.vibes = "legendary" ✨
 
 ```
 

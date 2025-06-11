@@ -32,9 +32,8 @@ is_semver() {
 
 # Install dependencies
 pnpm i
-# Check compilation for all projects
-pnpm tilia res:build
-pnpm react res:build
+# Rebuild for all projects
+pnpm build
 
 cd tilia
 TILIA_VERSION=$(npm pkg get version | sed 's/"//g')
