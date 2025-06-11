@@ -30,14 +30,9 @@ npm install tilia@canary
 
 ## Goals and Non-goals
 
-<strong class="text-green-300">The goal</strong> with Tilia is to be minimal
-and fast while staying out of the way. A special effort was made to keep
-the API simple and intuitive.
+<strong class="text-green-300">The goal</strong> with Tilia is to be minimal\* and fast while staying out of the way. A special effort was made to keep the API simple and intuitive.
 
-We haven't measured the performance of the library yet, but everything was
-designed to make it as fast and lightweight as possible. If someone wants to
-help us benchmarking, we'd be happy to add this information to the
-documentation. {.story}
+- 8KB minified {.story}
 
 <strong class="text-pink-300/80">Non-goal</strong> Tilia is not a framework.
 
@@ -397,7 +392,7 @@ let make = () => {
       </div>
       <div class="flex items-center space-x-2">
         <span class="text-green-400">✓</span>
-        <span>No god object or single state</span>
+        <span>Tiny footprint (8KB) ✨</span>
       </div>
     </div>
   </div>
