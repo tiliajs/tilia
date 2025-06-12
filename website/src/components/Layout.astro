@@ -11,7 +11,8 @@ export interface Props {
 
 const { title, description, keywords } = Astro.props;
 
-const { pathname } = Astro.url;
+const { pathname: rawpath } = Astro.url;
+const pathname = rawpath.endsWith("/") ? rawpath.slice(0, -1) : rawpath;
 ---
 
 <!doctype html>
@@ -95,7 +96,7 @@ const { pathname } = Astro.url;
         </h1>
       </div>
       <div class="nav">
-        <a class={pathname === "/" ? "active" : ""} href="/">Home</a>
+        <a class={pathname === "" ? "active" : ""} href="/">Home</a>
         <a class={pathname === "/docs" ? "active" : ""} href="/docs">Docs</a>
         <a class={pathname === "/compare" ? "active" : ""} href="/compare"
           >Compare</a
