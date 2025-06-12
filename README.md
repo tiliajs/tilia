@@ -5,6 +5,10 @@ Simple and fast state management library.
 The library supports **TypeScript** and **ReScript** (it is actually written in
 ReScript for improved type safety and performance).
 
+<a href="https://tiliajs.com">
+  <img width="817" alt="image" src="https://github.com/user-attachments/assets/c01c69e2-7472-461e-818f-8c0831ca0fae" />
+</a>
+
 Check the [**website**](https://tiliajs.com) for documentation and examples.
 
 ### Changelog
