@@ -9,6 +9,10 @@ var symbol = (function(s) {
   return Symbol.for('tilia:' + s);
 });
 
+function immediateFlush(fn) {
+  fn();
+}
+
 var indexKey = symbol("indexKey");
 
 var metaKey = symbol("metaKey");
@@ -63,35 +67,31 @@ function observeKey(observed, key) {
 }
 
 function flush(root) {
-  var expired = root.expired;
-  if (expired === null || expired === undefined) {
-    expired === null;
-  } else {
+  var match = root.notified;
+  if (match === "Blank") {
+    root.notified = "Flushed";
     root.flush(function () {
-          root.expired = undefined;
+          var expired = root.expired;
+          root.notified = "Blank";
+          root.expired = new Set();
           expired.forEach(function (observer) {
                 observer.notify();
               });
         });
   }
   var gc = root.gc;
-  if (gc === null || gc === undefined) {
-    return ;
-  }
-  gc.count = gc.count + 1 | 0;
-  if (gc.count > root.gcThreshold) {
+  if (gc.active.size >= gc.threshold) {
     return root.flush(function () {
-                root.gc = undefined;
-                gc.cleared.forEach(function (w) {
-                      w.state = "Cleared";
-                      var cw = w.observed.get(w.key);
-                      if (cw === null || cw === undefined || cw !== w) {
-                        return ;
-                      } else {
+                gc.quarantine.forEach(function (w) {
+                      if (w.state === "Pristine" && w.observers.size === 0) {
+                        w.state = "Cleared";
                         w.observed.delete(w.key);
                         return ;
                       }
+                      
                     });
+                gc.quarantine = gc.active;
+                gc.active = new Set();
               });
   }
   
@@ -99,26 +99,11 @@ function flush(root) {
 
 function clearObserver(root, observer) {
   observer.observing.forEach(function (watchers) {
-        if (!(watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0)) {
+        if (watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0) {
+          root.gc.active.add(watchers);
           return ;
         }
-        var gc = root.gc;
-        var gc$1;
-        var exit = 0;
-        if (gc === null || gc === undefined) {
-          exit = 1;
-        } else {
-          gc$1 = gc;
-        }
-        if (exit === 1) {
-          var gc$2 = {
-            cleared: new Set(),
-            count: 0
-          };
-          root.gc = gc$2;
-          gc$1 = gc$2;
-        }
-        gc$1.cleared.add(watchers);
+        
       });
   var o = root.observer;
   if (o === null || o === undefined || o !== observer) {
@@ -151,12 +136,13 @@ function setReady(root, observer, notifyIfChanged) {
         observer.observing[idx] = w$1;
         return false;
       });
-  var match = root.observer;
-  if (match === null || match === undefined) {
+  var o = root.observer;
+  if (o === null || o === undefined || o !== observer) {
     return ;
+  } else {
+    root.observer = undefined;
+    return flush(root);
   }
-  root.observer = undefined;
-  flush(root);
 }
 
 function notify(root, observed, key) {
@@ -167,21 +153,9 @@ function notify(root, observed, key) {
   observed.delete(key);
   watchers.state = "Changed";
   var expired = root.expired;
-  var expired$1;
-  var exit = 0;
-  if (expired === null || expired === undefined) {
-    exit = 1;
-  } else {
-    expired$1 = expired;
-  }
-  if (exit === 1) {
-    var expired$2 = new Set();
-    root.expired = expired$2;
-    expired$1 = expired$2;
-  }
   watchers.observers.forEach(function (observer) {
         clearObserver(root, observer);
-        expired$1.add(observer);
+        expired.add(observer);
       });
   var match = root.observer;
   if (match === null || match === undefined) {
@@ -190,9 +164,10 @@ function notify(root, observed, key) {
   
 }
 
-function set(root, observed, proxied, computes, _fromComputed, target, key, _value) {
+function set(root, observed, proxied, computes, isArray, _fromComputed, target, _key, _value) {
   while(true) {
     var value = _value;
+    var key = _key;
     var fromComputed = _fromComputed;
     var hadKey = Reflect.has(target, key);
     var prev = Reflect.get(target, key);
@@ -210,16 +185,17 @@ function set(root, observed, proxied, computes, _fromComputed, target, key, _val
     if (!Reflect.set(target, key, value)) {
       return false;
     }
+    var key$1 = isArray && key === "length" ? indexKey : key;
     if (proxiable$1) {
-      proxied.delete(key);
+      proxied.delete(key$1);
     }
     if (!fromComputed) {
-      var match = computes.get(key);
+      var match = computes.get(key$1);
       if (match === null || match === undefined) {
         match === null;
       } else {
         var clear = match.clear;
-        computes.delete(key);
+        computes.delete(key$1);
         clear();
       }
     }
@@ -227,15 +203,21 @@ function set(root, observed, proxied, computes, _fromComputed, target, key, _val
     if (compute$1 === null || compute$1 === undefined) {
       compute$1 === null;
     } else {
-      setupComputed(root, observed, proxied, computes, target, key, compute$1);
-      if (!observed.has(key)) {
+      setupComputed(root, observed, proxied, computes, isArray, target, key$1, compute$1);
+      var w = observed.get(key$1);
+      if (w === null || w === undefined) {
         return true;
       }
-      _value = compute$1.rebuild();
+      if (w.observers.size <= 0) {
+        return true;
+      }
+      var v = compute$1.rebuild();
+      _value = v;
+      _key = key$1;
       _fromComputed = true;
       continue ;
     }
-    notify(root, observed, key);
+    notify(root, observed, key$1);
     if (!hadKey) {
       notify(root, observed, indexKey);
     }
@@ -243,7 +225,7 @@ function set(root, observed, proxied, computes, _fromComputed, target, key, _val
   };
 }
 
-function setupComputed(root, observed, proxied, computes, target, key, compute) {
+function setupComputed(root, observed, proxied, computes, isArray, target, key, compute) {
   var lastValue = {
     v: undefined
   };
@@ -256,12 +238,23 @@ function setupComputed(root, observed, proxied, computes, target, key, compute) 
     if (v !== compute) {
       lastValue.v = v;
     }
-    if (observed.has(key)) {
-      set(root, observed, proxied, computes, true, target, key, rebuild());
+    var w = observed.get(key);
+    if (w === null || w === undefined) {
+      w === null;
     } else {
+      if (w.observers.size > 0) {
+        var v$1 = rebuild();
+        set(root, observed, proxied, computes, isArray, true, target, key, v$1);
+        return ;
+      }
+      w.state = "Changed";
+      observed.delete(key);
       Reflect.deleteProperty(proxied, key);
       Reflect.set(target, key, compute);
+      return ;
     }
+    Reflect.deleteProperty(proxied, key);
+    Reflect.set(target, key, compute);
   };
   var rebuild = function () {
     Reflect.set(target, key, lastValue.v);
@@ -309,11 +302,11 @@ function proxify(root, _target) {
     var meta = ({root, target, observed, proxied, computes});
     var isArray = Array.isArray(target);
     var proxy = new Proxy(target, {
-          set: (function(proxied,observed,computes){
+          set: (function(proxied,observed,computes,isArray){
           return function (extra, extra$1, extra$2) {
-            return set(root, observed, proxied, computes, false, extra, extra$1, extra$2);
+            return set(root, observed, proxied, computes, isArray, false, extra, extra$1, extra$2);
           }
-          }(proxied,observed,computes)),
+          }(proxied,observed,computes,isArray)),
           deleteProperty: (function(proxied,observed,computes){
           return function (extra, extra$1) {
             var res = Reflect.deleteProperty(extra, extra$1);
@@ -362,7 +355,7 @@ function proxify(root, _target) {
               exit = 1;
             } else {
               if (compute$1.clear === noop) {
-                setupComputed(root, observed, proxied, computes, extra, extra$1, compute$1);
+                setupComputed(root, observed, proxied, computes, isArray, extra, extra$1, compute$1);
               }
               var v$1 = compute$1.rebuild();
               Reflect.set(extra, extra$1, v$1);
@@ -409,14 +402,10 @@ function proxify(root, _target) {
   };
 }
 
-function immediateFlush(fn) {
-  fn();
-}
-
 function makeTilia(root) {
   return function (value) {
     if (!proxiable(value)) {
-      raise("connect: value is not an object or array");
+      raise("tilia: value is not an object or array");
     }
     return proxify(root, value).proxy;
   };
@@ -494,7 +483,7 @@ function makeReady_(root) {
   };
 }
 
-function connector(tilia, computed, observe, signal, store, _observe, _ready, _clear) {
+function connector(tilia, computed, observe, signal, store, _observe, _done, _ready, _clear) {
   return {
     // 
     tilia,
@@ -505,6 +494,7 @@ function connector(tilia, computed, observe, signal, store, _observe, _ready, _c
     store,
     // internal
     _observe,
+    _done,
     _ready,
     _clear,
     _meta,
@@ -515,16 +505,23 @@ function connector(tilia, computed, observe, signal, store, _observe, _ready, _c
 function make(flushOpt, gcOpt) {
   var flush = flushOpt !== undefined ? flushOpt : immediateFlush;
   var gc = gcOpt !== undefined ? gcOpt : 50;
+  var gc$1 = {
+    active: new Set(),
+    quarantine: new Set(),
+    threshold: gc
+  };
   var root = {
     observer: undefined,
-    expired: undefined,
-    gc: undefined,
-    flush: flush,
-    gcThreshold: gc
+    expired: new Set(),
+    notified: "Blank",
+    gc: gc$1,
+    flush: flush
   };
   var tilia = makeTilia(root);
   var signal = makeSignal(tilia);
-  return connector(tilia, computed, makeObserve(root), signal, makeStore(signal), makeObserve_(root), makeReady_(root), (function (observer) {
+  return connector(tilia, computed, makeObserve(root), signal, makeStore(signal), makeObserve_(root), (function (_observer) {
+                root.observer = undefined;
+              }), makeReady_(root), (function (observer) {
                 clearObserver(root, observer);
               }), _meta);
 }
@@ -557,6 +554,8 @@ var store = _ctx.store;
 
 var _observe = _ctx._observe;
 
+var _done = _ctx._done;
+
 var _ready = _ctx._ready;
 
 var _clear = _ctx._clear;
@@ -569,6 +568,7 @@ export {
   signal ,
   store ,
   _observe ,
+  _done ,
   _ready ,
   _clear ,
   _meta ,

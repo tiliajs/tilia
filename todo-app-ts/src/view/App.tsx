@@ -1,5 +1,5 @@
 import { isLoaded } from "@model/loadable";
-import { useTilia } from "@tilia/react";
+import { useComputed, useTilia } from "@tilia/react";
 import {
   CheckCircle,
   Circle,
@@ -12,11 +12,14 @@ import {
 } from "lucide-react";
 import {
   createContext,
+  memo,
   useContext,
   useEffect,
   useRef,
   useState,
   type ChangeEvent,
+  type FunctionComponent,
+  type NamedExoticComponent,
 } from "react";
 import { app_ } from "src/boot";
 import type {
@@ -27,6 +30,7 @@ import type {
 import { todosFilterValues } from "src/domain/api/feature/todos";
 import type { Todo } from "src/domain/api/model/todo";
 import { Authentication } from "src/view/Authentication";
+import { _clear, _done, _observe, _ready, tilia } from "tilia";
 
 export function App() {
   return (
@@ -141,6 +145,19 @@ function Layout({ children }: { children: React.ReactNode }) {
           </div>
           <span>{auth.t === "Authenticated" ? auth.user.name : ""}</span>
         </div>
+        <div
+          className={`text-sm flex justify-between m-2 mb-6 ${
+            darkMode ? "text-pink-300" : "text-pink-500"
+          }`}
+        >
+          <div className="inline-flex items-center gap-2">
+            <span className="opacity-70">the little dot</span>
+            <span className="border border-black bg-white rounded-full w-2 h-2" />
+            <span className="opacity-70">
+              indicates that a component re-renders
+            </span>
+          </div>
+        </div>
         {children}
       </div>
     </div>
@@ -184,108 +201,110 @@ const useApp = () => {
 };
 
 export function ReadyApp({ app }: { app: AppReady }) {
-  // @ts-ignore
   useTilia();
-  const { todos, display } = app;
-  const darkMode = display.darkMode;
 
   return (
     <AppProvider value={app}>
       <>
-        {/* Add Todo Input */}
-        <div className="mb-6">
-          <div className="flex">
-            <input
-              type="text"
-              value={todos.selected.title}
-              onChange={(e: ChangeEvent<HTMLInputElement>) =>
-                todos.setTitle(e.target.value)
-              }
-              placeholder="Add a task..."
-              className={`flex-grow p-3 rounded-l-lg border-2 focus:outline-none ${
-                darkMode
-                  ? "bg-gray-800 border-pink-500 text-pink-100 placeholder-pink-300"
-                  : "bg-white border-pink-300 text-gray-800 placeholder-pink-300"
-              }`}
-              onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === "Enter") {
-                  todos.save(todos.selected);
-                } else if (e.key === "Escape") {
-                  todos.clear();
-                }
-              }}
-            />
-            <button
-              onClick={() => todos.save(todos.selected)}
-              className={`px-4 py-2 rounded-r-lg font-bold min-w-20 ${
-                darkMode
-                  ? "bg-pink-600 hover:bg-pink-700 text-white"
-                  : "bg-pink-400 hover:bg-pink-500 text-white"
-              }`}
-            >
-              {todos.selected.id === "" ? "Add" : "Save"}
-            </button>
-          </div>
-        </div>
-        <div className="flex justify-center space-x-2 mb-6">
-          {todosFilterValues.map((f) => (
-            <button
-              key={f}
-              onClick={() => todos.setFilter(f)}
-              className={`px-4 py-2 rounded-full capitalize transition-colors ${
-                todos.filter === f
-                  ? darkMode
-                    ? "bg-pink-600 text-white"
-                    : "bg-pink-400 text-white"
-                  : darkMode
-                  ? "bg-gray-800 text-pink-300 hover:bg-gray-700"
-                  : "bg-pink-100 text-pink-600 hover:bg-pink-200"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+        <TodoInput />
+
+        <FilterValues />
 
         <TodoList />
 
         <Remaining />
 
-        {/*
-        <div className="mt-6">
-          <button onClick={leakTest} className="cursor-pointer">
-            leak test
-          </button>
-        </div>
-        */}
+        <LeakTest />
       </>
     </AppProvider>
   );
 }
 
-/*
-function leakTest() {
-  const p = tilia<Record<string, number>>({});
+function LeakTest() {
+  return null;
 
-  const o = _observe(() => {});
-  for (let i = 1; i <= 1_000_000; ++i) {
-    // Read with observer
-    if (p[String(i)] !== undefined) {
-      console.log(p[String(i)], "is not undefined");
-    }
-    // Write
-    p[String(i)] = i;
-    _ready(o, true);
-    _clear(o);
-    for (let j = 1; j <= 100; ++j) {
-      // Read without observer
-      p[String(i)];
-    }
-    delete p[String(i)];
-  }
-  console.log("done");
+  return (
+    <div className="mt-6">
+      <button onClick={leakTest} className="cursor-pointer">
+        leak test
+      </button>
+    </div>
+  );
 }
-*/
+
+function FilterValues() {
+  const {
+    display: { darkMode },
+    todos,
+  } = useApp();
+  return (
+    <div className="flex justify-center space-x-2 mb-6">
+      {todosFilterValues.map((f) => (
+        <button
+          key={f}
+          onClick={() => todos.setFilter(f)}
+          className={`px-4 py-2 rounded-full capitalize transition-colors ${
+            todos.filter === f
+              ? darkMode
+                ? "bg-pink-600 text-white"
+                : "bg-pink-400 text-white"
+              : darkMode
+              ? "bg-gray-800 text-pink-300 hover:bg-gray-700"
+              : "bg-pink-100 text-pink-600 hover:bg-pink-200"
+          }`}
+        >
+          {f}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TodoInput() {
+  const {
+    todos,
+    display: { darkMode },
+  } = useApp();
+  const blink = useBlink();
+
+  return (
+    <div className="mb-6">
+      <div className="flex">
+        {blink}
+        <input
+          type="text"
+          value={todos.selected.title}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            todos.setTitle(e.target.value)
+          }
+          placeholder="Add a task..."
+          className={`flex-grow p-3 rounded-l-lg border-2 focus:outline-none ${
+            darkMode
+              ? "bg-gray-800 border-pink-500 text-pink-100 placeholder-pink-300"
+              : "bg-white border-pink-300 text-gray-800 placeholder-pink-300"
+          }`}
+          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+            if (e.key === "Enter") {
+              todos.save(todos.selected);
+            } else if (e.key === "Escape") {
+              todos.clear();
+            }
+          }}
+        />
+        <button
+          onClick={() => todos.save(todos.selected)}
+          className={`px-4 py-2 rounded-r-lg font-bold min-w-20 ${
+            darkMode
+              ? "bg-pink-600 hover:bg-pink-700 text-white"
+              : "bg-pink-400 hover:bg-pink-500 text-white"
+          }`}
+        >
+          {todos.selected.id === "" ? "Add" : "Save"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export function TodoList() {
   const {
@@ -327,35 +346,43 @@ function Remaining() {
   const {
     display: { darkMode },
     todos,
-    // @ts-ignore
   } = useApp();
+  const blink = useBlink();
 
-  return isLoaded(todos.list)
-    ? todos.list.value.length > 0 && (
-        <div className="mt-6 text-center">
-          <p className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}>
-            {todos.remaining} tasks remaining
-          </p>
-        </div>
-      )
-    : "Loading";
+  return (
+    <div className="mt-6 flex flex-row justify-center items-center gap-4">
+      {isLoaded(todos.list)
+        ? todos.list.value.length > 0 && (
+            <p className={darkMode ? "text-pink-300" : "text-pink-500"}>
+              {todos.remaining} tasks remaining
+            </p>
+          )
+        : "Loading"}
+      {blink}
+    </div>
+  );
 }
 
-function TodoView({ todo }: { todo: Todo }) {
+const TodoView = view(function TodoView({ todo }: { todo: Todo }) {
   const {
     todos,
     display: { darkMode },
-  } = useApp();
+  } = useContext(appContext);
+  const blink = useBlink();
+
+  const selected = useComputed(() => todos.selected.id === todo.id);
 
   return (
     <li
       key={todo.id}
-      className={`px-4 flex-grow flex items-center justify-between rounded-lg transition-all ${
+      className={`px-4 flex-grow flex items-center justify-between rounded-lg transition-all border ${
         darkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-white shadow" // hover:bg-pink-50 shadow"
       } ${
-        todos.selected.id === todo.id ? "border-pink-500 border inset-0" : ""
+        //  This is an anti-pattern...
+        selected.value ? "border-pink-500" : "border-transparent"
       }`}
     >
+      {blink}
       <button
         onClick={() => todos.toggle(todo.id)}
         className={`p-4 pr-1 cursor-pointer ${
@@ -395,13 +422,15 @@ function TodoView({ todo }: { todo: Todo }) {
       </button>
     </li>
   );
-}
+});
 
 function TodoTitle({ todo }: { todo: Todo }) {
   const {
     todos,
     display: { darkMode },
   } = useApp();
+  const blink = useBlink();
+
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(todo.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -437,7 +466,7 @@ function TodoTitle({ todo }: { todo: Todo }) {
 
   return (
     <div
-      className="flex-grow"
+      className="flex-grow relative"
       onClick={() => {
         if (!editing) {
           setTitle(todo.title);
@@ -469,6 +498,107 @@ function TodoTitle({ todo }: { todo: Todo }) {
           {todo.title}
         </div>
       )}
+      <div className="absolute top-1/2 right-4 opacity-30">{blink}</div>
     </div>
   );
 }
+
+function useBlink() {
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    node.style.backgroundColor = "#FFFF";
+    const timeout = setTimeout(() => {
+      node.style.backgroundColor = "#0009";
+    }, 150);
+
+    return () => clearTimeout(timeout);
+  });
+
+  return (
+    <span
+      ref={ref}
+      style={{
+        display: "inline-block",
+        width: "8px",
+        height: "8px",
+        border: "1px solid black",
+        borderRadius: "10px",
+        transition: "background 0.15s",
+      }}
+    >
+      &nbsp;
+    </span>
+  );
+}
+
+function leakTest() {
+  const p = tilia<Record<string, number>>({});
+
+  const o = _observe(() => {});
+  for (let i = 1; i <= 1_000_000; ++i) {
+    // Read with observer
+    if (p[String(i)] !== undefined) {
+      console.log(p[String(i)], "is not undefined");
+    }
+    // Write
+    p[String(i)] = i;
+    _ready(o, true);
+    _clear(o);
+    for (let j = 1; j <= 100; ++j) {
+      // Read without observer
+      p[String(i)];
+    }
+    delete p[String(i)];
+  }
+  console.log("done");
+}
+
+// Example on how to create a HOC that does the same as useTilia.
+function view<T extends object>(
+  fn: FunctionComponent<T>
+): NamedExoticComponent<T> {
+  function fun(p: T) {
+    const [_, setCount] = useState(0);
+    // Start observing
+    const o = _observe(() => setCount((i) => i + 1));
+    useEffect(() => {
+      // Ready for notifications
+      _ready(o, true);
+      return () => _clear(o);
+    });
+    const res = fn(p);
+    // End observing
+    _done(o);
+    return res;
+  }
+  const fnx = memo(fun);
+  console.log(fn.displayName, fn.name);
+  fnx.displayName = (fn.displayName || fn.name).replace(/\d+$/, "");
+  return fnx;
+}
+
+/*
+function view<T extends object>(
+  fn: FunctionComponent<T>
+): FunctionComponent<T> {
+  const name = fn.displayName || fn.name;
+  const obj = {
+    [name]: function (props: T) {
+      const [_, setCount] = useState(0);
+      const o = _observe(() => setCount((i) => i + 1));
+      useEffect(() => {
+        _ready(o, true);
+        return () => _clear(o);
+      });
+      const res = fn(props);
+      _done(o);
+      return res;
+    },
+  };
+  return obj[name];
+}
+*/

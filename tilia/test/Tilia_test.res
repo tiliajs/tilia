@@ -1125,18 +1125,18 @@ test("should trigger if changed after cleared", t => {
   // the watchers list was cleared.
   set("Lala")
 
-  // Sees Cleared
+  // Would see Cleared without gc
   _ready(o1, true)
-  // Should trigger right away because "Cleared" means that it could be
-  // anything.
   t->isTrue(m.called)
   t->is("Lala", data.value)
 })
 
 test("should not trigger if unchanged after cleared", t => {
+  // Using a long GC, will not trigger
+
   let m = {called: false}
   let (data, _) = signal("Dana")
-  // Observer 1 watches the data
+  // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
   t->is("Dana", data.value)
   m.called = false
@@ -1147,8 +1147,58 @@ test("should not trigger if unchanged after cleared", t => {
   _ready(o2, true)
   _clear(o2) // Clears the watchers list
 
-  // Sees Cleared
+  // Would trigger right away without gc
+  _ready(o1, true)
+  // Did not trigger because the gc protected Clearing.
+  t->isFalse(m.called)
+})
+
+test("should trigger with very short gc", t => {
+  let ctx = make(~gc=0)
+  let signal = ctx.signal
+  let _observe = ctx._observe
+  let _ready = ctx._ready
+  let _clear = ctx._clear
+
+  let m = {called: false}
+  let (data, _) = signal("Dana")
+  let (data2, _) = signal("Dana")
+  // Observer 1 will watch the data
+  let o1 = _observe(() => m.called = true)
+  t->is("Dana", data.value)
+  m.called = false
+
+  // Observer 2 watches, and clears which clears the watchers list
+  let o2 = _observe(() => ())
+  t->is("Dana", data.value)
+  _ready(o2, true)
+  _clear(o2) // Clears the watchers list
+
+  for _ in 1 to 2 {
+    // To make the GC advance
+    let o2 = _observe(() => ())
+    t->is("Dana", data2.value)
+    _ready(o2, true)
+    _clear(o2) // Clears the watchers list
+  }
+
+  // Would trigger right away without gc
   _ready(o1, true)
   // Should not trigger because the value is unchanged.
+  t->isTrue(m.called)
+})
+
+test("should stop observing after _done", t => {
+  let m = {called: false}
+  let p = tilia(person())
+  let o = _observe(() => m.called = true)
+  t->is("John", p.name)
+  _done(o)
+  t->is("Truth", p.address.city)
+  _ready(o, true)
   t->isFalse(m.called)
+  p.address.city = "Irpin"
+  t->isFalse(m.called)
+  p.name = "Paulina"
+  t->isTrue(m.called)
 })

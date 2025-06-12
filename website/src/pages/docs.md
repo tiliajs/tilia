@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, observe, computed, signal, store functions and React integration with useTilia hook.
-keywords: tilia documentation, API reference, tila, observe, computed, useTilia, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, observe, computed, signal, store functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, observe, computed, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -34,7 +34,7 @@ npm install tilia@canary
 
 - 8KB minified {.story}
 
-<strong class="text-pink-300/80">Non-goal</strong> Tilia is not a framework.
+<strong class="text-red-200">Non-goal</strong> Tilia is not a framework.
 
 </section>
 
@@ -300,7 +300,7 @@ The `store` function is a very powerful tool to manage state transitions. Look a
 
 <section class="doc react">
 
-### useTilia <small>(React Hook)</small>
+### useTilia <small>(React Hook)</small> {.useTilia}
 
 #### Installation
 
@@ -339,7 +339,42 @@ let make = () => {
 }
 ```
 
-**💡 Pro tip:** The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render. {.pro}
+The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render.
+
+</section>
+
+<section class="doc react">
+
+### useComputed <small>(React Hook)</small> {.useComputed}
+
+`useComputed` lets you compute a value and only re-render if the result changes.
+
+```typescript
+import { useTilia, useComputed } from "@tilia/react";
+
+function TodoView({ todo }: { todo: Todo }) {
+  useTilia();
+
+  const selected = useComputed(() => app.todos.selected.id === todo.id);
+
+  return <div className={selected.value ? "text-pink-200" : ""}>...</div>;
+}
+```
+
+```rescript
+open TiliaReact
+
+@react.component
+let make = () => {
+  useTilia()
+
+  let selected = useComputed(() => app.todos.selected.id === todo.id)
+
+  <div className={selected.value ? "text-pink-200" : ""}>...</div>;
+}
+```
+
+With this helper, the TodoView does not depend on `app.todos.selected.id` but on `selected.value`. This prevents the component from re-rendering on every change to the selected todo.
 
 </section>
 
@@ -404,7 +439,7 @@ let make = () => {
   </h2>
   <div class="space-y-4 text-lg text-white/90">
     <p>
-      You can check the <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/app.ts"
+      You can check the <a href="/todo-app-ts/"
         class="text-blue-300 hover:text-blue-200 underline">todo app</a>
       for a working example using TypeScript.
     </p>

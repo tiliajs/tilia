@@ -6,6 +6,9 @@
     a {
       @apply transition-colors;
       &.active {
+        @apply text-white/80 font-bold;
+      }
+      &:not(.active) {
         @apply text-white/40 font-bold;
       }
     }
@@ -62,7 +65,9 @@
   .doc,
   .intro {
     p > code {
-      @apply text-yellow-300;
+      font-family: "Operator Mono", "Fira Code", Consolas, Monaco, "Andale Mono",
+        "Ubuntu Mono", monospace;
+      @apply text-yellow-200/90;
     }
 
     h2 {
@@ -137,10 +142,16 @@
     }
 
     &.react {
-      h3 {
-        @apply text-lime-200/80;
+      h3.useTilia {
+        @apply text-emerald-300/80;
         small {
-          @apply text-lime-200/70 text-sm;
+          @apply text-black/40 text-sm;
+        }
+      }
+      h3.useComputed {
+        @apply text-pink-200/90;
+        small {
+          @apply text-black/40 text-sm;
         }
       }
     }
@@ -198,10 +209,6 @@
 
     p.pro {
       @apply m-6 p-4 rounded-lg border bg-yellow-500/20 border-yellow-500/30 text-black/70;
-
-      code {
-        @apply text-yellow-400 m-1;
-      }
     }
 
     p.story {

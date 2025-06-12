@@ -17,8 +17,10 @@ This is taken directly from Tilia.resi file.
 type observer
 type meta<'a>
 
+type signal<'a> = {value: 'a}
+type setter<'a> = 'a => unit
 type tilia = {
-  /** Create a new tilia proxy and connect it to the forest.
+  /** Transform a reguarl object or array into a tilia value.
    */
   tilia: 'a. 'a => 'a,
   /** Return a computed value to be inserted into a tilia proxy. The cached value
@@ -35,9 +37,15 @@ type tilia = {
    * produced value is read.
    */
   observe: (unit => unit) => unit,
-
+  /** extras */
+  /** Create a mutable value and a setter function */
+  signal: 'a. 'a => (signal<'a>, 'a => unit),
+  /** Create a store (a signal with a setter) */
+  store: 'a. (('a => unit) => 'a) => signal<'a>,
   /** Internal */
-  _observe: (unit => unit, bool) => observer,
+  _observe: (unit => unit) => observer,
+  /** Internal */
+  _done: observer => unit,
   /** Internal */
   _ready: (observer, bool) => unit,
   /** Internal */
@@ -46,12 +54,13 @@ type tilia = {
   _meta: 'a. 'a => nullable<meta<'a>>,
 }
 
-/** Create a new tilia context and returns the `connect` and `observe` functions.
+/** Create a new tilia context and returns the `tilia` and `observe` functions.
  * The default flush function is set to notify immediately (as soon as we are not in an observing function).
+ * The gc parameter is the number of cleared watchers to keep before triggering a GC (default is 50).
  */
-let make: (~flush: (unit => unit) => unit=?) => tilia
+let make: (~flush: (unit => unit) => unit=?, ~gc: int=?) => tilia
 
-/** Create a new tilia proxy and connect it to the default context (forest).
+/** Transform a reguarl object or array into a tilia value.
  */
 let tilia: 'a => 'a
 
@@ -71,75 +80,69 @@ let computed: (unit => 'a) => 'a
   */
 let observe: (unit => unit) => unit
 
+/** extras */
+/** Create a mutable value and a setter function */
+let signal: 'a => (signal<'a>, 'a => unit)
+/** Create a store (a signal with a setter) */
+let store: (('a => unit) => 'a) => signal<'a>
+
 /** Internal types for library developers (global context) */
-/** internal */
-let _observe: (unit => unit, bool) => observer
-/** internal */
+/** Start observing */
+let _observe: (unit => unit) => observer
+/** Stop observing */
+let _done: observer => unit
+/** Ready to respond, bool = notify if changed */
 let _ready: (observer, bool) => unit
 /** Dispose of an observer */
 let _clear: observer => unit
 /** Get meta information (mostly for stats) */
 let _meta: 'a => nullable<meta<'a>>
+/** Default context */
+let _ctx: tilia
 ```
 
 ### TypeScript
 
 ```ts
-type Observer = {};
-type Meta<T> = {
-  /* internal implementation details */
-};
-
-export interface Tilia {
-  /**
-   * Create a new tilia proxy and connect it to the forest.
-   */
-  tilia: <T>(value: T) => T;
-
-  /**
-   * Return a computed value to be inserted into a tilia proxy.
-   * The cached value is computed when read and invalidated when dependencies change.
-   */
+declare const o: unique symbol;
+declare const r: unique symbol;
+export type Observer = { readonly [o]: true };
+export type Signal<T> = { readonly value: T };
+export type Setter<T> = (v: T) => void;
+export type Tilia = {
+  tilia: <T>(branch: T) => T;
   computed: <T>(fn: () => T) => T;
-
-  /**
-   * Re-run callback whenever observed values change (PUSH model).
-   * Changes automatically trigger the callback.
-   */
   observe: (fn: () => void) => void;
 
-  // Internal methods
-  /** @internal */
-  _observe: (fn: () => void, immutable: boolean) => Observer;
-  /** @internal */
-  _ready: (observer: Observer, immediate: boolean) => void;
-  /** @internal */
-  _clear: (observer: Observer) => void;
-  /** @internal */
-  _meta: <T>(value: T) => Meta<T> | null;
-}
+  // extra
+  signal: <T>(value: T) => [Signal<T>, Setter<T>];
+  store: <T>(init: (setter: Setter<T>) => T) => Signal<T>;
 
-/**
- * Create a new Tilia context with optional custom flush timing
- */
-export function make(options?: {
-  flush?: (callback: () => void) => void;
-}): Tilia;
+  // internal
+  _clear(observer: Observer): void;
+  _done(observer: Observer): void;
+  _observe(callback: () => void): Observer;
+  _ready(observer: Observer, notifyIfChanged?: boolean): void;
+  _meta<T>(tree: T): unknown;
+};
+export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 
-// Global context functions
-export const tilia: Tilia["tilia"];
-export const computed: Tilia["computed"];
-export const observe: Tilia["observe"];
+// Default global context
 
-// Internal global methods
-/** @internal */
-export const _observe: Tilia["_observe"];
-/** @internal */
-export const _ready: Tilia["_ready"];
-/** @internal */
-export const _clear: Tilia["_clear"];
-/** @internal */
-export const _meta: Tilia["_meta"];
+export function tilia<T>(branch: T): T;
+export function computed<T>(fn: () => T): T;
+export function observe(fn: () => void): void;
+
+// extra
+export function signal<T>(value: T): [Signal<T>, Setter<T>];
+export function store<T>(init: (setter: Setter<T>) => T): Signal<T>;
+
+// internal
+export function _clear(observer: Observer): void;
+export function _observe(callback: () => void): Observer;
+export function _done(observer: Observer): void;
+export function _ready(observer: Observer, notifyIfChanged?: boolean): void;
+export function _meta<T>(tree: T): unknown;
 ```
 
 ## Basic Example

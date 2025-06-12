@@ -1,7 +1,13 @@
 open Tilia
+type tilia_react = {
+  useTilia: unit => unit,
+  useComputed: 'a. (unit => 'a) => signal<'a>,
+}
+
 let useTilia: unit => unit
+let useComputed: (unit => 'a) => signal<'a>
 
 /** 
- * Create useTilia from a tilia context.
+ * Create api from a tilia context.
 */
-let makeUseTilia: tilia => unit => unit
+let make: tilia => tilia_react

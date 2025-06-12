@@ -3,11 +3,13 @@
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as React from "react";
 
-function makeUseTilia(ctx) {
+function make(ctx) {
   var _clear = ctx._clear;
   var _ready = ctx._ready;
   var _observe = ctx._observe;
-  return function () {
+  var computed = ctx.computed;
+  var tilia = ctx.tilia;
+  var useTilia = function () {
     var match = React.useState(0);
     var setCount = match[1];
     var o = _observe(function () {
@@ -22,12 +24,28 @@ function makeUseTilia(ctx) {
                   });
         });
   };
+  var useComputed = function (fn) {
+    return React.useMemo((function () {
+                  return tilia({
+                              value: computed(fn)
+                            });
+                }), []);
+  };
+  return {
+          useTilia: useTilia,
+          useComputed: useComputed
+        };
 }
 
-var useTilia = makeUseTilia(Tilia._ctx);
+var tr = make(Tilia._ctx);
+
+var useTilia = tr.useTilia;
+
+var useComputed = tr.useComputed;
 
 export {
   useTilia ,
-  makeUseTilia ,
+  useComputed ,
+  make ,
 }
-/* useTilia Not a pure module */
+/* tr Not a pure module */

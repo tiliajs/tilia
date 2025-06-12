@@ -29,6 +29,8 @@ type tilia = {
   /** Internal */
   _observe: (unit => unit) => observer,
   /** Internal */
+  _done: observer => unit,
+  /** Internal */
   _ready: (observer, bool) => unit,
   /** Internal */
   _clear: observer => unit,
@@ -69,9 +71,11 @@ let signal: 'a => (signal<'a>, 'a => unit)
 let store: (('a => unit) => 'a) => signal<'a>
 
 /** Internal types for library developers (global context) */
-/** internal */
+/** Start observing */
 let _observe: (unit => unit) => observer
-/** internal */
+/** Stop observing */
+let _done: observer => unit
+/** Ready to respond, bool = notify if changed */
 let _ready: (observer, bool) => unit
 /** Dispose of an observer */
 let _clear: observer => unit

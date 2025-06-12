@@ -17,7 +17,9 @@ export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {
       todo.createdAt = new Date().toISOString();
       todo.id = uuid();
     }
-    todos.selected = newTodo();
+    if (todos.selected.id === atodo.id) {
+      todos.selected = newTodo();
+    }
     const result = await repo.saveTodo(todo);
     if (isSuccess(result)) {
       const todo = result.value;

@@ -10,6 +10,9 @@ function Clouds(props) {
   var onChange = function (e) {
     tree.clouds.evening = e.target.value;
   };
+  var isPink = TiliaReact.useComputed(function () {
+        return tree.clouds.evening === "pink";
+      });
   return JsxRuntime.jsxs("div", {
               children: [
                 JsxRuntime.jsxs("div", {
@@ -18,6 +21,10 @@ function Clouds(props) {
                         tree.clouds.evening
                       ],
                       role: "cloud"
+                    }),
+                JsxRuntime.jsx("div", {
+                      children: isPink.value ? "Clouds are pink" : "",
+                      role: "flag"
                     }),
                 JsxRuntime.jsx("button", {
                       children: "Change",

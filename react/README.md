@@ -1,38 +1,54 @@
 # React hook for Tilia
 
-This provides the react hook `useTilia` for tilia state management. For
-documentation, please see the [monorepo](https://github.com/tiliajs/tilia/blob/main/README.md).
-
 Check the [**website**](https://tiliajs.com) for documentation and examples.
 
+This provides the react hooks for tilia state management.
+
 ## API (in case the website is not available)
+
+(TypeScript version below)
 
 ### ReScript
 
 ```res
 open Tilia
+type tilia_react = {
+  useTilia: unit => unit,
+  useComputed: 'a. (unit => 'a) => signal<'a>,
+}
+
 let useTilia: unit => unit
-/** Create a useTilia hook from (_observe, _ready, _clear) */
-let makeUseTilia: (
-  (unit => unit) => observer,
-  (observer, bool) => unit,
-  observer => unit,
-) => unit => unit
+let useComputed: (unit => 'a) => signal<'a>
+
+/**
+ * Create api from a tilia context.
+ */
+let make: tilia => tilia_react
 ```
 
 ### TypeScript
 
 ```ts
 import type { Tilia } from "tilia";
-export const useTilia: () => void;
-export const makeUseTilia: (ctx: Tilia) => () => void;
+export interface TiliaReact {
+  useTilia: () => void;
+  useComputed: <T>(fn: () => T) => signal<A>;
+}
+
+export function useTilia(): void;
+export function useComputed<T>(fn: () => T): signal<T>;
+
+/**
+ * Create api from a tilia context.
+ */
+export function make(tilia: Tilia): TiliaReact;
 ```
 
 ## Example
 
 ```tsx
 import { tilia } from "tilia";
-import { useTilia } from "@tilia/react";
+import { useTilia, useComputed } from "@tilia/react";
 
 const alice = tilia({
   name: "Alice",
@@ -40,13 +56,15 @@ const alice = tilia({
 });
 
 // If alice.name or alice.age changes, this will re-rendered.
-function ShowPerson() {
+function ShowPerson({ person }: { person: Person }) {
   useTilia();
 
+  const selected = useComputed(() => app.selected.id === person.id);
+
   return (
-    <div>
-      <p>Name: {alice.name}</p>
-      <p>Age: {alice.age}</p>
+    <div className={selected.value ? "selected" : ""}>
+      <p>Name: {person.name}</p>
+      <p>Age: {person.age}</p>
     </div>
   );
 }

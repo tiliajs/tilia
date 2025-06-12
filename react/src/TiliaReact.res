@@ -1,10 +1,15 @@
 @module("react") external useState: int => (int, (int => int) => unit) = "useState"
 @module("react") external useEffect: (unit => option<unit => unit>) => unit = "useEffect"
-open Tilia
+@module("react") external useMemo: (unit => 'a, 'b) => 'a = "useMemo"
 
-let makeUseTilia = ctx => {
-  let {_observe, _ready, _clear} = ctx
-  () => {
+type tilia_react = {
+  useTilia: unit => unit,
+  useComputed: 'a. (unit => 'a) => Tilia.signal<'a>,
+}
+
+let make = ctx => {
+  let {Tilia._observe: _observe, _ready, _clear, tilia, computed} = ctx
+  let useTilia = () => {
     let (_, setCount) = useState(0)
     let o = _observe(() => setCount(i => i + 1))
     useEffect(() => {
@@ -12,6 +17,10 @@ let makeUseTilia = ctx => {
       Some(() => _clear(o))
     })
   }
+  let useComputed = fn => useMemo(() => tilia({Tilia.value: computed(fn)}), [])
+  {useTilia, useComputed}
 }
 
-let useTilia = makeUseTilia(_ctx)
+let tr = make(Tilia._ctx)
+let useTilia = tr.useTilia
+let useComputed = tr.useComputed

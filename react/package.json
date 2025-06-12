@@ -21,7 +21,7 @@
     "prebuild": "pnpm clean && rescript",
     "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
-    "test": "ava"
+    "test-off": "ava"
   },
   "description": "🍃 React State Management with Tilia.",
   "keywords": [

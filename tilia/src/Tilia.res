@@ -21,6 +21,9 @@ function(s) {
 }
 `)
 
+let immediateFlush = (fn: unit => unit) => fn()
+let defaultGc = 50
+
 // Called when something changes in the index (added or removed keys)
 let indexKey = symbol("indexKey")
 // Used to get meta information (mostly for stats)
@@ -76,7 +79,6 @@ module Dict = {
   type t<'a>
   @new external make: unit => t<'a> = "Map"
   @send external get: (t<'a>, string) => nullable<'a> = "get"
-  @send external has: (t<'a>, string) => bool = "has"
   @send external set: (t<'a>, string, 'b) => unit = "set"
   @send external delete: (t<'a>, string) => unit = "delete"
 }
@@ -87,6 +89,10 @@ type state =
   | Pristine // Hasn't changed since value read.
   | Changed // Value changed and has been notified.
   | Cleared // No more observer registered: cleared.
+
+type notified =
+  | Blank
+  | Flushed
 
 type rec observer = {
   notify: unit => unit,
@@ -111,17 +117,17 @@ and watchers = {
   observers: observers,
 }
 and gc = {
-  cleared: Set.t<watchers>,
-  mutable count: int,
+  mutable active: Set.t<watchers>,
+  mutable quarantine: Set.t<watchers>,
+  threshold: int,
 }
 and root = {
   mutable observer: nullable<observer>,
   // List of watchers to clear on next flush
-  // Should rename 'triggers' to 'expired'.
-  mutable expired: nullable<Set.t<observer>>,
-  mutable gc: nullable<gc>,
+  mutable expired: Set.t<observer>,
+  mutable notified: notified,
+  gc: gc,
   flush: (unit => unit) => unit,
-  gcThreshold: int,
 }
 
 // List of watchers to which the the observer should add itself on ready
@@ -153,6 +159,7 @@ type tilia = {
   store: 'a. (('a => unit) => 'a) => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
+  _done: observer => unit,
   _ready: (observer, bool) => unit,
   _clear: observer => unit,
   _meta: 'a. 'a => nullable<meta<'a>>,
@@ -184,31 +191,31 @@ let observeKey = (observed, key) => {
 }
 
 let flush = root => {
-  switch root.expired {
-  | Value(expired) =>
-    root.flush(() => {
-      root.expired = Undefined
-      Set.forEach(expired, observer => observer.notify())
-    })
-  | _ => ()
-  }
-  switch root.gc {
-  | Value(gc) => {
-      gc.count = gc.count + 1
-      if gc.count > root.gcThreshold {
-        root.flush(() => {
-          root.gc = Undefined
-          Set.forEach(gc.cleared, w => {
-            w.state = Cleared
-            switch Dict.get(w.observed, w.key) {
-            | Value(cw) if cw === w => Dict.delete(w.observed, w.key)
-            | _ => ()
-            }
-          })
-        })
-      }
+  switch root.notified {
+  | Blank => {
+      root.notified = Flushed
+      root.flush(() => {
+        let expired = root.expired
+        root.notified = Blank
+        root.expired = Set.make()
+        Set.forEach(expired, observer => observer.notify())
+      })
     }
   | _ => ()
+  }
+  let gc = root.gc
+  if Set.size(gc.active) >= gc.threshold {
+    root.flush(() => {
+      Set.forEach(gc.quarantine, w => {
+        if w.state === Pristine && Set.size(w.observers) === 0 {
+          w.state = Cleared
+          Dict.delete(w.observed, w.key)
+        }
+      })
+
+      gc.quarantine = gc.active
+      gc.active = Set.make()
+    })
   }
 }
 
@@ -220,16 +227,8 @@ let clearObserver = (root: root, observer: observer) => {
       Set.delete(watchers.observers, observer) &&
       Set.size(watchers.observers) === 0
     ) {
-      // Get gc set
-      let gc = switch root.gc {
-      | Value(gc) => gc
-      | _ => {
-          let gc = {cleared: Set.make(), count: 0}
-          root.gc = Value(gc)
-          gc
-        }
-      }
-      Set.add(gc.cleared, watchers)
+      // Add to gc set
+      Set.add(root.gc.active, watchers)
     }
   })
   switch root.observer {
@@ -266,7 +265,7 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
     }),
   )
   switch root.observer {
-  | Value(_) => {
+  | Value(o) if o === observer => {
       root.observer = Undefined
       flush(root)
     }
@@ -293,15 +292,7 @@ let notify = (root, observed, key) => {
       Dict.delete(observed, key)
       watchers.state = Changed
 
-      // Get expiry set
-      let expired = switch root.expired {
-      | Value(expired) => expired
-      | _ => {
-          let expired = Set.make()
-          root.expired = Value(expired)
-          expired
-        }
-      }
+      let expired = root.expired
 
       // Notify
       Set.forEach(watchers.observers, observer => {
@@ -327,6 +318,7 @@ let rec set = (
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<'b>>,
+  isArray: bool,
   fromComputed: bool,
   target: 'a,
   key: string,
@@ -349,6 +341,12 @@ let rec set = (
     switch Reflect.set(target, key, value) {
     | false => false
     | true =>
+      let key = if isArray && key === "length" {
+        indexKey
+      } else {
+        key
+      }
+
       if proxiable {
         Dict.delete(proxied, key)
       }
@@ -365,12 +363,14 @@ let rec set = (
       }
       switch Typeof.compute(value) {
       | Value(compute) =>
-        setupComputed(root, observed, proxied, computes, target, key, compute)
-        if Dict.has(observed, key) {
-          // Computed value is observed: notify
-          set(root, observed, proxied, computes, true, target, key, compute.rebuild())
-        } else {
-          true
+        setupComputed(root, observed, proxied, computes, isArray, target, key, compute)
+        switch Dict.get(observed, key) {
+        | Value(w) if Set.size(w.observers) > 0 => {
+            // Computed value is observed: rebuild and notify if changed
+            let v = compute.rebuild()
+            set(root, observed, proxied, computes, isArray, true, target, key, v)
+          }
+        | _ => true
         }
       | _ => {
           notify(root, observed, key)
@@ -390,6 +390,7 @@ and setupComputed = (
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
   computes: dict<compute<'b>>,
+  isArray: bool,
   target: 'a,
   key: string,
   compute: compute<'b>,
@@ -405,16 +406,27 @@ and setupComputed = (
       lastValue.v = v
     }
 
-    if Dict.has(observed, key) {
-      // We have observers on this key: rebuild() and if the key changed, it
-      // will notify cache observers.
-      ignore(set(root, observed, proxied, computes, true, target, key, rebuild()))
-    } else {
-      // We do not have observers: reset value.
-      // Make sure the previous proxy (if any) is removed so that it is not
-      // served in place of triggering the compute.
-      ignore(Reflect.deleteProperty(proxied, key))
-      ignore(Reflect.set(target, key, compute))
+    switch Dict.get(observed, key) {
+    | Value(w) if Set.size(w.observers) > 0 => {
+        // We have active observers on this key.
+        // Rebuild and if the key changed, it will notify.
+        let v = rebuild()
+        ignore(set(root, observed, proxied, computes, isArray, true, target, key, v))
+      }
+    | Value(w) => {
+        // No active listeners.
+        w.state = Changed
+        Dict.delete(observed, key)
+        ignore(Reflect.deleteProperty(proxied, key))
+        ignore(Reflect.set(target, key, compute))
+      }
+    | _ => {
+        // We do not have any observers: reset value.
+        // Make sure the previous proxy (if any) is removed so that it is not
+        // served in place of triggering the compute.
+        ignore(Reflect.deleteProperty(proxied, key))
+        ignore(Reflect.set(target, key, compute))
+      }
     }
   }
   and rebuild = () => {
@@ -516,7 +528,7 @@ let rec get = (
         | Value(compute) => {
             if compute.clear === noop {
               // New compute: need setup
-              setupComputed(root, observed, proxied, computes, target, key, compute)
+              setupComputed(root, observed, proxied, computes, isArray, target, key, compute)
             }
             let v = compute.rebuild()
             ignore(Reflect.set(target, key, v))
@@ -561,7 +573,7 @@ and proxify = (root: root, target: 'a): meta<'a> => {
     let proxy = Proxy.make(
       target,
       {
-        "set": set(root, observed, proxied, computes, false, ...),
+        "set": set(root, observed, proxied, computes, isArray, false, ...),
         "deleteProperty": deleteProperty(root, observed, proxied, computes, ...),
         "get": get(root, observed, proxied, computes, meta, isArray, ...),
         "ownKeys": ownKeys(root, observed, ...),
@@ -572,12 +584,9 @@ and proxify = (root: root, target: 'a): meta<'a> => {
   }
 }
 
-let immediateFlush = (fn: unit => unit) => fn()
-let defaultGc = 50
-
 let makeTilia = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
-    raise("connect: value is not an object or array")
+    raise("tilia: value is not an object or array")
   }
   proxify(root, value).proxy
 }
@@ -621,6 +630,8 @@ let makeObserve_ = (root: root) => notify => {
   observer
 }
 
+let makeDone_ = (root: root) => _observer => root.observer = Undefined
+
 let makeReady_ = (root: root) => (observer, notifyIfChanged) => {
   setReady(root, observer, notifyIfChanged)
 }
@@ -647,6 +658,8 @@ external connector: (
   // internal
   // _observe
   (unit => unit) => observer,
+  // _done
+  observer => unit,
   // _ready
   (observer, bool) => unit,
   // _clear
@@ -656,7 +669,7 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, computed, observe, signal, store, _observe, _ready, _clear) {
+function connector(tilia, computed, observe, signal, store, _observe, _done, _ready, _clear) {
   return {
     // 
     tilia,
@@ -667,6 +680,7 @@ function connector(tilia, computed, observe, signal, store, _observe, _ready, _c
     store,
     // internal
     _observe,
+    _done,
     _ready,
     _clear,
     _meta,
@@ -675,7 +689,12 @@ function connector(tilia, computed, observe, signal, store, _observe, _ready, _c
 `)
 
 let make = (~flush=immediateFlush, ~gc=defaultGc): tilia => {
-  let root = {flush, observer: Undefined, expired: Undefined, gc: Undefined, gcThreshold: gc}
+  let gc = {
+    active: Set.make(),
+    quarantine: Set.make(),
+    threshold: gc,
+  }
+  let root = {flush, observer: Undefined, expired: Set.make(), notified: Blank, gc}
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
   let signal = makeSignal(tilia)
@@ -689,6 +708,7 @@ let make = (~flush=immediateFlush, ~gc=defaultGc): tilia => {
     makeStore(signal),
     // Internal
     makeObserve_(root),
+    makeDone_(root),
     makeReady_(root),
     makeClear_(root),
     _meta,
@@ -712,6 +732,7 @@ let signal = _ctx.signal
 let store = _ctx.store
 // internal
 let _observe = _ctx._observe
+let _done = _ctx._done
 let _ready = _ctx._ready
 let _clear = _ctx._clear
 // _meta (does not need context)
