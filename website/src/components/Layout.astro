@@ -13,6 +13,8 @@ const { title, description, keywords } = Astro.props;
 
 const { pathname: rawpath } = Astro.url;
 const pathname = rawpath.endsWith("/") ? rawpath.slice(0, -1) : rawpath;
+const url = `https://tiliajs.com/${pathname}`;
+const image = "https://tiliajs.com/social.jpg";
 ---
 
 <!doctype html>
@@ -34,15 +36,16 @@ const pathname = rawpath.endsWith("/") ? rawpath.slice(0, -1) : rawpath;
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="article" />
-    <meta property="og:url" content={`https://tiliajs.com/${pathname}`} />
+    <meta property="og:url" content={url} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content="https://tiliajs.com/logo.svg" />
+    <meta property="og:image" content={image} />
 
     <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:title" content={title} />
-    <meta property="twitter:description" content={description} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={image} />
 
     <link rel="icon" type="image/svg+xml" href="/" />
 

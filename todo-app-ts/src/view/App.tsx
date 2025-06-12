@@ -169,7 +169,7 @@ function Modal(props: { children: React.ReactNode; onClick?: () => void }) {
     <div className="flex flex-col items-center">
       <div className="text-center m-4">Select an option</div>
       <div
-        className="flex flex-col items-center justify-center border-2 border-pink-500 p-4 rounded-lg bg-pink-900 text-pink-600"
+        className="flex flex-col items-center justify-center border border-cyan-500 p-4 rounded-lg bg-cyan-200/30 text-pink-600 drop-shadow-2xl drop-shadow-yellow-200/30"
         onClick={props.onClick}
       >
         {props.children}

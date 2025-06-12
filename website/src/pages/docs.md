@@ -456,7 +456,7 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
-      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-06-09 2.0.0 (canary version)</h3>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-06-12 2.0.0 (canary version)</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
         <li>Moved core to "tilia" npm package.</li>
         <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context.</li>

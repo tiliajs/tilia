@@ -69,7 +69,7 @@ export function Authentication({ auth }: { auth: AuthNotAuthenticated }) {
       <button
         onClick={handleLocalLogin}
         disabled={loading}
-        className="m-4 text-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg text-black bg-purple-200 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+        className="m-4 text-center px-4 py-3 border border-transparent text-sm font-medium rounded-lg text-black bg-purple-200/80 hover:bg-purple-200 focus:outline-none focus:ring-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
       >
         {loading ? (
           <>

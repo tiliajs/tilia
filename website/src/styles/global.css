@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @layer components {
+  .tilia-title {
+    @apply text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-green-300;
+  }
   .nav {
     @apply space-x-6 text-sm font-medium;
     a {
@@ -48,6 +51,9 @@
 
   .intro {
     @apply flex-grow container mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-start;
+    pre {
+      @apply max-w-100;
+    }
   }
 
   .doc {
