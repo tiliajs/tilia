@@ -67,31 +67,34 @@ function observeKey(observed, key) {
 }
 
 function flush(root) {
-  var match = root.notified;
-  if (match === "Blank") {
-    root.notified = "Flushed";
-    root.flush(function () {
-          var expired = root.expired;
-          root.notified = "Blank";
-          root.expired = new Set();
-          expired.forEach(function (observer) {
-                observer.notify();
-              });
-        });
-  }
   var gc = root.gc;
-  if (gc.active.size >= gc.threshold) {
+  if (!root.needFlush && (root.expired.size > 0 || gc.active.size >= gc.threshold)) {
+    root.needFlush = true;
     return root.flush(function () {
-                gc.quarantine.forEach(function (w) {
-                      if (w.state === "Pristine" && w.observers.size === 0) {
-                        w.state = "Cleared";
-                        w.observed.delete(w.key);
-                        return ;
-                      }
-                      
-                    });
-                gc.quarantine = gc.active;
-                gc.active = new Set();
+                if (!root.needFlush) {
+                  return ;
+                }
+                while(root.expired.size > 0) {
+                  var expired = root.expired;
+                  root.expired = new Set();
+                  expired.forEach(function (observer) {
+                        observer.notify();
+                      });
+                };
+                var gc = root.gc;
+                if (gc.active.size >= gc.threshold) {
+                  gc.quarantine.forEach(function (w) {
+                        if (w.state === "Pristine" && w.observers.size === 0) {
+                          w.state = "Cleared";
+                          w.observed.delete(w.key);
+                          return ;
+                        }
+                        
+                      });
+                  gc.quarantine = gc.active;
+                  gc.active = new Set();
+                }
+                root.needFlush = false;
               });
   }
   
@@ -513,7 +516,7 @@ function make(flushOpt, gcOpt) {
   var root = {
     observer: undefined,
     expired: new Set(),
-    notified: "Blank",
+    needFlush: false,
     gc: gc$1,
     flush: flush
   };

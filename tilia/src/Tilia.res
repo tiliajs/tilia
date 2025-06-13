@@ -90,10 +90,6 @@ type state =
   | Changed // Value changed and has been notified.
   | Cleared // No more observer registered: cleared.
 
-type notified =
-  | Blank
-  | Flushed
-
 type rec observer = {
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
@@ -125,7 +121,7 @@ and root = {
   mutable observer: nullable<observer>,
   // List of watchers to clear on next flush
   mutable expired: Set.t<observer>,
-  mutable notified: notified,
+  mutable needFlush: bool,
   gc: gc,
   flush: (unit => unit) => unit,
 }
@@ -190,22 +186,16 @@ let observeKey = (observed, key) => {
   }
 }
 
-let flush = root => {
-  switch root.notified {
-  | Blank => {
-      root.notified = Flushed
-      root.flush(() => {
-        let expired = root.expired
-        root.notified = Blank
-        root.expired = Set.make()
-        Set.forEach(expired, observer => observer.notify())
-      })
+let flush_ = root => {
+  if root.needFlush {
+    while Set.size(root.expired) > 0 {
+      let expired = root.expired
+      root.expired = Set.make()
+      Set.forEach(expired, observer => observer.notify())
     }
-  | _ => ()
-  }
-  let gc = root.gc
-  if Set.size(gc.active) >= gc.threshold {
-    root.flush(() => {
+
+    let gc = root.gc
+    if Set.size(gc.active) >= gc.threshold {
       Set.forEach(gc.quarantine, w => {
         if w.state === Pristine && Set.size(w.observers) === 0 {
           w.state = Cleared
@@ -215,7 +205,17 @@ let flush = root => {
 
       gc.quarantine = gc.active
       gc.active = Set.make()
-    })
+    }
+
+    root.needFlush = false
+  }
+}
+
+let flush = root => {
+  let gc = root.gc
+  if !root.needFlush && (Set.size(root.expired) > 0 || Set.size(gc.active) >= gc.threshold) {
+    root.needFlush = true
+    root.flush(() => flush_(root))
   }
 }
 
@@ -694,7 +694,7 @@ let make = (~flush=immediateFlush, ~gc=defaultGc): tilia => {
     quarantine: Set.make(),
     threshold: gc,
   }
-  let root = {flush, observer: Undefined, expired: Set.make(), notified: Blank, gc}
+  let root = {flush, observer: Undefined, expired: Set.make(), needFlush: false, gc}
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
   let signal = makeSignal(tilia)

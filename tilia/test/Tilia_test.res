@@ -1099,12 +1099,12 @@ test("should work with computed in computed", t => {
     name: computed(() => p2.name ++ " p3"),
     username: "foo",
   })
-  t->is("John p2 p3", p3.name)
+  t->is(p3.name, "John p2 p3")
   m.called = false
   p1.name = "Kyle"
   p1.name = "Nana"
   t->isTrue(m.called)
-  t->is("Nana p2 p3", p3.name)
+  t->is(p3.name, "Nana p2 p3")
 })
 
 test("should trigger if changed after cleared", t => {
@@ -1112,12 +1112,12 @@ test("should trigger if changed after cleared", t => {
   let (data, set) = signal("Dana")
   // Observer 1 watches the data
   let o1 = _observe(() => m.called = true)
-  t->is("Dana", data.value)
+  t->is(data.value, "Dana")
   m.called = false
 
   // Observer 2 watches, and clears which clears the watchers list
   let o2 = _observe(() => ())
-  t->is("Dana", data.value)
+  t->is(data.value, "Dana")
   _ready(o2, true)
   _clear(o2) // Clears the watchers list
 
@@ -1128,7 +1128,7 @@ test("should trigger if changed after cleared", t => {
   // Would see Cleared without gc
   _ready(o1, true)
   t->isTrue(m.called)
-  t->is("Lala", data.value)
+  t->is(data.value, "Lala")
 })
 
 test("should not trigger if unchanged after cleared", t => {
@@ -1138,12 +1138,12 @@ test("should not trigger if unchanged after cleared", t => {
   let (data, _) = signal("Dana")
   // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
-  t->is("Dana", data.value)
+  t->is(data.value, "Dana")
   m.called = false
 
   // Observer 2 watches, and clears which clears the watchers list
   let o2 = _observe(() => ())
-  t->is("Dana", data.value)
+  t->is(data.value, "Dana")
   _ready(o2, true)
   _clear(o2) // Clears the watchers list
 
@@ -1165,19 +1165,19 @@ test("should trigger with very short gc", t => {
   let (data2, _) = signal("Dana")
   // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
-  t->is("Dana", data.value)
+  t->is(data.value, "Dana")
   m.called = false
 
   // Observer 2 watches, and clears which clears the watchers list
   let o2 = _observe(() => ())
-  t->is("Dana", data.value)
+  t->is(data.value, "Dana")
   _ready(o2, true)
   _clear(o2) // Clears the watchers list
 
   for _ in 1 to 2 {
     // To make the GC advance
     let o2 = _observe(() => ())
-    t->is("Dana", data2.value)
+    t->is(data2.value, "Dana")
     _ready(o2, true)
     _clear(o2) // Clears the watchers list
   }
@@ -1192,13 +1192,50 @@ test("should stop observing after _done", t => {
   let m = {called: false}
   let p = tilia(person())
   let o = _observe(() => m.called = true)
-  t->is("John", p.name)
+  t->is(p.name, "John")
   _done(o)
-  t->is("Truth", p.address.city)
+  t->is(p.address.city, "Truth")
   _ready(o, true)
   t->isFalse(m.called)
   p.address.city = "Irpin"
   t->isFalse(m.called)
   p.name = "Paulina"
   t->isTrue(m.called)
+})
+
+test("should not wrap tilia twice", t => {
+  let p = tilia(person())
+  t->is(tilia(p), p)
+})
+
+test("should allow cycle flush", t => {
+  let flush = ref(() => ())
+  let m = {called: false}
+  let {signal, computed, tilia} = make(~flush=fn => {
+    m.called = true
+    flush.contents = fn
+  })
+  let (s1, set1) = signal(0)
+  let (s2, set2) = signal(0)
+  let (s3, set3) = signal(0)
+  let total = tilia({
+    value: computed(() => s1.value + s2.value + s3.value),
+  })
+  t->is(total.value, 0)
+  t->isFalse(m.called)
+  set1(1)
+  t->isTrue(m.called)
+  m.called = false
+
+  t->is(total.value, 0)
+  set2(2)
+  t->is(total.value, 0)
+  set3(5)
+  t->is(total.value, 0)
+
+  t->isFalse(m.called)
+  flush.contents()
+  t->is(total.value, 8)
+  flush.contents()
+  t->is(total.value, 8)
 })
