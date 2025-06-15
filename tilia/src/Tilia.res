@@ -365,7 +365,7 @@ let rec set = (
       | Value(compute) =>
         setupComputed(root, observed, proxied, computes, isArray, target, key, compute)
         switch Dict.get(observed, key) {
-        | Value(w) if Set.size(w.observers) > 0 => {
+        | Value(w) if w.state === Pristine && Set.size(w.observers) > 0 => {
             // Computed value is observed: rebuild and notify if changed
             let v = compute.rebuild()
             set(root, observed, proxied, computes, isArray, true, target, key, v)
