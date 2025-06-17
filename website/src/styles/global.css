@@ -129,9 +129,9 @@
       }
     }
 
-    &.immutability {
+    &.batch {
       h3 {
-        @apply text-lime-200/80;
+        @apply text-purple-900/60;
       }
     }
 
@@ -168,6 +168,61 @@
       }
     }
 
+    &.summary {
+      h2.table {
+        @apply bg-gradient-to-r from-green-200/80 to-yellow-200/80;
+      }
+      h2.performance {
+        @apply bg-gradient-to-r from-red-200/80 to-amber-200/80 mt-12;
+      }
+      table {
+        @apply w-full border-collapse border border-black/40 text-white;
+      }
+      .table + table td {
+        @apply text-center;
+        &:first-child {
+          @apply text-left;
+        }
+        em {
+          @apply text-white/40 saturate-0;
+        }
+      }
+      .performance + table {
+        @apply text-white/70;
+        td:has(em) {
+          @apply bg-yellow-500/20 text-green-100/80;
+        }
+      }
+
+      th {
+        @apply text-center p-2 bg-gray-100/20 text-gray-700 border border-black/10;
+        &:first-child {
+          @apply text-left;
+        }
+      }
+      td {
+        @apply text-right p-2 border border-black/10;
+        &:first-child {
+          @apply text-left text-black/90;
+        }
+        em {
+          font-style: normal;
+        }
+      }
+
+      thead tr {
+        @apply border-b border-black/40;
+      }
+      tbody tr:nth-child(even) {
+        @apply bg-gray-600/20;
+      }
+      tbody tr:nth-child(odd) {
+        @apply bg-black/20;
+      }
+      tbody tr {
+        @apply border-b border-black/40;
+      }
+    }
     &.zustand {
       h2 {
         @apply bg-gradient-to-r from-orange-200 to-green-800;

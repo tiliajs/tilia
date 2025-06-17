@@ -1,8 +1,6 @@
-# React hook for Tilia
+# React hooks for tilia
 
 Check the [**website**](https://tiliajs.com) for documentation and examples.
-
-This provides the react hooks for tilia state management.
 
 ## API (in case the website is not available)
 

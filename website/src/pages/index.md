@@ -14,7 +14,7 @@ keywords: state management, TypeScript, ReScript, React, JavaScript, reactive pr
     <p class="text-xl font-medium text-white/80">
       A state management library for TypeScript and ReScript supporting best practices.
     </p>
-    <p class="rainbow">We believe code should be readable. Tilia is here to help you achieve that. ✨✨</p>
+    <p class="rainbow">Code should be readable. <br/>✨ Tilia is here to help ✨</p>
     <div class="flex flex-row space-x-4 justify-center gap-4 mt-16">
       <a href="/docs"
         class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
@@ -77,7 +77,7 @@ let elevateVibes = () => vibing.vibes = "legendary" ✨
     <div class="grid md:grid-cols-3 gap-8">
       <div class="bg-black/20 p-6 rounded-xl hover:scale-105 transition transform">
         <h4 class="text-xl font-bold mb-4">🌱<br/>No Boilerplate</h4>
-        <p class="text-sm">The API has three functions and was made to be nearly invisible in your code.</p>
+        <p class="text-sm">The API is tiny and was made to be <strong class="text-black/40 drop-shadow-lg drop-shadow-cyan-200/20">nearly invisible</strong> in your code.</p>
       </div>
       <div class="bg-black/20 p-6 rounded-xl hover:scale-105 transition transform">
         <h4 class="text-xl font-bold mb-4">🚀<br/> Lightning Fast</h4>
@@ -85,7 +85,7 @@ let elevateVibes = () => vibing.vibes = "legendary" ✨
       </div>
       <div class="bg-black/20 p-6 rounded-xl hover:scale-105 transition transform">
         <h4 class="text-xl font-bold mb-4">🌈<br/> Type Safe</h4>
-        <p class="text-sm">Built with ReScript following best practices, Tilia supports your project from seed to unicorn.</p>
+        <p class="text-sm">Tilia does not add tons of crazy types to your code. From seed to unicorn, you are in charge.</p>
       </div>
       <div class="bg-black/20 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20 md:col-span-3">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
@@ -121,7 +121,7 @@ let elevateVibes = () => vibing.vibes = "legendary" ✨
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>
-              <span>Optimized computations (no recalculation)</span>
+              <span>Optimized computations (no recalculation, batch processing)</span>
             </div>
             <div class="flex items-center space-x-2">
               <span class="text-green-400">✓</span>

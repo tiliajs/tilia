@@ -146,16 +146,42 @@ Nice, the age updates automatically, Alice can grow older :-) {.story}
 
 **💡 Pro tip:** The computed only recomputes or notifies observers when needed. {.pro}
 
-Once a value is computed, it behaves exactly like a regular value until it is expired due to a change in the dependencies. This means that there is nearly zero overhead for computed values acting as getters:
+Once a value is computed, it behaves exactly like a regular value until it is expired due to a change in the dependencies. This means that there is nearly zero overhead for computed values acting as getters.
+
+</section>
+
+<section class="doc batch wide-comment">
+
+### batch
+
+Group multiple updates to prevent redundant notifications. This can be required for managing complex update cycles—such as in games—where atomic state changes are essential.
+
+**💡 Pro tip** `batch` is not required in a `computed` or `observe` where notifications are already blocked. {.pro}
 
 ```typescript
-// ✅ public.name is now read-only
-const public = tilia({ name: computed(() => alice.name) });
+import { batch } from "tilia";
+
+network.subscribe((updates) => {
+  batch(() => {
+    for (const update in updates) {
+      app.process(update);
+    }
+  });
+  // ✨ Notifications happen here
+});
 ```
 
 ```rescript
-// ✅ public.name is now read-only
-let public = tilia({ name: computed(() => alice.name) })
+open Tilia
+
+network.subscribe(updates => {
+  batch(() => {
+    for update in updates {
+      app.process(update)
+    }
+  })
+  // ✨ Notifications happen here
+})
 ```
 
 </section>
@@ -423,7 +449,7 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
       </div>
       <div class="flex items-center space-x-2">
         <span class="text-green-400">✓</span>
-        <span>Optimized computations (no recalculation)</span>
+        <span>Optimized computations (no recalculation, batch processing)</span>
       </div>
       <div class="flex items-center space-x-2">
         <span class="text-green-400">✓</span>

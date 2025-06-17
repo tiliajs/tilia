@@ -14,6 +14,45 @@ We'll compare Tilia with other state management libraries, aiming to be as <span
 
 </section>
 
+<section class="doc summary wide-comment">
+
+## Feature Comparison Table {.table}
+
+| Feature / Library                  | **Tilia** | **Jotai** | **Recoil** | **RxJS** |
+| :--------------------------------- | :-------: | :-------: | :--------: | :------: |
+| Zero dependencies, small bundle    |    ✅     |    ✅     |    _❌_    |   _❌_   |
+| Highly granular reactivity         |    ✅     |    ✅     |     ✅     |   _❌_   |
+| Combines pull \& push reactivity   |    ✅     |   _❌_    |    _❌_    |    ✅    |
+| Signals \& stores (FRP primitives) |    ✅     |   _❌_    |    _❌_    |    ✅    |
+| Batching/optimized computations    |    ✅     |   _❌_    |    _❌_    |    ✅    |
+| React integration (hooks)          |    ✅     |    ✅     |     ✅     |   _❌_   |
+| TypeScript support                 |    ✅     |    ✅     |     ✅     |    ✅    |
+| Persistence utilities              |   _❌_    |    ✅     |     ✅     |   _❌_   |
+| Low boilerplate/learning curve     |    ✅     |    ✅     |     ✅     |   _❌_   |
+| Large ecosystem/community          |   _❌_    |    ✅     |     ✅     |    ✅    |
+
+## Performance {.performance}
+
+| Description       | Tilia     | Tilia (batch) | Jotai    | RxJS       |
+| :---------------- | :-------- | :------------ | :------- | :--------- |
+| 1000 files        | _4.28 ms_ | 5.42 ms       | 11.05 ms | 59.24 ms   |
+| file swaps        | 3.51 ms   | _3.50 ms_     | 6.12 ms  | 13.91 ms   |
+| files and folders | _9.22 ms_ | 10.21 ms      | 33.82 ms | 8776.72 ms |
+
+All tests have a warmup phase, and are run 5 times right after a garbage collection. For all the tests, we swap random files between two folders and update file values (a number). We then compute the graph sum (nodes contain a computed for sub-nodes). The links between nodes are selected at random:
+
+```jsx
+sum <-- [user] <-- [folders] <-- [files]
+```
+
+- **1000 files**: 1 user, 1 folder, 1000 files, 10 updates, 0 swaps, 1000 steps.
+- **file swaps**: 1 user, 50 folders, 1000 files (20/folder), 10 updates, 10 swaps, 100 steps.
+- **files and folders**: 20 user, 10 folder (10/user), 1000 files (500/folder), 200 updates, 0 swaps, 100 steps.
+
+Detail of the benchmark can be found [here](https://github.com/tiliajs/tilia/tree/main/performance).
+
+</section>
+
 <section class="doc zustand wide-comment">
 
 ## Zustand
@@ -109,13 +148,17 @@ const store = createStore();
 
 const nameAtom = atom("Alice");
 const ageAtom = atom(10);
+const writableAgeAtom = atom(
+  (get) => get(ageAtom),
+  (_, set, v) => set(ageAtom, v)
+);
 
 const derivedAtom = atom((get) => get(nameAtom).toLowerCase());
 
 const unsub = store.sub(ageAtom, (ageAtom) => {
   console.log("age changed to", store.get(ageAtom));
 });
-store.set(ageAtom, 12);
+store.set(writableAgeAtom, 12);
 
 // Jotai (usage in React components)
 function App() {
@@ -160,7 +203,15 @@ function App() {
 }
 ```
 
-**💡 Pro tip:** Tilia does not require a provider and makes it easier to update and track complex state. {.pro}
+The types in tila are simpler: you use the native types and features of the
+programming language to declare if a value is `mutable` (ReScript) or `readonly`
+(TypeScript). No need for `WritableAtom<T[], [T[]], void>` 🙈.
+
+Tilia has a powerful `flush` mechanism that lets you implement world state
+transitions (batch updates). This is not possible with jotai (as of now) where
+updates are synchronous.
+
+**💡 Pro tip:** Tilia does not require a provider and makes it easy to update and track complex state. {.pro}
 
 </section>
 

@@ -21,7 +21,6 @@ function(s) {
 }
 `)
 
-let immediateFlush = (fn: unit => unit) => fn()
 let defaultGc = 50
 
 // Called when something changes in the index (added or removed keys)
@@ -121,9 +120,10 @@ and root = {
   mutable observer: nullable<observer>,
   // List of watchers to clear on next flush
   mutable expired: Set.t<observer>,
-  mutable needFlush: bool,
+  // If set to true, wait for end of batch before flush
+  mutable lock: bool,
+  // Garbage collection handling
   gc: gc,
-  flush: (unit => unit) => unit,
 }
 
 // List of watchers to which the the observer should add itself on ready
@@ -150,6 +150,7 @@ type tilia = {
   tilia: 'a. 'a => 'a,
   computed: 'a 'b. (unit => 'b) => 'b,
   observe: (unit => unit) => unit,
+  batch: (unit => unit) => unit,
   /** extra */
   signal: 'a. 'a => (signal<'a>, 'a => unit),
   store: 'a. (('a => unit) => 'a) => signal<'a>,
@@ -186,36 +187,26 @@ let observeKey = (observed, key) => {
   }
 }
 
-let flush_ = root => {
-  if root.needFlush {
+let flush = root => {
+  if Set.size(root.expired) > 0 {
     while Set.size(root.expired) > 0 {
       let expired = root.expired
       root.expired = Set.make()
       Set.forEach(expired, observer => observer.notify())
     }
-
-    let gc = root.gc
-    if Set.size(gc.active) >= gc.threshold {
-      Set.forEach(gc.quarantine, w => {
-        if w.state === Pristine && Set.size(w.observers) === 0 {
-          w.state = Cleared
-          Dict.delete(w.observed, w.key)
-        }
-      })
-
-      gc.quarantine = gc.active
-      gc.active = Set.make()
-    }
-
-    root.needFlush = false
   }
-}
 
-let flush = root => {
   let gc = root.gc
-  if !root.needFlush && (Set.size(root.expired) > 0 || Set.size(gc.active) >= gc.threshold) {
-    root.needFlush = true
-    root.flush(() => flush_(root))
+  if Set.size(gc.active) >= gc.threshold {
+    Set.forEach(gc.quarantine, w => {
+      if w.state === Pristine && Set.size(w.observers) === 0 {
+        w.state = Cleared
+        Dict.delete(w.observed, w.key)
+      }
+    })
+
+    gc.quarantine = gc.active
+    gc.active = Set.make()
   }
 }
 
@@ -234,7 +225,9 @@ let clearObserver = (root: root, observer: observer) => {
   switch root.observer {
   | Value(o) if o === observer => {
       root.observer = Undefined
-      flush(root)
+      if !root.lock {
+        flush(root)
+      }
     }
   | _ => ()
   }
@@ -267,7 +260,9 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
   switch root.observer {
   | Value(o) if o === observer => {
       root.observer = Undefined
-      flush(root)
+      if !root.lock {
+        flush(root)
+      }
     }
   | _ => ()
   }
@@ -303,7 +298,10 @@ let notify = (root, observed, key) => {
       switch root.observer {
       | Value(_) => ()
       // No observers, we can flush
-      | _ => flush(root)
+      | _ =>
+        if !root.lock {
+          flush(root)
+        }
       }
     }
   | _ => ()
@@ -442,12 +440,12 @@ and setupComputed = (
     let previous = root.observer
     root.observer = Value(o)
     let v = callback()
+
+    // We need to reset previous observer before calling setReady so that
+    // setReady does not trigger flush.
+    root.observer = previous
     // Computed should not rebuild on change.
     setReady(root, o, false)
-    root.observer = previous
-
-    // No need to check if root.observer is unddefined to trigger
-    // flush because computed are not supposed to mutate data.
     v
   }
   compute.rebuild = rebuild
@@ -600,6 +598,17 @@ let makeObserve = (root: root) => (callback: unit => unit) => {
   notify()
 }
 
+let makeBatch = (root: root) => (callback: unit => unit) => {
+  if root.lock {
+    callback()
+  } else {
+    root.lock = true
+    callback()
+    root.lock = false
+    flush(root)
+  }
+}
+
 let computed = (callback: unit => 'a) => {
   let v = {clear: noop, rebuild: callback}
   ignore(Reflect.set(v, computeKey, true))
@@ -650,6 +659,8 @@ external connector: (
   ('x => 'b) => 'b,
   // observe
   (unit => unit) => unit,
+  // batch
+  (unit => unit) => unit,
   // extra
   // signal
   's => (signal<'s>, 's => unit),
@@ -669,12 +680,13 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, computed, observe, signal, store, _observe, _done, _ready, _clear) {
+function connector(tilia, computed, observe, batch, signal, store, _observe, _done, _ready, _clear) {
   return {
     // 
     tilia,
     computed, 
     observe,
+    batch,
     // extra
     signal,
     store,
@@ -688,13 +700,13 @@ function connector(tilia, computed, observe, signal, store, _observe, _done, _re
 }
 `)
 
-let make = (~flush=immediateFlush, ~gc=defaultGc): tilia => {
+let make = (~gc=defaultGc): tilia => {
   let gc = {
     active: Set.make(),
     quarantine: Set.make(),
     threshold: gc,
   }
-  let root = {flush, observer: Undefined, expired: Set.make(), needFlush: false, gc}
+  let root = {observer: Undefined, expired: Set.make(), lock: false, gc}
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
   let signal = makeSignal(tilia)
@@ -703,6 +715,7 @@ let make = (~flush=immediateFlush, ~gc=defaultGc): tilia => {
     tilia,
     computed,
     makeObserve(root),
+    makeBatch(root),
     // extra
     signal,
     makeStore(signal),
@@ -727,6 +740,7 @@ let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
 
 let tilia = _ctx.tilia
 let observe = _ctx.observe
+let batch = _ctx.batch
 // extra
 let signal = _ctx.signal
 let store = _ctx.store

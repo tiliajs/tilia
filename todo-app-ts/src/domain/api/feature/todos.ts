@@ -12,10 +12,11 @@ export interface Todos {
   filter: TodosFilter;
   selected: Todo;
 
+  // Private
+  readonly data_: Signal<Loadable<Todo[]>>;
   // Computed state
-  data_: Signal<Loadable<Todo[]>>;
-  list: Loadable<Todo[]>;
-  remaining: number;
+  readonly list: Loadable<Todo[]>;
+  readonly remaining: number;
 
   // Operations
   save: (todo: Todo) => Void;

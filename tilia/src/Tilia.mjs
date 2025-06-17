@@ -9,10 +9,6 @@ var symbol = (function(s) {
   return Symbol.for('tilia:' + s);
 });
 
-function immediateFlush(fn) {
-  fn();
-}
-
 var indexKey = symbol("indexKey");
 
 var metaKey = symbol("metaKey");
@@ -67,35 +63,28 @@ function observeKey(observed, key) {
 }
 
 function flush(root) {
+  if (root.expired.size > 0) {
+    while(root.expired.size > 0) {
+      var expired = root.expired;
+      root.expired = new Set();
+      expired.forEach(function (observer) {
+            observer.notify();
+          });
+    };
+  }
   var gc = root.gc;
-  if (!root.needFlush && (root.expired.size > 0 || gc.active.size >= gc.threshold)) {
-    root.needFlush = true;
-    return root.flush(function () {
-                if (!root.needFlush) {
-                  return ;
-                }
-                while(root.expired.size > 0) {
-                  var expired = root.expired;
-                  root.expired = new Set();
-                  expired.forEach(function (observer) {
-                        observer.notify();
-                      });
-                };
-                var gc = root.gc;
-                if (gc.active.size >= gc.threshold) {
-                  gc.quarantine.forEach(function (w) {
-                        if (w.state === "Pristine" && w.observers.size === 0) {
-                          w.state = "Cleared";
-                          w.observed.delete(w.key);
-                          return ;
-                        }
-                        
-                      });
-                  gc.quarantine = gc.active;
-                  gc.active = new Set();
-                }
-                root.needFlush = false;
-              });
+  if (gc.active.size >= gc.threshold) {
+    gc.quarantine.forEach(function (w) {
+          if (w.state === "Pristine" && w.observers.size === 0) {
+            w.state = "Cleared";
+            w.observed.delete(w.key);
+            return ;
+          }
+          
+        });
+    gc.quarantine = gc.active;
+    gc.active = new Set();
+    return ;
   }
   
 }
@@ -113,7 +102,11 @@ function clearObserver(root, observer) {
     return ;
   } else {
     root.observer = undefined;
-    return flush(root);
+    if (!root.lock) {
+      return flush(root);
+    } else {
+      return ;
+    }
   }
 }
 
@@ -144,7 +137,11 @@ function setReady(root, observer, notifyIfChanged) {
     return ;
   } else {
     root.observer = undefined;
-    return flush(root);
+    if (!root.lock) {
+      return flush(root);
+    } else {
+      return ;
+    }
   }
 }
 
@@ -161,7 +158,11 @@ function notify(root, observed, key) {
         expired.add(observer);
       });
   var match = root.observer;
-  if (match === null || match === undefined) {
+  if (!(match === null || match === undefined)) {
+    return ;
+  }
+  match === null;
+  if (!root.lock) {
     return flush(root);
   }
   
@@ -211,7 +212,7 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
       if (w === null || w === undefined) {
         return true;
       }
-      if (w.observers.size <= 0) {
+      if (!(w.state === "Pristine" && w.observers.size > 0)) {
         return true;
       }
       var v = compute$1.rebuild();
@@ -270,8 +271,8 @@ function setupComputed(root, observed, proxied, computes, isArray, target, key, 
     var previous = root.observer;
     root.observer = o;
     var v = callback();
-    setReady(root, o, false);
     root.observer = previous;
+    setReady(root, o, false);
     return v;
   };
   compute.rebuild = rebuild;
@@ -431,6 +432,19 @@ function makeObserve(root) {
   };
 }
 
+function makeBatch(root) {
+  return function (callback) {
+    if (root.lock) {
+      return callback();
+    } else {
+      root.lock = true;
+      callback();
+      root.lock = false;
+      return flush(root);
+    }
+  };
+}
+
 function computed(callback) {
   var v = {
     clear: noop,
@@ -486,12 +500,13 @@ function makeReady_(root) {
   };
 }
 
-function connector(tilia, computed, observe, signal, store, _observe, _done, _ready, _clear) {
+function connector(tilia, computed, observe, batch, signal, store, _observe, _done, _ready, _clear) {
   return {
     // 
     tilia,
     computed, 
     observe,
+    batch,
     // extra
     signal,
     store,
@@ -505,8 +520,7 @@ function connector(tilia, computed, observe, signal, store, _observe, _done, _re
 }
 ;
 
-function make(flushOpt, gcOpt) {
-  var flush = flushOpt !== undefined ? flushOpt : immediateFlush;
+function make(gcOpt) {
   var gc = gcOpt !== undefined ? gcOpt : 50;
   var gc$1 = {
     active: new Set(),
@@ -516,13 +530,12 @@ function make(flushOpt, gcOpt) {
   var root = {
     observer: undefined,
     expired: new Set(),
-    needFlush: false,
-    gc: gc$1,
-    flush: flush
+    lock: false,
+    gc: gc$1
   };
   var tilia = makeTilia(root);
   var signal = makeSignal(tilia);
-  return connector(tilia, computed, makeObserve(root), signal, makeStore(signal), makeObserve_(root), (function (_observer) {
+  return connector(tilia, computed, makeObserve(root), makeBatch(root), signal, makeStore(signal), makeObserve_(root), (function (_observer) {
                 root.observer = undefined;
               }), makeReady_(root), (function (observer) {
                 clearObserver(root, observer);
@@ -542,7 +555,7 @@ if (ctx === null || ctx === undefined) {
 }
 
 if (exit === 1) {
-  var ctx$1 = make(undefined, undefined);
+  var ctx$1 = make(undefined);
   Reflect.set(globalThis, ctxKey, ctx$1);
   _ctx = ctx$1;
 }
@@ -550,6 +563,8 @@ if (exit === 1) {
 var tilia = _ctx.tilia;
 
 var observe = _ctx.observe;
+
+var batch = _ctx.batch;
 
 var signal = _ctx.signal;
 
@@ -570,6 +585,7 @@ export {
   observe ,
   signal ,
   store ,
+  batch ,
   _observe ,
   _done ,
   _ready ,

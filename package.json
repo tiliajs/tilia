@@ -13,6 +13,7 @@
     "tilia": "pnpm --filter tilia",
     "web": "pnpm --filter website",
     "react": "pnpm --filter react",
+    "perf": "pnpm --filter performance",
     "build": "pnpm -r build",
     "todo-ts": "pnpm --filter todo-app-ts",
     "todo-re": "pnpm --filter todo-app-re",

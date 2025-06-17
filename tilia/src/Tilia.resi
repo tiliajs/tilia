@@ -21,6 +21,7 @@ type tilia = {
    * produced value is read.
    */
   observe: (unit => unit) => unit,
+  batch: (unit => unit) => unit,
   /** extras */
   /** Create a mutable value and a setter function */
   signal: 'a. 'a => (signal<'a>, 'a => unit),
@@ -39,10 +40,9 @@ type tilia = {
 }
 
 /** Create a new tilia context and returns the `tilia` and `observe` functions.
- * The default flush function is set to notify immediately (as soon as we are not in an observing function).
  * The gc parameter is the number of cleared watchers to keep before triggering a GC (default is 50).
  */
-let make: (~flush: (unit => unit) => unit=?, ~gc: int=?) => tilia
+let make: (~gc: int=?) => tilia
 
 /** Transform a reguarl object or array into a tilia value.
  */
@@ -69,6 +69,8 @@ let observe: (unit => unit) => unit
 let signal: 'a => (signal<'a>, 'a => unit)
 /** Create a store (a signal with a setter) */
 let store: (('a => unit) => 'a) => signal<'a>
+
+let batch: (unit => unit) => unit
 
 /** Internal types for library developers (global context) */
 /** Start observing */

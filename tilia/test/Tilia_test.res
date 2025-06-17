@@ -271,8 +271,8 @@ test("Should share tracking in same tree", t => {
 
 test("Should not share tracking in another forest", t => {
   let m = {called: false}
-  let ctx1 = make(~flush=apply)
-  let ctx2 = make(~flush=apply)
+  let ctx1 = make()
+  let ctx2 = make()
   let p1 = ctx1.tilia(person())
   let p2 = ctx2.tilia(person())
   ctx1.observe(() => {
@@ -601,33 +601,6 @@ type track = {mutable flush: unit => unit}
 let flush = (t: track, fn) => t.flush = fn
 
 type familiy = dict<person>
-
-asyncTest("Should work with setTimeout as flush", t => {
-  let m = {called: false}
-  let r = make(~flush=fn => ignore(setTimeout(fn, 0)))
-  let p = r.tilia(person())
-  let _ = r.observe(() => {
-    t->is(p.name, p.name)
-    m.called = true
-  })
-  m.called = false
-
-  Promise.make((resolve, _) => {
-    p.name = "Dunia"
-    p.name = "Maria"
-    p.name = "Muholi"
-    t->isFalse(m.called)
-    ignore(
-      setTimeout(
-        () => {
-          t->isTrue(m.called)
-          resolve()
-        },
-        0,
-      ),
-    )
-  })
-})
 
 test("Should create computed", t => {
   let p = {name: "John", username: "jo"}
@@ -1208,34 +1181,56 @@ test("should not wrap tilia twice", t => {
   t->is(tilia(p), p)
 })
 
-test("should allow cycle flush", t => {
-  let flush = ref(() => ())
+test("Should batch operations", t => {
   let m = {called: false}
-  let {signal, computed, tilia} = make(~flush=fn => {
+  let r = make()
+  let p = r.tilia(person())
+  r.observe(() => {
+    t->is(p.name, p.name)
     m.called = true
-    flush.contents = fn
   })
+  m.called = false
+
+  r.batch(() => {
+    p.name = "Dunia"
+    p.name = "Maria"
+    p.name = "Muholi"
+    t->isFalse(m.called)
+  })
+  t->isTrue(m.called)
+})
+
+test("should allow batch in batch", t => {
+  let m = {called: false}
+  let {batch, signal, computed, tilia} = make()
   let (s1, set1) = signal(0)
   let (s2, set2) = signal(0)
   let (s3, set3) = signal(0)
   let total = tilia({
-    value: computed(() => s1.value + s2.value + s3.value),
+    value: computed(() => {
+      m.called = true
+      s1.value + s2.value + s3.value
+    }),
   })
   t->is(total.value, 0)
-  t->isFalse(m.called)
-  set1(1)
   t->isTrue(m.called)
   m.called = false
 
-  t->is(total.value, 0)
-  set2(2)
-  t->is(total.value, 0)
-  set3(5)
-  t->is(total.value, 0)
+  batch(() => {
+    set1(1)
+    t->is(total.value, 0)
+    batch(
+      () => {
+        set2(2)
+        t->is(total.value, 0)
+      },
+    )
+    t->is(total.value, 0)
+    set3(5)
+    t->is(total.value, 0)
+    t->isFalse(m.called)
+  })
 
-  t->isFalse(m.called)
-  flush.contents()
   t->is(total.value, 8)
-  flush.contents()
-  t->is(total.value, 8)
+  t->isTrue(m.called)
 })

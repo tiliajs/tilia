@@ -7,6 +7,7 @@ export type Tilia = {
   tilia: <T>(branch: T) => T;
   computed: <T>(fn: () => T) => T;
   observe: (fn: () => void) => void;
+  batch: (fn: () => void) => void;
 
   // extra
   signal: <T>(value: T) => [Signal<T>, Setter<T>];
@@ -26,6 +27,7 @@ export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 export function tilia<T>(branch: T): T;
 export function computed<T>(fn: () => T): T;
 export function observe(fn: () => void): void;
+export function batch(fn: () => void): void;
 
 // extra
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
