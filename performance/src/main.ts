@@ -1,5 +1,5 @@
+import type { GraphSetting } from "@entity/graph-setting";
 import type { Tester } from "@feature/tester";
-import type { GraphSetting } from "@model/graph-setting";
 import { jotaiGraph } from "src/domain/feature/performance/jotai-graph";
 import { rxjsGraph } from "src/domain/feature/performance/rxjs-graph";
 import { make } from "src/domain/feature/performance/tester";

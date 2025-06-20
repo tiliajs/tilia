@@ -1,6 +1,6 @@
-import type { Signal } from "@model/signal";
-import type { User } from "src/domain/api/model/user";
-import type { Repo } from "src/domain/api/service/repo";
+import type { User } from "@entity/user";
+import type { Repo } from "@service/repo";
+import type { Signal } from "tilia";
 
 export type AuthBlank = {
   // State

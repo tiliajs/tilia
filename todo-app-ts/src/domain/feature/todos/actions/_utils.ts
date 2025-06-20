@@ -1,4 +1,4 @@
-import type { Todo } from "../../../api/model/todo";
+import type { Todo } from "@entity/todo";
 
 export const filterKey = "todos-filter";
 

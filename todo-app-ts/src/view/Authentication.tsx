@@ -1,6 +1,6 @@
+import type { AuthNotAuthenticated } from "@feature/auth";
 import { useState } from "react";
 import { auth_ } from "src/boot";
-import type { AuthNotAuthenticated } from "src/domain/api/feature/auth";
 import { localRepo } from "src/service/repo/local";
 import { supabase } from "src/service/repo/supabase";
 

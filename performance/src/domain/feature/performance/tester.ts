@@ -1,7 +1,7 @@
+import type { Experiment } from "@entity/experiment";
+import type { GraphSetting } from "@entity/graph-setting";
 import type { Graph } from "@feature/graph";
 import type { Tester } from "@feature/tester";
-import type { Experiment } from "@model/experiment";
-import type { GraphSetting } from "@model/graph-setting";
 import { computed, tilia } from "tilia";
 
 export function make(
@@ -44,12 +44,6 @@ export function make(
 }
 
 // Helpers
-
-function median(arr: number[]): number {
-  const a = [...arr].sort((a, b) => a - b);
-  const i = Math.floor(a.length / 2);
-  return a.length % 2 !== 0 ? a[i] : (a[i - 1] + a[i]) / 2;
-}
 
 function avg(arr: number[]): number {
   if (arr.length === 0) throw new Error("No value to average");

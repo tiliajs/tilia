@@ -1,8 +1,7 @@
+import type { Todo } from "@entity/todo";
 import { type Auth } from "@feature/auth";
-import { signal, type Signal } from "@model/signal";
-import type { Todo } from "@model/todo";
 import { fail, success, type Repo, type Result } from "@service/repo";
-import { observe } from "tilia";
+import { observe, signal, type Signal } from "tilia";
 
 type IndexedDBRepo = Repo & {
   db?: IDBDatabase;

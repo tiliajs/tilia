@@ -1,14 +1,8 @@
-import { signal, type Signal } from "@model/signal";
+import type { Todo } from "@entity/todo";
+import { type Auth } from "@feature/auth";
+import { fail, success, type Repo, type Result } from "@service/repo";
 import { createClient } from "@supabase/supabase-js";
-import { observe } from "tilia";
-import { type Auth } from "../../domain/api/feature/auth";
-import type { Todo } from "../../domain/api/model/todo";
-import {
-  fail,
-  success,
-  type Repo,
-  type Result,
-} from "../../domain/api/service/repo";
+import { observe, signal, type Signal } from "tilia";
 
 const supabaseUrl = "https://bfrxzoliopayvesrmcoe.supabase.co";
 

@@ -1,10 +1,10 @@
-import { isAppReady, type AppReady } from "src/domain/api/feature/app";
+import { loaded } from "@entity/loadable";
+import type { Todo } from "@entity/todo";
+import { isAppReady, type AppReady } from "@feature/app";
 import { makeApp } from "src/domain/feature/app";
 import { memoryStore } from "src/service/repo/memory";
 import { observe } from "tilia";
 import { describe, expect, it } from "vitest";
-import { isLoaded, loaded } from "../../api/model/loadable";
-import type { Todo } from "../../api/model/todo";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -65,11 +65,7 @@ describe("Todos", () => {
       completed: false,
       userId: "",
     });
-    if (!isLoaded(todos.list)) {
-      expect("todos.list").toEqual("loaded");
-      return;
-    }
-    const list = todos.list.value;
+    const list = todos.list;
 
     const todo = list[0];
     expect(todo.id).toMatch(
@@ -91,11 +87,7 @@ describe("Todos", () => {
       completed: false,
       userId: "",
     });
-    if (!isLoaded(todos.list)) {
-      expect("todos.list").toEqual("loaded");
-      return;
-    }
-    const list = todos.list.value;
+    const list = todos.list;
 
     const todo = list[0];
     expect(list).toEqual([
@@ -119,24 +111,24 @@ describe("Todos", () => {
       userId: "",
     });
 
-    expect(todos.list).toEqual(loaded([]));
+    expect(todos.list).toEqual([]);
   });
 
   it("should update list on filters change", async () => {
     const { todos } = await setup();
-    expect(todos.list).toEqual(loaded([plants, rice, hug]));
+    expect(todos.list).toEqual([plants, rice, hug]);
     todos.setFilter("active");
     await tick();
-    expect(todos.list).toEqual(loaded([plants, hug]));
+    expect(todos.list).toEqual([plants, hug]);
   });
 
   it("should update list on toggle", async () => {
     const { todos } = await setup();
     todos.setFilter("active");
     await tick();
-    expect(todos.list).toEqual(loaded([plants, hug]));
+    expect(todos.list).toEqual([plants, hug]);
     todos.toggle("2");
     await tick();
-    expect(todos.list).toEqual(loaded([plants]));
+    expect(todos.list).toEqual([plants]);
   });
 });

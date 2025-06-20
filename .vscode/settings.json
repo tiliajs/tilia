@@ -7,7 +7,7 @@
     "service": "~",
     "view": "#"
   },
-  "workbench.iconTheme": "diagonal-architecture-light-icon-theme",
+  "workbench.iconTheme": "diagonal-architecture-icon-theme",
   "files.associations": {
     "*.css": "tailwindcss"
   }

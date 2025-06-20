@@ -1,13 +1,12 @@
-import type { Signal } from "@model/signal";
-import { observe, tilia } from "tilia";
-import type { Display } from "../api/feature/display";
+import type { Display } from "@feature/display";
 import {
   isFail,
   isSuccess,
   success,
   type Repo,
   type RepoReady,
-} from "../api/service/repo";
+} from "@service/repo";
+import { observe, tilia, type Signal } from "tilia";
 
 const darkModeKey = "display-darkMode";
 

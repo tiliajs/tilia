@@ -25,12 +25,17 @@
   },
   "description": "🍃 React State Management with Tilia.",
   "keywords": [
-    "rescript",
-    "react",
-    "state",
     "state management",
-    "tilia",
-    "frp"
+    "reactive",
+    "typescript",
+    "rescript",
+    "frp",
+    "react",
+    "hooks",
+    "computed",
+    "store",
+    "minimal",
+    "simple"
   ],
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT",
@@ -41,20 +46,20 @@
     "tilia": "workspace:^"
   },
   "devDependencies": {
-    "@dzakh/rescript-ava": "^3.0.0",
+    "@dzakh/rescript-ava": "^3.1.0",
     "@rescript/core": "^1.6.1",
     "@rescript/react": "^0.12.2",
     "@testing-library/dom": "^10.4.0",
-    "@testing-library/react": "^16.1.0",
-    "@testing-library/user-event": "^14.5.2",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "ava": "5.2.0",
     "clean-package": "^2.2.0",
-    "esbuild": "^0.24.0",
-    "esbuild-node-externals": "^1.15.0",
+    "esbuild": "^0.25.5",
+    "esbuild-node-externals": "^1.18.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "rescript": "^11.1.4",
-    "typescript": "^5.7.2"
+    "typescript": "^5.8.3"
   },
   "ava": {
     "files": [

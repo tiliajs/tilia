@@ -2,7 +2,7 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@model/*": [
+      "@entity/*": [
         "./src/domain/api/model/*"
       ],
       "@feature/*": [

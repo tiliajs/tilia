@@ -1,9 +1,5 @@
-import type { Todos, TodosFilter } from "src/domain/api/feature/todos";
-import {
-  isSuccess,
-  type Repo,
-  type RepoReady,
-} from "src/domain/api/service/repo";
+import type { Todos, TodosFilter } from "@feature/todos";
+import { isSuccess, type Repo, type RepoReady } from "@service/repo";
 import { filterKey } from "../actions/_utils";
 
 export function fetchFilterOnReady(repo: Repo, todos: Todos) {

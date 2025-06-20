@@ -1,26 +1,20 @@
-import type { Todos, TodosFilter } from "src/domain/api/feature/todos";
-import {
-  blank,
-  isLoaded,
-  loaded,
-  loading,
-  type Loadable,
-} from "src/domain/api/model/loadable";
-import type { Todo } from "src/domain/api/model/todo";
+import { isLoaded } from "@entity/loadable";
+import type { Todo } from "@entity/todo";
+import type { Todos, TodosFilter } from "@feature/todos";
 
-export function list(todos: Todos): Loadable<Todo[]> {
+export function list(todos: Todos): Todo[] {
   const {
     data_: { value: data },
   } = todos;
   if (isLoaded(data)) {
-    const l = data.value
-      .filter(listFilter(todos.filter))
-      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1));
-    return loaded(l);
-  } else if (data.t === "Blank") {
-    return blank();
+    return (
+      data.value
+        // Filter produces a new array, we can sort in place
+        .filter(listFilter(todos.filter))
+        .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
+    );
   }
-  return loading();
+  return [];
 }
 
 // ======= PRIVATE ========================

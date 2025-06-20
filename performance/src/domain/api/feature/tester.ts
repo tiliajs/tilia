@@ -1,6 +1,6 @@
+import type { Experiment } from "@entity/experiment";
+import type { GraphSetting } from "@entity/graph-setting";
 import type { Graph } from "@feature/graph";
-import type { Experiment } from "@model/experiment";
-import type { GraphSetting } from "@model/graph-setting";
 
 export interface Tester {
   setting: GraphSetting;

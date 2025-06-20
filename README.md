@@ -11,15 +11,16 @@ ReScript for improved type safety and performance).
 
 Check the [**website**](https://tiliajs.com) for documentation and examples.
 
+Simple documentation on the [README](./tilia/README.md).
+
 ### Changelog
 
-- 2025-06-09 **2.0.0** (not yet release: canary version)
-  - Add immutability protections.
+- 2025-06-20 **2.0.0** (not yet release: canary version)
+  - Add tests and examples with Gherkin for todo app.
   - Moved core to npm "tilia" package.
   - Changed `make` signature to build tilia context (provides the full API running in a separate context).
   - Enable **forest mode** to observve across separated objects.
   - Add `computed` to compute values in branches (moved into `tilia` context).
-    Note: computed _will raise an error_ if it mutates state.
   - Moved `observe` into `tilia` context.
   - `observe` _will be called_ for its own mutations (this is to allow state machines).
   - Removed re-exports in @tilia/react.

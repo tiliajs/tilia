@@ -1,4 +1,4 @@
-import type { Todo } from "../model/todo";
+import type { Todo } from "@entity/todo";
 
 export type Success<T> = { t: "Success"; value: T };
 export type Fail = { t: "Fail"; message: string };

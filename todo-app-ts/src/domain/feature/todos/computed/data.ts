@@ -1,11 +1,6 @@
-import {
-  blank,
-  loaded,
-  loading,
-  type Loadable,
-} from "src/domain/api/model/loadable";
-import type { Todo } from "src/domain/api/model/todo";
-import { isSuccess, type RepoReady } from "src/domain/api/service/repo";
+import { blank, loaded, loading, type Loadable } from "@entity/loadable";
+import type { Todo } from "@entity/todo";
+import { isSuccess, type RepoReady } from "@service/repo";
 import type { Setter } from "tilia";
 
 export function data(

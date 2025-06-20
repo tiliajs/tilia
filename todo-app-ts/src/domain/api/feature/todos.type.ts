@@ -1,6 +1,6 @@
+import type { Loadable, Void } from "@entity/loadable";
+import type { Todo } from "@entity/todo";
 import type { Signal } from "tilia";
-import type { Loadable, Void } from "../model/loadable";
-import type { Todo } from "../model/todo";
 
 export type TodosFilter = "all" | "active" | "completed";
 
@@ -12,18 +12,20 @@ export interface Todos {
   filter: TodosFilter;
   selected: Todo;
 
-  // Private
-  readonly data_: Signal<Loadable<Todo[]>>;
   // Computed state
-  readonly list: Loadable<Todo[]>;
+  readonly t: "Blank" | "Loading" | "Loaded";
+  readonly list: Todo[];
   readonly remaining: number;
 
   // Operations
   save: (todo: Todo) => Void;
   clear: () => Void;
   remove: (id: string) => Void;
-  edit: (todo: Todo) => Void;
+  edit: (id: string) => Void;
   setTitle: (title: string) => Void;
   setFilter: (filter: TodosFilter) => Void;
   toggle: (id: string) => Void;
+
+  // Private
+  readonly data_: Signal<Loadable<Todo[]>>;
 }

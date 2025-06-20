@@ -1,4 +1,4 @@
-import type { Result } from "../service/repo";
+import type { Result } from "@service/repo";
 
 export type Display = {
   darkMode: boolean;

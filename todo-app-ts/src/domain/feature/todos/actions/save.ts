@@ -1,6 +1,6 @@
+import { isLoaded } from "@entity/loadable";
+import type { Todo } from "@entity/todo";
 import type { Todos } from "@feature/todos";
-import { isLoaded } from "@model/loadable";
-import type { Todo } from "@model/todo";
 import { isSuccess, type RepoReady } from "@service/repo";
 import { v4 as uuid } from "uuid";
 import { newTodo } from "./_utils";

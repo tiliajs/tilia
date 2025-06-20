@@ -1,4 +1,6 @@
-import { isLoaded } from "@model/loadable";
+import type { Todo } from "@entity/todo";
+import type { AppError, AppNotAuthenticated, AppReady } from "@feature/app";
+import { todosFilterValues } from "@feature/todos";
 import { useComputed, useTilia } from "@tilia/react";
 import {
   CheckCircle,
@@ -22,13 +24,6 @@ import {
   type NamedExoticComponent,
 } from "react";
 import { app_ } from "src/boot";
-import type {
-  AppError,
-  AppNotAuthenticated,
-  AppReady,
-} from "src/domain/api/feature/app";
-import { todosFilterValues } from "src/domain/api/feature/todos";
-import type { Todo } from "src/domain/api/model/todo";
 import { Authentication } from "src/view/Authentication";
 import { _clear, _done, _observe, _ready, tilia } from "tilia";
 
@@ -308,15 +303,9 @@ function TodoInput() {
 
 export function TodoList() {
   const {
-    todos,
+    todos: { list, filter },
     display: { darkMode },
   } = useApp();
-
-  if (!isLoaded(todos.list)) {
-    return "Loading";
-  }
-
-  const list = todos.list.value;
 
   return (
     <ul className="space-y-3">
@@ -330,9 +319,9 @@ export function TodoList() {
         >
           <p className="text-lg">No tasks found!</p>
           <p className={`${darkMode ? "text-pink-400" : "text-pink-500"} mt-2`}>
-            {todos.filter === "all"
+            {filter === "all"
               ? "Add some pinky tasks above!"
-              : todos.filter === "active"
+              : filter === "active"
               ? "No active tasks!"
               : "No completed tasks!"}
           </p>
@@ -345,19 +334,17 @@ export function TodoList() {
 function Remaining() {
   const {
     display: { darkMode },
-    todos,
+    todos: { list, remaining },
   } = useApp();
   const blink = useBlink();
 
   return (
     <div className="mt-6 flex flex-row justify-center items-center gap-4">
-      {isLoaded(todos.list)
-        ? todos.list.value.length > 0 && (
-            <p className={darkMode ? "text-pink-300" : "text-pink-500"}>
-              {todos.remaining} tasks remaining
-            </p>
-          )
-        : "Loading"}
+      {list.length > 0 && (
+        <p className={darkMode ? "text-pink-300" : "text-pink-500"}>
+          {remaining} tasks remaining
+        </p>
+      )}
       {blink}
     </div>
   );
@@ -401,7 +388,7 @@ const TodoView = view(function TodoView({ todo }: { todo: Todo }) {
       <button
         onClick={(e) => {
           e.stopPropagation();
-          todos.edit(todo);
+          todos.edit(todo.id);
         }}
         className={`p-4 text-gray-400 hover:${
           darkMode ? "text-pink-400" : "text-pink-500"

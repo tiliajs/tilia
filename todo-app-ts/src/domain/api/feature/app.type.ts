@@ -2,9 +2,9 @@ import type {
   Auth,
   AuthAuthenticated,
   AuthNotAuthenticated,
-} from "src/domain/api/feature/auth";
-import type { Display } from "src/domain/api/feature/display";
-import type { Todos } from "src/domain/api/feature/todos";
+} from "@feature/auth";
+import type { Display } from "@feature/display";
+import type { Todos } from "@feature/todos";
 
 export type AppBlank = {
   t: "Blank";
