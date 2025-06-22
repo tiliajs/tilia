@@ -32,29 +32,43 @@ export function jotaiGraph(random: Random): Graph {
 
       const users: User[] = Array.from({ length: settings.users }).map(() => {
         const folders = watom<Folder[]>([]);
-        const mult = rng();
+        const mult = 0.8 + 0.4 * rng();
         return {
           folders,
-          value: atom(
-            (get) =>
-              mult * get(folders).reduce((acc, f) => acc + get(f.value), 0)
-          ),
+          value: atom((get) => {
+            // console.log("J USER ", parseFloat(mult.toFixed(2)));
+            const v =
+              mult *
+              get(folders).reduce((acc, f) => {
+                // console.log("       =   ", parseFloat(get(f.value).toFixed(2)));
+                return (acc + get(f.value)) % 1000;
+              }, 0);
+            // console.log("     = ", parseFloat(v.toFixed(2)), "---------");
+            return v;
+          }),
         };
       });
 
       const folders = Array.from({ length: settings.folders }).map(() => {
         const files = watom<File[]>([]);
-        const mult = rng();
+        const mult = 0.8 + 0.4 * rng();
         return {
           files,
-          value: atom(
-            (get) => mult * get(files).reduce((acc, f) => acc + get(f), 0)
-          ),
+          value: atom((get) => {
+            // console.log("  J FOLDER ", parseFloat(mult.toFixed(2)));
+            return (
+              mult *
+              get(files).reduce((acc, f) => {
+                // console.log("      file ", parseFloat(get(f).toFixed(2)));
+                return (acc + get(f)) % 1000;
+              }, 0)
+            );
+          }),
         };
       });
 
       const files = Array.from({ length: settings.files }).map(() =>
-        atom(Math.floor(rng() * 100))
+        atom(rng() * 10)
       );
 
       for (let i = 0; i < settings.usersFolders * settings.users; ++i) {
@@ -82,19 +96,20 @@ export function jotaiGraph(random: Random): Graph {
       }
 
       const sum = atom((get) =>
-        users.reduce((acc, u) => acc + get(u.value), 0)
+        users.reduce((acc, u) => (acc + get(u.value)) % 1000, 0)
       );
 
       runGraph = () => {
         for (let i = 0; i < settings.steps; ++i) {
           for (let j = 0; j < settings.swaps; ++j) {
             const f1 = pick(folders).files;
-            const f1v = [...store.get(f1)]; // copy because we need to respect immutability during swap
+            const f1v = store.get(f1);
             const f2 = pick(folders).files;
-            const f2v = [...store.get(f2)];
+            const f2v = store.get(f2);
             const i1 = Math.floor(rng() * f1v.length);
             const i2 = Math.floor(rng() * f2v.length);
             const tmp = f1v[i1];
+            // No idea about immutability here.
             f1v[i1] = f2v[i2];
             f2v[i2] = tmp;
             store.set(f1, f1v);
@@ -102,8 +117,10 @@ export function jotaiGraph(random: Random): Graph {
           }
           for (let j = 0; j < settings.updates; ++j) {
             const f = pick(files);
-            store.set(f, Math.floor(rng() * 100));
+            store.set(f, rng() * 10);
           }
+          // compute sum
+          store.get(sum);
         }
         return { sum: store.get(sum), rng: rng() };
       };
@@ -114,12 +131,14 @@ export function jotaiGraph(random: Random): Graph {
             value: store.get(u.value),
             sum: store
               .get(u.folders)
-              .reduce((acc, f) => acc + store.get(f.value), 0),
+              .reduce((acc, f) => (acc + store.get(f.value)) % 1000, 0),
             folders: store.get(u.folders).map((f) => store.get(f.value)),
           })),
           folders: folders.map((f) => ({
             value: store.get(f.value),
-            sum: store.get(f.files).reduce((acc, f) => acc + store.get(f), 0),
+            sum: store
+              .get(f.files)
+              .reduce((acc, f) => (acc + store.get(f)) % 1000, 0),
             files: store.get(f.files).map((f) => store.get(f)),
           })),
           files: files.map((f) => store.get(f)),

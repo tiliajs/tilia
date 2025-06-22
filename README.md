@@ -15,7 +15,7 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
-- 2025-06-20 **2.0.0** (not yet release: canary version)
+- 2025-06-20 **2.0.0** (not yet release: beta version)
   - Add tests and examples with Gherkin for todo app.
   - Moved core to npm "tilia" package.
   - Changed `make` signature to build tilia context (provides the full API running in a separate context).
@@ -28,7 +28,7 @@ Simple documentation on the [README](./tilia/README.md).
   - Removed `track` as this cannot scale to multiple instances and computed.
   - Renamed internal `_connect` to `_observe`.
   - Reworked API to ensure strong typing and avoid runtime errors.
-  - Add `signal` and `store` for FRP style programming.
+  - Add `store`, `source`, `readonly` and `signal` for FRP style programming.
   - Improved flush strategy to trigger immediately but not in an observing function.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.

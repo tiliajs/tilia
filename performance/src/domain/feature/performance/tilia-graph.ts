@@ -3,11 +3,13 @@ import type { Random } from "@service/random";
 import { make, type Signal } from "tilia";
 
 interface User {
+  mult: number;
   folders: Folder[];
   readonly value: number;
 }
 
 interface Folder {
+  mult: number;
   files: File[];
   readonly value: number;
 }
@@ -32,28 +34,45 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
 
       const users: User[] = Array.from({ length: settings.users }).map(() => {
         const folders: Folder[] = tilia([]);
-        const mult = rng();
+        const mult = 0.8 + 0.4 * rng();
         return tilia({
+          mult,
           folders,
-          value: computed(
-            () => mult * folders.reduce((acc, f) => acc + f.value, 0)
-          ),
+          value: computed(() => {
+            // console.log("T USER ", parseFloat(mult.toFixed(2)));
+            const v =
+              mult *
+              folders.reduce((acc, f) => {
+                // console.log("       =   ", parseFloat(f.value.toFixed(2)));
+                return (acc + f.value) % 1000;
+              }, 0);
+            // console.log("     = ", parseFloat(v.toFixed(2)), "---------");
+            return v;
+          }),
         });
       });
 
       const folders = Array.from({ length: settings.folders }).map(() => {
         const files: File[] = tilia([]);
-        const mult = rng();
+        const mult = 0.8 + 0.4 * rng();
         return tilia({
+          mult,
           files,
-          value: computed(
-            () => mult * files.reduce((acc, f) => acc + f.value, 0)
-          ),
+          value: computed(() => {
+            // console.log("  T FOLDER ", parseFloat(mult.toFixed(2)));
+            return (
+              mult *
+              files.reduce((acc, f) => {
+                // console.log("      file ", parseFloat(f.value.toFixed(2)));
+                return (acc + f.value) % 1000;
+              }, 0)
+            );
+          }),
         });
       });
 
       const files = Array.from({ length: settings.files }).map(() =>
-        tilia({ value: Math.floor(rng() * 100) })
+        tilia({ value: rng() * 10 })
       );
 
       for (let i = 0; i < settings.usersFolders * settings.users; ++i) {
@@ -77,7 +96,9 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
       }
 
       const sum = tilia({
-        value: computed(() => users.reduce((acc, u) => acc + u.value, 0)),
+        value: computed(() =>
+          users.reduce((acc, u) => (acc + u.value) % 1000, 0)
+        ),
       });
 
       function up() {
@@ -92,7 +113,7 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
         }
         for (let j = 0; j < settings.updates; ++j) {
           const f = pick(files);
-          f.value = Math.floor(rng() * 100);
+          f.value = rng() * 10;
         }
       }
 
@@ -100,6 +121,7 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
         runGraph = () => {
           for (let i = 0; i < settings.steps; ++i) {
             batch(() => up());
+            sum.value;
           }
           return { sum: sum.value, rng: rng() };
         };
@@ -107,6 +129,7 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
         runGraph = () => {
           for (let i = 0; i < settings.steps; ++i) {
             up();
+            sum.value;
           }
           return { sum: sum.value, rng: rng() };
         };
@@ -115,13 +138,15 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
       toData = () => {
         return {
           users: users.map((u) => ({
+            mult: u.mult,
             value: u.value,
-            sum: u.folders.reduce((acc, f) => acc + f.value, 0),
+            sum: u.folders.reduce((acc, f) => (acc + f.value) % 1000, 0),
             folders: u.folders.map((f) => f.value),
           })),
           folders: folders.map((f) => ({
+            mult: f.mult,
             value: f.value,
-            sum: f.files.reduce((acc, f) => acc + f.value, 0),
+            sum: f.files.reduce((acc, f) => (acc + f.value) % 1000, 0),
             files: f.files.map((f) => f.value),
           })),
           files: files.map((f) => f.value),

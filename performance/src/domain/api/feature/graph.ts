@@ -1,4 +1,4 @@
-import type { GraphSetting } from "@entity/graph-setting";
+import type { GraphSetting } from "@entity/graph-setting.type";
 
 export type Data = {
   users: { value: number; sum: number; folders: number[] }[];

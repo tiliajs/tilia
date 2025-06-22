@@ -8,7 +8,8 @@ import { signal, type Signal } from "tilia";
 
 export function makeAuth(): Signal<Auth> {
   // There is probably a better way to do this, but I don't see it.
-  const [auth_, enter] = signal<Auth>({ t: "Blank" } as AuthBlank);
+  const auth_ = signal<Auth>({ t: "Blank" } as AuthBlank);
+  const enter = (auth: Auth) => (auth_.value = auth);
   const auth = auth_.value as AuthBlank;
   auth.login = (repo: Signal<Repo>, user: User) => login(enter, repo, user);
   auth.logout = () => logout(enter);

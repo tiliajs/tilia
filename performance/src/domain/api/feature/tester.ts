@@ -1,5 +1,5 @@
-import type { Experiment } from "@entity/experiment";
-import type { GraphSetting } from "@entity/graph-setting";
+import type { Experiment } from "@entity/experiment.type";
+import type { GraphSetting } from "@entity/graph-setting.type";
 import type { Graph } from "@feature/graph";
 
 export interface Tester {

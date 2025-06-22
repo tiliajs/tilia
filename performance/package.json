@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "measure": "bun --expose-gc ./src/main.ts"
+    "measure": "bun --expose-gc ./src/main.ts",
+    "dev": "bun --watch --expose-gc ./src/main.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.29.0",

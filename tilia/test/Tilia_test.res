@@ -35,6 +35,7 @@ module AnyObject = {
   }
 }
 
+type dyn_name = {dname: string}
 type user = {mutable name: string, mutable username: string}
 type address = {mutable city: string, mutable zip: int}
 type person = {
@@ -455,7 +456,9 @@ test("Should support sub-object in array", t => {
     sorted: [],
     selected: None,
   })
-  items.sorted = computed(() => Array.toSorted(items.all, (a, b) => String.compare(a.name, b.name)))
+  items.sorted = computed(() => {
+    Array.toSorted(items.all, (a, b) => String.compare(a.name, b.name))
+  })
   let o = _observe(() => m.called = true)
   t->is(getExn(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
   _ready(o, true)
@@ -485,13 +488,16 @@ type watchers = {
 type rec meta<'a> = {
   target: 'a,
   observed: Map.t<string, watchers>,
-  proxied: Map.t<string, meta<address>>,
+  proxied: 'b. Map.t<string, meta<'b>>,
+  computes: 'b. Map.t<string, unit => unit>,
   proxy: 'a,
 }
 
-// We need this becausee 'Tilia.meta' is an opaque type, not exposed to
-// avoid having to fix it (it is an internal type).
-let typeMeta: nullable<Tilia.meta<'a>> => nullable<meta<'a>> = _m => %raw(`_m`)
+// We need this because 'Tilia.meta' is an opaque type, not exposed.
+let getMeta: 'a => nullable<meta<'a>> = obj => {
+  let meta = Tilia._meta(obj)
+  meta
+}
 
 test("Should get internals with _meta", t => {
   let person = {
@@ -508,7 +514,7 @@ test("Should get internals with _meta", t => {
   t->is("Los Angleless", p.address.city)
   _ready(o, true)
 
-  switch typeMeta(Tilia._meta(p)) {
+  switch getMeta(p) {
   | Value(meta) => {
       t->is(person, meta.target)
       let n = Option.getExn(Map.get(meta.observed, "name"))
@@ -517,7 +523,7 @@ test("Should get internals with _meta", t => {
       let address = Option.getExn(Map.get(meta.proxied, "address")).proxy
       t->is(p.address, address)
 
-      let meta = typeMeta(Tilia._meta(address))
+      let meta = getMeta(address)
       switch meta {
       | Value(meta) => {
           t->is(person.address, meta.target)
@@ -533,20 +539,20 @@ test("Should get internals with _meta", t => {
 
 test("Should clear if ready never called", t => {
   let m = {called: false}
-  let p = person()
-  let p = tilia(p)
-  let _ = _observe(() => m.called = true)
+  let p = tilia(person())
+  let o = _observe(() => m.called = true)
   t->is(p.name, "John") // o observe 'name'
 
   // Ready never called
   // Observers should be zero
-  switch typeMeta(Tilia._meta(p)) {
+  switch getMeta(p) {
   | Value(meta) => {
       let n = Option.getExn(Map.get(meta.observed, "name"))
       t->is(0, Set.size(n.observers))
     }
-  | _ => t->fail("Meta is undefined")
+  | _ => t->fail("XXX Meta is undefined")
   }
+  _clear(o)
 })
 
 type people = dict<person>
@@ -561,7 +567,7 @@ test("Should delete observations on set", t => {
   t->is(j.name, "John") // o observe 'john.name'
   _ready(o, true)
 
-  switch typeMeta(Tilia._meta(p)) {
+  switch getMeta(p) {
   | Value(meta) => {
       let n = Option.getExn(Map.get(meta.observed, "john"))
       t->is(1, Set.size(n.observers))
@@ -584,7 +590,7 @@ test("Should delete observations on delete", t => {
   t->is(j.name, "John") // o observe 'john.name'
   _ready(o, true)
 
-  switch typeMeta(Tilia._meta(p)) {
+  switch getMeta(p) {
   | Value(meta) => {
       let n = Option.getExn(Map.get(meta.observed, "john"))
       t->is(1, Set.size(n.observers))
@@ -742,34 +748,49 @@ test("Should clear compute on replacing compute", t => {
 test("Compute should notify cache observer on dependency change", t => {
   let p = {name: "John", username: "jo"}
   let p = tilia(p)
+
+  // ================= mo observes p.name
   let mo = {called: false}
-  let read = ref(true)
   observe(() => {
-    if read.contents {
-      t->is(p.name, p.name) // Read value from proxy
-    }
+    t->is(p.name, p.name)
     mo.called = true
   })
   mo.called = false
 
-  let mc = {called: false}
+  // ================= mc1 observes p.username ==> John
+  let mc1 = {called: false}
   p.name = computed(() => {
     t->is(p.username, p.username) // Just to read value from proxy
-    mc.called = true
-    "Loading"
+    mc1.called = true
+    "John"
   })
-  // On compute setup, observers are notified (because it is like a value
-  // change).
-  t->isTrue(mo.called)
-  t->isTrue(mc.called)
-  mo.called = false
-  mc.called = false
-  read.contents = false
+  mc1.called = false
 
-  p.username = "mary"
-  // There are observers, value computed even though it might not be read.
+  // On compute setup, observer is not notified (because the initial value did not change).
+  // change).
   t->isFalse(mo.called)
-  t->isTrue(mc.called)
+
+  // ================= mc2 observes p.username ==> Ariana
+  let mc2 = {called: false}
+  p.name = computed(() => {
+    t->is(p.username, p.username) // Just to read value from proxy
+    mc2.called = true
+    "Ariana"
+  })
+
+  // Ariana != John: observer is notified
+  t->isTrue(mc2.called)
+  t->isTrue(mo.called)
+
+  mo.called = false
+  mc1.called = false
+  mc2.called = false
+
+  p.username = "Mary"
+  // There are observers, value computed, but did not change.
+  t->isFalse(mo.called)
+  t->isFalse(mc1.called)
+  t->isTrue(mc2.called)
 })
 
 test("Compute should work with observers", t => {
@@ -884,13 +905,13 @@ type machine = Blank | Loading | Loaded
 type auth = NotAuthenticated | Authenticating | Authenticated
 
 test("Should allow state machines in observed", t => {
-  let (p, set) = signal(Blank)
-  let (auth, setAuth) = signal(NotAuthenticated)
+  let p = signal(Blank)
+  let auth = signal(NotAuthenticated)
   observe(() => {
     switch (p.value, auth.value) {
-    | (Blank, Authenticating) => set(Loading)
-    | (Loading, Authenticated) => set(Loaded)
-    | (Loaded, NotAuthenticated) => set(Blank)
+    | (Blank, Authenticating) => p.value = Loading
+    | (Loading, Authenticated) => p.value = Loaded
+    | (Loaded, NotAuthenticated) => p.value = Blank
     | _ => ()
     }
   })
@@ -898,14 +919,14 @@ test("Should allow state machines in observed", t => {
   t->deepEqual(p.value, Blank)
 
   // Update dependency
-  setAuth(Authenticating)
+  auth.value = Authenticating
   t->is(p.value, Loading)
 
   // Update dependency
-  setAuth(Authenticated)
+  auth.value = Authenticated
   t->is(p.value, Loaded)
 
-  setAuth(NotAuthenticated)
+  auth.value = NotAuthenticated
   t->is(p.value, Blank)
 })
 
@@ -988,13 +1009,13 @@ test("Should create signal", t => {
   let q = {name: "Linda", username: "linda"}
   let p2 = person()
 
-  let (p, set) = signal({name: "Noether", username: "emmy"})
+  let p = signal({name: "Noether", username: "emmy"})
 
   observe(() => {
     p2.name = p.value.name
   })
   t->is("Noether", p2.name)
-  set(q)
+  p.value = q
   t->is("Linda", p2.name)
 })
 
@@ -1010,52 +1031,97 @@ type state =
   | Loading(loading)
   | Ready(ready)
   | LoggedOut(loggedOut)
+  | Blank
 
-test("Should manage store", t => {
+type storage = {app: state}
+
+test("Should store a mutating value", t => {
   let rec ready = (set: state => unit, user) => Ready({user, logout: () => set(loggedOut(set))})
   and loggedOut = (set: state => unit) => LoggedOut({loading: () => set(loading(set))})
   and loading = (set: state => unit) => Loading({loaded: user => set(ready(set, user))})
 
-  let p = store(loggedOut)
+  let dyn = tilia({
+    app: store(loggedOut),
+  })
 
-  switch p.value {
+  switch dyn.app {
   | LoggedOut(app) => app.loading()
   | _ => t->fail("Not logged out")
   }
 
-  switch p.value {
+  switch dyn.app {
   | Loading(app) => app.loaded({name: "Alice", username: "alice"})
   | _ => t->fail("Not loading")
   }
 
-  switch p.value {
+  switch dyn.app {
   | Ready(app) => app.logout()
   | _ => t->fail("Not ready")
   }
 
-  switch p.value {
+  switch dyn.app {
   | LoggedOut(_) => t->pass
   | _ => t->fail("Not logged out")
   }
 })
 
+test("Should observe in store setup", t => {
+  let val = ref("Dana")
+  let setter = ref(s => val := s)
+  let url = tilia(ref("Persephone"))
+
+  let dyn = tilia({
+    dname: store(set => {
+      setter := set
+      url.contents
+    }),
+  })
+  t->is(dyn.dname, "Persephone")
+  setter.contents("Anibal")
+  t->is(dyn.dname, "Anibal")
+  url := "Dana"
+  t->is(dyn.dname, "Dana")
+})
+
+test("Should remove computed without observers in store setup", t => {
+  let val = ref("Dana")
+  let setter = ref(s => val := s)
+
+  let dyn = tilia({
+    dname: store(set => {
+      setter := set
+      "Anibal"
+    }),
+  })
+  t->is(dyn.dname, "Anibal")
+  switch getMeta(dyn) {
+  | Value(meta) => {
+      let n = Map.get(meta.computes, "name")
+      // No observers: no computed
+      t->is(None, n)
+    }
+  | _ => t->fail("Meta is undefined")
+  }
+})
+
 // This is needed to replace a computed with a regular value, from
 // inside the computed.
-test("Should use store as computed", t => {
+test("Computed without observers should be removed", t => {
   let m = {called: false}
-  let p1 = tilia(person())
-  let p = store(_ => {
-    m.called = true
-    // This should be used only once.
-    p1.name
+  let p = tilia({
+    dname: computed(() => {
+      m.called = true
+      "Raphaël"
+    }),
   })
   t->isFalse(m.called)
-  t->is(p.value, "John")
+  t->is(p.dname, "Raphaël")
   t->isTrue(m.called)
   m.called = false
-  p1.name = "Lisa"
-  t->is(p.value, "John")
-  t->isFalse(m.called)
+  switch getMeta(p) {
+  | Value(meta) => t->is(Map.get(meta.computes, "dname"), None)
+  | _ => t->fail("Meta is undefined")
+  }
 })
 
 test("should work with computed in computed", t => {
@@ -1082,7 +1148,7 @@ test("should work with computed in computed", t => {
 
 test("should trigger if changed after cleared", t => {
   let m = {called: false}
-  let (data, set) = signal("Dana")
+  let data = signal("Dana")
   // Observer 1 watches the data
   let o1 = _observe(() => m.called = true)
   t->is(data.value, "Dana")
@@ -1096,7 +1162,7 @@ test("should trigger if changed after cleared", t => {
 
   // Change the data, but nobody is watching it because
   // the watchers list was cleared.
-  set("Lala")
+  data.value = "Lala"
 
   // Would see Cleared without gc
   _ready(o1, true)
@@ -1108,7 +1174,7 @@ test("should not trigger if unchanged after cleared", t => {
   // Using a long GC, will not trigger
 
   let m = {called: false}
-  let (data, _) = signal("Dana")
+  let data = signal("Dana")
   // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
   t->is(data.value, "Dana")
@@ -1130,12 +1196,10 @@ test("should trigger with very short gc", t => {
   let ctx = make(~gc=0)
   let signal = ctx.signal
   let _observe = ctx._observe
-  let _ready = ctx._ready
-  let _clear = ctx._clear
 
   let m = {called: false}
-  let (data, _) = signal("Dana")
-  let (data2, _) = signal("Dana")
+  let data = signal("Dana")
+  let data2 = signal("Dana")
   // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
   t->is(data.value, "Dana")
@@ -1202,10 +1266,10 @@ test("Should batch operations", t => {
 
 test("should allow batch in batch", t => {
   let m = {called: false}
-  let {batch, signal, computed, tilia} = make()
-  let (s1, set1) = signal(0)
-  let (s2, set2) = signal(0)
-  let (s3, set3) = signal(0)
+  let {batch, signal, tilia} = make()
+  let s1 = signal(0)
+  let s2 = signal(0)
+  let s3 = signal(0)
   let total = tilia({
     value: computed(() => {
       m.called = true
@@ -1217,20 +1281,91 @@ test("should allow batch in batch", t => {
   m.called = false
 
   batch(() => {
-    set1(1)
+    s1.value = 1
     t->is(total.value, 0)
     batch(
       () => {
-        set2(2)
+        s2.value = 2
         t->is(total.value, 0)
       },
     )
     t->is(total.value, 0)
-    set3(5)
+    s3.value = 5
     t->is(total.value, 0)
     t->isFalse(m.called)
   })
 
   t->is(total.value, 8)
   t->isTrue(m.called)
+})
+
+asyncTest("Should load async source", async t => {
+  let m = {called: false}
+  let loader = async (set, url) => {
+    // needed to avoid too fast return
+    await sleep()
+    m.called = true
+    switch url {
+    | "helena" => set("Helena")
+    | "bob" => set("William")
+    | _ => set(url ++ " not found")
+    }
+  }
+  let url = tilia(ref("helena"))
+
+  let p = tilia({
+    ...person(),
+    name: source(set => ignore(loader(set, url.contents)), ""),
+  })
+  t->isFalse(m.called)
+  t->is(p.name, "")
+  t->isFalse(m.called)
+
+  await sleep()
+  t->isTrue(m.called)
+  m.called = false
+  t->is(p.name, "Helena")
+  url := "bob"
+  // Previous value is kept until a new set is called
+  t->is(p.name, "Helena")
+
+  await sleep()
+  t->is(p.name, "William")
+})
+
+asyncTest("should load async source with direct value if set called", async t => {
+  let m = {called: false}
+  let loader = async set => {
+    m.called = true
+    set("Medea")
+  }
+
+  let p = tilia({
+    ...person(),
+    name: source(set => ignore(loader(set)), ""),
+  })
+  t->is(p.name, "Medea")
+  t->isTrue(m.called)
+  // No observers, computed should be removed
+  switch getMeta(p) {
+  | Value(meta) => {
+      let n = Map.get(meta.computes, "name")
+      t->is(None, n)
+    }
+  | _ => t->fail("Meta is undefined")
+  }
+})
+
+type app = {mutable data: readonly<person>}
+
+test("Should wrap readonly value", t => {
+  let p = person()
+  let app = tilia({
+    data: readonly(p),
+  })
+  t->is(app.data.value, p) // Direct equality: no proxy
+  t->throws(() => {
+    %raw(`app.data.value = person()`)
+  }, ~expectations={message: "'set' on proxy: trap returned falsish for property 'value'"})
+  t->is(app.data.value, p)
 })

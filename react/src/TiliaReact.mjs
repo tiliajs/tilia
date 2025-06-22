@@ -4,11 +4,8 @@ import * as Tilia from "tilia/src/Tilia.mjs";
 import * as React from "react";
 
 function make(ctx) {
-  var _clear = ctx._clear;
-  var _ready = ctx._ready;
   var _observe = ctx._observe;
-  var computed = ctx.computed;
-  var tilia = ctx.tilia;
+  var signal = ctx.signal;
   var useTilia = function () {
     var match = React.useState(0);
     var setCount = match[1];
@@ -18,17 +15,15 @@ function make(ctx) {
               });
         });
     React.useEffect(function () {
-          _ready(o, true);
+          Tilia._ready(o, true);
           return (function () {
-                    _clear(o);
+                    Tilia._clear(o);
                   });
         });
   };
   var useComputed = function (fn) {
     return React.useMemo((function () {
-                  return tilia({
-                              value: computed(fn)
-                            });
+                  return signal(Tilia.computed(fn));
                 }), []);
   };
   return {

@@ -28,18 +28,22 @@ let indexKey = symbol("indexKey")
 // Used to get meta information (mostly for stats)
 let metaKey = symbol("metaKey")
 // Mark a function as being a compute value
-let computeKey = symbol("computeKey")
+let dynamicKey = symbol("dynamicKey")
 // Default context
 let ctxKey = symbol("ctx")
 
-// This is also used to detect compute in init state (they have a noop clear
-// function).
-let noop = () => ()
+type compute<'a> = {mutable rebuild: unit => 'a}
 
-type compute<'a> = {
-  mutable clear: unit => unit,
-  mutable rebuild: unit => 'a,
+type source<'a> = {
+  source: ('a => unit) => unit,
+  value: 'a,
 }
+
+type dynamic<'a> =
+  | Computed(unit => 'a)
+  | Source(source<'a>)
+  | Store(('a => unit) => 'a)
+  | Compiled(compute<'a>)
 
 module Typeof = {
   external array: 'a => bool = "Array.isArray"
@@ -54,15 +58,15 @@ function(v) {
 }
   `)
 
-  let compute: 'a => nullable<compute<'a>> = %raw(`
+  let dynamic: 'a => nullable<dynamic<'a>> = %raw(`
 function(v) {
-  return typeof v === 'object' && v !== null && v[computeKey] ? v : undefined;
+  return typeof v === 'object' && v !== null && v[dynamicKey] ? v : undefined;
 }
   `)
 }
 
 module Object = {
-  type descriptor<'a> = {writable: bool, value: 'a}
+  type descriptor<'a> = {writable: bool, enumerable: bool, configurable: bool, value: 'a}
   external hasOwn: ('a, string) => bool = "Object.hasOwn"
   external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
     "Object.getOwnPropertyDescriptor"
@@ -72,6 +76,7 @@ module Object = {
     | _ => false
     }
   }
+  external defineProperty: ('a, string, descriptor<'b>) => unit = "Object.defineProperty"
 }
 
 module Dict = {
@@ -90,6 +95,10 @@ type state =
   | Cleared // No more observer registered: cleared.
 
 type rec observer = {
+  // We set root in the observer so that most methods do not need to
+  // be recreated in the tilia context.
+  root: root,
+  // Function to call on notify.
   notify: unit => unit,
   // What this observer is observing (a list of watchers)
   observing: observing,
@@ -139,34 +148,28 @@ type rec meta<'a> = {
   // Cached children proxy.
   proxied: dict<meta<'a>>,
   // Compute functions.
-  computes: 'b. dict<compute<'b>>,
+  computes: dict<unit => unit>,
   // The proxy itself (used by proxied).
   mutable proxy: 'a,
 }
 
-type signal<'a> = {value: 'a}
+type signal<'a> = {mutable value: 'a}
+type readonly<'a> = {value: 'a}
 type setter<'a> = 'a => unit
 type tilia = {
   tilia: 'a. 'a => 'a,
-  computed: 'a 'b. (unit => 'b) => 'b,
   observe: (unit => unit) => unit,
   batch: (unit => unit) => unit,
-  /** extra */
-  signal: 'a. 'a => (signal<'a>, 'a => unit),
-  store: 'a. (('a => unit) => 'a) => signal<'a>,
+  signal: 'a. 'a => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
-  _done: observer => unit,
-  _ready: (observer, bool) => unit,
-  _clear: observer => unit,
-  _meta: 'a. 'a => nullable<meta<'a>>,
 }
 
 let _meta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 
 @inline
 let setObserver = (root, notify) => {
-  let observer = {notify, observing: []}
+  let observer = {root, notify, observing: []}
   root.observer = Value(observer)
   observer
 }
@@ -210,7 +213,8 @@ let flush = root => {
   }
 }
 
-let clearObserver = (root: root, observer: observer) => {
+let _clear = (observer: observer) => {
+  let root = observer.root
   Array.forEach(observer.observing, watchers => {
     if (
       watchers.state == Pristine &&
@@ -233,7 +237,7 @@ let clearObserver = (root: root, observer: observer) => {
   }
 }
 
-let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
+let _ready = (observer: observer, notifyIfChanged: bool) => {
   ignore(
     Array.findWithIndex(observer.observing, (w, idx) => {
       switch w.state {
@@ -242,7 +246,7 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
           false
         }
       | Changed | Cleared if notifyIfChanged => {
-          clearObserver(root, observer)
+          _clear(observer)
           observer.notify()
           true // abort find
         }
@@ -257,6 +261,7 @@ let setReady = (root: root, observer: observer, notifyIfChanged: bool) => {
       }
     }),
   )
+  let root = observer.root
   switch root.observer {
   | Value(o) if o === observer => {
       root.observer = Undefined
@@ -291,7 +296,7 @@ let notify = (root, observed, key) => {
 
       // Notify
       Set.forEach(watchers.observers, observer => {
-        clearObserver(root, observer)
+        _clear(observer)
         Set.add(expired, observer)
       })
 
@@ -308,6 +313,48 @@ let notify = (root, observed, key) => {
   }
 }
 
+@inline
+let sourceCallback = (set, source: source<'a>) => {
+  let v = source.value
+  let val = ref(v)
+  let set = v => {
+    val := v
+    set(v)
+  }
+  let callback = source.source
+  // Set initial value
+  set(v)
+  () => {
+    callback(set)
+    val.contents
+  }
+}
+
+@inline
+let storeCallback = (set, callback) => {
+  // Set initial value
+  () => callback(set)
+}
+
+@inline
+let getValue = (compile, set, value) => {
+  let rec get = value => {
+    switch Typeof.dynamic(value) {
+    | Undefined | Null => value
+    | Value(dynamic) => {
+        let v = switch dynamic {
+        | Compiled({rebuild}) => rebuild()
+        | Computed(callback) => compile(callback)
+        | Source(source) => compile(sourceCallback(set, source))
+        | Store(store) => compile(storeCallback(set, store))
+        }
+        Typeof.proxiable(v) ? get(v) : v
+      }
+    }
+  }
+  get(value)
+}
+
 type observerRef = {mutable o: nullable<observer>}
 type lastValue<'a> = {mutable v: 'a}
 
@@ -315,7 +362,7 @@ let rec set = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<'b>>,
+  computes: dict<unit => unit>,
   isArray: bool,
   fromComputed: bool,
   target: 'a,
@@ -351,7 +398,7 @@ let rec set = (
       if !fromComputed {
         // New computed value (install it and only notify is needed)
         switch Dict.get(computes, key) {
-        | Value({clear}) => {
+        | Value(clear) => {
             // Updating the compute function: clear old one.
             Dict.delete(computes, key)
             clear()
@@ -359,18 +406,8 @@ let rec set = (
         | _ => ()
         }
       }
-      switch Typeof.compute(value) {
-      | Value(compute) =>
-        setupComputed(root, observed, proxied, computes, isArray, target, key, compute)
-        switch Dict.get(observed, key) {
-        | Value(w) if w.state === Pristine && Set.size(w.observers) > 0 => {
-            // Computed value is observed: rebuild and notify if changed
-            let v = compute.rebuild()
-            set(root, observed, proxied, computes, isArray, true, target, key, v)
-          }
-        | _ => true
-        }
-      | _ => {
+      switch Typeof.dynamic(value) {
+      | Undefined | Null => {
           notify(root, observed, key)
           if !hadKey {
             // new key: trigger index
@@ -378,52 +415,71 @@ let rec set = (
           }
           true
         }
+      | Value(_) =>
+        // Dynamic value
+        switch Dict.get(observed, key) {
+        | Value(w) if w.state === Pristine && Set.size(w.observers) > 0 => {
+            // Computed value is observed: rebuild and notify if changed
+            // Put back previous value to detect changes
+            ignore(Reflect.set(target, key, prev))
+            let compile = callback =>
+              compile(root, observed, proxied, computes, isArray, target, key, callback)
+            let setter = v =>
+              ignore(set(root, observed, proxied, computes, isArray, true, target, key, v))
+            let v = getValue(compile, setter, value)
+            set(root, observed, proxied, computes, isArray, true, target, key, v)
+          }
+        | _ => true
+        }
       }
     }
   }
 }
 
-and setupComputed = (
+and compile = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<'b>>,
+  computes: dict<unit => unit>,
   isArray: bool,
   target: 'a,
   key: string,
-  compute: compute<'b>,
+  callback: unit => 'b,
 ) => {
   let lastValue: lastValue<'b> = {v: %raw(`undefined`)}
   let observer = {o: Undefined}
   // Initial compute has raw callback as rebuild method
-  let callback = compute.rebuild
+  let compute: compute<'b> = {
+    rebuild: %raw(`undefined`),
+  }
+
+  let compiled = Compiled(compute)
+  ignore(Reflect.set(compiled, dynamicKey, true))
 
   let rec notify = () => {
     let v = Reflect.get(target, key)
-    if v !== compute {
+    if v !== compiled {
       lastValue.v = v
     }
 
     switch Dict.get(observed, key) {
-    | Value(w) if Set.size(w.observers) > 0 => {
-        // We have active observers on this key.
-        // Rebuild and if the key changed, it will notify.
-        let v = rebuild()
-        ignore(set(root, observed, proxied, computes, isArray, true, target, key, v))
-      }
+    | Value(w) if Set.size(w.observers) > 0 =>
+      // We have active observers on this key.
+      // Rebuild and if the key changed, it will notify.
+      ignore(set(root, observed, proxied, computes, isArray, true, target, key, rebuild()))
     | Value(w) => {
         // No active listeners.
         w.state = Changed
         Dict.delete(observed, key)
-        ignore(Reflect.deleteProperty(proxied, key))
-        ignore(Reflect.set(target, key, compute))
+        ignore(Dict.delete(proxied, key))
+        ignore(Reflect.set(target, key, compiled))
       }
     | _ => {
         // We do not have any observers: reset value.
         // Make sure the previous proxy (if any) is removed so that it is not
         // served in place of triggering the compute.
-        ignore(Reflect.deleteProperty(proxied, key))
-        ignore(Reflect.set(target, key, compute))
+        ignore(Dict.delete(proxied, key))
+        ignore(Reflect.set(target, key, compiled))
       }
     }
   }
@@ -433,8 +489,13 @@ and setupComputed = (
     // previous value and to detect unchanged value.  If possible, the callback
     // should avoid accessing this value because it can be undefined on first
     // run and breaks typing.
-    ignore(Reflect.set(target, key, lastValue.v))
-    let o: observer = {notify, observing: []}
+    let curr = Reflect.get(target, key)
+    if curr === compiled {
+      ignore(Reflect.set(target, key, lastValue.v))
+    } else {
+      lastValue.v = curr
+    }
+    let o: observer = {root, notify, observing: []}
     observer.o = Value(o)
 
     let previous = root.observer
@@ -444,17 +505,25 @@ and setupComputed = (
     // We need to reset previous observer before calling setReady so that
     // setReady does not trigger flush.
     root.observer = previous
+
     // Computed should not rebuild on change.
-    setReady(root, o, false)
+
+    if Array.length(o.observing) === 0 {
+      // FIXME: How to clear if the rebuild is observing itself ?
+      _clear(o)
+      Dict.delete(computes, key)
+    } else {
+      _ready(o, false)
+    }
     v
   }
   compute.rebuild = rebuild
 
-  compute.clear = () => {
+  let clear = () => {
     // Clear our cache clearing observer
     switch observer.o {
     | Value(o) => {
-        clearObserver(root, o)
+        _clear(o)
         // Empty in case "ready" is called after clear (but we only
         // do this for computed).
         ignore(%raw(`o.observing.length = 0`))
@@ -462,23 +531,24 @@ and setupComputed = (
     | _ => ()
     }
   }
-  Dict.set(computes, key, compute)
+  Dict.set(computes, key, clear)
+  rebuild()
 }
 
 let deleteProperty = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<'b>>,
+  computes: dict<unit => unit>,
   target: 'a,
   key: string,
 ) => {
   let res = Reflect.deleteProperty(target, key)
   Dict.delete(proxied, key)
   switch Dict.get(computes, key) {
-  | Value({clear}) => {
-      clear()
+  | Value(clear) => {
       Dict.delete(computes, key)
+      clear()
     }
   | _ => ()
   }
@@ -490,25 +560,25 @@ let rec get = (
   root: root,
   observed: dict<watchers>,
   proxied: dict<meta<'c>>,
-  computes: dict<compute<'d>>,
+  computes: dict<unit => unit>,
   meta: meta<'a>,
   isArray: bool,
   target: 'a,
   key: string,
 ): 'b => {
   if key === metaKey {
-    // We use this to avoid argument removal by compilation (it is not
-    // included in JS compiled code).
+    // We use this to avoid argument removal by compilation (it is not included
+    // in JS compiled code).
     ignore(meta)
     // We use raw to avoid type
     %raw(`meta`)
-  } else if key === computeKey {
-    %raw(`false`)
+  } else if key === dynamicKey {
+    %raw(`undefined`)
   } else {
     // is array and get length
-    let v = Reflect.get(target, key)
+    let value = Reflect.get(target, key)
     let own = Object.hasOwn(target, key)
-    if v === undefined || own {
+    if value === undefined || own {
       switch root.observer {
       | Value(o) =>
         if isArray && key == "length" {
@@ -521,16 +591,17 @@ let rec get = (
       | _ => ()
       }
 
-      if Typeof.proxiable(v) && !Object.readonly(target, key) {
-        switch Typeof.compute(v) {
-        | Value(compute) => {
-            if compute.clear === noop {
-              // New compute: need setup
-              setupComputed(root, observed, proxied, computes, isArray, target, key, compute)
-            }
-            let v = compute.rebuild()
+      if Typeof.proxiable(value) && !Object.readonly(target, key) {
+        switch Dict.get(proxied, key) {
+        | Value(m) => m.proxy
+        | _ => {
+            let compile = callback =>
+              compile(root, observed, proxied, computes, isArray, target, key, callback)
+            let setter = v =>
+              ignore(set(root, observed, proxied, computes, isArray, true, target, key, v))
+            let v = getValue(compile, setter, value)
             ignore(Reflect.set(target, key, v))
-            if Typeof.proxiable(v) && !Object.readonly(target, key) {
+            if Typeof.proxiable(v) {
               let m = proxify(root, v)
               Dict.set(proxied, key, m)
               m.proxy
@@ -538,20 +609,14 @@ let rec get = (
               v
             }
           }
-        | _ =>
-          switch Dict.get(proxied, key) {
-          | Value(m) => m.proxy
-          | _ =>
-            let m = proxify(root, v)
-            Dict.set(proxied, key, m)
-            m.proxy
-          }
         }
       } else {
-        v
+        // Not proxiable or readonly
+        value
       }
     } else {
-      v
+      // Prototype value
+      value
     }
   }
 }
@@ -559,7 +624,7 @@ let rec get = (
 and proxify = (root: root, target: 'a): meta<'a> => {
   let proxied: dict<meta<'b>> = Dict.make()
   let observed: observed = Dict.make()
-  let computes: dict<compute<'c>> = Dict.make()
+  let computes: dict<unit => unit> = Dict.make()
 
   switch _meta(target) {
   | Value(m) if m.root === root => /* same tree, reuse proxy */
@@ -593,7 +658,7 @@ let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
     let o = setObserver(root, notify)
     callback()
-    setReady(root, o, true)
+    _ready(o, true)
   }
   notify()
 }
@@ -609,45 +674,34 @@ let makeBatch = (root: root) => (callback: unit => unit) => {
   }
 }
 
-let computed = (callback: unit => 'a) => {
-  let v = {clear: noop, rebuild: callback}
-  ignore(Reflect.set(v, computeKey, true))
+let computed = fn => {
+  let v = Computed(fn)
+  ignore(Reflect.set(v, dynamicKey, true))
   %raw(`v`)
 }
 
-let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => {
-  let s = tilia({value: value})
-  let set = v => ignore(Reflect.set(s, "value", v))
-  (s, set)
+let source = (source, value) => {
+  let v = Source({value, source})
+  ignore(Reflect.set(v, dynamicKey, true))
+  %raw(`v`)
 }
 
-let makeStore = signal => init => {
-  let (s, set) = signal(%raw(`undefined`))
-  set(
-    computed(() => {
-      let v = init(set)
-      set(v)
-      v
-    }),
-  )
-  s
+let store = callback => {
+  let v = Store(callback)
+  ignore(Reflect.set(v, dynamicKey, true))
+  %raw(`v`)
 }
+
+@inline
+let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => tilia({value: value})
 
 let makeObserve_ = (root: root) => notify => {
-  let observer = {notify, observing: []}
+  let observer = {root, notify, observing: []}
   root.observer = Value(observer)
   observer
 }
 
-let makeDone_ = (root: root) => _observer => root.observer = Undefined
-
-let makeReady_ = (root: root) => (observer, notifyIfChanged) => {
-  setReady(root, observer, notifyIfChanged)
-}
-
-let makeClear_ = (root: root) => (observer: observer) => {
-  clearObserver(root, observer)
-}
+let _done = (o: observer) => o.root.observer = Undefined
 
 /* We use this external hack to have polymorphic functions (without this, they
  * become monomorphic).
@@ -655,47 +709,28 @@ let makeClear_ = (root: root) => (observer: observer) => {
 external connector: (
   // tilia
   'a => 'a,
-  // computed
-  ('x => 'b) => 'b,
   // observe
   (unit => unit) => unit,
   // batch
   (unit => unit) => unit,
   // extra
   // signal
-  's => (signal<'s>, 's => unit),
-  // store
-  (('t => unit) => 't) => signal<'t>,
+  's => signal<'s>,
   // internal
   // _observe
   (unit => unit) => observer,
-  // _done
-  observer => unit,
-  // _ready
-  (observer, bool) => unit,
-  // _clear
-  observer => unit,
-  // _meta
-  'f => nullable<meta<'f>>,
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, computed, observe, batch, signal, store, _observe, _done, _ready, _clear) {
+function connector(tilia, observe, batch, signal, _observe) {
   return {
-    // 
     tilia,
-    computed, 
     observe,
     batch,
     // extra
     signal,
-    store,
     // internal
     _observe,
-    _done,
-    _ready,
-    _clear,
-    _meta,
   };
 }
 `)
@@ -709,22 +744,15 @@ let make = (~gc=defaultGc): tilia => {
   let root = {observer: Undefined, expired: Set.make(), lock: false, gc}
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
-  let signal = makeSignal(tilia)
 
   connector(
     tilia,
-    computed,
     makeObserve(root),
     makeBatch(root),
     // extra
-    signal,
-    makeStore(signal),
+    makeSignal(tilia),
     // Internal
     makeObserve_(root),
-    makeDone_(root),
-    makeReady_(root),
-    makeClear_(root),
-    _meta,
   )
 }
 
@@ -738,15 +766,23 @@ let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
   }
 }
 
+let readonly = (value: 'a) => {
+  let obj: readonly<'a> = %raw(`{}`)
+  Object.defineProperty(
+    obj,
+    "value",
+    {value, enumerable: true, writable: false, configurable: false},
+  )
+  obj
+}
+
 let tilia = _ctx.tilia
 let observe = _ctx.observe
 let batch = _ctx.batch
 // extra
 let signal = _ctx.signal
-let store = _ctx.store
+
 // internal
 let _observe = _ctx._observe
-let _done = _ctx._done
-let _ready = _ctx._ready
-let _clear = _ctx._clear
-// _meta (does not need context)
+// Opaque type for library developers
+let _meta: 'a => nullable<'b> = p => Reflect.get(p, metaKey)

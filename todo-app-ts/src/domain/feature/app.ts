@@ -12,11 +12,12 @@ export function makeApp() {
   // Dummy display until authenticated.
   const display = makeDisplay({ value: { t: "NotAuthenticated" } });
 
-  const [app_, set] = signal<App>({
+  const app_ = signal<App>({
     t: "Blank",
     display,
     auth: auth_.value as AuthNotAuthenticated,
   });
+  const set = (app: App) => (app_.value = app);
 
   observe(() => {
     const app = app_.value;

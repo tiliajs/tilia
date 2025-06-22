@@ -27,11 +27,19 @@ We'll compare Tilia with other state management libraries, aiming to be as <span
 | Batching/optimized computations    |    ✅     |   _❌_    |    _❌_    |    ✅    |
 | React integration (hooks)          |    ✅     |    ✅     |     ✅     |   _❌_   |
 | TypeScript support                 |    ✅     |    ✅     |     ✅     |    ✅    |
+| ReScript support                   |    ✅     |   _❌_    |    _❌_    |   _❌_   |
 | Persistence utilities              |   _❌_    |    ✅     |     ✅     |   _❌_   |
 | Low boilerplate/learning curve     |    ✅     |    ✅     |     ✅     |   _❌_   |
 | Large ecosystem/community          |   _❌_    |    ✅     |     ✅     |    ✅    |
 
 ## Performance {.performance}
+
+The performance benchmark is currently being rewritten to address certain issues and better reflect real-world scenarios.
+
+Regardless, performance should not be the primary consideration because:
+
+1. If you are developing a fast-paced game, you should conduct performance testing tailored to your specific use case.
+2. If you are building an application, all of these libraries are sufficiently fast, so speed should not be the main deciding factor.
 
 | Description       | Tilia     | Tilia (batch) | Jotai    | RxJS       |
 | :---------------- | :-------- | :------------ | :------- | :--------- |
@@ -180,10 +188,9 @@ import { tilia, computed, observe } from "tilia";
 
 const user = tilia({
   name: "Alice",
+  username: computed(() => user.name.toLowerCase()),
   age: 10,
 });
-
-user.username = computed(() => user.name.toLowerCase());
 
 observe(() => {
   console.log("age changed to", user.age);
@@ -205,9 +212,9 @@ function App() {
 
 The types in tila are simpler: you use the native types and features of the
 programming language to declare if a value is `mutable` (ReScript) or `readonly`
-(TypeScript). No need for `WritableAtom<T[], [T[]], void>` 🙈.
+(TypeScript).
 
-Tilia has a powerful `flush` mechanism that lets you implement world state
+Tilia has a powerful `batch` mechanism that lets you implement world state
 transitions (batch updates). This is not possible with jotai (as of now) where
 updates are synchronous.
 

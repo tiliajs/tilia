@@ -13,13 +13,9 @@ var indexKey = symbol("indexKey");
 
 var metaKey = symbol("metaKey");
 
-var computeKey = symbol("computeKey");
+var dynamicKey = symbol("dynamicKey");
 
 var ctxKey = symbol("ctx");
-
-function noop() {
-  
-}
 
 var proxiable = (function(v) {
   if ( typeof v === 'object' && v !== null) {
@@ -29,8 +25,8 @@ var proxiable = (function(v) {
   return false;
 });
 
-var compute = (function(v) {
-  return typeof v === 'object' && v !== null && v[computeKey] ? v : undefined;
+var dynamic = (function(v) {
+  return typeof v === 'object' && v !== null && v[dynamicKey] ? v : undefined;
 });
 
 function readonly(o, k) {
@@ -40,10 +36,6 @@ function readonly(o, k) {
   } else {
     return d.writable === false;
   }
-}
-
-function _meta(p) {
-  return Reflect.get(p, metaKey);
 }
 
 function observeKey(observed, key) {
@@ -89,7 +81,8 @@ function flush(root) {
   
 }
 
-function clearObserver(root, observer) {
+function _clear(observer) {
+  var root = observer.root;
   observer.observing.forEach(function (watchers) {
         if (watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0) {
           root.gc.active.add(watchers);
@@ -110,7 +103,7 @@ function clearObserver(root, observer) {
   }
 }
 
-function setReady(root, observer, notifyIfChanged) {
+function _ready(observer, notifyIfChanged) {
   observer.observing.find(function (w, idx) {
         var match = w.state;
         switch (match) {
@@ -123,7 +116,7 @@ function setReady(root, observer, notifyIfChanged) {
           
         }
         if (notifyIfChanged) {
-          clearObserver(root, observer);
+          _clear(observer);
           observer.notify();
           return true;
         }
@@ -132,6 +125,7 @@ function setReady(root, observer, notifyIfChanged) {
         observer.observing[idx] = w$1;
         return false;
       });
+  var root = observer.root;
   var o = root.observer;
   if (o === null || o === undefined || o !== observer) {
     return ;
@@ -154,7 +148,7 @@ function notify(root, observed, key) {
   watchers.state = "Changed";
   var expired = root.expired;
   watchers.observers.forEach(function (observer) {
-        clearObserver(root, observer);
+        _clear(observer);
         expired.add(observer);
       });
   var match = root.observer;
@@ -178,7 +172,7 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
     var proxiable$1 = proxiable(value);
     var same;
     if (proxiable$1) {
-      var m = _meta(value);
+      var m = Reflect.get(value, metaKey);
       same = m === null || m === undefined ? prev === value : m.target === prev;
     } else {
       same = prev === value;
@@ -194,20 +188,18 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
       proxied.delete(key$1);
     }
     if (!fromComputed) {
-      var match = computes.get(key$1);
-      if (match === null || match === undefined) {
-        match === null;
+      var clear = computes.get(key$1);
+      if (clear === null || clear === undefined) {
+        clear === null;
       } else {
-        var clear = match.clear;
         computes.delete(key$1);
         clear();
       }
     }
-    var compute$1 = compute(value);
-    if (compute$1 === null || compute$1 === undefined) {
-      compute$1 === null;
+    var match = dynamic(value);
+    if (match === null || match === undefined) {
+      match === null;
     } else {
-      setupComputed(root, observed, proxied, computes, isArray, target, key$1, compute$1);
       var w = observed.get(key$1);
       if (w === null || w === undefined) {
         return true;
@@ -215,7 +207,71 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
       if (!(w.state === "Pristine" && w.observers.size > 0)) {
         return true;
       }
-      var v = compute$1.rebuild();
+      Reflect.set(target, key$1, prev);
+      var compile$1 = (function(key$1){
+      return function compile$1(callback) {
+        return compile(root, observed, proxied, computes, isArray, target, key$1, callback);
+      }
+      }(key$1));
+      var setter = (function(key$1){
+      return function setter(v) {
+        set(root, observed, proxied, computes, isArray, true, target, key$1, v);
+      }
+      }(key$1));
+      var get = function (_value) {
+        while(true) {
+          var value = _value;
+          var dynamic$1 = dynamic(value);
+          if (dynamic$1 === null || dynamic$1 === undefined) {
+            return value;
+          }
+          var v;
+          switch (dynamic$1.TAG) {
+            case "Computed" :
+                v = compile$1(dynamic$1._0);
+                break;
+            case "Source" :
+                var source = dynamic$1._0;
+                var v$1 = source.value;
+                var val = {
+                  contents: v$1
+                };
+                var set = (function(val){
+                return function set(v) {
+                  val.contents = v;
+                  setter(v);
+                }
+                }(val));
+                var callback = source.source;
+                v = compile$1((set(v$1), (function(val,callback){
+                      return function () {
+                        callback(set);
+                        return val.contents;
+                      }
+                      }(val,callback))));
+                break;
+            case "Store" :
+                var store = dynamic$1._0;
+                v = compile$1((function(store){
+                    return function () {
+                      return store(setter);
+                    }
+                    }(store)));
+                break;
+            case "Compiled" :
+                var rebuild = dynamic$1._0.rebuild;
+                v = rebuild();
+                break;
+            
+          }
+          if (!proxiable(v)) {
+            return v;
+          }
+          _value = v;
+          continue ;
+        };
+      };
+      var v = get(value);
       _value = v;
       _key = key$1;
       _fromComputed = true;
@@ -229,41 +285,52 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
   };
 }
 
-function setupComputed(root, observed, proxied, computes, isArray, target, key, compute) {
+function compile(root, observed, proxied, computes, isArray, target, key, callback) {
   var lastValue = {
     v: undefined
   };
   var observer = {
     o: undefined
   };
-  var callback = compute.rebuild;
+  var compute = {
+    rebuild: undefined
+  };
+  var compiled = {
+    TAG: "Compiled",
+    _0: compute
+  };
+  Reflect.set(compiled, dynamicKey, true);
   var notify = function () {
     var v = Reflect.get(target, key);
-    if (v !== compute) {
+    if (v !== compiled) {
       lastValue.v = v;
     }
     var w = observed.get(key);
-    if (w === null || w === undefined) {
-      w === null;
-    } else {
+    if (!(w === null || w === undefined)) {
       if (w.observers.size > 0) {
-        var v$1 = rebuild();
-        set(root, observed, proxied, computes, isArray, true, target, key, v$1);
-        return ;
+        set(root, observed, proxied, computes, isArray, true, target, key, rebuild());
+      } else {
+        w.state = "Changed";
+        observed.delete(key);
+        proxied.delete(key);
+        Reflect.set(target, key, compiled);
       }
-      w.state = "Changed";
-      observed.delete(key);
-      Reflect.deleteProperty(proxied, key);
-      Reflect.set(target, key, compute);
       return ;
     }
-    Reflect.deleteProperty(proxied, key);
-    Reflect.set(target, key, compute);
+    w === null;
+    proxied.delete(key);
+    Reflect.set(target, key, compiled);
   };
   var rebuild = function () {
-    Reflect.set(target, key, lastValue.v);
+    var curr = Reflect.get(target, key);
+    if (curr === compiled) {
+      Reflect.set(target, key, lastValue.v);
+    } else {
+      lastValue.v = curr;
+    }
     var o_observing = [];
     var o = {
+      root: root,
       notify: notify,
       observing: o_observing
     };
@@ -272,19 +339,25 @@ function setupComputed(root, observed, proxied, computes, isArray, target, key, 
     root.observer = o;
     var v = callback();
     root.observer = previous;
-    setReady(root, o, false);
+    if (o_observing.length === 0) {
+      _clear(o);
+      computes.delete(key);
+    } else {
+      _ready(o, false);
+    }
     return v;
   };
   compute.rebuild = rebuild;
-  compute.clear = (function () {
-      var o = observer.o;
-      if (o === null || o === undefined) {
-        return ;
-      }
-      clearObserver(root, o);
-      ((o.observing.length = 0));
-    });
-  computes.set(key, compute);
+  var clear = function () {
+    var o = observer.o;
+    if (o === null || o === undefined) {
+      return ;
+    }
+    _clear(o);
+    ((o.observing.length = 0));
+  };
+  computes.set(key, clear);
+  return rebuild();
 }
 
 function proxify(root, _target) {
@@ -293,7 +366,7 @@ function proxify(root, _target) {
     var proxied = new Map();
     var observed = new Map();
     var computes = new Map();
-    var m = _meta(target);
+    var m = Reflect.get(target, metaKey);
     if (m === null || m === undefined) {
       m === null;
     } else {
@@ -315,13 +388,12 @@ function proxify(root, _target) {
           return function (extra, extra$1) {
             var res = Reflect.deleteProperty(extra, extra$1);
             proxied.delete(extra$1);
-            var match = computes.get(extra$1);
-            if (match === null || match === undefined) {
-              match === null;
+            var clear = computes.get(extra$1);
+            if (clear === null || clear === undefined) {
+              clear === null;
             } else {
-              var clear = match.clear;
-              clear();
               computes.delete(extra$1);
+              clear();
             }
             notify(root, observed, extra$1);
             return res;
@@ -332,13 +404,13 @@ function proxify(root, _target) {
             if (extra$1 === metaKey) {
               return meta;
             }
-            if (extra$1 === computeKey) {
-              return false;
+            if (extra$1 === dynamicKey) {
+              return undefined;
             }
-            var v = Reflect.get(extra, extra$1);
+            var value = Reflect.get(extra, extra$1);
             var own = Object.hasOwn(extra, extra$1);
-            if (!(v === undefined || own)) {
-              return v;
+            if (!(value === undefined || own)) {
+              return value;
             }
             var o = root.observer;
             if (o === null || o === undefined) {
@@ -350,41 +422,81 @@ function proxify(root, _target) {
               var w$1 = observeKey(observed, extra$1);
               o.observing.push(w$1);
             }
-            if (!(proxiable(v) && !readonly(extra, extra$1))) {
-              return v;
+            if (!(proxiable(value) && !readonly(extra, extra$1))) {
+              return value;
             }
-            var compute$1 = compute(v);
-            var exit = 0;
-            if (compute$1 === null || compute$1 === undefined) {
-              exit = 1;
-            } else {
-              if (compute$1.clear === noop) {
-                setupComputed(root, observed, proxied, computes, isArray, extra, extra$1, compute$1);
-              }
-              var v$1 = compute$1.rebuild();
-              Reflect.set(extra, extra$1, v$1);
-              if (!(proxiable(v$1) && !readonly(extra, extra$1))) {
-                return v$1;
-              }
-              var m = proxify(root, v$1);
-              proxied.set(extra$1, m);
+            var m = proxied.get(extra$1);
+            if (!(m === null || m === undefined)) {
               return m.proxy;
             }
-            if (exit === 1) {
-              var m$1 = proxied.get(extra$1);
-              var exit$1 = 0;
-              if (!(m$1 === null || m$1 === undefined)) {
-                return m$1.proxy;
-              }
-              exit$1 = 2;
-              if (exit$1 === 2) {
-                var m$2 = proxify(root, v);
-                proxied.set(extra$1, m$2);
-                return m$2.proxy;
-              }
-              
+            m === null;
+            var compile$1 = function (callback) {
+              return compile(root, observed, proxied, computes, isArray, extra, extra$1, callback);
+            };
+            var setter = function (v) {
+              set(root, observed, proxied, computes, isArray, true, extra, extra$1, v);
+            };
+            var get = function (_value) {
+              while(true) {
+                var value = _value;
+                var dynamic$1 = dynamic(value);
+                if (dynamic$1 === null || dynamic$1 === undefined) {
+                  return value;
+                }
+                var v;
+                switch (dynamic$1.TAG) {
+                  case "Computed" :
+                      v = compile$1(dynamic$1._0);
+                      break;
+                  case "Source" :
+                      var source = dynamic$1._0;
+                      var v$1 = source.value;
+                      var val = {
+                        contents: v$1
+                      };
+                      var set = (function(val){
+                      return function set(v) {
+                        val.contents = v;
+                        setter(v);
+                      }
+                      }(val));
+                      var callback = source.source;
+                      v = compile$1((set(v$1), (function(val,callback){
+                            return function () {
+                              callback(set);
+                              return val.contents;
+                            }
+                            }(val,callback))));
+                      break;
+                  case "Store" :
+                      var store = dynamic$1._0;
+                      v = compile$1((function(store){
+                          return function () {
+                            return store(setter);
+                          }
+                          }(store)));
+                      break;
+                  case "Compiled" :
+                      var rebuild = dynamic$1._0.rebuild;
+                      v = rebuild();
+                      break;
+                  
+                }
+                if (!proxiable(v)) {
+                  return v;
+                }
+                _value = v;
+                continue ;
+              };
+            };
+            var v = get(value);
+            Reflect.set(extra, extra$1, v);
+            if (!proxiable(v)) {
+              return v;
             }
-            
+            var m$1 = proxify(root, v);
+            proxied.set(extra$1, m$1);
+            return m$1.proxy;
           }
           }(proxied,observed,computes,isArray)),
           ownKeys: (function(observed){
@@ -420,13 +532,14 @@ function makeObserve(root) {
     var notify = function () {
       var observer_observing = [];
       var observer = {
+        root: root,
         notify: notify,
         observing: observer_observing
       };
       root.observer = observer;
       var o = observer;
       callback();
-      setReady(root, o, true);
+      _ready(o, true);
     };
     notify();
   };
@@ -445,47 +558,41 @@ function makeBatch(root) {
   };
 }
 
-function computed(callback) {
+function computed(fn) {
   var v = {
-    clear: noop,
-    rebuild: callback
+    TAG: "Computed",
+    _0: fn
   };
-  Reflect.set(v, computeKey, true);
+  Reflect.set(v, dynamicKey, true);
   return v;
 }
 
-function makeSignal(tilia) {
-  return function (value) {
-    var s = tilia({
-          value: value
-        });
-    var set = function (v) {
-      Reflect.set(s, "value", v);
-    };
-    return [
-            s,
-            set
-          ];
+function source(source$1, value) {
+  var v = {
+    TAG: "Source",
+    _0: {
+      source: source$1,
+      value: value
+    }
   };
+  Reflect.set(v, dynamicKey, true);
+  return v;
 }
 
-function makeStore(signal) {
-  return function (init) {
-    var match = signal(undefined);
-    var set = match[1];
-    set(computed(function () {
-              var v = init(set);
-              set(v);
-              return v;
-            }));
-    return match[0];
+function store(callback) {
+  var v = {
+    TAG: "Store",
+    _0: callback
   };
+  Reflect.set(v, dynamicKey, true);
+  return v;
 }
 
 function makeObserve_(root) {
   return function (notify) {
     var observer_observing = [];
     var observer = {
+      root: root,
       notify: notify,
       observing: observer_observing
     };
@@ -494,28 +601,19 @@ function makeObserve_(root) {
   };
 }
 
-function makeReady_(root) {
-  return function (observer, notifyIfChanged) {
-    setReady(root, observer, notifyIfChanged);
-  };
+function _done(o) {
+  o.root.observer = undefined;
 }
 
-function connector(tilia, computed, observe, batch, signal, store, _observe, _done, _ready, _clear) {
+function connector(tilia, observe, batch, signal, _observe) {
   return {
-    // 
     tilia,
-    computed, 
     observe,
     batch,
     // extra
     signal,
-    store,
     // internal
     _observe,
-    _done,
-    _ready,
-    _clear,
-    _meta,
   };
 }
 ;
@@ -534,12 +632,11 @@ function make(gcOpt) {
     gc: gc$1
   };
   var tilia = makeTilia(root);
-  var signal = makeSignal(tilia);
-  return connector(tilia, computed, makeObserve(root), makeBatch(root), signal, makeStore(signal), makeObserve_(root), (function (_observer) {
-                root.observer = undefined;
-              }), makeReady_(root), (function (observer) {
-                clearObserver(root, observer);
-              }), _meta);
+  return connector(tilia, makeObserve(root), makeBatch(root), (function (value) {
+                return tilia({
+                            value: value
+                          });
+              }), makeObserve_(root));
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
@@ -560,6 +657,17 @@ if (exit === 1) {
   _ctx = ctx$1;
 }
 
+function readonly$1(value) {
+  var obj = {};
+  Object.defineProperty(obj, "value", {
+        writable: false,
+        enumerable: true,
+        configurable: false,
+        value: value
+      });
+  return obj;
+}
+
 var tilia = _ctx.tilia;
 
 var observe = _ctx.observe;
@@ -568,24 +676,22 @@ var batch = _ctx.batch;
 
 var signal = _ctx.signal;
 
-var store = _ctx.store;
-
 var _observe = _ctx._observe;
 
-var _done = _ctx._done;
-
-var _ready = _ctx._ready;
-
-var _clear = _ctx._clear;
+function _meta(p) {
+  return Reflect.get(p, metaKey);
+}
 
 export {
   make ,
   tilia ,
-  computed ,
   observe ,
-  signal ,
-  store ,
   batch ,
+  signal ,
+  readonly$1 as readonly,
+  computed ,
+  store ,
+  source ,
   _observe ,
   _done ,
   _ready ,

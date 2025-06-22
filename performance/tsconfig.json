@@ -3,7 +3,7 @@
     "baseUrl": ".",
     "paths": {
       "@entity/*": [
-        "./src/domain/api/model/*"
+        "src/domain/api/entity/*"
       ],
       "@feature/*": [
         "./src/domain/api/feature/*"

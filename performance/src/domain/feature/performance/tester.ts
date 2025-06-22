@@ -1,5 +1,5 @@
-import type { Experiment } from "@entity/experiment";
-import type { GraphSetting } from "@entity/graph-setting";
+import type { Experiment } from "@entity/experiment.type";
+import type { GraphSetting } from "@entity/graph-setting.type";
 import type { Graph } from "@feature/graph";
 import type { Tester } from "@feature/tester";
 import { computed, tilia } from "tilia";
@@ -27,7 +27,7 @@ export function make(
     measure() {
       p.measures = [];
       // Warmup
-      graph.run();
+      // graph.run();
 
       let value = { sum: -1, rng: 0 };
       while (p.measures.length < p.experiment.repeat) {

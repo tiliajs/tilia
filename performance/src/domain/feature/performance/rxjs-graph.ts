@@ -30,14 +30,16 @@ export function rxjsGraph(random: Random): Graph {
 
       const users: User[] = Array.from({ length: settings.users }).map(() => {
         const folders = new BehaviorSubject<Folder[]>([]);
-        const mult = rng();
+        const mult = 0.8 + 0.4 * rng();
         return {
           folders,
           value: folders.pipe(
             switchMap((folders) => {
               if (folders.length === 0) return of(0);
               return combineLatest(folders.map((f) => f.value)).pipe(
-                map((values) => mult * values.reduce((a, b) => a + b, 0))
+                map(
+                  (values) => mult * values.reduce((a, b) => (a + b) % 1000, 0)
+                )
               );
             })
           ),
@@ -46,14 +48,16 @@ export function rxjsGraph(random: Random): Graph {
 
       const folders = Array.from({ length: settings.folders }).map(() => {
         const files = new BehaviorSubject<File[]>([]);
-        const mult = rng();
+        const mult = 0.8 + 0.4 * rng();
         return {
           files,
           value: files.pipe(
             switchMap((files) => {
               if (files.length === 0) return of(0);
               return combineLatest(files).pipe(
-                map((values) => mult * values.reduce((a, b) => a + b, 0))
+                map(
+                  (values) => mult * values.reduce((a, b) => (a + b) % 1000, 0)
+                )
               );
             })
           ),
@@ -61,7 +65,7 @@ export function rxjsGraph(random: Random): Graph {
       });
 
       const files = Array.from({ length: settings.files }).map(
-        () => new BehaviorSubject<number>(Math.floor(rng() * 100))
+        () => new BehaviorSubject<number>(rng() * 10)
       );
 
       for (let i = 0; i < settings.usersFolders * settings.users; ++i) {
@@ -89,16 +93,16 @@ export function rxjsGraph(random: Random): Graph {
       const sum = new BehaviorSubject<number>(0);
 
       combineLatest(users.map((f) => f.value))
-        .pipe(map((values) => values.reduce((a, b) => a + b, 0)))
+        .pipe(map((values) => values.reduce((a, b) => (a + b) % 1000, 0)))
         .subscribe(sum);
 
       runGraph = () => {
         for (let i = 0; i < settings.steps; ++i) {
           for (let j = 0; j < settings.swaps; ++j) {
             const f1 = pick(folders).files;
-            const f1v = [...f1.value]; // copy because we need to respect immutability during swap
+            const f1v = f1.value;
             const f2 = pick(folders).files;
-            const f2v = [...f2.value];
+            const f2v = f2.value;
             const i1 = Math.floor(rng() * f1v.length);
             const i2 = Math.floor(rng() * f2v.length);
             const tmp = f1v[i1];
@@ -109,8 +113,9 @@ export function rxjsGraph(random: Random): Graph {
           }
           for (let j = 0; j < settings.updates; ++j) {
             const f = pick(files);
-            f.next(Math.floor(rng() * 100));
+            f.next(rng() * 10);
           }
+          sum.value;
         }
         return { sum: sum.value, rng: rng() };
       };

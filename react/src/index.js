@@ -1,7 +1,7 @@
-import { _ctx } from "tilia";
+import { _ctx, _ready, _clear, computed } from "tilia";
 import { useMemo, useState, useEffect } from "react";
 
-export function make({ _observe, _ready, _clear, tilia, computed }) {
+export function make({ _observe, signal }) {
   function useTilia() {
     const [_, setCount] = useState(0);
     const o = _observe(() => setCount((i) => i + 1));
@@ -11,11 +11,11 @@ export function make({ _observe, _ready, _clear, tilia, computed }) {
     });
   }
   function useComputed(fn) {
-    return useMemo(() => tilia({ value: computed(fn) }), []);
+    return useMemo(() => signal(computed(fn)), []);
   }
   return { useTilia, useComputed };
 }
 
-const tr = make(_ctx);
-export const useTilia = tr.useTilia;
-export const useComputed = tr.useComputed;
+const lib = make(_ctx);
+export const useTilia = lib.useTilia;
+export const useComputed = lib.useComputed;

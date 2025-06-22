@@ -2,7 +2,7 @@ import type { Loadable } from "@entity/loadable";
 import type { Todo } from "@entity/todo";
 import type { Todos } from "@feature/todos";
 import { type RepoReady } from "@service/repo";
-import { computed, observe, store, tilia } from "tilia";
+import { computed, observe, signal, store, tilia } from "tilia";
 import { newTodo } from "./actions/_utils";
 import { clear } from "./actions/clear";
 import { edit } from "./actions/edit";
@@ -17,7 +17,7 @@ import { remaining } from "./computed/remaining";
 import { fetchFilterOnReady } from "./observers/fetchFilter";
 
 export function makeTodos(repo: RepoReady) {
-  const data_ = store<Loadable<Todo[]>>((set) => data(set, repo));
+  const data_ = signal<Loadable<Todo[]>>(store((set) => data(set, repo)));
   const todos: Todos = tilia({
     // State
     t: computed(() => data_.value.t),
