@@ -34,28 +34,30 @@ We'll compare Tilia with other state management libraries, aiming to be as <span
 
 ## Performance {.performance}
 
-The performance benchmark is currently being rewritten to address certain issues and better reflect real-world scenarios.
+These tests measure the raw performance of the libraries without going into the
+details of how a granular update in a web application can help with app
+reactivity or exploring the cases where Tilia shines (large forms, dynamic
+graphs, etc).
 
-Regardless, performance should not be the primary consideration because:
+| Description   | Tilia  | Tilia (batch) | Jotai       | RxJS    |
+| :------------ | :----- | :------------ | :---------- | :------ |
+| Fixed graph   | 93 ms  | 44 ms         | 33 ms       | _15 ms_ |
+| File swaps    | 69 ms  | 64 ms         | 42 ms       | _26 ms_ |
+| Dynamic graph | 145 ms | 129 ms        | _126 ms_ \* | 971 ms  |
 
-1. If you are developing a fast-paced game, you should conduct performance testing tailored to your specific use case.
-2. If you are building an application, all of these libraries are sufficiently fast, so speed should not be the main deciding factor.
+\* The value computed by Jotai for this test is not the same as the one computed
+by other libraries (no idea why).
 
-| Description       | Tilia     | Tilia (batch) | Jotai    | RxJS       |
-| :---------------- | :-------- | :------------ | :------- | :--------- |
-| 1000 files        | _4.28 ms_ | 5.42 ms       | 11.05 ms | 59.24 ms   |
-| file swaps        | 3.51 ms   | _3.50 ms_     | 6.12 ms  | 13.91 ms   |
-| files and folders | _9.22 ms_ | 10.21 ms      | 33.82 ms | 8776.72 ms |
-
-All tests have a warmup phase, and are run 5 times right after a garbage collection. For all the tests, we swap random files between two folders and update file values (a number). We then compute the graph sum (nodes contain a computed for sub-nodes). The links between nodes are selected at random:
+We measure the time to do 100 steps: swap and updates operation, then compute
+the sum.
 
 ```jsx
-sum <-- [user] <-- [folders] <-- [files]
+sum <-- [random of 1/2 users] <-- [folders] <-- [files]
 ```
 
-- **1000 files**: 1 user, 1 folder, 1000 files, 10 updates, 0 swaps, 1000 steps.
-- **file swaps**: 1 user, 50 folders, 1000 files (20/folder), 10 updates, 10 swaps, 100 steps.
-- **files and folders**: 20 user, 10 folder (10/user), 1000 files (500/folder), 200 updates, 0 swaps, 100 steps.
+- **Fixed graph**: 1 user, 1 folder, 1000 files, 10 updates, 0 swaps.
+- **File swaps**: 1 user, 50 folders, 1000 files (40/folder), 10 updates, 10 swaps, 100 steps.
+- **Dynamic graph**: 20 user, 30 folder (10/user), 1000 files (80/folder), 10 updates, 30 swaps.
 
 Detail of the benchmark can be found [here](https://github.com/tiliajs/tilia/tree/main/performance).
 

@@ -6,7 +6,7 @@ import { picker, pickerTwo } from "./tilia-graph";
 
 interface User {
   folders: BehaviorSubject<Folder[]>;
-  value: Observable<number>;
+  value: BehaviorSubject<number>;
 }
 
 interface Folder {
@@ -31,18 +31,21 @@ export function rxjsGraph(random: Random): Graph {
       const users: User[] = Array.from({ length: settings.users }).map(() => {
         const folders = new BehaviorSubject<Folder[]>([]);
         const mult = 0.8 + 0.4 * rng();
+        const sum = folders.pipe(
+          switchMap((folders) => {
+            if (folders.length === 0) return of(0);
+            return combineLatest(folders.map((f) => f.value)).pipe(
+              map((values) => mult * values.reduce((a, b) => (a + b) % 1000, 0))
+            );
+          })
+        );
+
+        const value = new BehaviorSubject<number>(0);
+        sum.subscribe(value);
+
         return {
           folders,
-          value: folders.pipe(
-            switchMap((folders) => {
-              if (folders.length === 0) return of(0);
-              return combineLatest(folders.map((f) => f.value)).pipe(
-                map(
-                  (values) => mult * values.reduce((a, b) => (a + b) % 1000, 0)
-                )
-              );
-            })
-          ),
+          value,
         };
       });
 
@@ -90,11 +93,14 @@ export function rxjsGraph(random: Random): Graph {
         folder.files.next([...folder.files.value, file]);
       }
 
-      const sum = new BehaviorSubject<number>(0);
-
-      combineLatest(users.map((f) => f.value))
-        .pipe(map((values) => values.reduce((a, b) => (a + b) % 1000, 0)))
-        .subscribe(sum);
+      // compute sum for half of (randomly selected) users
+      function sum() {
+        let sum = 0;
+        for (let i = 0; i < users.length / 2; ++i) {
+          sum += pick(users).value.getValue();
+        }
+        return sum;
+      }
 
       runGraph = () => {
         for (let i = 0; i < settings.steps; ++i) {
@@ -115,9 +121,9 @@ export function rxjsGraph(random: Random): Graph {
             const f = pick(files);
             f.next(rng() * 10);
           }
-          sum.value;
+          sum();
         }
-        return { sum: sum.value, rng: rng() };
+        return { sum: sum(), rng: rng() };
       };
     },
 

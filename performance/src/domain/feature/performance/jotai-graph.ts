@@ -1,6 +1,12 @@
 import type { Data, Graph } from "@feature/graph";
 import type { Random } from "@service/random";
-import { atom, createStore, type Atom, type WritableAtom } from "jotai";
+import {
+  atom,
+  createStore,
+  type Atom,
+  type Getter,
+  type WritableAtom,
+} from "jotai";
 import { picker, pickerTwo } from "./tilia-graph";
 
 type WAtom<T> = WritableAtom<T, [T], void>;
@@ -95,9 +101,13 @@ export function jotaiGraph(random: Random): Graph {
         store.set(folder.files, [...list, file]);
       }
 
-      const sum = atom((get) =>
-        users.reduce((acc, u) => (acc + get(u.value)) % 1000, 0)
-      );
+      function sum(get: Getter) {
+        let sum = 0;
+        for (let i = 0; i < users.length / 2; ++i) {
+          sum += get(pick(users).value);
+        }
+        return sum;
+      }
 
       runGraph = () => {
         for (let i = 0; i < settings.steps; ++i) {
@@ -120,9 +130,9 @@ export function jotaiGraph(random: Random): Graph {
             store.set(f, rng() * 10);
           }
           // compute sum
-          store.get(sum);
+          sum(store.get);
         }
-        return { sum: store.get(sum), rng: rng() };
+        return { sum: sum(store.get), rng: rng() };
       };
 
       toData = () => {

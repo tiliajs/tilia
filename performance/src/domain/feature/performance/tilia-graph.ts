@@ -1,6 +1,6 @@
 import type { Data, Graph } from "@feature/graph";
 import type { Random } from "@service/random";
-import { make, type Signal } from "tilia";
+import { computed, make, type Signal } from "tilia";
 
 interface User {
   mult: number;
@@ -27,7 +27,7 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
     library: `tilia${isBatch ? " (batch)" : ""}`,
 
     setup(settings) {
-      const { tilia, computed, batch } = make();
+      const { tilia, batch } = make();
       const [_count, rng] = random.random(settings.seed);
       const pick = picker(rng);
       const pickTwo = pickerTwo(rng);
@@ -95,11 +95,14 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
         folder.files.push(file);
       }
 
-      const sum = tilia({
-        value: computed(() =>
-          users.reduce((acc, u) => (acc + u.value) % 1000, 0)
-        ),
-      });
+      // compute sum for half of (randomly selected) users
+      function sum() {
+        let sum = 0;
+        for (let i = 0; i < users.length / 2; ++i) {
+          sum += pick(users).value;
+        }
+        return sum;
+      }
 
       function up() {
         for (let j = 0; j < settings.swaps; ++j) {
@@ -121,17 +124,17 @@ export function tiliaGraph(random: Random, isBatch: boolean): Graph {
         runGraph = () => {
           for (let i = 0; i < settings.steps; ++i) {
             batch(() => up());
-            sum.value;
+            sum();
           }
-          return { sum: sum.value, rng: rng() };
+          return { sum: sum(), rng: rng() };
         };
       } else {
         runGraph = () => {
           for (let i = 0; i < settings.steps; ++i) {
             up();
-            sum.value;
+            sum();
           }
-          return { sum: sum.value, rng: rng() };
+          return { sum: sum(), rng: rng() };
         };
       }
 

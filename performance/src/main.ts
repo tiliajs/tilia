@@ -9,46 +9,61 @@ import type { Experiment } from "./domain/api/entity/experiment.type";
 
 // https://github.com/tsurucapital/frp-benchmarks
 const graphs: GraphSetting[] = [
+  /** MINIMAL SETUP WHERE JOTAI RETURNS ANOTHER VALUE 
+   * 
   {
-    title: "1000 files",
+    title: "Dynamic graph TEST",
+    seed: 31415926,
+    users: 1,
+    usersFolders: 5,
+    folders: 5,
+    foldersFiles: 3,
+    files: 10,
+    updates: 0,
+    swaps: 1,
+    steps: 2,
+  },
+  */
+  {
+    title: "Fixed graph",
     seed: 31415926,
     users: 1,
     usersFolders: 1,
     folders: 1,
-    foldersFiles: 100,
-    files: 100,
+    foldersFiles: 1000,
+    files: 1000,
     updates: 10,
     swaps: 0,
     steps: 100,
   },
   {
-    title: "1000 swaps",
+    title: "File swaps",
     seed: 31415926,
     users: 1,
     usersFolders: 50,
     folders: 50,
-    foldersFiles: 20,
-    files: 100,
+    foldersFiles: 40,
+    files: 1000,
     updates: 10,
     swaps: 10,
-    steps: 10,
+    steps: 100,
   },
   {
-    title: "1000 files, 30 folders",
+    title: "Dynamic graph",
     seed: 31415926,
     users: 20,
     usersFolders: 10,
-    folders: 10,
-    foldersFiles: 50,
-    files: 100,
-    updates: 20,
-    swaps: 0,
-    steps: 10,
+    folders: 30,
+    foldersFiles: 80,
+    files: 1000,
+    updates: 10,
+    swaps: 30,
+    steps: 100,
   },
 ];
 
 function test() {
-  for (const graph of graphs.slice(0, 1)) {
+  for (const graph of graphs) {
     const tests = setup(graph, {
       repeat: 1,
     });
@@ -84,7 +99,7 @@ function timing(n: number, len: number) {
   if (n > Math.pow(10, len - 2)) {
     return `${pad((n / 1000).toFixed(0), len)} s `;
   } else {
-    return `${pad(n.toFixed(2), len)} ms`;
+    return `${pad(n.toFixed(0), len)} ms`;
   }
 }
 
