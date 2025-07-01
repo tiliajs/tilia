@@ -37,9 +37,6 @@ pnpm react res:build
 cd core
 CORE_VERSION=$(npm pkg get version | sed 's/"//g')
 is_semver "$CORE_VERSION"
-cd ../react
-REACT_VERSION=$(npm pkg get version | sed 's/"//g')
-is_semver "$REACT_VERSION"
 cd ..
 
 # ================ CORE
@@ -54,11 +51,5 @@ sleep 3
 echo "Wait for core version to propagate on npm"
 sleep 3
 
-# ================ REACT
-cd ../react
-npm pkg set dependencies.@tilia/core="$CORE_VERSION"
-pnpm publish --access public --no-git-checks
-npm version patch
-cd ..
-
+git tag v$CORE_VERSION
 echo "Published successfully!"
