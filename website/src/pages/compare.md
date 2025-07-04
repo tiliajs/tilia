@@ -141,7 +141,7 @@ function Controls() {
 
 **📖 Pro tip:** With tilia, your team can build highly performant applications while maintaining industry best practices around separation of concerns, behavior driven development, and immutability. {.pro}
 
-The [todo app](https://github.com/tiliajs/todo-app-ts) is a great example of an application built with Tilia and using the Diagonal Architecture pattern (separation of concerns, dependency injection, state machines).
+The [todo app](/todo-app-ts) is an example of an application built with Tilia and using the Diagonal Architecture pattern (separation of concerns, dependency injection, state machines).
 
 </section>
 

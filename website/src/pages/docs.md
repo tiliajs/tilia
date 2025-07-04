@@ -317,7 +317,7 @@ let app = tilia({
 ```
 
 The see different uses of `source`, `store` and `computed`, you can have a look
-at the [todo app](https://github.com/tiliajs/todo-app-ts).
+at the [todo app](/todo-app-ts).
 
 </section>
 
