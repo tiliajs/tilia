@@ -1,4 +1,3 @@
-import { loaded } from "@entity/loadable";
 import type { Todo } from "@entity/todo";
 import { isAppReady, type AppReady } from "@feature/app";
 import { makeApp } from "src/domain/feature/app";
@@ -43,7 +42,7 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
   return new Promise<AppReady>((resolve) => {
     observe(() => {
       const app = app_.value;
-      if (isAppReady(app) && app.todos.data_.value.t === "Loaded") {
+      if (isAppReady(app)) {
         resolve(app);
       }
     });
@@ -51,9 +50,9 @@ async function setup(initialTodos: Todo[] = baseTodos()) {
 }
 
 describe("Todos", () => {
-  it("should set data to loaded after login", async () => {
+  it("should set data after login", async () => {
     const { todos } = await setup([]);
-    expect(todos.data_.value).toEqual(loaded([]));
+    expect(todos.data).toEqual([]);
   });
 
   it("should set id to uuid on save", async () => {

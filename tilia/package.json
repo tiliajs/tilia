@@ -23,9 +23,11 @@
     "postpack": "clean-package restore",
     "test": "ava"
   },
-  "description": "🍃 State management library, for simple minds.",
+  "description": "🍃 State management library, domain-driven.",
   "keywords": [
     "state management",
+    "domain-driven",
+    "ddd",
     "reactive",
     "observable",
     "typescript",
@@ -33,7 +35,6 @@
     "frp",
     "signals",
     "computed",
-    "store",
     "minimal",
     "simple"
   ],

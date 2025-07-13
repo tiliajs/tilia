@@ -12,7 +12,7 @@ export function loaded<T>(value: T): Loaded<T> {
   return { t: "Loaded", value };
 }
 
-export function loading(): { t: "Loading" } {
+export function loading<T>(): Loadable<T> {
   return { t: "Loading" };
 }
 

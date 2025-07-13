@@ -1,13 +1,13 @@
-import { isLoaded } from "@entity/loadable";
 import type { Todo } from "@entity/todo";
 import type { Todos } from "@feature/todos";
-import { isSuccess, type RepoReady } from "@service/repo";
+import { isSuccess } from "@service/repo";
 import { v4 as uuid } from "uuid";
 import { newTodo } from "./_utils";
 
-export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {
-  const data = todos.data_.value;
-  if (isLoaded(data)) {
+export function save(todos: Todos) {
+  return async (atodo: Todo) => {
+    const { data, repo } = todos;
+
     const isNew = atodo.id === "";
     const todo = { ...atodo };
     if (todo.title === "") {
@@ -24,7 +24,7 @@ export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {
     if (isSuccess(result)) {
       const todo = result.value;
       if (isNew) {
-        data.value.push(todo);
+        data.push(todo);
       } else {
         // mutate in place
         Object.assign(todo, result.value);
@@ -32,7 +32,5 @@ export async function save(repo: RepoReady, todos: Todos, atodo: Todo) {
     } else {
       throw new Error(`Cannot save (${result.message})`);
     }
-  } else {
-    throw new Error("Cannot save (data not yet loaded)");
-  }
+  };
 }

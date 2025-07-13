@@ -26,6 +26,7 @@
   "description": "🍃 React State Management with Tilia.",
   "keywords": [
     "state management",
+    "domain-driven",
     "reactive",
     "typescript",
     "rescript",
@@ -33,7 +34,6 @@
     "react",
     "hooks",
     "computed",
-    "store",
     "minimal",
     "simple"
   ],

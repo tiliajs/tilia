@@ -16,17 +16,37 @@ This is taken directly from Tilia.resi file.
 type observer
 
 type signal<'a> = {mutable value: 'a}
+type readonly<'a> = {data: 'a}
 type setter<'a> = 'a => unit
+type deriver<'p> = {
+  /**
+   * Return a derived value to be inserted into a tilia object. This is like
+   * a computed but with the tilia object as parameter.
+   *
+   * @param f The computation function that takes the tilia object as parameter.
+   */
+  derived: 'a. ('p => 'a) => 'a,
+}
 
 type tilia = {
   /**
    * Transform a regular object or array into a tilia proxy value.
    *
-   * The returned value is reactive: any nested fields or elements are tracked for changes.
+   * The returned value is reactive: any nested fields or elements are tracked
+   * for changes.
    */
   tilia: 'a. 'a => 'a,
   /**
-   * Register a callback to be re-run whenever any observed value changes in the default context.
+   * Transform a regular object or array into a tilia proxy value, with the
+   * possibility to derive state from the object itself.
+   *
+   * The returned value is reactive: any nested fields or elements are tracked
+   * for changes.
+   */
+  carve: 'a. (deriver<'a> => 'a) => 'a,
+  /**
+   * Register a callback to be re-run whenever any observed value changes in the
+   * default context.
    *
    * This uses a PUSH model: changes "push" the callback to run.
    *
@@ -34,7 +54,8 @@ type tilia = {
    */
   observe: (unit => unit) => unit,
   /**
-   * Run a series of operations in a batch, blocking notifications until the batch is complete.
+   * Run a series of operations in a batch, blocking notifications until the
+   * batch is complete.
    *
    * Useful for updating multiple reactive values efficiently.
    */
@@ -73,6 +94,15 @@ let make: (~gc: int=?) => tilia
 let tilia: 'a => 'a
 
 /**
+ * Transform a regular object or array into a tilia proxy value, with the
+ * possibility to derive state from the object itself.
+ *
+ * The returned value is reactive: any nested fields or elements are tracked for
+ * changes.
+ */
+let carve: (deriver<'a> => 'a) => 'a
+
+/**
  * Register a callback to be re-run whenever any of the observed values changes.
  *
  * This uses a PUSH model: changes "push" the callback to run.  For a PULL model
@@ -102,6 +132,15 @@ let batch: (unit => unit) => unit
 let signal: 'a => signal<'a>
 
 /**
+ * Wrap a value in a readonly holder with a non-writable `value` field.
+ *
+ * Use to insert immutable data into a tilia object and avoid tracking.
+ *
+ * @param v The initial value.
+ */
+let readonly: 'a => readonly<'a>
+
+/**
  * Return a computed value to be inserted into a tilia object.
  *
  * The cached value is computed when the key is read and is destroyed
@@ -112,21 +151,6 @@ let signal: 'a => signal<'a>
  * @param f The computation function.
  */
 let computed: (unit => 'a) => 'a
-
-/**
- * Return a managed value to be inserted into a tilia object.
- *
- * The setup callback runs once when the value is first accessed, and again
- * whenever any observed dependency changes. The callback receives a setter
- * function to imperatively update the value, and should return the initial
- * value.
- *
- * This is useful for implementing event based machines with a simple initial
- * setup.
- *
- * @param f The setup function, receives a setter and returns the current value.
- */
-let store: (('a => unit) => 'a) => 'a
 
 /**
  * Return a reactive source value to be inserted into a tilia object.

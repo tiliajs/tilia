@@ -1,5 +1,10 @@
 import type { App } from "@feature/app";
-import { isAuthenticated, type AuthNotAuthenticated } from "@feature/auth";
+import {
+  isAuthenticated,
+  type AuthAuthenticated,
+  type AuthNotAuthenticated,
+} from "@feature/auth";
+import { isSuccess, type RepoReady } from "@service/repo";
 import { observe, signal } from "tilia";
 import { makeAuth } from "./auth";
 import { makeDisplay } from "./display";
@@ -48,12 +53,26 @@ export function makeApp() {
         switch (repo.t) {
           case "Ready": {
             // ========== enter Ready state
-            set({
-              t: "Ready",
-              auth: auth,
-              display: makeDisplay(auth.repo),
-              todos: makeTodos(repo),
-            });
+            // fetch initial todos
+            async function fetch(repo: RepoReady, auth: AuthAuthenticated) {
+              const data = await repo.fetchTodos();
+              if (isSuccess(data)) {
+                set({
+                  t: "Ready",
+                  auth,
+                  display: makeDisplay(auth.repo),
+                  todos: makeTodos(repo, data.value),
+                });
+              } else {
+                set({
+                  t: "Error",
+                  auth,
+                  display: makeDisplay(auth.repo),
+                  error: data.message,
+                });
+              }
+            }
+            fetch(repo, auth);
             break;
           }
           case "Error": {

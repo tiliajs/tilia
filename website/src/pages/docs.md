@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, observe, signal, batch, computed, source, store functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, observe, signal, computed, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, signal, batch, computed, derived, source functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, carve, observe, signal, computed, derived, source, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -157,12 +157,12 @@ Before introducing each one, let us show you an overview. {.subtitle}
 
 <section class="doc patterns wide-comment summary frp">
 
-| Pattern    | Use-case                                | Setter | Return value |
-| :--------- | :-------------------------------------- | :----: | ------------ |
-| `computed` | Derived value                           | ❌ No  | ✅ Yes       |
-| `store`    | State machine/init logic                | ✅ Yes | ✅ Yes       |
-| `source`   | External/async updates                  | ✅ Yes | ❌ No        |
-| `readonly` | Avoid tracking on (large) readonly data |        |              |
+| Pattern         | Use-case                                | Tree param | Setter | Return value |
+| :-------------- | :-------------------------------------- | :--------: | :----: | ------------ |
+| `computed`      | Computed value from external sources    |   ❌ No    | ❌ No  | ✅ Yes       |
+| `carve derived` | Cross-property computation              |   ✅ Yes   | ❌ No  | ✅ Yes       |
+| `source`        | External/async updates                  |   ❌ No    | ✅ Yes | ❌ No        |
+| `readonly`      | Avoid tracking on (large) readonly data |            |        |              |
 
 And `signal` which is just a shorthand for `tilia({ value: v })`.
 
@@ -215,56 +215,6 @@ inside a Tilia object or array. {.pro}
 Once a value is computed, it behaves exactly like a regular value until it is
 expired due to a change in the dependencies. This means that there is nearly
 zero overhead for computed values acting as getters.
-
-</section>
-
-<section class="doc computed wide-comment store">
-
-### store
-
-Return a computed value, created with a **setter** that will be inserted in a Tilia object.
-
-```typescript
-import { computed } from "tilia";
-
-const app = tilia({
-  auth: store(loggedOut),
-});
-
-function loggedOut(set: Setter<Auth>): Auth {
-  return {
-    t: "LoggedOut",
-    login: (user: User) => set(loggedIn(set, user)),
-  };
-}
-
-function loggedIn(set: Setter<Auth>, user: User): Auth {
-  return {
-    t: "LoggedIn",
-    user: User,
-    logout: () => set(loggedOut(set)),
-  };
-}
-```
-
-```rescript
-open Tilia
-
-let app = tilia({
-  auth: store(loggedOut),
-})
-
-let loggedOut = set => LoggedOut({
-  login: user => set(loggedIn(set, user)),
-})
-
-let loggedIn = (set, user) => LoggedIn({
-  user: User,
-  logout: () => set(loggedOut(set)),
-})
-```
-
-**💡 Pro tip:** `store` is a very powerful pattern that makes it easy to initialize a feature in a specific state (for testing for example). {.pro}
 
 </section>
 
@@ -332,28 +282,28 @@ fields):
 import { type Readonly, readonly } from "tilia";
 
 const app = tilia({
-  data: readonly(bigStaticData),
+  form: readonly(bigStaticData),
 });
 
 // Original `bigStaticData` without tracking
-const data = app.data.value;
+const data = app.form.data;
 
-// 🚨 'set' on proxy: trap returned falsish for property 'value'
-app.data.value = { other: "data" };
+// 🚨 'set' on proxy: trap returned falsish for property 'data'
+app.form.data = { other: "data" };
 ```
 
 ```rescript
 open Tilia
 
 let app = tilia({
-  data: readonly(bigStaticData),
+  form: readonly(bigStaticData),
 })
 
 // Original `bigStaticData` without tracking
-let data = app.data.value
+let data = app.form.data
 
-// 🚨 'set' on proxy: trap returned falsish for property 'value'
-app.data.value = { other: "data" }
+// 🚨 'set' on proxy: trap returned falsish for property 'data'
+app.form.data = { other: "data" }
 ```
 
 </section>
@@ -431,6 +381,126 @@ let now_ = signal(store(runningTime))
 if (authenticated_.value) {
 }
 ```
+
+</section>
+
+## <span>✨</span> Carving <span>✨</span> {.carve}
+
+<section class="doc computed wide-comment carve">
+
+### carve (derived)
+
+Transform an object or array into a reactive tilia value, providing a
+possibility to derive state or methods from the object itself. Usage:
+
+```typescript
+import { carve } from "tilia";
+
+const feature = carve(({ derived }) => ({ ...fields }));
+```
+
+```rescript
+open Tilia
+
+let feature = carve(({ derived }) => { ... fields })
+```
+
+The `derived` function in the carve argument is like a `computed` but with the
+object itself as first parameter.
+
+### Example
+
+```typescript
+import { carve } from "tilia";
+
+// A pure function for sorting todos, easy to test in isolation.
+function list(todos) {
+  const compare = todos.sort === "by date"
+    ? (a, b) => a.createdAt.localeCompare(b.createdAt)
+    : (a, b) => a.title.localeCompare(b.title);
+  return [...todos.data].sort(compare);
+}
+
+// A pure function for toggling a todo, also easily testable.
+function toggle({ data, repo }: Todos) {
+  return (id: string) => {
+    const todo = data.find(t => t.id === id);
+    if (todo) {
+      todo.completed = !todo.completed;
+      repo.save(todo)
+    } else {
+      throw new Error(`Todo ${id} not found`);
+    }
+  };
+}
+
+// Injecting the dependency "repo"
+function makeTodos(repo: Repo) {
+  return carve({ derived }) => ({
+    sort: "by date",
+    list: derived(list),
+    data: source(repo.fetchTodos, []),
+    toggle: derived(toggle),
+    repo,
+  });
+}
+```
+
+```rescript
+open Tilia
+
+// A pure function for sorting todos, easy to test in isolation.
+let list = todos =>
+  todos->Array.toSorted(switch todos.sort {
+    | ByDate => (a, b) => String.compare(a.createdAt, b.createdAt)
+    | ByTitle => (a, b) => String.compare(a.title, b.title)
+  })
+
+// A pure function for toggling a todo, also easily testable.
+let toggle = ({ data, repo }: Todos.t) =>
+  switch data->Array.find(t => t.id === id) {
+    | None => raise(Not_found)
+    | Some(todo) =>
+      todo.completed = !todo.completed
+      repo.save(todo)
+  }
+
+// Injecting the dependency "repo"
+let makeTodos = repo =>
+  carve(({ derived }) => {
+    sort: ByDate,
+    list: derived(list),
+    data: source(repo.fetchTodos, []),
+    toggle: derived(toggle),
+  })
+```
+
+**💡 Pro tip:** Carving is a powerful way to build domain-driven, self-contained features. Extracting logic into pure functions (like `list` and `toggle`) makes testing and reuse easy. {.pro}
+
+#### Recursive derivation (state machines)
+
+For recursive derivation (such as state machines), use `source`:
+
+```typescript
+derived((tree) => source(machine, initialValue));
+```
+
+```rescript
+derived(tree => source(machine, initialValue))
+```
+
+This allows you to create dynamic or self-referential state that reacts to
+changes in other parts of the tree.
+
+<div class="text-center text-3xl text-black hue-rotate-230">💡</div>
+
+#### Difference from `computed`
+
+- Use `computed` for pure derived values that do **not** depend on the entire object.
+- Use `derived` (via `carve`) when you need access to the full reactive object
+  for cross-property logic or methods.
+
+Look at <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/todos/todos.ts">todos.ts</a> for an example of using `carve` to build the todos feature.
 
 </section>
 
@@ -594,16 +664,16 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
-      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-06-29 2.0.0 (beta version)</h3>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-07-13 2.0.0 (beta version)</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
         <li>Moved core to "tilia" npm package.</li>
         <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context.</li>
         <li>Enable forest mode to observe across separated objects.</li>
         <li>Add <code class="text-yellow-300">computed</code> to compute values in branches.</li>
         <li>Moved <code class="text-yellow-300">observe</code> into tilia context.</li>
-        <li>Added <code class="text-yellow-300">signal</code>, <code class="text-yellow-300">store</code>, and <code class='text-yellow-300'>source</code>
-          for FRP style programming.
+        <li>Added <code class="text-yellow-300">signal</code>, and <code class='text-yellow-300'>source</code> for FRP style programming.
         </li>
+        <li>Added <code class="text-yellow-300">carve</code> for derivation.</li>
         <li>Simplify <code class="text-yellow-300">useTilia</code> signature.</li>
         <li>Add garbage collection to improve performance.</li>
       </ul>

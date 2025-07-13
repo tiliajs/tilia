@@ -473,8 +473,8 @@ test("Should support sub-object in array", t => {
 })
 
 type simple_person = {
-  mutable name: string,
-  mutable username: string,
+  mutable sname: string,
+  mutable susername: string,
   address: address,
 }
 
@@ -501,14 +501,14 @@ let getMeta: 'a => nullable<meta<'a>> = obj => {
 
 test("Should get internals with _meta", t => {
   let person = {
-    name: "Mary",
-    username: "mama78",
+    sname: "Mary",
+    susername: "mama78",
     address: {city: "Los Angleless", zip: 1234},
   }
   let p = tilia(person)
   observe(() => {
-    p.username = p.name
-    p.username = p.address.city
+    p.susername = p.sname
+    p.susername = p.address.city
   })
   let o = _observe(_ => ())
   t->is("Los Angleless", p.address.city)
@@ -517,7 +517,7 @@ test("Should get internals with _meta", t => {
   switch getMeta(p) {
   | Value(meta) => {
       t->is(person, meta.target)
-      let n = Option.getExn(Map.get(meta.observed, "name"))
+      let n = Option.getExn(Map.get(meta.observed, "sname"))
       t->is(1, Set.size(n.observers))
 
       let address = Option.getExn(Map.get(meta.proxied, "address")).proxy
@@ -1033,77 +1033,6 @@ type state =
   | LoggedOut(loggedOut)
   | Blank
 
-type storage = {app: state}
-
-test("Should store a mutating value", t => {
-  let rec ready = (set: state => unit, user) => Ready({user, logout: () => set(loggedOut(set))})
-  and loggedOut = (set: state => unit) => LoggedOut({loading: () => set(loading(set))})
-  and loading = (set: state => unit) => Loading({loaded: user => set(ready(set, user))})
-
-  let dyn = tilia({
-    app: store(loggedOut),
-  })
-
-  switch dyn.app {
-  | LoggedOut(app) => app.loading()
-  | _ => t->fail("Not logged out")
-  }
-
-  switch dyn.app {
-  | Loading(app) => app.loaded({name: "Alice", username: "alice"})
-  | _ => t->fail("Not loading")
-  }
-
-  switch dyn.app {
-  | Ready(app) => app.logout()
-  | _ => t->fail("Not ready")
-  }
-
-  switch dyn.app {
-  | LoggedOut(_) => t->pass
-  | _ => t->fail("Not logged out")
-  }
-})
-
-test("Should observe in store setup", t => {
-  let val = ref("Dana")
-  let setter = ref(s => val := s)
-  let url = tilia(ref("Persephone"))
-
-  let dyn = tilia({
-    dname: store(set => {
-      setter := set
-      url.contents
-    }),
-  })
-  t->is(dyn.dname, "Persephone")
-  setter.contents("Anibal")
-  t->is(dyn.dname, "Anibal")
-  url := "Dana"
-  t->is(dyn.dname, "Dana")
-})
-
-test("Should remove computed without observers in store setup", t => {
-  let val = ref("Dana")
-  let setter = ref(s => val := s)
-
-  let dyn = tilia({
-    dname: store(set => {
-      setter := set
-      "Anibal"
-    }),
-  })
-  t->is(dyn.dname, "Anibal")
-  switch getMeta(dyn) {
-  | Value(meta) => {
-      let n = Map.get(meta.computes, "name")
-      // No observers: no computed
-      t->is(None, n)
-    }
-  | _ => t->fail("Meta is undefined")
-  }
-})
-
 // This is needed to replace a computed with a regular value, from
 // inside the computed.
 test("Computed without observers should be removed", t => {
@@ -1356,16 +1285,88 @@ asyncTest("should load async source with direct value if set called", async t =>
   }
 })
 
-type app = {mutable data: readonly<person>}
+type app = {mutable form: readonly<person>}
 
 test("Should wrap readonly value", t => {
   let p = person()
   let app = tilia({
-    data: readonly(p),
+    form: readonly(p),
   })
-  t->is(app.data.value, p) // Direct equality: no proxy
+  t->is(app.form.data, p) // Direct equality: no proxy
   t->throws(() => {
-    %raw(`app.data.value = person()`)
-  }, ~expectations={message: "'set' on proxy: trap returned falsish for property 'value'"})
-  t->is(app.data.value, p)
+    %raw(`app.form.data = person()`)
+  }, ~expectations={message: "'set' on proxy: trap returned falsish for property 'data'"})
+  t->is(app.form.data, p)
+})
+
+test("Should use carve to derive state", t => {
+  let p = carve(({derived}) => {
+    username: "jo",
+    name: derived((p: user) => p.username ++ " is OK"),
+  })
+  t->is(p.name, "jo is OK")
+})
+
+test("Should replace non-observing derived with computed", t => {
+  let m = {called: false}
+  let p = carve(({derived}) => {
+    username: "jo",
+    name: derived(
+      p => {
+        m.called = true
+        computed(() => p.username ++ " is OK")
+      },
+    ),
+  })
+  t->isFalse(m.called)
+  t->is(p.name, "jo is OK")
+  t->isTrue(m.called)
+  m.called = false
+  p.username = "mary"
+  t->is(p.name, "mary is OK")
+  t->isFalse(m.called)
+})
+
+test("Should replace observing derived with computed", t => {
+  let m = {called: false}
+  let p = carve(({derived}) => {
+    username: "jo",
+    name: derived(
+      p => {
+        m.called = true
+        t->is(p.username, p.username)
+        computed(() => p.username ++ " is OK")
+      },
+    ),
+  })
+  t->isFalse(m.called)
+  t->is(p.name, "jo is OK")
+  t->isTrue(m.called)
+  m.called = false
+  p.username = "mary"
+  t->is(p.name, "mary is OK")
+  t->isFalse(m.called)
+})
+
+test("Should use source for recursive derived", t => {
+  let p = carve(({derived}) => {
+    name: "Alice",
+    username: derived(
+      (p: user) => {
+        source(
+          set => {
+            switch (p.name, p.username) {
+            | ("Alice", "lila") => set("Alice(lila) is OK")
+            | ("Alice", "mary") => set("Alice(mary) is OK")
+            | _ => set(p.name ++ " is OK")
+            }
+          },
+          "lila",
+        )
+      },
+    ),
+  })
+  t->is(p.username, "Alice(lila) is OK")
+  p.name = "Kevin"
+  t->is(p.username, "Kevin is OK")
 })

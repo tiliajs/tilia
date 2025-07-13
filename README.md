@@ -28,7 +28,8 @@ Simple documentation on the [README](./tilia/README.md).
   - Removed `track` as this cannot scale to multiple instances and computed.
   - Renamed internal `_connect` to `_observe`.
   - Reworked API to ensure strong typing and avoid runtime errors.
-  - Add `store`, `source`, `readonly` and `signal` for FRP style programming.
+  - Add `source`, `readonly` and `signal` for FRP style programming.
+  - Add `carve` to support derivation (build domain features from objects).
   - Improved flush strategy to trigger immediately but not in an observing function.
 - 2025-05-05 **1.6.0**
   - Add `compute` method to cache values on read.

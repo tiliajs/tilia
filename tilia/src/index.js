@@ -1,11 +1,11 @@
 export {
+  carve,
   make,
   tilia,
   observe,
   batch,
   computed,
   source,
-  store,
   readonly,
   signal,
   _observe,

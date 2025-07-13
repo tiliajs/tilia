@@ -1,20 +1,13 @@
-import { isLoaded } from "@entity/loadable";
 import type { Todo } from "@entity/todo";
 import type { Todos, TodosFilter } from "@feature/todos";
 
 export function list(todos: Todos): Todo[] {
-  const {
-    data_: { value: data },
-  } = todos;
-  if (isLoaded(data)) {
-    return (
-      data.value
-        // Filter produces a new array, we can sort in place
-        .filter(listFilter(todos.filter))
-        .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
-    );
-  }
-  return [];
+  return (
+    todos.data
+      .filter(listFilter(todos.filter))
+      // Filter produces a new array, we can sort in place
+      .sort((a, b) => (b.createdAt > a.createdAt ? 1 : -1))
+  );
 }
 
 // ======= PRIVATE ========================

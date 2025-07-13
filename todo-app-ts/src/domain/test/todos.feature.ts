@@ -1,9 +1,12 @@
 import { makeTodos } from "src/domain/feature/todos/todos";
 import { readyMemoryStore } from "src/service/repo/memory";
-import { observe } from "tilia";
 import { expect } from "vitest";
 import { Given } from "vitest-bdd";
 
+/*
+// await isTrue(() => todos.list.length > 0);
+
+import { observe } from "tilia";
 const PREDICATE_TIMEOUT = 1000;
 
 async function isTrue(fn: () => boolean) {
@@ -20,10 +23,11 @@ async function isTrue(fn: () => boolean) {
     });
   });
 }
+*/
 
 Given("I have todos", async function ({ When, Then }, table: string[][]) {
-  const todos = makeTodos(readyMemoryStore("main", todosFromTable(table)));
-  await isTrue(() => todos.t === "Loaded");
+  const data = todosFromTable(table);
+  const todos = makeTodos(readyMemoryStore("main", data), data);
   function todo(title: string) {
     const todo = todos.list.find((t) => t.title === title);
     if (!todo) {

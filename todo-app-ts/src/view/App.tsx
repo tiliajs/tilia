@@ -563,7 +563,6 @@ function view<T extends object>(
     return res;
   }
   const fnx = memo(fun);
-  console.log(fn.displayName, fn.name);
   fnx.displayName = (fn.displayName || fn.name).replace(/\d+$/, "");
   return fnx;
 }

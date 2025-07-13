@@ -213,12 +213,8 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
         return compile(root, observed, proxied, computes, isArray, target, key$1, callback);
       }
       }(key$1));
-      var setter = (function(key$1){
-      return function setter(v) {
-        set(root, observed, proxied, computes, isArray, true, target, key$1, v);
-      }
-      }(key$1));
-      var get = function (_value) {
+      var get = (function(key$1){
+      return function get(_value) {
         while(true) {
           var value = _value;
           var dynamic$1 = dynamic(value);
@@ -236,27 +232,19 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
                 var val = {
                   contents: v$1
                 };
-                var set = (function(val){
-                return function set(v) {
+                var set$1 = (function(val){
+                return function set$1(v) {
                   val.contents = v;
-                  setter(v);
+                  set(root, observed, proxied, computes, isArray, true, target, key$1, v);
                 }
                 }(val));
                 var callback = source.source;
-                v = compile$1((set(v$1), (function(val,callback){
+                v = compile$1((set$1(v$1), (function(val,callback){
                       return function () {
-                        callback(set);
+                        callback(set$1);
                         return val.contents;
                       }
                       }(val,callback))));
-                break;
-            case "Store" :
-                var store = dynamic$1._0;
-                v = compile$1((function(store){
-                    return function () {
-                      return store(setter);
-                    }
-                    }(store)));
                 break;
             case "Compiled" :
                 var rebuild = dynamic$1._0.rebuild;
@@ -270,7 +258,8 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
           _value = v;
           continue ;
         };
-      };
+      }
+      }(key$1));
       var v = get(value);
       _value = v;
       _key = key$1;
@@ -433,9 +422,6 @@ function proxify(root, _target) {
             var compile$1 = function (callback) {
               return compile(root, observed, proxied, computes, isArray, extra, extra$1, callback);
             };
-            var setter = function (v) {
-              set(root, observed, proxied, computes, isArray, true, extra, extra$1, v);
-            };
             var get = function (_value) {
               while(true) {
                 var value = _value;
@@ -454,27 +440,19 @@ function proxify(root, _target) {
                       var val = {
                         contents: v$1
                       };
-                      var set = (function(val){
-                      return function set(v) {
+                      var set$1 = (function(val){
+                      return function set$1(v) {
                         val.contents = v;
-                        setter(v);
+                        set(root, observed, proxied, computes, isArray, true, extra, extra$1, v);
                       }
                       }(val));
                       var callback = source.source;
-                      v = compile$1((set(v$1), (function(val,callback){
+                      v = compile$1((set$1(v$1), (function(val,callback){
                             return function () {
-                              callback(set);
+                              callback(set$1);
                               return val.contents;
                             }
                             }(val,callback))));
-                      break;
-                  case "Store" :
-                      var store = dynamic$1._0;
-                      v = compile$1((function(store){
-                          return function () {
-                            return store(setter);
-                          }
-                          }(store)));
                       break;
                   case "Compiled" :
                       var rebuild = dynamic$1._0.rebuild;
@@ -524,6 +502,40 @@ function makeTilia(root) {
       raise("tilia: value is not an object or array");
     }
     return proxify(root, value).proxy;
+  };
+}
+
+function makeDerived(p) {
+  return function (fn) {
+    var v = {
+      TAG: "Computed",
+      _0: (function () {
+          return fn(p.contents);
+        })
+    };
+    Reflect.set(v, dynamicKey, true);
+    return v;
+  };
+}
+
+function makeReactive(derived) {
+  return { derived }
+}
+;
+
+function makeCarve(root) {
+  return function (fn) {
+    var p = {
+      contents: {}
+    };
+    var ctx = makeReactive(makeDerived(p));
+    var value = fn(ctx);
+    if (!proxiable(value)) {
+      raise("tilia: value is not an object or array");
+    }
+    var value$1 = proxify(root, value).proxy;
+    p.contents = value$1;
+    return value$1;
   };
 }
 
@@ -579,15 +591,6 @@ function source(source$1, value) {
   return v;
 }
 
-function store(callback) {
-  var v = {
-    TAG: "Store",
-    _0: callback
-  };
-  Reflect.set(v, dynamicKey, true);
-  return v;
-}
-
 function makeObserve_(root) {
   return function (notify) {
     var observer_observing = [];
@@ -605,9 +608,10 @@ function _done(o) {
   o.root.observer = undefined;
 }
 
-function connector(tilia, observe, batch, signal, _observe) {
+function connector(tilia, carve, observe, batch, signal, _observe) {
   return {
     tilia,
+    carve,
     observe,
     batch,
     // extra
@@ -632,7 +636,7 @@ function make(gcOpt) {
     gc: gc$1
   };
   var tilia = makeTilia(root);
-  return connector(tilia, makeObserve(root), makeBatch(root), (function (value) {
+  return connector(tilia, makeCarve(root), makeObserve(root), makeBatch(root), (function (value) {
                 return tilia({
                             value: value
                           });
@@ -657,18 +661,20 @@ if (exit === 1) {
   _ctx = ctx$1;
 }
 
-function readonly$1(value) {
+function readonly$1(data) {
   var obj = {};
-  Object.defineProperty(obj, "value", {
+  Object.defineProperty(obj, "data", {
         writable: false,
         enumerable: true,
         configurable: false,
-        value: value
+        value: data
       });
   return obj;
 }
 
 var tilia = _ctx.tilia;
+
+var carve = _ctx.carve;
 
 var observe = _ctx.observe;
 
@@ -685,12 +691,12 @@ function _meta(p) {
 export {
   make ,
   tilia ,
+  carve ,
   observe ,
   batch ,
   signal ,
   readonly$1 as readonly,
   computed ,
-  store ,
   source ,
   _observe ,
   _done ,

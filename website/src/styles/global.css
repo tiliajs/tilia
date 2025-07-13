@@ -37,6 +37,13 @@
     @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-teal-500 mb-12;
   }
 
+  h2.carve {
+    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-500 m-12;
+    span {
+      @apply text-pink-200/90;
+    }
+  }
+
   h2.react {
     @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-500 m-12;
   }
@@ -70,7 +77,8 @@
 
   .doc,
   .intro {
-    p > code {
+    p > code,
+    li > code {
       font-family: "Operator Mono", "Fira Code", Consolas, Monaco, "Andale Mono",
         "Ubuntu Mono", monospace;
       @apply text-yellow-200/90;
@@ -85,7 +93,7 @@
     }
 
     h4 {
-      @apply text-lg font-bold mb-2 text-yellow-200/70;
+      @apply text-lg font-bold mb-2 text-emerald-200/90;
     }
 
     &.installation h2 {
@@ -147,7 +155,7 @@
       }
     }
 
-    &.store {
+    &.carve {
       h3 {
         @apply text-emerald-200/80;
       }

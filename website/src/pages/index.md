@@ -1,20 +1,20 @@
 ---
 layout: ../components/Layout.astro
-title: Tilia - Simple State Management for TypeScript & ReScript
-description: Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers for modern web applications.
-keywords: state management, TypeScript, ReScript, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance, pull reactivity, push reactivity
+title: Tilia - Domain-driven State Management for TypeScript & ReScript
+description: Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers for modern, domain-driven web applications.
+keywords: state management, TypeScript, ReScript, DDD, domain-driven, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance, pull reactivity, push reactivity
 ---
 
 <section class="intro wide-comment">
   <div class="space-y-6">
     <h1
       class="text-3xl xl:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-cyan-100 mt-16">
-      Simple State Management
+      Domain-driven State Management
     </h1>
     <p class="text-xl font-medium text-white/80">
-      A state management library for TypeScript and ReScript supporting best practices.
+      A state management library for TypeScript and ReScript supporting domain-driven development.
     </p>
-    <p class="rainbow">Code should be readable. <br/>✨ Tilia is here to help ✨</p>
+    <p class="rainbow">Code should reflect your domain. <br/>✨ Tilia is here to help ✨</p>
     <div class="flex flex-row space-x-4 justify-center gap-4 mt-16">
       <a href="/docs"
         class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">

@@ -4,8 +4,10 @@ export type Observer = { readonly [o]: true };
 export type Signal<T> = { value: T };
 export type Readonly<T> = { readonly value: T };
 export type Setter<T> = (v: T) => void;
+export type Deriver<U> = { derived: <T>(fn: (p: U) => T) => T };
 export type Tilia = {
   tilia: <T>(branch: T) => T;
+  carve: <T>(fn: (deriver: Deriver<T>) => T) => T;
   observe: (fn: () => void) => void;
   batch: (fn: () => void) => void;
   signal: <T>(value: T) => Signal<T>;
@@ -18,6 +20,7 @@ export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 // Default global context
 
 export function tilia<T>(branch: T): T;
+export function carve<T>(fn: (deriver: Deriver<T>) => T): T;
 export function observe(fn: () => void): void;
 export function batch(fn: () => void): void;
 

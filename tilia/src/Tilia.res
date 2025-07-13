@@ -42,7 +42,6 @@ type source<'a> = {
 type dynamic<'a> =
   | Computed(unit => 'a)
   | Source(source<'a>)
-  | Store(('a => unit) => 'a)
   | Compiled(compute<'a>)
 
 module Typeof = {
@@ -154,10 +153,20 @@ type rec meta<'a> = {
 }
 
 type signal<'a> = {mutable value: 'a}
-type readonly<'a> = {value: 'a}
+type readonly<'a> = {data: 'a}
 type setter<'a> = 'a => unit
+type deriver<'p> = {
+  /** 
+   * Return a derived value to be inserted into a tilia object. This is like
+   * a computed but with the tilia object as parameter.
+   * 
+   * @param f The computation function that takes the tilia object as parameter.
+   */
+  derived: 'a. ('p => 'a) => 'a,
+}
 type tilia = {
   tilia: 'a. 'a => 'a,
+  carve: 'a. (deriver<'a> => 'a) => 'a,
   observe: (unit => unit) => unit,
   batch: (unit => unit) => unit,
   signal: 'a. 'a => signal<'a>,
@@ -331,12 +340,6 @@ let sourceCallback = (set, source: source<'a>) => {
 }
 
 @inline
-let storeCallback = (set, callback) => {
-  // Set initial value
-  () => callback(set)
-}
-
-@inline
 let getValue = (compile, set, value) => {
   let rec get = value => {
     switch Typeof.dynamic(value) {
@@ -346,7 +349,6 @@ let getValue = (compile, set, value) => {
         | Compiled({rebuild}) => rebuild()
         | Computed(callback) => compile(callback)
         | Source(source) => compile(sourceCallback(set, source))
-        | Store(store) => compile(storeCallback(set, store))
         }
         Typeof.proxiable(v) ? get(v) : v
       }
@@ -654,6 +656,35 @@ let makeTilia = (root: root) => (value: 'a) => {
   proxify(root, value).proxy
 }
 
+let makeDerived = p => fn => {
+  let v = Computed(() => fn(p.contents))
+  ignore(Reflect.set(v, dynamicKey, true))
+  %raw(`v`)
+}
+
+external makeReactive: (
+  // derived
+  ('p => 'a) => 'a
+) => deriver<'p> = "makeReactive"
+
+%%raw(`
+function makeReactive(derived) {
+  return { derived }
+}
+`)
+
+let makeCarve = (root: root) => (fn: deriver<'a> => 'a) => {
+  let p = ref(%raw(`{}`))
+  let ctx = makeReactive(makeDerived(p))
+  let value = fn(ctx)
+  if !Typeof.proxiable(value) {
+    raise("tilia: value is not an object or array")
+  }
+  let value = proxify(root, value).proxy
+  p := value
+  value
+}
+
 let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
     let o = setObserver(root, notify)
@@ -686,12 +717,6 @@ let source = (source, value) => {
   %raw(`v`)
 }
 
-let store = callback => {
-  let v = Store(callback)
-  ignore(Reflect.set(v, dynamicKey, true))
-  %raw(`v`)
-}
-
 @inline
 let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => tilia({value: value})
 
@@ -709,6 +734,8 @@ let _done = (o: observer) => o.root.observer = Undefined
 external connector: (
   // tilia
   'a => 'a,
+  // carve
+  (deriver<'c> => 'c) => 'c,
   // observe
   (unit => unit) => unit,
   // batch
@@ -722,9 +749,10 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, observe, batch, signal, _observe) {
+function connector(tilia, carve, observe, batch, signal, _observe) {
   return {
     tilia,
+    carve,
     observe,
     batch,
     // extra
@@ -747,6 +775,7 @@ let make = (~gc=defaultGc): tilia => {
 
   connector(
     tilia,
+    makeCarve(root),
     makeObserve(root),
     makeBatch(root),
     // extra
@@ -766,17 +795,18 @@ let _ctx = switch Reflect.maybeGet(globalThis, ctxKey) {
   }
 }
 
-let readonly = (value: 'a) => {
+let readonly = (data: 'a) => {
   let obj: readonly<'a> = %raw(`{}`)
   Object.defineProperty(
     obj,
-    "value",
-    {value, enumerable: true, writable: false, configurable: false},
+    "data",
+    {value: data, enumerable: true, writable: false, configurable: false},
   )
   obj
 }
 
 let tilia = _ctx.tilia
+let carve = _ctx.carve
 let observe = _ctx.observe
 let batch = _ctx.batch
 // extra
