@@ -1,7 +1,7 @@
 import type { Todo } from "@entity/todo";
 import type { Todos } from "@feature/todos";
 import { type RepoReady } from "@service/repo";
-import { carve, observe } from "tilia";
+import { carve, source } from "tilia";
 import { newTodo } from "./actions/_utils";
 import { clear } from "./actions/clear";
 import { edit } from "./actions/edit";
@@ -12,12 +12,12 @@ import { setTitle } from "./actions/setTitle";
 import { toggle } from "./actions/toggle";
 import { list } from "./derived/list";
 import { remaining } from "./derived/remaining";
-import { fetchFilterOnReady } from "./observers/fetchFilter";
+import { fetchFilter } from "./observers/fetchFilter";
 
 export function makeTodos(repo: RepoReady, data: Todo[]) {
-  const todos: Todos = carve(({ derived }) => ({
+  return carve<Todos>(({ derived }) => ({
     // State
-    filter: "all",
+    filter: source(fetchFilter(repo), "all"),
     selected: newTodo(),
 
     // Computed state
@@ -37,8 +37,4 @@ export function makeTodos(repo: RepoReady, data: Todo[]) {
     repo,
     data,
   }));
-
-  observe(() => fetchFilterOnReady(repo, todos));
-
-  return todos;
 }

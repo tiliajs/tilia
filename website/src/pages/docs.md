@@ -390,14 +390,7 @@ if (authenticated_.value) {
 
 ### carve (derived)
 
-Transform an object or array into a reactive tilia value, providing a
-possibility to derive state or methods from the object itself. Usage:
-
-```typescript
-import { carve } from "tilia";
-
-const feature = carve(({ derived }) => ({ ...fields }));
-```
+This is where Tilia truly shines. It lets you build a domain-driven, self-contained feature that is easy to test and reuse.
 
 ```rescript
 open Tilia
@@ -436,6 +429,7 @@ function toggle({ data, repo }: Todos) {
 
 // Injecting the dependency "repo"
 function makeTodos(repo: Repo) {
+  // ✨ Carve the todos feature ✨
   return carve({ derived }) => ({
     sort: "by date",
     list: derived(list),
@@ -467,6 +461,7 @@ let toggle = ({ data, repo }: Todos.t) =>
 
 // Injecting the dependency "repo"
 let makeTodos = repo =>
+  // ✨ Carve the todos feature ✨
   carve(({ derived }) => {
     sort: ByDate,
     list: derived(list),

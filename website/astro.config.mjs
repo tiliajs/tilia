@@ -19,9 +19,7 @@ export default defineConfig({
 
 const styleRegex = /^(.*) \{\.(.*)\}$/s;
 
-// This plugin is an example to let users write HTML with directives.
-// It’s informative but rather useless.
-// See below for others examples.
+// Add custom class name to headings and paragraphs
 /** @type {import('unified').Plugin<[], import('mdast').Root>} */
 function myRemarkPlugin() {
   return (tree) => {

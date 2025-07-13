@@ -1,6 +1,6 @@
 ---
 layout: ../components/Layout.astro
-title: Tilia - Domain-driven State Management for TypeScript & ReScript
+title: Tilia - Domain-Driven State Management for TypeScript & ReScript
 description: Lightning-fast, zero-dependency state management library for TypeScript and ReScript. Minimalist API with type safety and FRP helpers for modern, domain-driven web applications.
 keywords: state management, TypeScript, ReScript, DDD, domain-driven, React, JavaScript, reactive programming, FRP, proxy tracking, zero dependencies, performance, pull reactivity, push reactivity
 ---
@@ -9,10 +9,10 @@ keywords: state management, TypeScript, ReScript, DDD, domain-driven, React, Jav
   <div class="space-y-6">
     <h1
       class="text-3xl xl:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-cyan-100 mt-16">
-      Domain-driven State Management
+      Domain-Driven State Management
     </h1>
     <p class="text-xl font-medium text-white/80">
-      A state management library for TypeScript and ReScript supporting domain-driven development.
+      A state management library for TypeScript and ReScript supporting Domain-Driven Development.
     </p>
     <p class="rainbow">Code should reflect your domain. <br/>✨ Tilia is here to help ✨</p>
     <div class="flex flex-row space-x-4 justify-center gap-4 mt-16">
