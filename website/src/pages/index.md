@@ -12,7 +12,7 @@ keywords: state management, TypeScript, ReScript, DDD, domain-driven, React, Jav
       Domain-Driven State Management
     </h1>
     <p class="text-xl font-medium text-white/80">
-      A state management library for TypeScript and ReScript supporting Domain-Driven Development.
+      A state management library for TypeScript and ReScript supporting Domain-Driven Design.
     </p>
     <p class="rainbow">Code should reflect your domain. <br/>✨ Tilia is here to help ✨</p>
     <div class="flex flex-row space-x-4 justify-center gap-4 mt-16">

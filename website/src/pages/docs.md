@@ -636,6 +636,38 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
   </div>
 </div>
 
+<section class="doc ddd">
+
+## Why Tilia Helps with Domain-Driven Design {.ddd}
+
+**Domain-Driven Design (DDD)** is a methodology that centers software around the core business domain, using a shared language between developers and domain experts, and structuring code to reflect real business concepts and processes<sup><a href="#ref-1">1</a></sup><sup><a href="#ref-2">2</a></sup><sup><a href="#ref-3">3</a></sup>. Tilia’s design and features directly support these DDD goals in several ways:
+
+- **Ubiquitous Language in Code:**
+  Tilia’s API encourages you to model your application state using the same terms and structures that exist in your business domain. With minimal boilerplate and no imposed framework-specific terminology, your codebase can closely mirror the language and logic of your domain, making it easier for both developers and domain experts to understand and collaborate<sup><a href="#ref-1">1</a></sup><sup><a href="#ref-2">2</a></sup>.
+- **Bounded Contexts and Modularity:**
+  Tilia enables you to compose state into clear, isolated modules (using `carve`, for example), which naturally map to DDD’s concept of bounded contexts. Each feature or subdomain can be managed independently, reducing complexity and making it easier to evolve or refactor parts of your system as business requirements change<sup><a href="#ref-1">1</a></sup><sup><a href="#ref-3">3</a></sup>.
+- **Rich Domain Models:**
+  By allowing you to define computed properties, derived state, and domain-specific actions directly within your state objects, Tilia helps you build rich domain models. This keeps business logic close to the data it operates on, improving maintainability and clarity<sup><a href="#ref-1">1</a></sup><sup><a href="#ref-2">2</a></sup>.
+- **Continuous Evolution:**
+  Tilia’s reactive model and compositional API make it easy to refactor and extend your domain models as your understanding of the business evolves. This aligns with DDD’s emphasis on evolutionary design and ongoing collaboration with domain experts<sup><a href="#ref-3">3</a></sup>.
+- **Improved Communication and Onboarding:**
+  Because Tilia encourages code that reads like your business language, new team members and stakeholders can more quickly understand the system. This reduces onboarding time and the risk of miscommunication between technical and non-technical team members<sup><a href="#ref-2">2</a></sup>.
+- **Testability and Isolation:**
+  Tilia’s modular state and clear separation between state, actions, and derived values enable you to test domain logic in isolation, a key DDD best practice<sup><a href="#ref-4">4</a></sup>.
+
+**In summary:**
+Tilia’s minimal, expressive API and focus on modeling state and logic directly in the language of your business domain make it an excellent fit for domain-driven design. It helps you produce code that is understandable, maintainable, and closely aligned with business needs—while making it easier to manage complexity and adapt to change<sup><a href="#ref-1">1</a></sup><sup><a href="#ref-2">2</a></sup><sup><a href="#ref-3">3</a></sup>.
+
+<div style="text-align: center">⁂</div>
+
+> **References**  
+> <sup><a id="ref-1" href="https://www.port.io/glossary/domain-driven-design">1</a></sup> [Domain-Driven Design Glossary](https://www.port.io/glossary/domain-driven-design)  
+> <sup><a id="ref-2" href="https://appdevcon.nl/the-pros-and-cons-of-domain-driven-design/">2</a></sup> [The Pros and Cons of Domain-Driven Design](https://appdevcon.nl/the-pros-and-cons-of-domain-driven-design/)  
+> <sup><a id="ref-3" href="https://positiwise.com/blog/domain-driven-design-core-principles-and-challenges">3</a></sup> [Domain-Driven Design: Core Principles](https://positiwise.com/blog/domain-driven-design-core-principles-and-challenges)  
+> <sup><a id="ref-4" href="https://itequia.com/en/domain-driven-design-what-is-it-and-how-to-apply-it-in-my-organization/">4</a></sup> [Domain-Driven Design: how to apply it in my organization?](https://itequia.com/en/domain-driven-design-what-is-it-and-how-to-apply-it-in-my-organization/)
+
+</section>
+
 <section class="doc examples">
   <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-pink-900">
     Examples

@@ -1,12 +1,20 @@
 # Tilia
 
-This is the core library for tilia state management.
+**Tilia** is a simple, powerful state management library for TypeScript and ReScript, designed for data-intensive and highly interactive apps. Built with best practices in mind, Tilia emphasizes _readability_ and minimal API surface, making state management nearly invisible in your code.
+
+### Why Tilia for Domain-Driven Design ?
+
+Tilia’s minimal, expressive API lets you model application state and business logic in the language of your domain—without boilerplate or framework jargon. Features like `carve` encourage modular, feature-focused state that maps naturally to DDD’s bounded contexts. Computed properties and derived actions keep business logic close to your data, making code more readable, maintainable, and easier to evolve as your domain grows.
+
+In short: Tilia helps you write code that matches your business, not your framework.
+
+For more information, check out the [**DDD section**](https://tiliajs.com/ddd) of the website.
 
 <a href="https://tiliajs.com">
   <img width="834" height="705" alt="image" src="https://github.com/user-attachments/assets/56dd163a-65a0-4900-9280-aab2a0d7d92a" />
 </a>
 
-Check the [**website**](https://tiliajs.com) for documentation and examples for TypeScript and ReScript.
+Check the [**website**](https://tiliajs.com) for full documentation and more examples for both TypeScript and ReScript.
 
 ## API (in case the website is not available)
 
@@ -229,20 +237,18 @@ export type Tilia = {
 export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 
 // Default global context
-
 export function tilia<T>(branch: T): T;
 export function carve<T>(fn: (deriver: Deriver<T>) => T): T;
 export function observe(fn: () => void): void;
 export function batch(fn: () => void): void;
 
-// FRP
+// Functional Reactive Programming
 export function computed<T>(fn: () => T): T;
-export function store<T>(fn: (set: Setter<T>) => T): T;
 export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
 export function readonly<T>(value: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;
 
-// internal
+// Internal
 export function _observe(callback: () => void): Observer;
 export function _done(observer: Observer): void;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;
@@ -273,4 +279,37 @@ alice.age = computed(() => globals.now.diff(alice.birthday, "year"));
 observe(() => {
   console.log("Alice is now", alice.age, "years old !!");
 });
+```
+
+## Advanced Example
+
+Demonstrates how to use `carve` for features where methods and properties depend on each other.
+
+See the [full source code](https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/todos/todos.ts).
+
+```ts
+export function makeTodos(repo: RepoReady, data: Todo[]) {
+  return carve<Todos>(({ derived }) => ({
+    // State
+    filter: source(fetchFilter(repo), "all"),
+    selected: newTodo(),
+
+    // Computed state
+    list: derived(list),
+    remaining: derived(remaining),
+
+    // Actions
+    clear: derived(clear),
+    edit: derived(edit),
+    remove: derived(remove),
+    save: derived(save),
+    setFilter: derived(setFilter),
+    setTitle: derived(setTitle),
+    toggle: derived(toggle),
+
+    // Private state
+    repo,
+    data,
+  }));
+}
 ```

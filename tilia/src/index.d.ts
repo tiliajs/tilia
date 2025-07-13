@@ -26,7 +26,6 @@ export function batch(fn: () => void): void;
 
 // FRP
 export function computed<T>(fn: () => T): T;
-export function store<T>(fn: (set: Setter<T>) => T): T;
 export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
 export function readonly<T>(value: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;

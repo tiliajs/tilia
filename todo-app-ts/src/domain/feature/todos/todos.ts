@@ -12,7 +12,7 @@ import { setTitle } from "./actions/setTitle";
 import { toggle } from "./actions/toggle";
 import { list } from "./derived/list";
 import { remaining } from "./derived/remaining";
-import { fetchFilter } from "./observers/fetchFilter";
+import { fetchFilter } from "./source/fetchFilter";
 
 export function makeTodos(repo: RepoReady, data: Todo[]) {
   return carve<Todos>(({ derived }) => ({
