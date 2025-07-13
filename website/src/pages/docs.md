@@ -2,7 +2,7 @@
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
 description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, signal, batch, computed, derived, source functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, carve, observe, signal, computed, derived, source, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, signal, computed, derived, source, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -635,6 +635,7 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
     </div>
   </div>
 </div>
+<a id="ddd"></a>
 
 <section class="doc ddd">
 

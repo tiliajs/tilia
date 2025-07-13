@@ -15,6 +15,9 @@ export default defineConfig({
   vite: {
     plugins: [tailwindcss()],
   },
+  redirects: {
+    "/ddd": "/docs#ddd",
+  },
 });
 
 const styleRegex = /^(.*) \{\.(.*)\}$/s;

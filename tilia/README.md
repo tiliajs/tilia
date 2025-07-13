@@ -8,7 +8,7 @@ Tilia’s minimal, expressive API lets you model application state and business 
 
 In short: Tilia helps you write code that matches your business, not your framework.
 
-For more information, check out the [**DDD section**](https://tiliajs.com/ddd) of the website.
+For more information, check out the [**DDD section**](https://tiliajs.com/docs#ddd) of the website.
 
 <a href="https://tiliajs.com">
   <img width="834" height="705" alt="image" src="https://github.com/user-attachments/assets/56dd163a-65a0-4900-9280-aab2a0d7d92a" />
