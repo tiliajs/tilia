@@ -14,6 +14,8 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 
 </section>
 
+<a id="installation"></a>
+
 <section class="doc installation">
 
 ## Installation
@@ -25,6 +27,8 @@ npm install tilia@beta
 ```
 
 </section>
+
+<a id="goals"></a>
 
 <section class="doc goals">
 
@@ -41,6 +45,8 @@ library-specific details.
 </section>
 
 ## API Reference {.api}
+
+<a id="tilia"></a>
 
 <section class="doc tilia">
 
@@ -71,6 +77,8 @@ let alice = tilia({
 Alice can now be observed. Who knows what she will be doing? {.story}
 
 </section>
+
+<a id="observe"></a>
 
 <section class="doc observe">
 
@@ -109,6 +117,8 @@ call, the callback will be re-run as soon as it ends. {.note}
 Now every time alice's age changes, the callback will be called. {.story}
 
 </section>
+
+<a id="batch"></a>
 
 <section class="doc batch wide-comment">
 
@@ -155,6 +165,8 @@ network.subscribe(updates => {
 
 Before introducing each one, let us show you an overview. {.subtitle}
 
+<a id="patterns"></a>
+
 <section class="doc patterns wide-comment summary frp">
 
 | Pattern         | Use-case                                | Tree param | Setter | Return value |
@@ -167,6 +179,8 @@ Before introducing each one, let us show you an overview. {.subtitle}
 And `signal` which is just a shorthand for `tilia({ value: v })`.
 
 </section>
+
+<a id="computed"></a>
 
 <section class="doc computed wide-comment computed">
 
@@ -217,6 +231,8 @@ expired due to a change in the dependencies. This means that there is nearly
 zero overhead for computed values acting as getters.
 
 </section>
+
+<a id="source"></a>
 
 <section class="doc frp wide-comment source">
 
@@ -271,6 +287,8 @@ at the [todo app](/todo-app-ts).
 
 </section>
 
+<a id="readonly"></a>
+
 <section class="doc frp wide-comment readonly">
 
 ### readonly
@@ -307,6 +325,8 @@ app.form.data = { other: "data" }
 ```
 
 </section>
+
+<a id="signal"></a>
 
 <section class="doc frp wide-comment signal">
 
@@ -383,6 +403,7 @@ if (authenticated_.value) {
 ```
 
 </section>
+<a id="carve"></a>
 
 ## <span>✨</span> Carving <span>✨</span> {.carve}
 
@@ -498,10 +519,11 @@ changes in other parts of the tree.
 Look at <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/todos/todos.ts">todos.ts</a> for an example of using `carve` to build the todos feature.
 
 </section>
+<a id="react"></a>
 
 ## React Integration {.react}
 
-<section class="doc react">
+<section class="doc react useTilia">
 
 ### useTilia <small>(React Hook)</small> {.useTilia}
 
@@ -546,7 +568,9 @@ The App component will now re-render when `alice.age` changes because "age" was 
 
 </section>
 
-<section class="doc react">
+<a id="useComputed"></a>
+
+<section class="doc react useComputed">
 
 ### useComputed <small>(React Hook)</small> {.useComputed}
 
