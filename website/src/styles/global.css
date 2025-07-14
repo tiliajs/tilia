@@ -36,29 +36,32 @@
   p.subtitle {
     @apply text-xl text-white/80 max-w-2xl mx-auto text-center;
   }
+  h2 {
+    @apply p-2 text-4xl font-bold text-center text-transparent bg-clip-text;
 
-  h2.api {
-    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-teal-500 mb-12 p-2;
-  }
-
-  h2.carve {
-    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-500 m-12;
-    span {
-      @apply text-pink-200/90;
+    &.api {
+      @apply bg-gradient-to-r from-cyan-300 to-teal-500 mb-12;
     }
-  }
 
-  h2.react {
-    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-pink-500 m-12;
-  }
+    &.carve {
+      @apply bg-gradient-to-r from-purple-300 to-pink-500 m-12;
+      span {
+        @apply text-pink-200/90;
+      }
+    }
 
-  h2.topics {
-    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-lime-300 to-cyan-500 m-12;
-  }
+    &.react {
+      @apply bg-gradient-to-r from-purple-300 to-pink-500 m-12;
+    }
 
-  h2.frp,
-  h2.ddd {
-    @apply text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 to-red-500 m-12;
+    &.topics {
+      @apply bg-gradient-to-r from-lime-300 to-cyan-500 m-12;
+    }
+
+    &.frp,
+    &.ddd {
+      @apply bg-gradient-to-r from-cyan-300 to-red-500 m-12;
+    }
   }
 
   .intro {
