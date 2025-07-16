@@ -6,6 +6,7 @@ export {
   batch,
   computed,
   source,
+  store,
   readonly,
   signal,
   _observe,

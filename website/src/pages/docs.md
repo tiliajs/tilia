@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, signal, batch, computed, derived, source functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, signal, computed, derived, source, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, signal, batch, computed, derived, source, store functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, signal, computed, derived, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -128,7 +128,7 @@ Group multiple updates to prevent redundant notifications. This can be required
 for managing complex update cycles—such as in games—where atomic state changes
 are essential.
 
-**💡 Pro tip** `batch` is not required in `computed`, `source` or `observe`
+**💡 Pro tip** `batch` is not required in `computed`, `source`, `store` or `observe`
 where notifications are already blocked. {.pro}
 
 ```typescript
@@ -161,7 +161,7 @@ network.subscribe(updates => {
 
 ## Functional Reactive Programming {.frp}
 
-✨ **Rainbow architect**, tilia has <span>5</span> more functions for you! ✨ {.rainbow}
+✨ **Rainbow architect**, tilia has <span>6</span> more functions for you! ✨ {.rainbow}
 
 Before introducing each one, let us show you an overview. {.subtitle}
 
@@ -174,6 +174,7 @@ Before introducing each one, let us show you an overview. {.subtitle}
 | `computed`      | Computed value from external sources    |   ❌ No    | ❌ No  | ✅ Yes       |
 | `carve derived` | Cross-property computation              |   ✅ Yes   | ❌ No  | ✅ Yes       |
 | `source`        | External/async updates                  |   ❌ No    | ✅ Yes | ❌ No        |
+| `store`         | State machine/init logic                |   ❌ No    | ✅ Yes | ✅ Yes       |
 | `readonly`      | Avoid tracking on (large) readonly data |            |        |              |
 
 And `signal` which is just a shorthand for `tilia({ value: v })`.
@@ -284,6 +285,58 @@ let app = tilia({
 
 The see different uses of `source`, `store` and `computed`, you can have a look
 at the [todo app](/todo-app-ts).
+
+</section>
+
+<a id="store"></a>
+
+<section class="doc computed wide-comment store">
+
+### store
+
+Return a computed value, created with a **setter** that will be inserted in a Tilia object.
+
+```typescript
+import { computed } from "tilia";
+
+const app = tilia({
+  auth: store(loggedOut),
+});
+
+function loggedOut(set: Setter<Auth>): Auth {
+  return {
+    t: "LoggedOut",
+    login: (user: User) => set(loggedIn(set, user)),
+  };
+}
+
+function loggedIn(set: Setter<Auth>, user: User): Auth {
+  return {
+    t: "LoggedIn",
+    user: User,
+    logout: () => set(loggedOut(set)),
+  };
+}
+```
+
+```rescript
+open Tilia
+
+let loggedOut = set => LoggedOut({
+  login: user => set(loggedIn(set, user)),
+})
+
+let loggedIn = (set, user) => LoggedIn({
+  user: User,
+  logout: () => set(loggedOut(set)),
+})
+
+let app = tilia({
+  auth: store(loggedOut),
+})
+```
+
+**💡 Pro tip:** `store` is a very powerful pattern that makes it easy to initialize a feature in a specific state (for testing for example). {.pro}
 
 </section>
 
@@ -425,10 +478,10 @@ object itself as first parameter.
 ### Example
 
 ```typescript
-import { carve } from "tilia";
+import { carve, source } from "tilia";
 
 // A pure function for sorting todos, easy to test in isolation.
-function list(todos) {
+function list(todos: Todos) {
   const compare = todos.sort === "by date"
     ? (a, b) => a.createdAt.localeCompare(b.createdAt)
     : (a, b) => a.title.localeCompare(b.title);

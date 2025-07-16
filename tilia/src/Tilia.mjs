@@ -213,8 +213,12 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
         return compile(root, observed, proxied, computes, isArray, target, key$1, callback);
       }
       }(key$1));
-      var get = (function(key$1){
-      return function get(_value) {
+      var setter = (function(key$1){
+      return function setter(v) {
+        set(root, observed, proxied, computes, isArray, true, target, key$1, v);
+      }
+      }(key$1));
+      var get = function (_value) {
         while(true) {
           var value = _value;
           var dynamic$1 = dynamic(value);
@@ -232,19 +236,27 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
                 var val = {
                   contents: v$1
                 };
-                var set$1 = (function(val){
-                return function set$1(v) {
+                var set = (function(val){
+                return function set(v) {
                   val.contents = v;
-                  set(root, observed, proxied, computes, isArray, true, target, key$1, v);
+                  setter(v);
                 }
                 }(val));
                 var callback = source.source;
-                v = compile$1((set$1(v$1), (function(val,callback){
+                v = compile$1((set(v$1), (function(val,callback){
                       return function () {
-                        callback(set$1);
+                        callback(set);
                         return val.contents;
                       }
                       }(val,callback))));
+                break;
+            case "Store" :
+                var store = dynamic$1._0;
+                v = compile$1((function(store){
+                    return function () {
+                      return store(setter);
+                    }
+                    }(store)));
                 break;
             case "Compiled" :
                 var rebuild = dynamic$1._0.rebuild;
@@ -258,8 +270,7 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
           _value = v;
           continue ;
         };
-      }
-      }(key$1));
+      };
       var v = get(value);
       _value = v;
       _key = key$1;
@@ -422,6 +433,9 @@ function proxify(root, _target) {
             var compile$1 = function (callback) {
               return compile(root, observed, proxied, computes, isArray, extra, extra$1, callback);
             };
+            var setter = function (v) {
+              set(root, observed, proxied, computes, isArray, true, extra, extra$1, v);
+            };
             var get = function (_value) {
               while(true) {
                 var value = _value;
@@ -440,19 +454,27 @@ function proxify(root, _target) {
                       var val = {
                         contents: v$1
                       };
-                      var set$1 = (function(val){
-                      return function set$1(v) {
+                      var set = (function(val){
+                      return function set(v) {
                         val.contents = v;
-                        set(root, observed, proxied, computes, isArray, true, extra, extra$1, v);
+                        setter(v);
                       }
                       }(val));
                       var callback = source.source;
-                      v = compile$1((set$1(v$1), (function(val,callback){
+                      v = compile$1((set(v$1), (function(val,callback){
                             return function () {
-                              callback(set$1);
+                              callback(set);
                               return val.contents;
                             }
                             }(val,callback))));
+                      break;
+                  case "Store" :
+                      var store = dynamic$1._0;
+                      v = compile$1((function(store){
+                          return function () {
+                            return store(setter);
+                          }
+                          }(store)));
                       break;
                   case "Compiled" :
                       var rebuild = dynamic$1._0.rebuild;
@@ -591,6 +613,15 @@ function source(source$1, value) {
   return v;
 }
 
+function store(callback) {
+  var v = {
+    TAG: "Store",
+    _0: callback
+  };
+  Reflect.set(v, dynamicKey, true);
+  return v;
+}
+
 function makeObserve_(root) {
   return function (notify) {
     var observer_observing = [];
@@ -698,6 +729,7 @@ export {
   readonly$1 as readonly,
   computed ,
   source ,
+  store ,
   _observe ,
   _done ,
   _ready ,

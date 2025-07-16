@@ -180,6 +180,21 @@ let computed: (unit => 'a) => 'a
  */
 let source: (('a => unit) => unit, 'a) => 'a
 
+/**
+ * Return a managed value to be inserted into a tilia object.
+ *
+ * The setup callback runs once when the value is first accessed, and again
+ * whenever any observed dependency changes. The callback receives a setter
+ * function to imperatively update the value, and should return the initial
+ * value.
+ *
+ * This is useful for implementing event based machines with a simple initial
+ * setup.
+ *
+ * @param f The setup function, receives a setter and returns the current value.
+ */
+let store: (('a => unit) => 'a) => 'a
+
 /** ---------- Internal types and functions for library developers ---------- */
 /**
  * Internal: Register an observer callback.
@@ -231,7 +246,7 @@ export type Tilia = {
   batch: (fn: () => void) => void;
   signal: <T>(value: T) => Signal<T>;
 
-  // internal
+  // Internal
   _observe(callback: () => void): Observer;
 };
 export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
@@ -242,9 +257,10 @@ export function carve<T>(fn: (deriver: Deriver<T>) => T): T;
 export function observe(fn: () => void): void;
 export function batch(fn: () => void): void;
 
-// Functional Reactive Programming
+// Functional reactive programming
 export function computed<T>(fn: () => T): T;
 export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
+export function store<T>(fn: (set: Setter<T>) => T): T;
 export function readonly<T>(value: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;
 

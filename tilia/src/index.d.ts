@@ -12,25 +12,25 @@ export type Tilia = {
   batch: (fn: () => void) => void;
   signal: <T>(value: T) => Signal<T>;
 
-  // internal
+  // Internal
   _observe(callback: () => void): Observer;
 };
 export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 
 // Default global context
-
 export function tilia<T>(branch: T): T;
 export function carve<T>(fn: (deriver: Deriver<T>) => T): T;
 export function observe(fn: () => void): void;
 export function batch(fn: () => void): void;
 
-// FRP
+// Functional reactive programming
 export function computed<T>(fn: () => T): T;
 export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
+export function store<T>(fn: (set: Setter<T>) => T): T;
 export function readonly<T>(value: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;
 
-// internal
+// Internal
 export function _observe(callback: () => void): Observer;
 export function _done(observer: Observer): void;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;

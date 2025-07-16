@@ -42,6 +42,7 @@ type source<'a> = {
 type dynamic<'a> =
   | Computed(unit => 'a)
   | Source(source<'a>)
+  | Store(('a => unit) => 'a)
   | Compiled(compute<'a>)
 
 module Typeof = {
@@ -340,6 +341,12 @@ let sourceCallback = (set, source: source<'a>) => {
 }
 
 @inline
+let storeCallback = (set, callback) => {
+  // Set initial value
+  () => callback(set)
+}
+
+@inline
 let getValue = (compile, set, value) => {
   let rec get = value => {
     switch Typeof.dynamic(value) {
@@ -349,6 +356,7 @@ let getValue = (compile, set, value) => {
         | Compiled({rebuild}) => rebuild()
         | Computed(callback) => compile(callback)
         | Source(source) => compile(sourceCallback(set, source))
+        | Store(store) => compile(storeCallback(set, store))
         }
         Typeof.proxiable(v) ? get(v) : v
       }
@@ -713,6 +721,12 @@ let computed = fn => {
 
 let source = (source, value) => {
   let v = Source({value, source})
+  ignore(Reflect.set(v, dynamicKey, true))
+  %raw(`v`)
+}
+
+let store = callback => {
+  let v = Store(callback)
   ignore(Reflect.set(v, dynamicKey, true))
   %raw(`v`)
 }

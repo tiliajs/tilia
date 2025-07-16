@@ -1,33 +1,24 @@
 import type { User } from "@entity/user";
-import { type Auth, type AuthBlank } from "@feature/auth";
+import { type Auth } from "@feature/auth";
 import type { Repo } from "@service/repo";
-import { signal, type Signal } from "tilia";
-
-// We use the convention of naming signals with a trailing
-// underscore.
+import { signal, store, type Setter, type Signal } from "tilia";
 
 export function makeAuth(): Signal<Auth> {
-  // There is probably a better way to do this, but I don't see it.
-  const auth_ = signal<Auth>({ t: "Blank" } as AuthBlank);
-  const enter = (auth: Auth) => (auth_.value = auth);
-  const auth = auth_.value as AuthBlank;
-  auth.login = (repo: Signal<Repo>, user: User) => login(enter, repo, user);
-  auth.logout = () => logout(enter);
-  return auth_;
+  return signal<Auth>(store(loggedOut));
 }
 
-function login(enter: (a: Auth) => void, repo: Signal<Repo>, user: User): void {
-  enter({
+function loggedIn(set: Setter<Auth>, repo: Signal<Repo>, user: User): Auth {
+  return {
     t: "Authenticated",
     user,
     repo,
-    logout: () => logout(enter),
-  });
+    logout: () => set(loggedOut(set)),
+  };
 }
 
-function logout(enter: (a: Auth) => void): void {
-  enter({
+function loggedOut(set: Setter<Auth>): Auth {
+  return {
     t: "NotAuthenticated",
-    login: (repo: Signal<Repo>, user: User) => login(enter, repo, user),
-  });
+    login: (repo: Signal<Repo>, user: User) => set(loggedIn(set, repo, user)),
+  };
 }

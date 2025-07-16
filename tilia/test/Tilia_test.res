@@ -1033,6 +1033,79 @@ type state =
   | LoggedOut(loggedOut)
   | Blank
 
+type storage = {app: state}
+
+test("Should store a mutating value", t => {
+  let rec ready = (set: state => unit, user) => Ready({user, logout: () => set(loggedOut(set))})
+  and loggedOut = (set: state => unit) => LoggedOut({loading: () => set(loading(set))})
+  and loading = (set: state => unit) => Loading({loaded: user => set(ready(set, user))})
+
+  let dyn = tilia({
+    app: store(loggedOut),
+  })
+
+  switch dyn.app {
+  | LoggedOut(app) => app.loading()
+  | _ => t->fail("Not logged out")
+  }
+
+  switch dyn.app {
+  | Loading(app) => app.loaded({name: "Alice", username: "alice"})
+  | _ => t->fail("Not loading")
+  }
+
+  switch dyn.app {
+  | Ready(app) => app.logout()
+  | _ => t->fail("Not ready")
+  }
+
+  switch dyn.app {
+  | LoggedOut(_) => t->pass
+  | _ => t->fail("Not logged out")
+  }
+})
+
+test("Should observe in store setup", t => {
+  let val = ref("Dana")
+  let setter = ref(s => val := s)
+  let url = tilia(ref("Persephone"))
+
+  let dyn = tilia({
+    dname: store(set => {
+      setter := set
+      url.contents
+    }),
+  })
+  t->is(dyn.dname, "Persephone")
+  setter.contents("Anibal")
+  t->is(dyn.dname, "Anibal")
+  url := "Dana"
+  t->is(dyn.dname, "Dana")
+})
+
+test("Should remove computed without observers in store setup", t => {
+  let val = ref("Dana")
+  let setter = ref(s => val := s)
+
+  let dyn = tilia({
+    dname: store(set => {
+      setter := set
+      "Anibal"
+    }),
+  })
+  t->is(dyn.dname, "Anibal")
+  switch getMeta(dyn) {
+  | Value(meta) => {
+      let n = Map.get(meta.computes, "name")
+      // No observers: no computed
+      t->is(None, n)
+    }
+  | _ => t->fail("Meta is undefined")
+  }
+})
+
+
+
 // This is needed to replace a computed with a regular value, from
 // inside the computed.
 test("Computed without observers should be removed", t => {
