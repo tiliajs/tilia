@@ -23,7 +23,7 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 Use the **beta** version (not yet released API mostly stable):
 
 ```bash
-npm install tilia@beta
+npm install tilia
 ```
 
 </section>
@@ -583,7 +583,7 @@ Look at <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/doma
 #### Installation
 
 ```bash
-npm install @tilia/react@beta
+npm install @tilia/react
 ```
 
 Insert `useTilia` at the top of the React components that consume tilia values.

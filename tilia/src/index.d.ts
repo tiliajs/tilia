@@ -2,7 +2,7 @@ declare const o: unique symbol;
 declare const r: unique symbol;
 export type Observer = { readonly [o]: true };
 export type Signal<T> = { value: T };
-export type Readonly<T> = { readonly value: T };
+export type Readonly<T> = { readonly data: T };
 export type Setter<T> = (v: T) => void;
 export type Deriver<U> = { derived: <T>(fn: (p: U) => T) => T };
 export type Tilia = {
@@ -27,7 +27,7 @@ export function batch(fn: () => void): void;
 export function computed<T>(fn: () => T): T;
 export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
 export function store<T>(fn: (set: Setter<T>) => T): T;
-export function readonly<T>(value: T): Readonly<T>;
+export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;
 
 // Internal
