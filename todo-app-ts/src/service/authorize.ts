@@ -7,7 +7,14 @@ export async function authorize(auth_: Signal<Auth>) {
   if (isBlank(auth)) {
     const {
       data: { user },
+      error,
     } = await supabase.auth.getUser();
+
+    if (error) {
+      console.error(error);
+      return;
+    }
+    console.log("User", user);
 
     // Auth might have changed, get latest value.
     const auth = auth_.value;

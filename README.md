@@ -2,13 +2,11 @@
 
 Simple and fast state management library.
 
-The library supports **TypeScript** and **ReScript** (it is actually written in
-ReScript for improved type safety and performance).
+The library supports **TypeScript** and **ReScript** (it is actually written in ReScript for improved type safety and performance).
 
 <a href="https://tiliajs.com">
   <img width="834" height="705" alt="image" src="https://github.com/user-attachments/assets/56dd163a-65a0-4900-9280-aab2a0d7d92a" />
 </a>
-
 
 Check the [**website**](https://tiliajs.com) for documentation and examples.
 
@@ -16,7 +14,9 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
-- 2025-06-20 **2.0.0** (not yet release: beta version)
+- 2025-07-24 **2.0.1**
+  - Fix package.json configuration in @tilia/react publish script.
+- 2025-07-21 **2.0.0**
   - Add tests and examples with Gherkin for todo app.
   - Moved core to npm "tilia" package.
   - Changed `make` signature to build tilia context (provides the full API running in a separate context).
