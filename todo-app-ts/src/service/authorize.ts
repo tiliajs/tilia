@@ -14,7 +14,6 @@ export async function authorize(auth_: Signal<Auth>) {
       console.error(error);
       return;
     }
-    console.log("User", user);
 
     // Auth might have changed, get latest value.
     const auth = auth_.value;

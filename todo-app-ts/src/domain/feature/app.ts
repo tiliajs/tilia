@@ -2,7 +2,7 @@ import type { App } from "@feature/app";
 import {
   isAuthenticated,
   type AuthAuthenticated,
-  type AuthNotAuthenticated,
+  type AuthBlank,
 } from "@feature/auth";
 import { isSuccess, type RepoReady } from "@service/repo";
 import { observe, signal } from "tilia";
@@ -20,7 +20,7 @@ export function makeApp() {
   const app_ = signal<App>({
     t: "Blank",
     display,
-    auth: auth_.value as AuthNotAuthenticated,
+    auth: auth_.value as AuthBlank,
   });
   const set = (app: App) => (app_.value = app);
 

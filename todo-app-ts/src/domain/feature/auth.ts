@@ -4,7 +4,7 @@ import type { Repo } from "@service/repo";
 import { signal, store, type Setter, type Signal } from "tilia";
 
 export function makeAuth(): Signal<Auth> {
-  return signal<Auth>(store(loggedOut));
+  return signal<Auth>(store((set) => blank(set)));
 }
 
 function loggedIn(set: Setter<Auth>, repo: Signal<Repo>, user: User): Auth {
@@ -20,5 +20,13 @@ function loggedOut(set: Setter<Auth>): Auth {
   return {
     t: "NotAuthenticated",
     login: (repo: Signal<Repo>, user: User) => set(loggedIn(set, repo, user)),
+  };
+}
+
+function blank(set: Setter<Auth>): Auth {
+  return {
+    t: "Blank",
+    login: (repo: Signal<Repo>, user: User) => set(loggedIn(set, repo, user)),
+    logout: () => set(loggedOut(set)),
   };
 }
