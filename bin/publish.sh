@@ -54,7 +54,7 @@ sleep 3
 
 # ================ REACT
 cd ../react
-npm pkg set dependencies.@tilia/tilia="$TILIA_VERSION"
+npm pkg set dependencies.tilia="$TILIA_VERSION"
 pnpm publish --access public --no-git-checks
 cd ..
 
