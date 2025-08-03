@@ -4,6 +4,7 @@ export {
   make,
   tilia,
   observe,
+  watch,
   batch,
   computed,
   source,

@@ -169,6 +169,7 @@ type tilia = {
   tilia: 'a. 'a => 'a,
   carve: 'a. (deriver<'a> => 'a) => 'a,
   observe: (unit => unit) => unit,
+  watch: 'a. (unit => 'a, 'a => unit) => unit,
   batch: (unit => unit) => unit,
   signal: 'a. 'a => signal<'a>,
   derived: 'a. (unit => 'a) => signal<'a>,
@@ -179,7 +180,7 @@ type tilia = {
 let _meta: 'a => nullable<meta<'a>> = p => Reflect.get(p, metaKey)
 
 @inline
-let setObserver = (root, notify) => {
+let _observe = (root, notify) => {
   let observer = {root, notify, observing: []}
   root.observer = Value(observer)
   observer
@@ -658,6 +659,8 @@ and proxify = (root: root, target: 'a): meta<'a> => {
   }
 }
 
+let _done = (o: observer) => o.root.observer = Undefined
+
 let makeTilia = (root: root) => (value: 'a) => {
   if !Typeof.proxiable(value) {
     raise("tilia: value is not an object or array")
@@ -696,11 +699,31 @@ let makeCarve = (root: root) => (fn: deriver<'a> => 'a) => {
 
 let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
-    let o = setObserver(root, notify)
+    let o = _observe(root, notify)
     callback()
     _ready(o, true)
   }
   notify()
+}
+
+let makeWatch = (root, observe_) => (callback: unit => 'a, effect: 'a => unit) => {
+  let rec notify = () => {
+    let o = observe_(notify)
+    let v = callback()
+    _done(o)
+    if root.lock {
+      effect(v)
+    } else {
+      root.lock = true
+      effect(v)
+      root.lock = false
+    }
+    _ready(o, false)
+  }
+  // First registration: effect not called
+  let o = observe_(notify)
+  ignore(callback())
+  _ready(o, false)
 }
 
 let makeBatch = (root: root) => (callback: unit => unit) => {
@@ -737,12 +760,6 @@ let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => tilia({valu
 let makeDerived = (tilia: signal<'a> => signal<'a>) => (fn: 'c) =>
   tilia({value: computed(() => fn())})
 
-let makeObserve_ = (root: root) => notify => {
-  let observer = {root, notify, observing: []}
-  root.observer = Value(observer)
-  observer
-}
-
 let _done = (o: observer) => o.root.observer = Undefined
 
 /* We use this external hack to have polymorphic functions (without this, they
@@ -755,6 +772,8 @@ external connector: (
   (deriver<'c> => 'c) => 'c,
   // observe
   (unit => unit) => unit,
+  // watch
+  (unit => 'w, 'w => unit) => unit,
   // batch
   (unit => unit) => unit,
   // extra
@@ -768,11 +787,12 @@ external connector: (
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, carve, observe, batch, signal, derived, _observe) {
+function connector(tilia, carve, observe, watch, batch, signal, derived, _observe) {
   return {
     tilia,
     carve,
     observe,
+    watch,
     batch,
     // extra
     signal,
@@ -792,17 +812,19 @@ let make = (~gc=defaultGc): tilia => {
   let root = {observer: Undefined, expired: Set.make(), lock: false, gc}
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
+  let _observe = _observe(root, ...)
 
   connector(
     tilia,
     makeCarve(root),
     makeObserve(root),
+    makeWatch(root, _observe),
     makeBatch(root),
     // extra
     makeSignal(tilia),
     makeDerived(tilia),
     // Internal
-    makeObserve_(root),
+    _observe,
   )
 }
 
@@ -829,6 +851,7 @@ let readonly = (data: 'a) => {
 let tilia = _ctx.tilia
 let carve = _ctx.carve
 let observe = _ctx.observe
+let watch = _ctx.watch
 let batch = _ctx.batch
 // extra
 let signal = _ctx.signal

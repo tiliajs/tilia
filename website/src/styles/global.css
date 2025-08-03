@@ -141,6 +141,12 @@
       }
     }
 
+    &.watch {
+      h3 {
+        @apply text-emerald-200/80;
+      }
+    }
+
     &.computed {
       h3 {
         @apply text-amber-200/90;
@@ -260,6 +266,9 @@
         }
         code {
           @apply text-black/80;
+        }
+        a code {
+          @apply text-cyan-300 hover:text-yellow-400 border-b border-dashed border-cyan-300 hover:border-yellow-400;
         }
       }
 

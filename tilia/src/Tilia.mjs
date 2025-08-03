@@ -579,6 +579,27 @@ function makeObserve(root) {
   };
 }
 
+function makeWatch(root, observe_) {
+  return function (callback, effect) {
+    var notify = function () {
+      var o = observe_(notify);
+      var v = callback();
+      o.root.observer = undefined;
+      if (root.lock) {
+        effect(v);
+      } else {
+        root.lock = true;
+        effect(v);
+        root.lock = false;
+      }
+      _ready(o, false);
+    };
+    var o = observe_(notify);
+    callback();
+    _ready(o, false);
+  };
+}
+
 function makeBatch(root) {
   return function (callback) {
     if (root.lock) {
@@ -632,28 +653,16 @@ function makeDerived$1(tilia) {
   };
 }
 
-function makeObserve_(root) {
-  return function (notify) {
-    var observer_observing = [];
-    var observer = {
-      root: root,
-      notify: notify,
-      observing: observer_observing
-    };
-    root.observer = observer;
-    return observer;
-  };
-}
-
 function _done(o) {
   o.root.observer = undefined;
 }
 
-function connector(tilia, carve, observe, batch, signal, derived, _observe) {
+function connector(tilia, carve, observe, watch, batch, signal, derived, _observe) {
   return {
     tilia,
     carve,
     observe,
+    watch,
     batch,
     // extra
     signal,
@@ -678,11 +687,21 @@ function make(gcOpt) {
     gc: gc$1
   };
   var tilia = makeTilia(root);
-  return connector(tilia, makeCarve(root), makeObserve(root), makeBatch(root), (function (value) {
+  var _observe = function (extra) {
+    var observer_observing = [];
+    var observer = {
+      root: root,
+      notify: extra,
+      observing: observer_observing
+    };
+    root.observer = observer;
+    return observer;
+  };
+  return connector(tilia, makeCarve(root), makeObserve(root), makeWatch(root, _observe), makeBatch(root), (function (value) {
                 return tilia({
                             value: value
                           });
-              }), makeDerived$1(tilia), makeObserve_(root));
+              }), makeDerived$1(tilia), _observe);
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
@@ -720,6 +739,8 @@ var carve = _ctx.carve;
 
 var observe = _ctx.observe;
 
+var watch = _ctx.watch;
+
 var batch = _ctx.batch;
 
 var signal = _ctx.signal;
@@ -737,6 +758,7 @@ export {
   tilia ,
   carve ,
   observe ,
+  watch ,
   batch ,
   signal ,
   derived ,

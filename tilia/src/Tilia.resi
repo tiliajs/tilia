@@ -39,6 +39,17 @@ type tilia = {
    */
   observe: (unit => unit) => unit,
   /** 
+   * React to value changes.
+  * 
+  * The first function captures the values to observe and passes them to the
+  * second function. The second function is called whenever any of the observed
+  * values changes.
+  * 
+  * @param f The capture function.
+  * @param m The effect function.
+  */
+  watch: 'a. (unit => 'a, 'a => unit) => unit,
+  /** 
    * Run a series of operations in a batch, blocking notifications until the
    * batch is complete.
    * 
@@ -101,6 +112,22 @@ let carve: (deriver<'a> => 'a) => 'a
  * @param f The callback to run on changes.
  */
 let observe: (unit => unit) => unit
+
+/** 
+ * React to changes of captured values.
+ * 
+ * The first function captures values to observe. The second function
+ * is called with the returned value from the first function whenever
+ * any of the observed values changes.
+ * 
+ * The effect callback should avoid synchronously mutating captured signals
+ * to prevent unexpected recursive updates. Use `observe` for more complex
+ * reactive behaviors involving such mutations.
+ * 
+ * @param f1 The function that captures values to observe.
+ * @param f2 The function called when the captured values change.
+ */
+let watch: (unit => 'a, 'a => unit) => unit
 
 /** 
  * Run a series of operations in a batch, blocking notifications until the batch

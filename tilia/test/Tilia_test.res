@@ -1452,3 +1452,48 @@ test("Should derive signal", t => {
   b.value = 2
   t->is(c.value, 3)
 })
+
+test("Should watch and react to changes", t => {
+  let m = {called: false}
+  let p = signal(1)
+  let q = signal(2)
+  watch(
+    () => p.value,
+    v => {
+      m.called = true
+      q.value = q.value + v
+    },
+  )
+  t->is(q.value, 2)
+  t->isFalse(m.called)
+  q.value = 3
+  t->isFalse(m.called)
+  p.value = 4
+  t->isTrue(m.called)
+  t->is(q.value, 7)
+})
+
+test("Should batch changes in watch effect", t => {
+  let count = signal(0)
+  let p = signal(1)
+  let q = signal(2)
+  watch(
+    () => (p.value, q.value),
+    _ => {
+      count.value = count.value + 1
+    },
+  )
+  let x = signal(0)
+  watch(
+    () => x.value,
+    _ => {
+      p.value = p.value + 1
+      q.value = q.value + 1
+    },
+  )
+  t->is(count.value, 0)
+  x.value = 1
+  t->is(count.value, 1)
+  x.value = 2
+  t->is(count.value, 2)
+})

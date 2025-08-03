@@ -9,6 +9,7 @@ export type Tilia = {
   tilia: <T>(branch: T) => T;
   carve: <T>(fn: (deriver: Deriver<T>) => T) => T;
   observe: (fn: () => void) => void;
+  watch: <T>(fn: () => T, effect: (v: T) => void) => void;
   batch: (fn: () => void) => void;
   signal: <T>(value: T) => Signal<T>;
   derived: <T>(fn: () => T) => Signal<T>;
@@ -22,6 +23,7 @@ export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 export function tilia<T>(branch: T): T;
 export function carve<T>(fn: (deriver: Deriver<T>) => T): T;
 export function observe(fn: () => void): void;
+export function watch<T>(fn: () => T, effect: (v: T) => void) : void;
 export function batch(fn: () => void): void;
 
 // Functional reactive programming

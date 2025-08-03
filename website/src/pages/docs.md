@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, signal, batch, computed, derived, source, store functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, signal, computed, derived, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, source, store functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -111,10 +111,69 @@ observe(() => {
 alice.age = 11; // ✨ This triggers the observe callback
 ```
 
-**📖 Important Note:** If you mutate observed tilia values during the observe
+**📖 Important Note:** If you mutate an observed tilia value during the observe
 call, the callback will be re-run as soon as it ends. {.note}
 
 Now every time alice's age changes, the callback will be called. {.story}
+
+</section>
+
+<a id="watch"></a>
+
+<section class="doc watch">
+
+### watch
+
+Use watch similarly to `observe`, but with a clear separation between the
+capture phase and the effect phase. The **capture function** observes values,
+and the **effect function** is called when the captured values change.
+
+```typescript
+import { watch } from "tilia";
+
+watch(
+  () => exercise.result,
+  (r) => {
+    if (r === "Pass") {
+      // The effect runs only when `exercise.result` changes, not when
+      // `alice.score` changes because the latter is not captured.
+      alice.score = alice.score + 1;
+    } else if (r === "Fail") {
+      alice.score = alice.score - 1;
+    }
+  }
+);
+
+// ✨ This triggers the effect
+exercise.result = "Pass";
+// 😴 This does not trigger the effect
+alice.score = alice.score + 10;
+```
+
+```rescript
+open Tilia
+
+watch(
+  () => exercise.result,
+  r => switch r {
+      // The effect runs only when `exercise.result` changes, not when
+      // `alice.score` changes because the latter is not captured.
+    | Pass => alice.score = alice.score + 1
+    | Fail => alice.score = alice.score - 1
+    | Pending => ()
+  }
+)
+
+// ✨ This triggers the effect
+exercise.result = "Pass";
+// 😴 This does not trigger the effect
+alice.score = alice.score + 10;
+```
+
+**📖 Note:** If you mutate an observed tilia value in the capture or effect
+function, the callback will **not** be re-run and this change will be ignored. {.note}
+
+Now every time alice finishes an exercise, her score updates. {.story}
 
 </section>
 
@@ -128,8 +187,8 @@ Group multiple updates to prevent redundant notifications. This can be required
 for managing complex update cycles—such as in games—where atomic state changes
 are essential.
 
-**💡 Pro tip** `batch` is not required in `computed`, `source`, `store` or `observe`
-where notifications are already blocked. {.pro}
+**💡 Pro tip** `batch` is not required in `computed`, `source`, `store`,
+`observe` or `watch` where notifications are already blocked. {.pro}
 
 ```typescript
 import { batch } from "tilia";
@@ -161,7 +220,7 @@ network.subscribe(updates => {
 
 ## Functional Reactive Programming {.frp}
 
-✨ **Rainbow architect**, tilia has <span>6</span> more functions for you! ✨ {.rainbow}
+✨ **Rainbow architect**, tilia has <span>7</span> more functions for you! ✨ {.rainbow}
 
 Before introducing each one, let us show you an overview. {.subtitle}
 
@@ -169,15 +228,20 @@ Before introducing each one, let us show you an overview. {.subtitle}
 
 <section class="doc patterns wide-comment summary frp">
 
-| Pattern         | Use-case                                | Tree param | Setter | Return value |
-| :-------------- | :-------------------------------------- | :--------: | :----: | ------------ |
-| `computed`      | Computed value from external sources    |   ❌ No    | ❌ No  | ✅ Yes       |
-| `carve derived` | Cross-property computation              |   ✅ Yes   | ❌ No  | ✅ Yes       |
-| `source`        | External/async updates                  |   ❌ No    | ✅ Yes | ❌ No        |
-| `store`         | State machine/init logic                |   ❌ No    | ✅ Yes | ✅ Yes       |
-| `readonly`      | Avoid tracking on (large) readonly data |            |        |              |
+| Function                | Use-case                                | Tree param | Setter | Return value |
+| :---------------------- | :-------------------------------------- | :--------: | :----: | ------------ |
+| [`computed`](#computed) | Computed value from external sources    |   ❌ No    | ❌ No  | ✅ Yes       |
+| [`carve`](#carve)       | Cross-property computation              |   ✅ Yes   | ❌ No  | ✅ Yes       |
+| [`source`](#source)     | External/async updates                  |   ❌ No    | ✅ Yes | ❌ No        |
+| [`store`](#store)       | State machine/init logic                |   ❌ No    | ✅ Yes | ✅ Yes       |
+| [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |        |              |
 
-And `signal` which is just a shorthand for `tilia({ value: v })`.
+And some syntactic sugar:
+
+| Function              | Use-case                                             |        Implementation        |
+| :-------------------- | :--------------------------------------------------- | :--------------------------: |
+| [`signal`](#signal)   | Holds a mutable value                                |  `v => tilia({ value: v })`  |
+| [`derived`](#derived) | Creates a computed value based on other tilia values | `fn => signal(computed(fn))` |
 
 </section>
 
@@ -455,14 +519,48 @@ if (authenticated_.value) {
 }
 ```
 
+<a id="derived"></a>
+
+<section class="doc frp wide-comment derived">
+
+### derived
+
+Create a signal representing a computed value. This is similar to the `derived`
+argument of `carve`, but outside of an object.
+
+```typescript
+function derived<T>(fn: () => T): Signal<T> {
+  return signal(computed(fn));
+}
+
+// Usage
+
+const s = signal(0);
+
+const double = derived(() => s.value * 2);
+console.log(double.value);
+```
+
+```rescript
+
+let derived = fn => signal(computed(fn))
+
+// Usage
+
+let s = signal(0)
+let double = derived(() => s.value * 2)
+Js.log(double.value)
+```
+
 </section>
+
 <a id="carve"></a>
 
 ## <span>✨</span> Carving <span>✨</span> {.carve}
 
 <section class="doc computed wide-comment carve">
 
-### carve (derived)
+### carve
 
 This is where Tilia truly shines. It lets you build a domain-driven, self-contained feature that is easy to test and reuse.
 
