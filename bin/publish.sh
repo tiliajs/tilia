@@ -2,6 +2,8 @@
 
 set -e
 
+# ============================================ UTILS and basic CHECKS
+
 # Set up environment
 if ! command -v pnpm &>/dev/null; then
   echo "pnpm is not installed. Please install it first."
@@ -28,22 +30,37 @@ is_semver() {
   fi
 }
 
+DATE=$(date +'%Y%m%dT%H%M%S')
+
 # Install dependencies
 pnpm i
-# Check compilation for all projects
+# Rebuild for all projects
 pnpm build
 
-cd tilia
-TILIA_VERSION=$(npm pkg get version | sed 's/"//g')
-is_semver "$TILIA_VERSION"
-cd ../react
-REACT_VERSION=$(npm pkg get version | sed 's/"//g')
-is_semver "$REACT_VERSION"
-cd ..
+VERSION=$(npm pkg get version | sed 's/"//g')
+is_semver "$VERSION"
+
+# ============================================ PUBLISH
+
+# Update version if publishing beta (--beta argument)
+if [[ $1 == "--beta" ]]; then
+  VERSION=$VERSION-beta.$DATE
+elif [[ $1 == "--canary" ]]; then
+  VERSION=$VERSION-canary.$DATE
+fi
 
 # ================ TILIA
 cd tilia
-pnpm publish --access public --no-git-checks
+npm --no-git-tag-version version $VERSION
+
+if [[ $1 == "--beta" ]]; then
+  pnpm publish --tag beta --access public --no-git-checks
+elif [[ $1 == "--canary" ]]; then
+  CANARY=true pnpm publish --tag canary --access public --no-git-checks
+else
+  pnpm publish --access public --no-git-checks
+fi
+cd ..
 
 echo "Wait for tilia version to propagate on npm"
 sleep 3
@@ -53,13 +70,25 @@ echo "Wait for tilia version to propagate on npm"
 sleep 3
 
 # ================ REACT
-cd ../react
-npm pkg set dependencies.tilia="$TILIA_VERSION"
-pnpm publish --access public --no-git-checks
+cd react
+npm --no-git-tag-version version $VERSION
+npm pkg set dependencies.tilia="$VERSION"
+
+if [[ $1 == "--beta" ]]; then
+  pnpm publish --tag beta --access public --no-git-checks
+elif [[ $1 == "--canary" ]]; then
+  CANARY=true pnpm publish --tag canary --access public --no-git-checks
+else
+  pnpm publish --access public --no-git-checks
+fi
 cd ..
 
 # Reset git repo
 git reset --hard HEAD
-git tag v$TILIA_VERSION
 
-echo "Published successfully!"
+if [[ $1 == "--beta" ]]; then
+  echo "Beta versions published successfully!"
+else
+  echo "Published successfully!"
+fi
+

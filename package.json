@@ -1,7 +1,7 @@
 {
   "name": "tilia",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.1.0",
   "homepage": "https://tiliajs.com",
   "description": "tilia monorepo",
   "main": "index.js",
@@ -17,8 +17,8 @@
     "build": "pnpm -r build",
     "todo-ts": "pnpm --filter todo-app-ts",
     "todo-re": "pnpm --filter todo-app-re",
-    "canary": "./bin/publish-canary.sh",
-    "beta": "./bin/publish-beta.sh",
+    "canary": "./bin/publish.sh --canary",
+    "beta": "./bin/publish.sh --beta",
     "pub": "./bin/publish.sh",
     "pretest": "pnpm react res:dev-build && pnpm tilia res:dev-build",
     "test": "pnpm tilia test && pnpm todo-ts test -- run"
