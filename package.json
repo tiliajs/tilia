@@ -29,7 +29,8 @@
   "pnpm": {
     "overrides": {
       "esbuild@<=0.24.2": ">=0.25.0",
-      "@babel/runtime@<7.26.10": ">=7.26.10"
+      "@babel/runtime@<7.26.10": ">=7.26.10",
+      "@eslint/plugin-kit@<0.3.4": ">=0.3.4"
     }
   }
 }
