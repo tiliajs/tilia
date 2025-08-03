@@ -51,6 +51,11 @@ type tilia = {
    *
    */
   signal: 'a. 'a => signal<'a>,
+  /**
+   * Derive a signal from other signals.
+   *
+   */
+  derived: 'a. (unit => 'a) => signal<'a>,
   /** 
    * Internal: Register an observer callback.
    */
@@ -115,6 +120,12 @@ let batch: (unit => unit) => unit
  * @param v The initial value.
  */
 let signal: 'a => signal<'a>
+
+/**
+ * Derive a signal from other signals.
+ *
+ */
+let derived: (unit => 'a) => signal<'a>
 
 /**
  * Wrap a value in a readonly holder with a non-writable `value` field.

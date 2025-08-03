@@ -622,6 +622,16 @@ function store(callback) {
   return v;
 }
 
+function makeDerived$1(tilia) {
+  return function (fn) {
+    return tilia({
+                value: computed(function () {
+                      return fn();
+                    })
+              });
+  };
+}
+
 function makeObserve_(root) {
   return function (notify) {
     var observer_observing = [];
@@ -639,7 +649,7 @@ function _done(o) {
   o.root.observer = undefined;
 }
 
-function connector(tilia, carve, observe, batch, signal, _observe) {
+function connector(tilia, carve, observe, batch, signal, derived, _observe) {
   return {
     tilia,
     carve,
@@ -647,6 +657,7 @@ function connector(tilia, carve, observe, batch, signal, _observe) {
     batch,
     // extra
     signal,
+    derived,
     // internal
     _observe,
   };
@@ -671,7 +682,7 @@ function make(gcOpt) {
                 return tilia({
                             value: value
                           });
-              }), makeObserve_(root));
+              }), makeDerived$1(tilia), makeObserve_(root));
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
@@ -713,6 +724,8 @@ var batch = _ctx.batch;
 
 var signal = _ctx.signal;
 
+var derived = _ctx.derived;
+
 var _observe = _ctx._observe;
 
 function _meta(p) {
@@ -726,6 +739,7 @@ export {
   observe ,
   batch ,
   signal ,
+  derived ,
   readonly$1 as readonly,
   computed ,
   source ,

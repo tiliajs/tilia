@@ -1104,8 +1104,6 @@ test("Should remove computed without observers in store setup", t => {
   }
 })
 
-
-
 // This is needed to replace a computed with a regular value, from
 // inside the computed.
 test("Computed without observers should be removed", t => {
@@ -1442,4 +1440,15 @@ test("Should use source for recursive derived", t => {
   t->is(p.username, "Alice(lila) is OK")
   p.name = "Kevin"
   t->is(p.username, "Kevin is OK")
+})
+
+test("Should derive signal", t => {
+  let a = signal(0)
+  let b = signal(0)
+  let c = derived(() => a.value + b.value)
+  t->is(c.value, 0)
+  a.value = 1
+  t->is(c.value, 1)
+  b.value = 2
+  t->is(c.value, 3)
 })

@@ -14,6 +14,8 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2025-07-26 **2.1.0**
+  - Add `derived` to compute a signal from other tilia values.
 - 2025-07-24 **2.0.1**
   - Fix package.json configuration in @tilia/react publish script.
 - 2025-07-21 **2.0.0**

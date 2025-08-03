@@ -79,6 +79,11 @@ type tilia = {
    */
   signal: 'a. 'a => signal<'a>,
   /**
+   * Derive a signal from other signals.
+   *
+   */
+  derived: 'a. (unit => 'a) => signal<'a>,
+  /**
    * Internal: Register an observer callback.
    */
   _observe: (unit => unit) => observer,
@@ -142,6 +147,12 @@ let batch: (unit => unit) => unit
  * @param v The initial value.
  */
 let signal: 'a => signal<'a>
+
+/**
+ * Derive a signal from other signals.
+ *
+ */
+let derived: (unit => 'a) => signal<'a>
 
 /**
  * Wrap a value in a readonly holder with a non-writable `value` field.
@@ -236,7 +247,7 @@ declare const o: unique symbol;
 declare const r: unique symbol;
 export type Observer = { readonly [o]: true };
 export type Signal<T> = { value: T };
-export type Readonly<T> = { readonly value: T };
+export type Readonly<T> = { readonly data: T };
 export type Setter<T> = (v: T) => void;
 export type Deriver<U> = { derived: <T>(fn: (p: U) => T) => T };
 export type Tilia = {
@@ -245,6 +256,7 @@ export type Tilia = {
   observe: (fn: () => void) => void;
   batch: (fn: () => void) => void;
   signal: <T>(value: T) => Signal<T>;
+  derived: <T>(fn: () => T) => Signal<T>;
 
   // Internal
   _observe(callback: () => void): Observer;
@@ -261,8 +273,9 @@ export function batch(fn: () => void): void;
 export function computed<T>(fn: () => T): T;
 export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
 export function store<T>(fn: (set: Setter<T>) => T): T;
-export function readonly<T>(value: T): Readonly<T>;
+export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;
+export function derived<T>(fn: () => T): Signal<T>;
 
 // Internal
 export function _observe(callback: () => void): Observer;

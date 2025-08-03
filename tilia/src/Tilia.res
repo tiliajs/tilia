@@ -171,6 +171,7 @@ type tilia = {
   observe: (unit => unit) => unit,
   batch: (unit => unit) => unit,
   signal: 'a. 'a => signal<'a>,
+  derived: 'a. (unit => 'a) => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
 }
@@ -733,6 +734,8 @@ let store = callback => {
 
 @inline
 let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => tilia({value: value})
+let makeDerived = (tilia: signal<'a> => signal<'a>) => (fn: 'c) =>
+  tilia({value: computed(() => fn())})
 
 let makeObserve_ = (root: root) => notify => {
   let observer = {root, notify, observing: []}
@@ -757,13 +760,15 @@ external connector: (
   // extra
   // signal
   's => signal<'s>,
+  // derived
+  (unit => 't) => signal<'t>,
   // internal
   // _observe
   (unit => unit) => observer,
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, carve, observe, batch, signal, _observe) {
+function connector(tilia, carve, observe, batch, signal, derived, _observe) {
   return {
     tilia,
     carve,
@@ -771,6 +776,7 @@ function connector(tilia, carve, observe, batch, signal, _observe) {
     batch,
     // extra
     signal,
+    derived,
     // internal
     _observe,
   };
@@ -794,6 +800,7 @@ let make = (~gc=defaultGc): tilia => {
     makeBatch(root),
     // extra
     makeSignal(tilia),
+    makeDerived(tilia),
     // Internal
     makeObserve_(root),
   )
@@ -825,6 +832,7 @@ let observe = _ctx.observe
 let batch = _ctx.batch
 // extra
 let signal = _ctx.signal
+let derived = _ctx.derived
 
 // internal
 let _observe = _ctx._observe

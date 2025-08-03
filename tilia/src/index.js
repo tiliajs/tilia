@@ -1,5 +1,6 @@
 export {
   carve,
+  derived,
   make,
   tilia,
   observe,
