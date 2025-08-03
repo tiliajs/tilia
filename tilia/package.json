@@ -46,7 +46,7 @@
     "@types/node": "^22.15.32",
     "ava": "5.2.0",
     "clean-package": "^2.2.0",
-    "esbuild": "^0.25.5",
+    "esbuild": "^0.25.0",
     "rescript": "^11.1.4"
   },
   "ava": {
