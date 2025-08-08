@@ -14,6 +14,8 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2025-08-08 **2.1.1**
+  - Fix `source` type: ignore return value for easier async support.
 - 2025-08-03 **2.1.0**
   - Add `derived` to compute a signal from other tilia values.
   - Add `watch` to separate the capture phase and the effect phase of observe.

@@ -216,7 +216,7 @@ let computed: (unit => 'a) => 'a
  * @param f The setup function, receives a setter.
  * @param v The initial value.
  */
-let source: (('a => unit) => unit, 'a) => 'a
+let source: (('a => unit) => 'ignored, 'a) => 'a
 
 /**
  * Return a managed value to be inserted into a tilia object.
@@ -298,7 +298,10 @@ export function batch(fn: () => void): void;
 
 // Functional reactive programming
 export function computed<T>(fn: () => T): T;
-export function source<T>(fn: (set: Setter<T>) => void, initialValue: T): T;
+export function source<T, Ignored>(
+  fn: (set: Setter<T>) => Ignored,
+  initialValue: T
+): T;
 export function store<T>(fn: (set: Setter<T>) => T): T;
 export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): Signal<T>;

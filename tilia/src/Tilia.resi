@@ -189,7 +189,7 @@ let computed: (unit => 'a) => 'a
  * @param f The setup function, receives a setter.
  * @param v The initial value.
  */
-let source: (('a => unit) => unit, 'a) => 'a
+let source: (('a => unit) => 'ignored, 'a) => 'a
 
 /**
  * Return a managed value to be inserted into a tilia object.

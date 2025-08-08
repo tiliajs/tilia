@@ -34,14 +34,14 @@ let ctxKey = symbol("ctx")
 
 type compute<'a> = {mutable rebuild: unit => 'a}
 
-type source<'a> = {
-  source: ('a => unit) => unit,
+type source<'a, 'ignored> = {
+  source: ('a => unit) => 'ignored,
   value: 'a,
 }
 
-type dynamic<'a> =
+type dynamic<'a, 'b> =
   | Computed(unit => 'a)
-  | Source(source<'a>)
+  | Source(source<'a, 'b>)
   | Store(('a => unit) => 'a)
   | Compiled(compute<'a>)
 
@@ -58,7 +58,7 @@ function(v) {
 }
   `)
 
-  let dynamic: 'a => nullable<dynamic<'a>> = %raw(`
+  let dynamic: 'a => nullable<dynamic<'a, 'b>> = %raw(`
 function(v) {
   return typeof v === 'object' && v !== null && v[dynamicKey] ? v : undefined;
 }
@@ -326,7 +326,7 @@ let notify = (root, observed, key) => {
 }
 
 @inline
-let sourceCallback = (set, source: source<'a>) => {
+let sourceCallback = (set, source: source<'a, 'b>) => {
   let v = source.value
   let val = ref(v)
   let set = v => {

@@ -1301,7 +1301,7 @@ test("should allow batch in batch", t => {
 
 asyncTest("Should load async source", async t => {
   let m = {called: false}
-  let loader = async (set, url) => {
+  let loader = async (url, set) => {
     // needed to avoid too fast return
     await sleep()
     m.called = true
@@ -1315,7 +1315,7 @@ asyncTest("Should load async source", async t => {
 
   let p = tilia({
     ...person(),
-    name: source(set => ignore(loader(set, url.contents)), ""),
+    name: source(loader(url.contents, ...), ""),
   })
   t->isFalse(m.called)
   t->is(p.name, "")
@@ -1342,7 +1342,7 @@ asyncTest("should load async source with direct value if set called", async t =>
 
   let p = tilia({
     ...person(),
-    name: source(set => ignore(loader(set)), ""),
+    name: source(loader, ""),
   })
   t->is(p.name, "Medea")
   t->isTrue(m.called)
