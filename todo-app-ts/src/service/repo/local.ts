@@ -8,8 +8,7 @@ type IndexedDBRepo = Repo & {
 };
 
 export function localRepo(auth_: Signal<Auth>): Signal<Repo> {
-  const repo_ = signal<IndexedDBRepo>({ t: "NotAuthenticated" });
-  const set = (repo: IndexedDBRepo) => (repo_.value = repo);
+  const [repo_, set] = signal<IndexedDBRepo>({ t: "NotAuthenticated" });
   observe(() => {
     const repo = repo_.value;
     const auth = auth_.value;

@@ -9,7 +9,7 @@ type tilia_react = {
 }
 
 let make = ctx => {
-  let {Tilia._observe: _observe, signal} = ctx
+  let {Tilia._observe: _observe, tilia} = ctx
   let useTilia = () => {
     let (_, setCount) = useState(0)
     let o = _observe(() => setCount(i => i + 1))
@@ -18,7 +18,7 @@ let make = ctx => {
       Some(() => _clear(o))
     })
   }
-  let useComputed = fn => useMemo(() => signal(computed(fn)), [])
+  let useComputed = fn => useMemo(() => tilia({ value: computed(fn) }), [])
   {useTilia, useComputed}
 }
 

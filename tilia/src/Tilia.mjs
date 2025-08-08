@@ -698,9 +698,16 @@ function make(gcOpt) {
     return observer;
   };
   return connector(tilia, makeCarve(root), makeObserve(root), makeWatch(root, _observe), makeBatch(root), (function (value) {
-                return tilia({
-                            value: value
-                          });
+                var s = tilia({
+                      value: value
+                    });
+                var set = function (v) {
+                  s.value = v;
+                };
+                return [
+                        s,
+                        set
+                      ];
               }), makeDerived$1(tilia), _observe);
 }
 
@@ -733,7 +740,7 @@ function readonly$1(data) {
   return obj;
 }
 
-function unwrap(s) {
+function lift(s) {
   return computed(function () {
               return s.value;
             });
@@ -770,7 +777,7 @@ export {
   derived ,
   readonly$1 as readonly,
   computed ,
-  unwrap ,
+  lift ,
   source ,
   store ,
   _observe ,

@@ -11,7 +11,10 @@ export async function authorize(auth_: Signal<Auth>) {
     } = await supabase.auth.getUser();
 
     if (error) {
-      console.error(error);
+      supabase.auth.signOut();
+      if (isBlank(auth_.value)) {
+        auth_.value.logout();
+      }
       return;
     }
 

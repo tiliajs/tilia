@@ -11,7 +11,7 @@ export function memoryStore(
     ["display.darkMode"]: "false",
   } as Record<string, string>
 ): Signal<Repo> {
-  const repo_ = signal<Repo>({ t: "NotAuthenticated" });
+  const [repo_] = signal<Repo>({ t: "NotAuthenticated" });
   const set = (repo: Repo) => (repo_.value = repo);
   observe(() => {
     const repo = repo_.value;

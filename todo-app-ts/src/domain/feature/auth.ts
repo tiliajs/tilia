@@ -3,8 +3,9 @@ import { type Auth } from "@feature/auth";
 import type { Repo } from "@service/repo";
 import { signal, store, type Setter, type Signal } from "tilia";
 
-export function makeAuth(): Signal<Auth> {
-  return signal<Auth>(store((set) => blank(set)));
+export function makeAuth() {
+  const [s] = signal<Auth>(store((set) => blank(set)));
+  return s;
 }
 
 function loggedIn(set: Setter<Auth>, repo: Signal<Repo>, user: User): Auth {

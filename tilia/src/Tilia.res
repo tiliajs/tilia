@@ -171,7 +171,7 @@ type tilia = {
   observe: (unit => unit) => unit,
   watch: 'a. (unit => 'a, 'a => unit) => unit,
   batch: (unit => unit) => unit,
-  signal: 'a. 'a => signal<'a>,
+  signal: 'a. 'a => (signal<'a>, setter<'a>),
   derived: 'a. (unit => 'a) => signal<'a>,
   /** internal */
   _observe: (unit => unit) => observer,
@@ -756,7 +756,11 @@ let store = callback => {
 }
 
 @inline
-let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => tilia({value: value})
+let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => {
+  let s = tilia({value: value})
+  let set = v => s.value = v
+  (s, set)
+}
 let makeDerived = (tilia: signal<'a> => signal<'a>) => (fn: 'c) =>
   tilia({value: computed(() => fn())})
 
@@ -778,7 +782,7 @@ external connector: (
   (unit => unit) => unit,
   // extra
   // signal
-  's => signal<'s>,
+  's => (signal<'s>, setter<'s>),
   // derived
   (unit => 't) => signal<'t>,
   // internal
@@ -848,7 +852,7 @@ let readonly = (data: 'a) => {
   obj
 }
 
-let unwrap = s => computed(() => s.value)
+let lift = s => computed(() => s.value)
 
 let tilia = _ctx.tilia
 let carve = _ctx.carve

@@ -14,6 +14,9 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2025-08-08 **3.0.0-beta**
+  - Rename `unwrap` for `lift`, change syntax for `signal` to expose setter. Might remove `carve` as it
+    forces mutability in the exposed object and is hard to reason about.
 - 2025-08-08 **2.2.0**
   - Add `unwrap` to ease inserting a signal into a tilia object.
 - 2025-08-08 **2.1.1**

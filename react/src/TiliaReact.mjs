@@ -5,7 +5,7 @@ import * as React from "react";
 
 function make(ctx) {
   var _observe = ctx._observe;
-  var signal = ctx.signal;
+  var tilia = ctx.tilia;
   var useTilia = function () {
     var match = React.useState(0);
     var setCount = match[1];
@@ -23,7 +23,9 @@ function make(ctx) {
   };
   var useComputed = function (fn) {
     return React.useMemo((function () {
-                  return signal(Tilia.computed(fn));
+                  return tilia({
+                              value: Tilia.computed(fn)
+                            });
                 }), []);
   };
   return {

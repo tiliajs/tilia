@@ -16,7 +16,7 @@ For more information, check out the [**DDD section**](https://tiliajs.com/docs#d
 
 Check the [**website**](https://tiliajs.com) for full documentation and more examples for both TypeScript and ReScript.
 
-## API (in case the website is not available)
+## API for versin **2.x** (in case the website is not available)
 
 (TypeScript version below)
 

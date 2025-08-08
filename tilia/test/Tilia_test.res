@@ -905,13 +905,13 @@ type machine = Blank | Loading | Loaded
 type auth = NotAuthenticated | Authenticating | Authenticated
 
 test("Should allow state machines in observed", t => {
-  let p = signal(Blank)
-  let auth = signal(NotAuthenticated)
+  let (p, setP) = signal(Blank)
+  let (auth, setAuth) = signal(NotAuthenticated)
   observe(() => {
     switch (p.value, auth.value) {
-    | (Blank, Authenticating) => p.value = Loading
-    | (Loading, Authenticated) => p.value = Loaded
-    | (Loaded, NotAuthenticated) => p.value = Blank
+    | (Blank, Authenticating) => setP(Loading)
+    | (Loading, Authenticated) => setP(Loaded)
+    | (Loaded, NotAuthenticated) => setP(Blank)
     | _ => ()
     }
   })
@@ -919,14 +919,14 @@ test("Should allow state machines in observed", t => {
   t->deepEqual(p.value, Blank)
 
   // Update dependency
-  auth.value = Authenticating
+  setAuth(Authenticating)
   t->is(p.value, Loading)
 
   // Update dependency
-  auth.value = Authenticated
+  setAuth(Authenticated)
   t->is(p.value, Loaded)
 
-  auth.value = NotAuthenticated
+  setAuth(NotAuthenticated)
   t->is(p.value, Blank)
 })
 
@@ -1009,13 +1009,13 @@ test("Should create signal", t => {
   let q = {name: "Linda", username: "linda"}
   let p2 = person()
 
-  let p = signal({name: "Noether", username: "emmy"})
+  let (p, setP) = signal({name: "Noether", username: "emmy"})
 
   observe(() => {
     p2.name = p.value.name
   })
   t->is("Noether", p2.name)
-  p.value = q
+  setP(q)
   t->is("Linda", p2.name)
 })
 
@@ -1148,7 +1148,7 @@ test("should work with computed in computed", t => {
 
 test("should trigger if changed after cleared", t => {
   let m = {called: false}
-  let data = signal("Dana")
+  let (data, setData) = signal("Dana")
   // Observer 1 watches the data
   let o1 = _observe(() => m.called = true)
   t->is(data.value, "Dana")
@@ -1162,7 +1162,7 @@ test("should trigger if changed after cleared", t => {
 
   // Change the data, but nobody is watching it because
   // the watchers list was cleared.
-  data.value = "Lala"
+  setData("Lala")
 
   // Would see Cleared without gc
   _ready(o1, true)
@@ -1174,7 +1174,7 @@ test("should not trigger if unchanged after cleared", t => {
   // Using a long GC, will not trigger
 
   let m = {called: false}
-  let data = signal("Dana")
+  let (data, _) = signal("Dana")
   // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
   t->is(data.value, "Dana")
@@ -1198,8 +1198,8 @@ test("should trigger with very short gc", t => {
   let _observe = ctx._observe
 
   let m = {called: false}
-  let data = signal("Dana")
-  let data2 = signal("Dana")
+  let (data, _) = signal("Dana")
+  let (data2, _) = signal("Dana")
   // Observer 1 will watch the data
   let o1 = _observe(() => m.called = true)
   t->is(data.value, "Dana")
@@ -1267,9 +1267,9 @@ test("Should batch operations", t => {
 test("should allow batch in batch", t => {
   let m = {called: false}
   let {batch, signal, tilia} = make()
-  let s1 = signal(0)
-  let s2 = signal(0)
-  let s3 = signal(0)
+  let (s1, setS1) = signal(0)
+  let (s2, setS2) = signal(0)
+  let (s3, setS3) = signal(0)
   let total = tilia({
     value: computed(() => {
       m.called = true
@@ -1281,16 +1281,16 @@ test("should allow batch in batch", t => {
   m.called = false
 
   batch(() => {
-    s1.value = 1
+    setS1(1)
     t->is(total.value, 0)
     batch(
       () => {
-        s2.value = 2
+        setS2(2)
         t->is(total.value, 0)
       },
     )
     t->is(total.value, 0)
-    s3.value = 5
+    setS3(5)
     t->is(total.value, 0)
     t->isFalse(m.called)
   })
@@ -1443,58 +1443,58 @@ test("Should use source for recursive derived", t => {
 })
 
 test("Should derive signal", t => {
-  let a = signal(0)
-  let b = signal(0)
+  let (a, setA) = signal(0)
+  let (b, setB) = signal(0)
   let c = derived(() => a.value + b.value)
   t->is(c.value, 0)
-  a.value = 1
+  setA(1)
   t->is(c.value, 1)
-  b.value = 2
+  setB(2)
   t->is(c.value, 3)
 })
 
 test("Should watch and react to changes", t => {
   let m = {called: false}
-  let p = signal(1)
-  let q = signal(2)
+  let (p, setP) = signal(1)
+  let (q, setQ) = signal(2)
   watch(
     () => p.value,
     v => {
       m.called = true
-      q.value = q.value + v
+      setQ(q.value + v)
     },
   )
   t->is(q.value, 2)
   t->isFalse(m.called)
-  q.value = 3
+  setQ(3)
   t->isFalse(m.called)
-  p.value = 4
+  setP(4)
   t->isTrue(m.called)
   t->is(q.value, 7)
 })
 
 test("Should batch changes in watch effect", t => {
-  let count = signal(0)
-  let p = signal(1)
-  let q = signal(2)
+  let (count, setCount) = signal(0)
+  let (p, setP) = signal(1)
+  let (q, setQ) = signal(2)
   watch(
     () => (p.value, q.value),
     _ => {
-      count.value = count.value + 1
+      setCount(count.value + 1)
     },
   )
-  let x = signal(0)
+  let (x, setX) = signal(0)
   watch(
     () => x.value,
     _ => {
-      p.value = p.value + 1
-      q.value = q.value + 1
+      setP(p.value + 1)
+      setQ(q.value + 1)
     },
   )
   t->is(count.value, 0)
-  x.value = 1
+  setX(1)
   t->is(count.value, 1)
-  x.value = 2
+  setX(2)
   t->is(count.value, 2)
 })
 
@@ -1503,13 +1503,13 @@ type obj_with_int = {
   nb2: int,
 }
 
-test("Should unwrap signal", t => {
-  let s = signal(0)
+test("Should lift signal", t => {
+  let (s, setS) = signal(0)
   let obj = tilia({
     nb1: 0,
-    nb2: unwrap(s),
+    nb2: lift(s),
   })
   t->is(obj.nb2, 0)
-  s.value = 1
+  setS(1)
   t->is(obj.nb2, 1)
 })

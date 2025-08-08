@@ -15,11 +15,10 @@ type SupabaseRepo = Repo & {
 };
 
 export function supabaseRepo(auth_: Signal<Auth>): Signal<Repo> {
-  const repo_ = signal<SupabaseRepo>({
+  const [repo_, set] = signal<SupabaseRepo>({
     t: "NotAuthenticated",
     db: supabase,
   });
-  const set = (repo: SupabaseRepo) => (repo_.value = repo);
 
   observe(() => {
     const auth = auth_.value;

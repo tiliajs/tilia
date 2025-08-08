@@ -58,10 +58,10 @@ type tilia = {
   batch: (unit => unit) => unit,
   /**
    * Wrap a primitive value in a reactive signal. Use this to quickly create a
-   * tilia object with a single `value` field.
+   * tilia object with a single `value` field and a setter.
    *
    */
-  signal: 'a. 'a => signal<'a>,
+  signal: 'a. 'a => (signal<'a>, setter<'a>),
   /**
    * Derive a signal from other signals.
    *
@@ -142,11 +142,11 @@ let batch: (unit => unit) => unit
 
 /**
  * Wrap a primitive value in a reactive signal. Use this to quickly create a
- * tilia object with a single `value` field.
+ * tilia object with a single `value` field and a setter.
  *
  * @param v The initial value.
  */
-let signal: 'a => signal<'a>
+let signal: 'a => (signal<'a>, setter<'a>)
 
 /**
  * Derive a signal from other signals.
@@ -179,11 +179,11 @@ let computed: (unit => 'a) => 'a
  * Create a computed value that reflects the current value of a signal.
  *
  * This function takes a reactive `signal` and returns a computed value that
- * "unwraps" and tracks the inner `value` field of the signal.
+ * "lifts" and tracks the inner `value` field of the signal.
  * 
- * @param s The signal to unwrap as a computed.
+ * @param s The signal to lift as a computed.
  */
-let unwrap: signal<'a> => 'a
+let lift: signal<'a> => 'a
 
 /**
  * Return a reactive source value to be inserted into a tilia object.

@@ -240,9 +240,11 @@ And some syntactic sugar:
 
 | Function              | Use-case                                             |         Implementation         |
 | :-------------------- | :--------------------------------------------------- | :----------------------------: |
-| [`signal`](#signal)   | Holds a mutable value                                |   `v => tilia({ value: v })`   |
+| [`signal`](#signal)\* | Holds a mutable value                                |   `v => tilia({ value: v })`   |
 | [`derived`](#derived) | Creates a computed value based on other tilia values |  `fn => signal(computed(fn))`  |
-| [`unwrap`](#unwrap)   | Unwrap a signal to insert it into a tilia object     | `s => computed(() => s.value)` |
+| [`unwrap`](#unwrap)\* | Unwrap a signal to insert it into a tilia object     | `s => computed(() => s.value)` |
+
+\* These methods are changing in version 3.0.0 (currently in beta).
 
 </section>
 
@@ -454,6 +456,8 @@ A signal represents a single, changing value of any type.
 
 This is a tiny wrapper around `tilia` to expose a single, changing value.
 
+In version 3.0.0 (currently in beta), the signal function returns a signal and setter.
+
 ```typescript
 type Signal<T> = { value: T };
 
@@ -566,6 +570,8 @@ Js.log(double.value)
 Create a `computed` value that reflects the current value of a signal to be
 inserted into a Tilia object. Use signal and unwrap to create private state
 and expose values as read-only.
+
+Renamed to **lift** in version 3.0.0 (currently in beta).
 
 ```typescript
 function unwrap<T>(s: Signal<T>): T {

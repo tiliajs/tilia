@@ -23,15 +23,18 @@ export function make(flush?: (fn: () => void) => void, gc?: number): Tilia;
 export function tilia<T>(branch: T): T;
 export function carve<T>(fn: (deriver: Deriver<T>) => T): T;
 export function observe(fn: () => void): void;
-export function watch<T>(fn: () => T, effect: (v: T) => void) : void;
+export function watch<T>(fn: () => T, effect: (v: T) => void): void;
 export function batch(fn: () => void): void;
 
 // Functional reactive programming
 export function computed<T>(fn: () => T): T;
-export function source<T, Ignored>(fn: (set: Setter<T>) => Ignored, initialValue: T): T;
+export function source<T, Ignored>(
+  fn: (set: Setter<T>) => Ignored,
+  initialValue: T
+): T;
 export function store<T>(fn: (set: Setter<T>) => T): T;
 export function readonly<T>(data: T): Readonly<T>;
-export function signal<T>(value: T): Signal<T>;
+export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 
 // Internal
