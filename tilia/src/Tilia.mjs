@@ -733,6 +733,12 @@ function readonly$1(data) {
   return obj;
 }
 
+function unwrap(s) {
+  return computed(function () {
+              return s.value;
+            });
+}
+
 var tilia = _ctx.tilia;
 
 var carve = _ctx.carve;
@@ -764,6 +770,7 @@ export {
   derived ,
   readonly$1 as readonly,
   computed ,
+  unwrap ,
   source ,
   store ,
   _observe ,

@@ -1497,3 +1497,19 @@ test("Should batch changes in watch effect", t => {
   x.value = 2
   t->is(count.value, 2)
 })
+
+type obj_with_int = {
+  nb1: int,
+  nb2: int,
+}
+
+test("Should unwrap signal", t => {
+  let s = signal(0)
+  let obj = tilia({
+    nb1: 0,
+    nb2: unwrap(s),
+  })
+  t->is(obj.nb2, 0)
+  s.value = 1
+  t->is(obj.nb2, 1)
+})

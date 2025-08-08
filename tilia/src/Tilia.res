@@ -848,6 +848,8 @@ let readonly = (data: 'a) => {
   obj
 }
 
+let unwrap = s => computed(() => s.value)
+
 let tilia = _ctx.tilia
 let carve = _ctx.carve
 let observe = _ctx.observe

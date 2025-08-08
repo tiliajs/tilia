@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, source, store functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, unwrap, source, store functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, unwrap, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -238,10 +238,11 @@ Before introducing each one, let us show you an overview. {.subtitle}
 
 And some syntactic sugar:
 
-| Function              | Use-case                                             |        Implementation        |
-| :-------------------- | :--------------------------------------------------- | :--------------------------: |
-| [`signal`](#signal)   | Holds a mutable value                                |  `v => tilia({ value: v })`  |
-| [`derived`](#derived) | Creates a computed value based on other tilia values | `fn => signal(computed(fn))` |
+| Function              | Use-case                                             |         Implementation         |
+| :-------------------- | :--------------------------------------------------- | :----------------------------: |
+| [`signal`](#signal)   | Holds a mutable value                                |   `v => tilia({ value: v })`   |
+| [`derived`](#derived) | Creates a computed value based on other tilia values |  `fn => signal(computed(fn))`  |
+| [`unwrap`](#unwrap)   | Unwrap a signal to insert it into a tilia object     | `s => computed(() => s.value)` |
 
 </section>
 
@@ -519,6 +520,8 @@ if (authenticated_.value) {
 }
 ```
 
+</section>
+
 <a id="derived"></a>
 
 <section class="doc frp wide-comment derived">
@@ -550,6 +553,60 @@ let derived = fn => signal(computed(fn))
 let s = signal(0)
 let double = derived(() => s.value * 2)
 Js.log(double.value)
+```
+
+</section>
+
+<a id="unwrap"></a>
+
+<section class="doc frp wide-comment unwrap">
+
+### unwrap
+
+Create a `computed` value that reflects the current value of a signal to be
+inserted into a Tilia object. Use signal and unwrap to create private state
+and expose values as read-only.
+
+```typescript
+function unwrap<T>(s: Signal<T>): T {
+  return computed(() => s.value);
+}
+
+// Usage
+type Todo = {
+  readonly title: string;
+  setTitle: (title: string) => void;
+};
+
+const s = signal("");
+
+const todo = tilia({
+  title: unwrap(s),
+  setTitle: (title) => {
+    // todo.title will reflect the new title
+    s.value = title;
+  },
+});
+```
+
+```rescript
+let unwrap = s => computed(() => s.value)
+
+// Usage
+type todo = {
+  title: string,
+  setTitle: title => unit,
+}
+
+let s = signal("")
+
+let todo = tilia({
+  title: unwrap(s),
+  setTitle: title => {
+    // todo.title will reflect the new title
+    s.value = title
+  },
+})
 ```
 
 </section>

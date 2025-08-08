@@ -176,6 +176,16 @@ let readonly: 'a => readonly<'a>
 let computed: (unit => 'a) => 'a
 
 /**
+ * Create a computed value that reflects the current value of a signal.
+ *
+ * This function takes a reactive `signal` and returns a computed value that
+ * "unwraps" and tracks the inner `value` field of the signal.
+ * 
+ * @param s The signal to unwrap as a computed.
+ */
+let unwrap: signal<'a> => 'a
+
+/**
  * Return a reactive source value to be inserted into a tilia object.
  *
  * The setup callback is called once on first value read and whenever any 
