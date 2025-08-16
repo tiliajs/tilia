@@ -4,7 +4,12 @@
 
 ### Why Tilia for Domain-Driven Design ?
 
-Tilia’s minimal, expressive API lets you model application state and business logic in the language of your domain—without boilerplate or framework jargon. Features like `carve` encourage modular, feature-focused state that maps naturally to DDD’s bounded contexts. Computed properties and derived actions keep business logic close to your data, making code more readable, maintainable, and easier to evolve as your domain grows.
+Tilia’s minimal, expressive API lets you model application state and business
+logic in the language of your domain—without boilerplate or framework jargon.
+Features like `carve` encourage modular, feature-focused state that maps
+naturally to DDD’s bounded contexts. Computed properties and derived actions
+keep business logic close to your data, making code more readable, maintainable,
+and easier to evolve as your domain grows.
 
 In short: Tilia helps you write code that matches your business, not your framework.
 
@@ -15,6 +20,13 @@ For more information, check out the [**DDD section**](https://tiliajs.com/docs#d
 </a>
 
 Check the [**website**](https://tiliajs.com) for full documentation and more examples for both TypeScript and ReScript.
+
+## Note on exceptions
+
+If a computed or observe callback throws an exception, the exception is caught,
+logged to `console.error` and re-thrown at the end of the next flush. This is
+done to avoid breaking the application in case of a bug in the callback but
+still bubbling the error to the user.
 
 ## API for versin **2.x** (in case the website is not available)
 

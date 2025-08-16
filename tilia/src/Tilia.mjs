@@ -5,6 +5,33 @@ var raise = (function (message) {
   throw new Error(message)
 });
 
+var reraise = (function (e) {
+  console.error("Reraising exception after flush");
+  throw e
+});
+
+function cleanTrace(stack) {
+  if (typeof stack !== "string") return stack;
+  
+  const cleaned = ["Exception thrown in computed or observe"];
+  let collapsing = false;
+
+  for (const line of stack.split("\n")) {
+    if (/src\/Tilia\.mjs:\d+:\d+/.test(line)) {
+      if (!collapsing) {
+        cleaned.push("    [... tilia internals]");
+        collapsing = true;
+      }
+    } else {
+      cleaned.push(line);
+      collapsing = false;
+    }
+  }
+
+  return cleaned.join("\n");
+}
+;
+
 var symbol = (function(s) {
   return Symbol.for('tilia:' + s);
 });
@@ -37,6 +64,17 @@ function readonly(o, k) {
     return d.writable === false;
   }
 }
+
+var setError = (function (root, e) {
+  if (typeof e === "object" && e !== null) {
+    if (e.stack) {
+      console.error(cleanTrace(e.stack));
+    } else {
+      console.error(e);
+    }
+    root.error = e;
+  }
+});
 
 function observeKey(observed, key) {
   var w = observed.get(key);
@@ -76,9 +114,13 @@ function flush(root) {
         });
     gc.quarantine = gc.active;
     gc.active = new Set();
+  }
+  if (root.error === undefined) {
     return ;
   }
-  
+  var e = root.error;
+  root.error = undefined;
+  reraise(e);
 }
 
 function _clear(observer) {
@@ -337,7 +379,20 @@ function compile(root, observed, proxied, computes, isArray, target, key, callba
     observer.o = o;
     var previous = root.observer;
     root.observer = o;
-    var v = callback();
+    var v;
+    try {
+      v = callback();
+    }
+    catch (_e){
+      setError(root, _e);
+      _clear(o);
+      if (previous === null || previous === undefined) {
+        previous === null;
+      } else {
+        _clear(previous);
+      }
+      v = lastValue.v;
+    }
     root.observer = previous;
     if (o_observing.length === 0) {
       _clear(o);
@@ -572,8 +627,14 @@ function makeObserve(root) {
       };
       root.observer = observer;
       var o = observer;
-      callback();
-      _ready(o, true);
+      try {
+        callback();
+        return _ready(o, true);
+      }
+      catch (_e){
+        setError(root, _e);
+        return _clear(o);
+      }
     };
     notify();
   };
@@ -684,6 +745,8 @@ function make(gcOpt) {
     observer: undefined,
     expired: new Set(),
     lock: false,
+    error: undefined,
+    id: Math.random(),
     gc: gc$1
   };
   var tilia = makeTilia(root);
@@ -787,4 +850,4 @@ export {
   _meta ,
   _ctx ,
 }
-/* indexKey Not a pure module */
+/*  Not a pure module */

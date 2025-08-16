@@ -11,6 +11,33 @@ let raise: string => 'a = %raw(`function (message) {
   throw new Error(message)
 }`)
 
+let reraise: 'a => 'b = %raw(`function (e) {
+  console.error("Reraising exception after flush");
+  throw e
+}`)
+
+%%raw(`
+function cleanTrace(stack) {
+  if (typeof stack !== "string") return stack;
+  
+  const cleaned = ["Exception thrown in computed or observe"];
+  let collapsing = false;
+
+  for (const line of stack.split("\n")) {
+    if (/src\/Tilia\.mjs:\d+:\d+/.test(line)) {
+      if (!collapsing) {
+        cleaned.push("    [... tilia internals]");
+        collapsing = true;
+      }
+    } else {
+      cleaned.push(line);
+      collapsing = false;
+    }
+  }
+
+  return cleaned.join("\n");
+}`)
+
 module Proxy = {
   @new external make: ('a, 'b) => 'c = "Proxy"
 }
@@ -88,6 +115,7 @@ module Dict = {
 }
 
 type dict<'a> = Dict.t<'a>
+type error
 
 type state =
   | Pristine // Hasn't changed since value read.
@@ -131,12 +159,25 @@ and root = {
   mutable expired: Set.t<observer>,
   // If set to true, wait for end of batch before flush
   mutable lock: bool,
+  mutable error: nullable<error>,
+  id: float,
   // Garbage collection handling
   gc: gc,
 }
 
 // List of watchers to which the the observer should add itself on ready
 and observing = array<watchers>
+
+let setError: (root, 'a) => unit = %raw(`function (root, e) {
+  if (typeof e === "object" && e !== null) {
+    if (e.stack) {
+      console.error(cleanTrace(e.stack));
+    } else {
+      console.error(e);
+    }
+    root.error = e;
+  }
+}`)
 
 type rec meta<'a> = {
   target: 'a,
@@ -207,6 +248,7 @@ let flush = root => {
     while Set.size(root.expired) > 0 {
       let expired = root.expired
       root.expired = Set.make()
+      // We need to notify
       Set.forEach(expired, observer => observer.notify())
     }
   }
@@ -222,6 +264,11 @@ let flush = root => {
 
     gc.quarantine = gc.active
     gc.active = Set.make()
+  }
+  if root.error !== Undefined {
+    let e = root.error
+    root.error = Undefined
+    reraise(e)
   }
 }
 
@@ -512,7 +559,19 @@ and compile = (
 
     let previous = root.observer
     root.observer = Value(o)
-    let v = callback()
+    let v = try {
+      callback()
+    } catch {
+    | _e => {
+        setError(root, %raw(`_e`))
+        _clear(o)
+        switch previous {
+        | Value(previous) => _clear(previous)
+        | _ => ()
+        }
+        lastValue.v
+      }
+    }
 
     // We need to reset previous observer before calling setReady so that
     // setReady does not trigger flush.
@@ -700,8 +759,15 @@ let makeCarve = (root: root) => (fn: deriver<'a> => 'a) => {
 let makeObserve = (root: root) => (callback: unit => unit) => {
   let rec notify = () => {
     let o = _observe(root, notify)
-    callback()
-    _ready(o, true)
+    try {
+      callback()
+      _ready(o, true)
+    } catch {
+    | _e => {
+        setError(root, %raw(`_e`))
+        _clear(o)
+      }
+    }
   }
   notify()
 }
@@ -813,7 +879,14 @@ let make = (~gc=defaultGc): tilia => {
     quarantine: Set.make(),
     threshold: gc,
   }
-  let root = {observer: Undefined, expired: Set.make(), lock: false, gc}
+  let root = {
+    observer: Undefined,
+    expired: Set.make(),
+    lock: false,
+    gc,
+    error: Undefined,
+    id: Math.random(),
+  }
   // We need to use raw to hide the types here.
   let tilia = makeTilia(root)
   let _observe = _observe(root, ...)

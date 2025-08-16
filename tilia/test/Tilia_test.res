@@ -6,6 +6,10 @@ let not = onot
 module Skip = OSkip
 open Tilia
 
+%%raw(`function throwString(e) { throw new Error(e) }`)
+
+external throw: 'a => 'b = "throwString"
+
 module TestObject = {
   type t
   let make: unit => t = %raw(`() => ({})`)
@@ -485,12 +489,18 @@ type watchers = {
   observers: Set.t<Tilia.observer>,
 }
 
+type root = {
+  observer: nullable<Tilia.observer>,
+  lock: bool,
+}
+
 type rec meta<'a> = {
   target: 'a,
   observed: Map.t<string, watchers>,
   proxied: 'b. Map.t<string, meta<'b>>,
   computes: 'b. Map.t<string, unit => unit>,
   proxy: 'a,
+  root: root,
 }
 
 // We need this because 'Tilia.meta' is an opaque type, not exposed.
@@ -1440,6 +1450,7 @@ test("Should use source for recursive derived", t => {
   t->is(p.username, "Alice(lila) is OK")
   p.name = "Kevin"
   t->is(p.username, "Kevin is OK")
+  p.name = "Bob"
 })
 
 test("Should derive signal", t => {
@@ -1512,4 +1523,71 @@ test("Should lift signal", t => {
   t->is(obj.nb2, 0)
   setS(1)
   t->is(obj.nb2, 1)
+})
+
+module Console = {
+  let silent: unit => unit = %raw(`function (e) {
+  console.errorOrig = console.error;
+  console.error = function () {};
+}`)
+
+  let reraise: 'a => 'b = %raw(`function (e) {
+  throw e
+}`)
+
+  let restore: unit => unit = %raw(`function (e) {
+  console.error = console.errorOrig || console.error;
+  delete console.errorOrig;
+}`)
+}
+
+test("Should not lock root on crash in computed", t => {
+  Console.silent()
+  try {
+    let m = {called: false}
+    let cm = {called: false}
+    let p = tilia(person())
+
+    observe(() => {
+      t->is(p.name, p.name)
+      m.called = true
+    })
+    m.called = false
+
+    let (x, setX) = signal("X")
+    let bad = derived(() =>
+      switch x.value {
+      | "crash" => throw("Crash machine!")
+      | _ => x.value
+      }
+    )
+    try {
+      setX("crash")
+      // read
+      Js.log(bad.value)
+      Js.log("CONTINUE")
+    } catch {
+    | _ => cm.called = true
+    }
+    t->isTrue(cm.called)
+
+    let meta = getMeta(p)
+    switch meta {
+    | Value(meta) =>
+      switch meta.root.observer {
+      | Value(_) => t->fail("Root is locked by observer")
+      | _ => ()
+      }
+    | _ => t->fail("Meta is undefined")
+    }
+
+    p.name = "Nana"
+    // Observer working
+    t->isTrue(m.called)
+    Console.restore()
+  } catch {
+  | e =>
+    Console.restore()
+    Console.reraise(e)
+  }
 })
