@@ -5,6 +5,16 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./src/Tilia.res": "./src/TiliaReact.res",
+    "./src/Tilia.resi": "./src/TiliaReact.resi",
+    "./src/Tilia.mjs": "./src/TiliaReact.mjs"
+  },
   "type": "module",
   "repository": {
     "type": "git",
