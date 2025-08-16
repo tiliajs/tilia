@@ -23,7 +23,7 @@ function Clouds(props) {
                       role: "cloud"
                     }),
                 JsxRuntime.jsx("div", {
-                      children: isPink.value ? "Clouds are pink" : "",
+                      children: isPink ? "Clouds are pink" : "",
                       role: "flag"
                     }),
                 JsxRuntime.jsx("button", {

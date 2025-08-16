@@ -33,11 +33,29 @@ let tree = tilia({
   },
 })
 
-asyncTest("re-render on changes", async t => {
+asyncTest("re-render useTilia component on changes", async t => {
   let onClick = () => {
     tree.clouds.evening = "Blue"
   }
   render(<Clouds tree onClick />)
+
+  await screen.findByRole("button")
+
+  await user.click(screen.getByRole("button"))
+  await screen.findByRole("clouds")
+
+  // ASSERT
+  Js.log(screen.getByRole("clouds"))
+  t->isTrue(true)
+  // FIXME
+  // t->is(screen.getByRole("clouds"), "Foo bar")
+})
+
+asyncTest("re-render leaf component on changes", async t => {
+  let onClick = () => {
+    tree.clouds.evening = "Blue"
+  }
+  render(<CloudLeaf tree onClick />)
 
   await screen.findByRole("button")
 

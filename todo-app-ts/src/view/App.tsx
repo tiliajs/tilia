@@ -1,7 +1,7 @@
 import type { Todo } from "@entity/todo";
 import type { AppError, AppNotAuthenticated, AppReady } from "@feature/app";
 import { todosFilterValues } from "@feature/todos";
-import { useComputed, useTilia } from "@tilia/react";
+import { leaf, useComputed, useTilia } from "@tilia/react";
 import {
   CheckCircle,
   Circle,
@@ -20,12 +20,10 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type FunctionComponent,
-  type NamedExoticComponent,
 } from "react";
 import { app_ } from "src/boot";
 import { Authentication } from "src/view/Authentication";
-import { _clear, _done, _observe, _ready, tilia } from "tilia";
+import { _clear, _observe, _ready, tilia } from "tilia";
 
 export function App() {
   return (
@@ -350,66 +348,68 @@ function Remaining() {
   );
 }
 
-const TodoView = view(function TodoView({ todo }: { todo: Todo }) {
-  const {
-    todos,
-    display: { darkMode },
-  } = useContext(appContext);
-  const blink = useBlink();
+const TodoView = memo(
+  leaf(function TodoView({ todo }: { todo: Todo }) {
+    const {
+      todos,
+      display: { darkMode },
+    } = useContext(appContext);
+    const blink = useBlink();
 
-  const selected = useComputed(() => todos.selected.id === todo.id);
+    const selected = useComputed(() => todos.selected.id === todo.id);
 
-  return (
-    <li
-      key={todo.id}
-      className={`px-4 flex-grow flex items-center justify-between rounded-lg transition-all border ${
-        darkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-white shadow" // hover:bg-pink-50 shadow"
-      } ${
-        //  This is an anti-pattern...
-        selected.value ? "border-pink-500" : "border-transparent"
-      }`}
-    >
-      {blink}
-      <button
-        onClick={() => todos.toggle(todo.id)}
-        className={`p-4 pr-1 cursor-pointer ${
-          todo.completed
-            ? darkMode
-              ? "text-pink-400"
-              : "text-pink-500"
-            : darkMode
-            ? "text-gray-500"
-            : "text-gray-400"
+    return (
+      <li
+        key={todo.id}
+        className={`px-4 flex-grow flex items-center justify-between rounded-lg transition-all border ${
+          darkMode ? "bg-gray-800 hover:bg-gray-700" : "bg-white shadow" // hover:bg-pink-50 shadow"
+        } ${
+          //  This is an anti-pattern...
+          selected ? "border-pink-500" : "border-transparent"
         }`}
       >
-        {todo.completed ? <CheckCircle size={20} /> : <Circle size={20} />}
-      </button>
-      <TodoTitle todo={todo} />
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          todos.edit(todo.id);
-        }}
-        className={`p-4 text-gray-400 hover:${
-          darkMode ? "text-pink-400" : "text-pink-500"
-        }`}
-      >
-        <Edit size={18} />
-      </button>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          todos.remove(todo.id);
-        }}
-        className={`opacity-40 hover:opacity-100 cursor-pointer text-gray-400 hover:${
-          darkMode ? "text-pink-400" : "text-pink-500"
-        }`}
-      >
-        <Trash2 size={18} />
-      </button>
-    </li>
-  );
-});
+        {blink}
+        <button
+          onClick={() => todos.toggle(todo.id)}
+          className={`p-4 pr-1 cursor-pointer ${
+            todo.completed
+              ? darkMode
+                ? "text-pink-400"
+                : "text-pink-500"
+              : darkMode
+              ? "text-gray-500"
+              : "text-gray-400"
+          }`}
+        >
+          {todo.completed ? <CheckCircle size={20} /> : <Circle size={20} />}
+        </button>
+        <TodoTitle todo={todo} />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            todos.edit(todo.id);
+          }}
+          className={`p-4 text-gray-400 hover:${
+            darkMode ? "text-pink-400" : "text-pink-500"
+          }`}
+        >
+          <Edit size={18} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            todos.remove(todo.id);
+          }}
+          className={`opacity-40 hover:opacity-100 cursor-pointer text-gray-400 hover:${
+            darkMode ? "text-pink-400" : "text-pink-500"
+          }`}
+        >
+          <Trash2 size={18} />
+        </button>
+      </li>
+    );
+  })
+);
 
 function TodoTitle({ todo }: { todo: Todo }) {
   const {
@@ -543,48 +543,3 @@ function leakTest() {
   }
   console.log("done");
 }
-
-// Example on how to create a HOC that does the same as useTilia.
-function view<T extends object>(
-  fn: FunctionComponent<T>
-): NamedExoticComponent<T> {
-  function fun(p: T) {
-    const [_, setCount] = useState(0);
-    // Start observing
-    const o = _observe(() => setCount((i) => i + 1));
-    useEffect(() => {
-      // Ready for notifications
-      _ready(o, true);
-      return () => _clear(o);
-    });
-    const res = fn(p);
-    // End observing
-    _done(o);
-    return res;
-  }
-  const fnx = memo(fun);
-  fnx.displayName = (fn.displayName || fn.name).replace(/\d+$/, "");
-  return fnx;
-}
-
-/*
-function view<T extends object>(
-  fn: FunctionComponent<T>
-): FunctionComponent<T> {
-  const name = fn.displayName || fn.name;
-  const obj = {
-    [name]: function (props: T) {
-      const [_, setCount] = useState(0);
-      const o = _observe(() => setCount((i) => i + 1));
-      useEffect(() => {
-        _ready(o, true);
-        return () => _clear(o);
-      });
-      const res = fn(props);
-      _done(o);
-      return res;
-    },
-  };
-  return obj[name];
-}
-*/

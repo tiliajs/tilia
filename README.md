@@ -18,6 +18,8 @@ Simple documentation on the [README](./tilia/README.md).
   - Rename `unwrap` for `lift`, change syntax for `signal` to expose setter. Might remove `carve` as it
     forces mutability in the exposed object and is hard to reason about.
   - Protect tilia from exceptions in computed: the exception is caught, logged to `console.error` and re-thrown at the end of the next flush.
+  - Add `leaf` to @tilia/react: a higher order component to close the observing phase at the exact end of the render.
+  - Simplify `useComputed` in @tilia/react to return the value directly.
 - 2025-08-08 **2.2.0**
   - Add `unwrap` to ease inserting a signal into a tilia object.
 - 2025-08-08 **2.1.1**

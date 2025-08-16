@@ -26,11 +26,32 @@ function make(ctx) {
                   return tilia({
                               value: Tilia.computed(fn)
                             });
-                }), []);
+                }), []).value;
+  };
+  var leaf = function (fn) {
+    return function (p) {
+      var match = React.useState(0);
+      var setCount = match[1];
+      var o = _observe(function () {
+            setCount(function (i) {
+                  return i + 1 | 0;
+                });
+          });
+      React.useEffect(function () {
+            Tilia._ready(o, true);
+            return (function () {
+                      Tilia._clear(o);
+                    });
+          });
+      var node = fn(p);
+      Tilia._done(o);
+      return node;
+    };
   };
   return {
           useTilia: useTilia,
-          useComputed: useComputed
+          useComputed: useComputed,
+          leaf: leaf
         };
 }
 
@@ -40,9 +61,12 @@ var useTilia = tr.useTilia;
 
 var useComputed = tr.useComputed;
 
+var leaf = tr.leaf;
+
 export {
   useTilia ,
   useComputed ,
+  leaf ,
   make ,
 }
 /* tr Not a pure module */

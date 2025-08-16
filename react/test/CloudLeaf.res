@@ -1,19 +1,9 @@
-type clouds = {
-  mutable morning: string,
-  mutable evening: string,
-}
-type state = {
-  mutable flowers: string,
-  mutable clouds: clouds,
-}
-
+open Clouds
 open JsxEvent.Form
 open TiliaReact
 
 @react.component
-let make = (~tree: state, ~onClick: unit => unit) => {
-  useTilia()
-
+let make = leaf((~tree: state, ~onClick: unit => unit) => {
   let onChange = e => {
     tree.clouds.evening = target(e)["value"]
   }
@@ -29,4 +19,4 @@ let make = (~tree: state, ~onClick: unit => unit) => {
     <button onClick={_ => onClick()}> {"Change"->React.string} </button>
     <input value={tree.clouds.evening} onChange />
   </div>
-}
+})
