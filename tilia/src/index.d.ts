@@ -36,6 +36,7 @@ export function store<T>(fn: (set: Setter<T>) => T): T;
 export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
+export function lift<T>(s: Signal<T>): T;
 
 // Internal
 export function _observe(callback: () => void): Observer;
