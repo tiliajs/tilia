@@ -44,8 +44,8 @@ importers:
   react:
     dependencies:
       tilia:
-        specifier: workspace:*
-        version: link:..
+        specifier: file:../tilia
+        version: link:../tilia
     devDependencies:
       '@dzakh/rescript-ava':
         specifier: ^3.1.0
@@ -135,8 +135,8 @@ importers:
         specifier: ^19.1.0
         version: 19.1.0(react@19.1.0)
       tilia:
-        specifier: workspace:^
-        version: link:..
+        specifier: file:../tilia
+        version: link:../tilia
       uuid:
         specifier: ^11.1.0
         version: 11.1.0

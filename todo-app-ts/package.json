@@ -16,7 +16,7 @@
     "lucide-react": "^0.509.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "tilia": "workspace:^",
+    "tilia": "file:../tilia",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
