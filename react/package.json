@@ -11,9 +11,9 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
-    "./src/Tilia.res": "./src/TiliaReact.res",
-    "./src/Tilia.resi": "./src/TiliaReact.resi",
-    "./src/Tilia.mjs": "./src/TiliaReact.mjs"
+    "./src/TiliaReact.res": "./src/TiliaReact.res",
+    "./src/TiliaReact.resi": "./src/TiliaReact.resi",
+    "./src/TiliaReact.mjs": "./src/TiliaReact.mjs"
   },
   "type": "module",
   "repository": {
