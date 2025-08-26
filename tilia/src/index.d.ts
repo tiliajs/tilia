@@ -28,8 +28,8 @@ export function batch(fn: () => void): void;
 
 // Functional reactive programming
 export function computed<T>(fn: () => T): T;
-export function source<T, Ignored>(
-  fn: (set: Setter<T>) => Ignored,
+export function source<T>(
+  fn: (set: Setter<T>) => unknown,
   initialValue: T
 ): T;
 export function store<T>(fn: (set: Setter<T>) => T): T;

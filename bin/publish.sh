@@ -88,6 +88,8 @@ git reset --hard HEAD
 
 if [[ $1 == "--beta" ]]; then
   echo "Beta versions published successfully!"
+elif [[ $1 == "--canary" ]]; then
+  echo "Canary versions published successfully!"
 else
   echo "Published successfully!"
 fi
