@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, unwrap, source, store functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, unwrap, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, lift, source, store functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, lift, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -19,8 +19,6 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 <section class="doc installation">
 
 ## Installation
-
-Use the **beta** version (not yet released API mostly stable):
 
 ```bash
 npm install tilia
@@ -238,13 +236,69 @@ Before introducing each one, let us show you an overview. {.subtitle}
 
 And some syntactic sugar:
 
-| Function              | Use-case                                             |         Implementation         |
-| :-------------------- | :--------------------------------------------------- | :----------------------------: |
-| [`signal`](#signal)\* | Holds a mutable value                                |   `v => tilia({ value: v })`   |
-| [`derived`](#derived) | Creates a computed value based on other tilia values |  `fn => signal(computed(fn))`  |
-| [`unwrap`](#unwrap)\* | Unwrap a signal to insert it into a tilia object     | `s => computed(() => s.value)` |
+<table>
+    <thead>
+        <tr>
+            <th style="align:left">Function</th>
+            <th style="text-align:left">Use-case</th>
+            <th style="text-align:left">Implementation</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td style="text-align:left"><a href="#signal"><code>signal</code></a></td>
+            <td style="text-align:left">Create a mutable value and setter</td>
+            <td style="text-align:left">
 
-\* These methods are changing in version 3.0.0 (currently in beta).
+```typescript
+const signal = (v) => {
+  const s = tilia({ value: v })
+  return [s, (v) => { s.value = v }]
+}
+```
+```rescript
+let signal = v => {
+  let s = tilia({ value: v })
+  (s, v => s.value = v)
+}
+```
+
+  </td>
+        </tr>
+        <tr>
+            <td style="text-align:left"><a href="#derived"><code>derived</code></a></td>
+            <td style="text-align:left">Creates a computed value based on other tilia values</td>
+            <td style="text-align:left">
+
+```typescript
+const derived = (fn) =>
+  signal(computed(fn))
+```
+```rescript
+let derived = fn => 
+  signal(computed(fn))
+```
+            
+  </td>
+        </tr>
+        <tr>
+            <td style="text-align:left"><a href="#lift"><code>lift</code></a></td>
+            <td style="text-align:left">Unwrap a signal to insert it into a tilia object</td>
+            <td style="text-align:left">
+            
+```typescript
+const lift = (s) => 
+  computed(() => s.value)
+```
+```rescript
+let lift = s => 
+  computed(() => s.value)
+```
+            
+  </td>
+        </tr>
+    </tbody>
+</table>
 
 </section>
 
@@ -454,73 +508,65 @@ app.form.data = { other: "data" }
 
 A signal represents a single, changing value of any type.
 
-This is a tiny wrapper around `tilia` to expose a single, changing value.
-
-In version 3.0.0 (currently in beta), the signal function returns a signal and setter.
+This is a tiny wrapper around `tilia` to expose a single, changing value and a setter.
 
 ```typescript
 type Signal<T> = { value: T };
 
-function signal<T>(value: T): Signal<T> {
-  return tilia({ value });
+const signal = (v) => {
+  const s = tilia({ value: v })
+  return [s, (v) => { s.value = v }]
 }
 
 // Usage
 
-const s = signal(0);
+const [s, set] = signal(0)
 
-s.value = 1;
-console.log(s.value);
+set(1)
+console.log(s.value)
 ```
 
 ```rescript
 type signal<'a> = {mutable value: 'a}
 
-let signal = value => tilia({value: value})
+let signal = v => {
+  let s = tilia({ value: v })
+  (s, v => s.value = v)
+}
 
 // Usage
 
-let s = signal(0)
+let (s, set) = signal(0)
 
-s.value = 1
+set(1)
 Js.log(s.value)
 ```
 
-**🌱 Small tip**: Using `tilia` with your own field names is usually prefered to `signal` as it reflects your domain:
+**🌱 Small tip**: Use `signal` for state computations and expose them with `tilia` and `lift` to reflect your domain:
 
 ```typescript
 // ✅ Domain-driven
+const [authenticated, setAuthenticated] = signal(false)
+
 const app = tilia({
-  authenticated: false,
+  authenticated: lift(authenticated)
   now: store(runningTime),
 });
 
 if (app.authenticated) {
 }
-
-// 🌧️ Less readable
-const authenticated_ = signal(false);
-const now_ = signal(store(runningTime));
-
-if (authenticated_.value) {
-}
 ```
 
 ```rescript
 // ✅ Domain-driven
+let (authenticated, setAuthenticated) = signal(false)
+
 let app = tilia({
-  authenticated: false,
+  authenticated: lift(authenticated),
   now: store(runningTime),
 })
 
 if app.authenticated {
-}
-
-// 🌧️ Less readable
-let authenticated_ = signal(false)
-let now_ = signal(store(runningTime))
-
-if (authenticated_.value) {
 }
 ```
 
@@ -561,20 +607,19 @@ Js.log(double.value)
 
 </section>
 
-<a id="unwrap"></a>
+<a id="lift"></a>
 
-<section class="doc frp wide-comment unwrap">
+<section class="doc frp wide-comment lift">
 
-### unwrap
+### lift
 
 Create a `computed` value that reflects the current value of a signal to be
-inserted into a Tilia object. Use signal and unwrap to create private state
+inserted into a Tilia object. Use signal and lift to create private state
 and expose values as read-only.
 
-Renamed to **lift** in version 3.0.0 (currently in beta).
-
 ```typescript
-function unwrap<T>(s: Signal<T>): T {
+// Lift implementation
+function lift<T>(s: Signal<T>): T {
   return computed(() => s.value);
 }
 
@@ -584,19 +629,17 @@ type Todo = {
   setTitle: (title: string) => void;
 };
 
-const s = signal("");
+const (title, setTitle) = signal("");
 
 const todo = tilia({
-  title: unwrap(s),
-  setTitle: (title) => {
-    // todo.title will reflect the new title
-    s.value = title;
-  },
+  title: lift(title),
+  setTitle,
 });
 ```
 
 ```rescript
-let unwrap = s => computed(() => s.value)
+// Lift implementation
+let lift = s => computed(() => s.value)
 
 // Usage
 type todo = {
@@ -604,14 +647,11 @@ type todo = {
   setTitle: title => unit,
 }
 
-let s = signal("")
+let [title, setTitle] = signal("")
 
 let todo = tilia({
-  title: unwrap(s),
-  setTitle: title => {
-    // todo.title will reflect the new title
-    s.value = title
-  },
+  title: lift(title),
+  setTitle,
 })
 ```
 

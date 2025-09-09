@@ -14,7 +14,7 @@ keywords: state management, TypeScript, ReScript, domain-driven, ddd, React, Jav
     <p class="text-xl font-medium text-white/80">
       A state management library for TypeScript and ReScript supporting Domain-Driven Design.
     </p>
-    <p class="rainbow">Code should reflect your domain. <br/>✨ Tilia is here to help ✨</p>
+    <p class="rainbow">Create understandable code<br/> ✨ for humans and AI ✨</p>
     <div class="flex flex-row space-x-4 justify-center gap-4 mt-16">
       <a href="/docs"
         class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
@@ -72,20 +72,20 @@ let elevateVibes = () => vibing.vibes = "legendary" ✨
 <section class="bg-black/10 py-16">
   <div class="container mx-auto px-6 text-center">
     <h3 class="text-2xl md:text-3xl font-bold mb-8 text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-amber-200">
-      Why Developers Are Obsessed <small class="text-cyan-200 opacity-40">(or not)</small>
+      Why Developers and LLMs Are Obsessed <small class="text-cyan-200 opacity-40">(or not)</small>
     </h3>
     <div class="grid md:grid-cols-3 gap-8">
       <div class="bg-black/20 p-6 rounded-xl hover:scale-105 transition transform">
         <h4 class="text-xl font-bold mb-4">🌱<br/>No Boilerplate</h4>
-        <p class="text-sm">The API is tiny and was made to be <strong class="text-black/40 drop-shadow-lg drop-shadow-cyan-200/20">nearly invisible</strong> in your code.</p>
+        <p class="text-sm">Build apps from simple, testable functions</p>
       </div>
       <div class="bg-black/20 p-6 rounded-xl hover:scale-105 transition transform">
         <h4 class="text-xl font-bold mb-4">🚀<br/> Lightning Fast</h4>
-        <p class="text-sm">A library written for data-intensive and highly interactive apps.</p>
+        <p class="text-sm">A library written for highly interactive apps.</p>
       </div>
       <div class="bg-black/20 p-6 rounded-xl hover:scale-105 transition transform">
         <h4 class="text-xl font-bold mb-4">🌈<br/> Type Safe</h4>
-        <p class="text-sm">Tilia does not add tons of crazy types to your code. From seed to unicorn, you are in charge.</p>
+        <p class="text-sm">Type your features, let tilia make them reactive</p>
       </div>
       <div class="bg-black/20 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20 md:col-span-3">
         <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
