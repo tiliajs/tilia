@@ -1311,7 +1311,7 @@ test("should allow batch in batch", t => {
 
 asyncTest("Should load async source", async t => {
   let m = {called: false}
-  let loader = async (url, set) => {
+  let loader = async (url, _previous, set) => {
     // needed to avoid too fast return
     await sleep()
     m.called = true
@@ -1325,7 +1325,7 @@ asyncTest("Should load async source", async t => {
 
   let p = tilia({
     ...person(),
-    name: source(loader(url.contents, ...), ""),
+    name: source("", loader(url.contents, ...)),
   })
   t->isFalse(m.called)
   t->is(p.name, "")
@@ -1345,16 +1345,16 @@ asyncTest("Should load async source", async t => {
 
 asyncTest("should load async source with direct value if set called", async t => {
   let m = {called: false}
-  let loader = async set => {
+  let loader = async (prev, set) => {
     m.called = true
-    set("Medea")
+    set(prev ++ "+")
   }
 
   let p = tilia({
     ...person(),
-    name: source(loader, ""),
+    name: source("Medea", loader),
   })
-  t->is(p.name, "Medea")
+  t->is(p.name, "Medea+")
   t->isTrue(m.called)
   // No observers, computed should be removed
   switch getMeta(p) {
@@ -1435,14 +1435,14 @@ test("Should use source for recursive derived", t => {
     username: derived(
       (p: user) => {
         source(
-          set => {
+          "lila",
+          (_prev, set) => {
             switch (p.name, p.username) {
             | ("Alice", "lila") => set("Alice(lila) is OK")
             | ("Alice", "mary") => set("Alice(mary) is OK")
             | _ => set(p.name ++ " is OK")
             }
-          },
-          "lila",
+          }
         )
       },
     ),
@@ -1590,4 +1590,26 @@ test("Should not lock root on crash in computed", t => {
     Console.restore()
     Console.reraise(e)
   }
+})
+
+test("Should load source", t => {
+
+  let loader = (url, previous, set) => {
+    switch url.value {
+    | "helena" => set(previous ++ "+Helena")
+    | "bob" => set(previous ++ "+William")
+    | _ => set(url.value ++ " not found")
+    }
+  }
+
+  let (url, setUrl) = signal("helena")
+  let p = tilia({
+    ...person(),
+    name: source("Medea", loader(url, ...)),
+  })
+  t->is(p.name, "Medea+Helena")
+  setUrl("bob")
+  t->is(p.name, "Medea+Helena+William")
+  setUrl("helena")
+  t->is(p.name, "Medea+Helena+William+Helena")
 })

@@ -14,6 +14,9 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2025-11-14 **4.0.0**
+  - Add previous value to `source` as first parameter.
+  - Move parameter order in source, starting with initial value.
 - 2025-09-09 **3.0.0**
   - Rename `unwrap` for `lift`, change syntax for `signal` to expose setter.
   - Protect tilia from exceptions in computed: the exception is caught, logged to `console.error` and re-thrown at the end of the next flush.

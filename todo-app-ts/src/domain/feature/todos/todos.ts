@@ -17,7 +17,7 @@ import { fetchFilter } from "./source/fetchFilter";
 export function makeTodos(repo: RepoReady, data: Todo[]) {
   return carve<Todos>(({ derived }) => ({
     // State
-    filter: source(fetchFilter(repo), "all"),
+    filter: source("all", fetchFilter(repo)),
     selected: newTodo(),
 
     // Computed state

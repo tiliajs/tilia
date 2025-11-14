@@ -62,7 +62,7 @@ let ctxKey = symbol("ctx")
 type compute<'a> = {mutable rebuild: unit => 'a}
 
 type source<'a, 'ignored> = {
-  source: ('a => unit) => 'ignored,
+  source: ('a, 'a => unit) => 'ignored,
   value: 'a,
 }
 
@@ -384,7 +384,7 @@ let sourceCallback = (set, source: source<'a, 'b>) => {
   // Set initial value
   set(v)
   () => {
-    callback(set)
+    callback(val.contents, set)
     val.contents
   }
 }
@@ -809,7 +809,7 @@ let computed = fn => {
   %raw(`v`)
 }
 
-let source = (source, value) => {
+let source = (value, source) => {
   let v = Source({value, source})
   ignore(Reflect.set(v, dynamicKey, true))
   %raw(`v`)

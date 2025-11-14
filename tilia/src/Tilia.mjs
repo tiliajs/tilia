@@ -287,7 +287,7 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
                 var callback = source.source;
                 v = compile$1((set(v$1), (function(val,callback){
                       return function () {
-                        callback(set);
+                        callback(val.contents, set);
                         return val.contents;
                       }
                       }(val,callback))));
@@ -518,7 +518,7 @@ function proxify(root, _target) {
                       var callback = source.source;
                       v = compile$1((set(v$1), (function(val,callback){
                             return function () {
-                              callback(set);
+                              callback(val.contents, set);
                               return val.contents;
                             }
                             }(val,callback))));
@@ -683,7 +683,7 @@ function computed(fn) {
   return v;
 }
 
-function source(source$1, value) {
+function source(value, source$1) {
   var v = {
     TAG: "Source",
     _0: {

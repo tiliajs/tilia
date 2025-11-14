@@ -4,7 +4,7 @@ import { type Setter } from "tilia";
 import { filterKey } from "../actions/_utils";
 
 export function fetchFilter(repo: RepoReady) {
-  return async function fetchFilterValue(set: Setter<TodosFilter>) {
+  return async function fetchFilterValue(_p: TodosFilter, set: Setter<TodosFilter>) {
     const result = await repo.fetchSetting(filterKey);
     if (isSuccess(result)) {
       set(result.value as TodosFilter);

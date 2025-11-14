@@ -196,10 +196,10 @@ let lift: signal<'a> => 'a
  * This is useful for implementing resource loaders, state machines or any state
  * that depends on external or asynchronous events.
  * 
- * @param f The setup function, receives a setter.
  * @param v The initial value.
+ * @param f The setup function, receives the previous value and a setter.
  */
-let source: (('a => unit) => 'ignored, 'a) => 'a
+let source: ('a, ('a, 'a => unit) => 'ignored) => 'a
 
 /**
  * Return a managed value to be inserted into a tilia object.
