@@ -1593,7 +1593,6 @@ test("Should not lock root on crash in computed", t => {
 })
 
 test("Should load source", t => {
-
   let loader = (url, previous, set) => {
     switch url.value {
     | "helena" => set(previous ++ "+Helena")
@@ -1612,4 +1611,47 @@ test("Should load source", t => {
   t->is(p.name, "Medea+Helena+William")
   setUrl("helena")
   t->is(p.name, "Medea+Helena+William+Helena")
+})
+
+test("Should allow derived inside source", t => {
+  let m = {called: false}
+  let (x, setX) = signal("A")
+  let loader = (p) => {
+    m.called = true
+    switch x.value {
+      | "A" => (previous, set) => 
+        switch p.susername {
+        | "jo" => set(previous ++ "+Jo")
+        | "mary" => set(previous ++ "+Mary")
+        | _ => set(p.susername ++ " not found")
+        }
+      | _ => (previous, set) => set(previous ++ "+B")
+    }
+  }
+  let p = carve(({derived}) => {
+    susername: "jo",
+    sname: source("Medea", derived(loader)),
+    address: person().address,
+  })
+  t->isFalse(m.called)
+  t->is(p.sname, "Medea+Jo")  
+  t->isTrue(m.called)
+  m.called = false
+
+  p.susername = "mary"
+  t->is(p.sname, "Medea+Jo+Mary")
+
+  p.susername = "jo"
+  t->is(p.sname, "Medea+Jo+Mary+Jo")
+  t->isFalse(m.called)
+
+  // Disable with setX
+  setX("B")
+  t->isTrue(m.called)
+  t->is(p.sname, "Medea+Jo+Mary+Jo+B")
+
+  m.called = false
+  p.susername = "bob"
+  t->is(p.sname, "Medea+Jo+Mary+Jo+B")
+  t->isFalse(m.called)
 })

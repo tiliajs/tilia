@@ -67,6 +67,21 @@ type tilia = {
    *
    */
   derived: 'a. (unit => 'a) => signal<'a>,
+  /**
+   * Return a reactive source value to be inserted into a tilia object.
+  *
+  * The setup callback is called once on first value read and whenever any 
+  * observed value changes. The callback receives a setter function, which 
+  * can be used to imperatively update the value. The initial value is used 
+  * before the first update.
+  *
+  * This is useful for implementing resource loaders, state machines or any state
+  * that depends on external or asynchronous events.
+  * 
+  * @param v The initial value.
+  * @param f The setup function, receives the previous value and a setter.
+  */
+  source: 'a 'ignored. ('a, ('a, 'a => unit) => 'ignored) => 'a,
   /** 
    * Internal: Register an observer callback.
    */

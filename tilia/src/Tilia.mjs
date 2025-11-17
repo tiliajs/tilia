@@ -284,13 +284,13 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
                   setter(v);
                 }
                 }(val));
-                var callback = source.source;
-                v = compile$1((set(v$1), (function(val,callback){
+                v = compile$1((set(v$1), (function(source,val){
                       return function () {
+                        var callback = source.source;
                         callback(val.contents, set);
                         return val.contents;
                       }
-                      }(val,callback))));
+                      }(source,val))));
                 break;
             case "Store" :
                 var store = dynamic$1._0;
@@ -515,13 +515,13 @@ function proxify(root, _target) {
                         setter(v);
                       }
                       }(val));
-                      var callback = source.source;
-                      v = compile$1((set(v$1), (function(val,callback){
+                      v = compile$1((set(v$1), (function(source,val){
                             return function () {
+                              var callback = source.source;
                               callback(val.contents, set);
                               return val.contents;
                             }
-                            }(val,callback))));
+                            }(source,val))));
                       break;
                   case "Store" :
                       var store = dynamic$1._0;
@@ -683,16 +683,21 @@ function computed(fn) {
   return v;
 }
 
-function source(value, source$1) {
-  var v = {
-    TAG: "Source",
-    _0: {
-      source: source$1,
-      value: value
-    }
+function makeSource(tilia) {
+  return function (value, source) {
+    var d = dynamic(source);
+    var s;
+    s = d === null || d === undefined ? ({
+          source: source,
+          value: value
+        }) : (tilia({value, source: d}));
+    var v = {
+      TAG: "Source",
+      _0: s
+    };
+    Reflect.set(v, dynamicKey, true);
+    return v;
   };
-  Reflect.set(v, dynamicKey, true);
-  return v;
 }
 
 function store(callback) {
@@ -718,7 +723,7 @@ function _done(o) {
   o.root.observer = undefined;
 }
 
-function connector(tilia, carve, observe, watch, batch, signal, derived, _observe) {
+function connector(tilia, carve, observe, watch, batch, signal, derived, source, _observe) {
   return {
     tilia,
     carve,
@@ -728,6 +733,7 @@ function connector(tilia, carve, observe, watch, batch, signal, derived, _observ
     // extra
     signal,
     derived,
+    source,
     // internal
     _observe,
   };
@@ -771,7 +777,7 @@ function make(gcOpt) {
                         s,
                         set
                       ];
-              }), makeDerived$1(tilia), _observe);
+              }), makeDerived$1(tilia), makeSource(tilia), _observe);
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
@@ -822,6 +828,8 @@ var batch = _ctx.batch;
 var signal = _ctx.signal;
 
 var derived = _ctx.derived;
+
+var source = _ctx.source;
 
 var _observe = _ctx._observe;
 

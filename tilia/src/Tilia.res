@@ -214,6 +214,7 @@ type tilia = {
   batch: (unit => unit) => unit,
   signal: 'a. 'a => (signal<'a>, setter<'a>),
   derived: 'a. (unit => 'a) => signal<'a>,
+  source: 'a 'ignored. ('a, ('a, 'a => unit) => 'ignored) => 'a,
   /** internal */
   _observe: (unit => unit) => observer,
 }
@@ -380,10 +381,11 @@ let sourceCallback = (set, source: source<'a, 'b>) => {
     val := v
     set(v)
   }
-  let callback = source.source
   // Set initial value
   set(v)
   () => {
+    // source.source can be a computed. We resolve inside the callback.
+    let callback = source.source
     callback(val.contents, set)
     val.contents
   }
@@ -809,8 +811,20 @@ let computed = fn => {
   %raw(`v`)
 }
 
-let source = (value, source) => {
-  let v = Source({value, source})
+let makeSource = tilia => (value, source) => {
+  ignore(tilia)
+  let s = switch Typeof.dynamic(source) {
+  | Value(d) => {
+      // We wrap source in tilia so that computed in the source can be resolved.
+      // Example: source("foo", derived(getFoo))
+      ignore(d)
+      %raw(`tilia({value, source: d})`)
+    }
+  // We do not wrap non-dynamic sources to avoid unnecessary wrapping and allow computed removal for
+  // non-dynamic values.
+  | _ => {value, source}
+  }
+  let v = Source(s)
   ignore(Reflect.set(v, dynamicKey, true))
   %raw(`v`)
 }
@@ -851,13 +865,15 @@ external connector: (
   's => (signal<'s>, setter<'s>),
   // derived
   (unit => 't) => signal<'t>,
+  // source
+  ('t, ('t, 't => 'u) => 'v) => 't,
   // internal
   // _observe
   (unit => unit) => observer,
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, carve, observe, watch, batch, signal, derived, _observe) {
+function connector(tilia, carve, observe, watch, batch, signal, derived, source, _observe) {
   return {
     tilia,
     carve,
@@ -867,6 +883,7 @@ function connector(tilia, carve, observe, watch, batch, signal, derived, _observ
     // extra
     signal,
     derived,
+    source,
     // internal
     _observe,
   };
@@ -900,6 +917,7 @@ let make = (~gc=defaultGc): tilia => {
     // extra
     makeSignal(tilia),
     makeDerived(tilia),
+    makeSource(tilia),
     // Internal
     _observe,
   )
@@ -935,6 +953,7 @@ let batch = _ctx.batch
 // extra
 let signal = _ctx.signal
 let derived = _ctx.derived
+let source = _ctx.source
 
 // internal
 let _observe = _ctx._observe
