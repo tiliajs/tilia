@@ -14,6 +14,7 @@ export type Tilia = {
   signal: <T>(value: T) => Signal<T>;
   derived: <T>(fn: () => T) => Signal<T>;
   source: <T>(initialValue: T, fn: (previous: T, set: Setter<T>) => unknown) => T;
+  store: <T>(fn: (set: Setter<T>) => T) => T;
 
   // Internal
   _observe(callback: () => void): Observer;

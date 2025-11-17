@@ -296,7 +296,7 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
                 var store = dynamic$1._0;
                 v = compile$1((function(store){
                     return function () {
-                      return store(setter);
+                      return store.store(setter);
                     }
                     }(store)));
                 break;
@@ -527,7 +527,7 @@ function proxify(root, _target) {
                       var store = dynamic$1._0;
                       v = compile$1((function(store){
                           return function () {
-                            return store(setter);
+                            return store.store(setter);
                           }
                           }(store)));
                       break;
@@ -700,13 +700,20 @@ function makeSource(tilia) {
   };
 }
 
-function store(callback) {
-  var v = {
-    TAG: "Store",
-    _0: callback
+function makeStore(tilia) {
+  return function (callback) {
+    var d = dynamic(callback);
+    var s;
+    s = d === null || d === undefined ? ({
+          store: callback
+        }) : (tilia({store: d}));
+    var v = {
+      TAG: "Store",
+      _0: s
+    };
+    Reflect.set(v, dynamicKey, true);
+    return v;
   };
-  Reflect.set(v, dynamicKey, true);
-  return v;
 }
 
 function makeDerived$1(tilia) {
@@ -723,7 +730,7 @@ function _done(o) {
   o.root.observer = undefined;
 }
 
-function connector(tilia, carve, observe, watch, batch, signal, derived, source, _observe) {
+function connector(tilia, carve, observe, watch, batch, signal, derived, source, store, _observe) {
   return {
     tilia,
     carve,
@@ -734,6 +741,7 @@ function connector(tilia, carve, observe, watch, batch, signal, derived, source,
     signal,
     derived,
     source,
+    store,
     // internal
     _observe,
   };
@@ -777,7 +785,7 @@ function make(gcOpt) {
                         s,
                         set
                       ];
-              }), makeDerived$1(tilia), makeSource(tilia), _observe);
+              }), makeDerived$1(tilia), makeSource(tilia), makeStore(tilia), _observe);
 }
 
 var ctx = Reflect.get(globalThis, ctxKey);
@@ -830,6 +838,8 @@ var signal = _ctx.signal;
 var derived = _ctx.derived;
 
 var source = _ctx.source;
+
+var store = _ctx.store;
 
 var _observe = _ctx._observe;
 

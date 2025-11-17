@@ -307,6 +307,8 @@ export type Tilia = {
   batch: (fn: () => void) => void;
   signal: <T>(value: T) => Signal<T>;
   derived: <T>(fn: () => T) => Signal<T>;
+  source: <T>(initialValue: T, fn: (previous: T, set: Setter<T>) => unknown) => T;
+  store: <T>(fn: (set: Setter<T>) => T) => T;
 
   // Internal
   _observe(callback: () => void): Observer;
@@ -323,8 +325,8 @@ export function batch(fn: () => void): void;
 // Functional reactive programming
 export function computed<T>(fn: () => T): T;
 export function source<T>(
-  fn: (set: Setter<T>) => unknown,
-  initialValue: T
+  initialValue: T,
+  fn: (previous: T, set: Setter<T>) => unknown
 ): T;
 export function store<T>(fn: (set: Setter<T>) => T): T;
 export function readonly<T>(data: T): Readonly<T>;

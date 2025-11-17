@@ -82,6 +82,20 @@ type tilia = {
   * @param f The setup function, receives the previous value and a setter.
   */
   source: 'a 'ignored. ('a, ('a, 'a => unit) => 'ignored) => 'a,
+  /**
+   * Return a managed value to be inserted into a tilia object.
+  *
+  * The setup callback runs once when the value is first accessed, and again
+  * whenever any observed dependency changes. The callback receives a setter
+  * function to imperatively update the value, and should return the initial
+  * value.
+  *
+  * This is useful for implementing event based machines with a simple initial
+  * setup.
+  * 
+  * @param f The setup function, receives a setter and returns the current value.
+  */
+  store: 'a. (('a => unit) => 'a) => 'a,
   /** 
    * Internal: Register an observer callback.
    */

@@ -66,10 +66,12 @@ type source<'a, 'ignored> = {
   value: 'a,
 }
 
+type store<'a> = {store: ('a => unit) => 'a}
+
 type dynamic<'a, 'b> =
   | Computed(unit => 'a)
   | Source(source<'a, 'b>)
-  | Store(('a => unit) => 'a)
+  | Store(store<'a>)
   | Compiled(compute<'a>)
 
 module Typeof = {
@@ -215,6 +217,7 @@ type tilia = {
   signal: 'a. 'a => (signal<'a>, setter<'a>),
   derived: 'a. (unit => 'a) => signal<'a>,
   source: 'a 'ignored. ('a, ('a, 'a => unit) => 'ignored) => 'a,
+  store: 'a. (('a => unit) => 'a) => 'a,
   /** internal */
   _observe: (unit => unit) => observer,
 }
@@ -392,9 +395,9 @@ let sourceCallback = (set, source: source<'a, 'b>) => {
 }
 
 @inline
-let storeCallback = (set, callback) => {
-  // Set initial value
-  () => callback(set)
+let storeCallback = (set, store: store<'a>) => {
+  // store.store can be a computed. We resolve inside the callback.
+  () => store.store(set)
 }
 
 @inline
@@ -829,8 +832,20 @@ let makeSource = tilia => (value, source) => {
   %raw(`v`)
 }
 
-let store = callback => {
-  let v = Store(callback)
+let makeStore = tilia => callback => {
+  ignore(tilia)
+  let s = switch Typeof.dynamic(callback) {
+  | Value(d) => {
+      // We wrap store in tilia so that computed in the store can be resolved.
+      // Example: store(derived(getFoo))
+      ignore(d)
+      %raw(`tilia({store: d})`)
+    }
+  // We do not wrap non-dynamic sources to avoid unnecessary wrapping and allow computed removal for
+  // non-dynamic values.
+  | _ => {store: callback}
+  }
+  let v = Store(s)
   ignore(Reflect.set(v, dynamicKey, true))
   %raw(`v`)
 }
@@ -867,13 +882,15 @@ external connector: (
   (unit => 't) => signal<'t>,
   // source
   ('t, ('t, 't => 'u) => 'v) => 't,
+  // store
+  ('w => unit) => 'w,
   // internal
   // _observe
   (unit => unit) => observer,
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, carve, observe, watch, batch, signal, derived, source, _observe) {
+function connector(tilia, carve, observe, watch, batch, signal, derived, source, store, _observe) {
   return {
     tilia,
     carve,
@@ -884,6 +901,7 @@ function connector(tilia, carve, observe, watch, batch, signal, derived, source,
     signal,
     derived,
     source,
+    store,
     // internal
     _observe,
   };
@@ -918,6 +936,7 @@ let make = (~gc=defaultGc): tilia => {
     makeSignal(tilia),
     makeDerived(tilia),
     makeSource(tilia),
+    makeStore(tilia),
     // Internal
     _observe,
   )
@@ -954,7 +973,7 @@ let batch = _ctx.batch
 let signal = _ctx.signal
 let derived = _ctx.derived
 let source = _ctx.source
-
+let store = _ctx.store
 // internal
 let _observe = _ctx._observe
 // Opaque type for library developers

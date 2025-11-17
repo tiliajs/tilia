@@ -18,10 +18,19 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 
 <section class="doc installation">
 
+#### This documentation is for the upcoming version **4.0**
+
+If you need the documentation for previous versions, please send me an email at
+(g dot a dot midasum dot com) and I will update the website to display previous
+versions API ☺️
+
+
 ## Installation
 
 ```bash
-npm install tilia
+# Version 4.0: Code is stable API might change.
+
+npm install tilia@beta 
 ```
 
 </section>
@@ -226,13 +235,13 @@ Before introducing each one, let us show you an overview. {.subtitle}
 
 <section class="doc patterns wide-comment summary frp">
 
-| Function                | Use-case                                | Tree param | Setter | Return value |
-| :---------------------- | :-------------------------------------- | :--------: | :----: | ------------ |
-| [`computed`](#computed) | Computed value from external sources    |   ❌ No    | ❌ No  | ✅ Yes       |
-| [`carve`](#carve)       | Cross-property computation              |   ✅ Yes   | ❌ No  | ✅ Yes       |
-| [`source`](#source)     | External/async updates                  |   ❌ No    | ✅ Yes | ❌ No        |
-| [`store`](#store)       | State machine/init logic                |   ❌ No    | ✅ Yes | ✅ Yes       |
-| [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |        |              |
+| Function                | Use-case                                | Tree param | Previous value | Setter | Return value |
+| :---------------------- | :-------------------------------------- | :--------: | :------------: | :----: | ------------ |
+| [`computed`](#computed) | Computed value from external sources    |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes        |
+| [`carve`](#carve)       | Cross-property computation              |   ✅ Yes    |      ❌ No      |  ❌ No  | ✅ Yes        |
+| [`source`](#source)     | External/async updates                  |    ❌ No    |     ✅ Yes      | ✅ Yes  | ❌ No         |
+| [`store`](#store)       | State machine/init logic                |    ❌ No    |      ❌ No      | ✅ Yes  | ✅ Yes        |
+| [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |                |        |              |
 
 And some syntactic sugar:
 
@@ -362,26 +371,26 @@ zero overhead for computed values acting as getters.
 
 Return a reactive source to be inserted into a Tilia object.
 
-A source is similar to a computed, but it receives a setter function and does
-not return a value. The setup callback is called on first value read and
-whenever any observed value changes. The initial value is used before the first
-set call.
+A source is similar to a computed, but it receives an inital value and a setter
+function and does not return a value. The setup callback is called on first
+value read and whenever any observed value changes. The initial value is used
+before the first set call.
 
 ```typescript
 const app = tilia({
   // Async data (re-)loader (setup will re-run when alice's age changes.
   social: source(
-    (set) => {
+    { t: "Loading" },
+    (_previous, set) => {
       if (alice.age > 13) {
         fetchData(set);
       } else {
         set({ t: "NotAvailable" });
       }
-    },
-    { t: "Loading" }
+    }
   ),
   // Subscription to async event (online status)
-  online: source(subscribeOnline, false),
+  online: source(false, subscribeOnline),
 });
 ```
 
@@ -389,18 +398,18 @@ const app = tilia({
 let app = tilia({
   // Async data (re-)loader (setup will re-run when alice's age changes.
   social: source(
-    set => {
+    Loading,
+    (_previous, set) => {
       // "social" setup will re-run when alice's age changes
       if (alice.age > 13) {
         fetchData(set)
       } else {
         set(NotAvailable)
       }
-    },
-    Loading
+    }
   ),
   // Subscription to async event (online status)
-  online: source(subscribeOnline, false),
+  online: source(false, subscribeOnline),
 })
 ```
 
@@ -708,7 +717,7 @@ function makeTodos(repo: Repo) {
   return carve({ derived }) => ({
     sort: "by date",
     list: derived(list),
-    data: source(repo.fetchTodos, []),
+    data: source([], repo.fetchTodos),
     toggle: derived(toggle),
     repo,
   });
@@ -740,7 +749,7 @@ let makeTodos = repo =>
   carve(({ derived }) => {
     sort: ByDate,
     list: derived(list),
-    data: source(repo.fetchTodos, []),
+    data: source([], repo.fetchTodos),
     toggle: derived(toggle),
   })
 ```
@@ -752,11 +761,11 @@ let makeTodos = repo =>
 For recursive derivation (such as state machines), use `source`:
 
 ```typescript
-derived((tree) => source(machine, initialValue));
+derived((tree) => source(initialValue, machine));
 ```
 
 ```rescript
-derived(tree => source(machine, initialValue))
+derived(tree => source(initialValue, machine))
 ```
 
 This allows you to create dynamic or self-referential state that reacts to
@@ -816,6 +825,54 @@ let make = () => {
     <NormalApp />
   }
 }
+```
+
+The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render.
+
+</section>
+
+<section class="doc react useTilia">
+
+### leaf <small>(React Higher Order Component)</small> {.leaf}
+
+This is the **favored** way of making reactive components. Compared to
+`useTilia`, this tracking is exact due to proper begin/end tracking of the
+render phase which is not doable with hooks.
+
+#### Installation
+
+```bash
+npm install @tilia/react
+```
+
+Wrap your component with `leaf`:
+
+```typescript
+import { leaf } from "@tilia/react";
+
+// Use a named function to have proper component names in React dev tools.
+const App = leaf(function App() {
+  if (alice.age >= 13) {
+    return <SocialMediaApp />;
+  } else {
+    return <NormalApp />;
+  }
+});
+```
+
+```rescript
+open TiliaReact
+
+@react.component
+let make = leaf(() => {
+  useTilia()
+
+  if (alice.age >= 13) {
+    <SocialMedia />
+  } else {
+    <NormalApp />
+  }
+})
 ```
 
 The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render.

@@ -1442,7 +1442,7 @@ test("Should use source for recursive derived", t => {
             | ("Alice", "mary") => set("Alice(mary) is OK")
             | _ => set(p.name ++ " is OK")
             }
-          }
+          },
         )
       },
     ),
@@ -1616,16 +1616,17 @@ test("Should load source", t => {
 test("Should allow derived inside source", t => {
   let m = {called: false}
   let (x, setX) = signal("A")
-  let loader = (p) => {
+  let loader = p => {
     m.called = true
     switch x.value {
-      | "A" => (previous, set) => 
+    | "A" =>
+      (previous, set) =>
         switch p.susername {
         | "jo" => set(previous ++ "+Jo")
         | "mary" => set(previous ++ "+Mary")
         | _ => set(p.susername ++ " not found")
         }
-      | _ => (previous, set) => set(previous ++ "+B")
+    | _ => (previous, set) => set(previous ++ "+B")
     }
   }
   let p = carve(({derived}) => {
@@ -1634,7 +1635,7 @@ test("Should allow derived inside source", t => {
     address: person().address,
   })
   t->isFalse(m.called)
-  t->is(p.sname, "Medea+Jo")  
+  t->is(p.sname, "Medea+Jo")
   t->isTrue(m.called)
   m.called = false
 
@@ -1653,5 +1654,49 @@ test("Should allow derived inside source", t => {
   m.called = false
   p.susername = "bob"
   t->is(p.sname, "Medea+Jo+Mary+Jo+B")
+  t->isFalse(m.called)
+})
+
+test("Should allow derived inside store", t => {
+  let m = {called: false}
+  let (x, setX) = signal("A")
+  let loader = p => {
+    m.called = true
+    switch x.value {
+    | "A" =>
+      _ =>
+        switch p.susername {
+        | "jo" => "Jo"
+        | "mary" => "Mary"
+        | _ => p.susername ++ " not found"
+        }
+    | _ => _ => "B"
+    }
+  }
+  let p = carve(({derived}) => {
+    susername: "jo",
+    sname: store(derived(loader)),
+    address: person().address,
+  })
+  t->isFalse(m.called)
+  t->is(p.sname, "Jo")
+  t->isTrue(m.called)
+  m.called = false
+
+  p.susername = "mary"
+  t->is(p.sname, "Mary")
+
+  p.susername = "jo"
+  t->is(p.sname, "Jo")
+  t->isFalse(m.called)
+
+  // Disable with setX
+  setX("B")
+  t->isTrue(m.called)
+  t->is(p.sname, "B")
+
+  m.called = false
+  p.susername = "bob"
+  t->is(p.sname, "B")
   t->isFalse(m.called)
 })

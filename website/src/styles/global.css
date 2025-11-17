@@ -190,6 +190,12 @@
           @apply text-black/40 text-sm;
         }
       }
+      h3.leaf {
+        @apply text-cyan-300/70;
+        small {
+          @apply text-black/40 text-sm;
+        }
+      }
       h3.useComputed {
         @apply text-pink-200/90;
         small {
