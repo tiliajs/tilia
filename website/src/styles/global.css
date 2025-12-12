@@ -144,9 +144,11 @@
         @apply bg-gradient-to-r from-cyan-200 to-red-700;
       }
 
+      /* 
       strong {
-        @apply text-cyan-200/90;
+        @apply text-cyan-200/90; 
       }
+      */
     }
 
     &.goals {
@@ -156,6 +158,14 @@
 
       p.story {
         @apply my-6 text-black/60;
+      }
+
+      strong.goal-text {
+        @apply text-green-300;
+      }
+
+      strong.non-goal-text {
+        @apply text-red-200;
       }
     }
 
@@ -583,6 +593,24 @@ html[data-theme="light"] {
       &:hover {
         @apply bg-gray-300;
       }
+    }
+  }
+
+  .doc.goals {
+    h2 {
+      @apply bg-gradient-to-r from-green-200 to-amber-500;
+    }
+
+    p.story {
+      @apply my-6 text-gray-600 italic;
+    }
+
+    strong.goal-text {
+      color: rgb(107, 152, 107);
+    }
+
+    strong.non-goal-text {
+      color: rgb(178, 120, 120);
     }
   }
 }

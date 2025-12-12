@@ -113,6 +113,13 @@ const image = "https://tiliajs.com/social.jpg";
       <div class="nav">
         <a class={pathname === "" ? "active" : ""} href="/">Home</a>
         <a class={pathname === "/docs" ? "active" : ""} href="/docs">Docs</a>
+        <a class={pathname === "/guide" ? "active" : ""} href="/guide">Guide</a>
+        {pathname === "/guide" && (
+          <a href="/guide-fr" class="text-white/40 hover:text-white/80 font-bold">FR</a>
+        )}
+        {pathname === "/guide-fr" && (
+          <a href="/guide" class="text-white/40 hover:text-white/80 font-bold">EN</a>
+        )}
         <a class={pathname === "/compare" ? "active" : ""} href="/compare"
           >Compare</a
         >

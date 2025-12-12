@@ -1021,6 +1021,27 @@ Tilia’s minimal, expressive API and focus on modeling state and logic directly
   </div>
 </section>
 
+<section class="doc translations">
+  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-200 to-cyan-900">
+    Complete Guides
+  </h2>
+  <div class="space-y-4 text-lg text-white/90">
+    <p>
+      Comprehensive guides with detailed explanations and examples:
+    </p>
+    <ul class="list-disc list-outside space-y-2 ml-6">
+      <li>
+        <a href="/guide"
+          class="text-blue-300 hover:text-blue-200 underline">Complete Guide (English)</a> - Complete guide to understanding and using Tilia
+      </li>
+      <li>
+        <a href="/guide-fr"
+          class="text-blue-300 hover:text-blue-200 underline">Guide complet en français</a> - Guide complet pour comprendre et utiliser Tilia
+      </li>
+    </ul>
+  </div>
+</section>
+
 <section class="doc changelog">
   <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-red-300 to-teal-900">
     Changelog
