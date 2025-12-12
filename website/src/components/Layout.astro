@@ -1,7 +1,9 @@
 ---
 import "../styles/global.css";
 import "../styles/prism-shades.css";
+import "../styles/prism-one-light.css";
 import Logo from "../assets/logo.svg";
+import ThemeSelector from "./ThemeSelector.astro";
 
 export interface Props {
   title: string;
@@ -18,7 +20,7 @@ const image = "https://tiliajs.com/social.jpg";
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="rainbow">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -48,6 +50,16 @@ const image = "https://tiliajs.com/social.jpg";
     <meta name="twitter:image" content={image} />
 
     <link rel="icon" type="image/svg+xml" href="/" />
+
+    <script is:inline>
+      // Initialize theme before page renders to avoid flash
+      (function () {
+        const stored = localStorage.getItem("theme");
+        const theme =
+          stored === "light" || stored === "rainbow" ? stored : "rainbow";
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
 
     <script is:inline>
       let lang = "rescript";
@@ -105,6 +117,7 @@ const image = "https://tiliajs.com/social.jpg";
           >Compare</a
         >
         <a href="https://github.com/tiliajs/tilia">GitHub</a>
+        <ThemeSelector />
       </div>
     </nav>
 

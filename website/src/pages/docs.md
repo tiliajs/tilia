@@ -127,7 +127,7 @@ Now every time alice's age changes, the callback will be called. {.story}
 
 <a id="watch"></a>
 
-<section class="doc watch">
+<section class="doc watch wide-comment">
 
 ### watch
 

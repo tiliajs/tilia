@@ -8,17 +8,42 @@
   .tilia-title {
     @apply text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-green-300;
   }
+
   .nav {
     @apply space-x-6 text-sm font-medium;
+
     a {
       @apply transition-colors;
+
       &.active {
         @apply text-white/80 font-bold;
       }
+
       &:not(.active) {
         @apply text-white/40 font-bold;
       }
     }
+  }
+
+  .theme-toggle {
+    @apply transition-colors font-bold text-sm cursor-pointer;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 1.2rem;
+    color: rgba(255, 255, 255, 0.4);
+  }
+
+  .theme-toggle:hover {
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  html[data-theme="light"] .theme-toggle {
+    color: rgb(75, 85, 99);
+  }
+
+  html[data-theme="light"] .theme-toggle:hover {
+    color: rgb(17, 24, 39);
   }
 
   .header {
@@ -36,6 +61,7 @@
   p.subtitle {
     @apply text-xl text-white/80 max-w-2xl mx-auto text-center;
   }
+
   h2 {
     @apply p-2 text-4xl font-bold text-center text-transparent bg-clip-text;
 
@@ -45,6 +71,7 @@
 
     &.carve {
       @apply bg-gradient-to-r from-purple-300 to-pink-500 m-12;
+
       span {
         @apply text-pink-200/90;
       }
@@ -66,6 +93,7 @@
 
   .intro {
     @apply flex-grow container mx-auto px-6 py-16 grid md:grid-cols-2 gap-12 items-start;
+
     pre {
       @apply max-w-100;
     }
@@ -87,8 +115,9 @@
   .doc,
   .intro,
   .footnotes {
-    p > code,
-    li > code {
+
+    p>code,
+    li>code {
       font-family: "Operator Mono", "Fira Code", Consolas, Monaco, "Andale Mono",
         "Ubuntu Mono", monospace;
       @apply text-yellow-200/90;
@@ -99,11 +128,11 @@
     }
 
     h3 {
-      @apply text-2xl font-bold mb-4;
+      @apply text-2xl font-bold my-6;
     }
 
     h4 {
-      @apply text-lg font-bold mb-2 text-emerald-200/90;
+      @apply text-lg font-bold my-6 text-emerald-200/90;
     }
 
     &.installation h2 {
@@ -114,6 +143,7 @@
       h2 {
         @apply bg-gradient-to-r from-cyan-200 to-red-700;
       }
+
       strong {
         @apply text-cyan-200/90;
       }
@@ -125,7 +155,7 @@
       }
 
       p.story {
-        @apply my-4 text-black/60;
+        @apply my-6 text-black/60;
       }
     }
 
@@ -186,18 +216,23 @@
     &.react {
       h3.useTilia {
         @apply text-emerald-300/80;
+
         small {
           @apply text-black/40 text-sm;
         }
       }
+
       h3.leaf {
         @apply text-cyan-300/70;
+
         small {
           @apply text-black/40 text-sm;
         }
       }
+
       h3.useComputed {
         @apply text-pink-200/90;
+
         small {
           @apply text-black/40 text-sm;
         }
@@ -206,6 +241,7 @@
 
     &.ddd {
       @apply bg-cyan-900/30;
+
       sup a {
         @apply text-cyan-300/90 ml-1;
       }
@@ -221,23 +257,30 @@
       h2.table {
         @apply bg-gradient-to-r from-green-200/80 to-yellow-200/80;
       }
+
       h2.performance {
         @apply bg-gradient-to-r from-red-200/80 to-amber-200/80 mt-12;
       }
+
       table {
         @apply w-full border-collapse border border-black/40 text-white;
       }
-      .table + table td {
+
+      .table+table td {
         @apply text-center;
+
         &:first-child {
           @apply text-left;
         }
+
         em {
           @apply text-white/40 saturate-0;
         }
       }
-      .performance + table {
+
+      .performance+table {
         @apply text-white/70;
+
         td:has(em) {
           @apply bg-yellow-500/20 text-green-100/80;
         }
@@ -245,6 +288,7 @@
 
       ol {
         @apply text-lg m-8;
+
         li {
           @apply list-decimal;
         }
@@ -252,34 +296,42 @@
 
       th {
         @apply text-center p-2 bg-gray-100/20 text-gray-700 border border-black/10;
+
         &:first-child {
           @apply text-left;
         }
       }
+
       td {
         @apply text-center p-2 border border-black/10 align-top;
+
         &:first-child {
           @apply text-left text-black/90;
         }
+
         em {
           font-style: normal;
         }
 
         &:has(pre) {
           @apply p-0;
+
           pre {
             @apply m-0 rounded-none border-0 pt-6 min-w-84;
           }
         }
       }
+
       &.frp td,
       &.frp th {
         &:nth-child(2) {
           @apply text-left;
         }
+
         code {
           @apply text-black/80;
         }
+
         a code {
           @apply text-cyan-300 hover:text-yellow-400 border-b border-dashed border-cyan-300 hover:border-yellow-400;
         }
@@ -287,6 +339,7 @@
 
       &.performance td {
         @apply text-right;
+
         &:first-child {
           @apply text-left text-black/90;
         }
@@ -295,16 +348,20 @@
       thead tr {
         @apply border-b border-black/40;
       }
+
       tbody tr:nth-child(even) {
         @apply bg-gray-600/20;
       }
+
       tbody tr:nth-child(odd) {
         @apply bg-black/20;
       }
+
       tbody tr {
         @apply border-b border-black/40;
       }
     }
+
     &.zustand {
       h2 {
         @apply bg-gradient-to-r from-orange-200 to-green-800;
@@ -327,15 +384,30 @@
       h2 {
         @apply bg-gradient-to-r from-green-400 to-pink-100;
       }
+
       h3 {
         @apply text-amber-200/90;
       }
     }
 
-    ul li {
-      @apply text-lg text-white/90;
-      list-style: disc;
-      margin-left: 2rem;
+    ol {
+      @apply my-6;
+
+      li {
+        @apply text-lg;
+        list-style: decimal;
+        margin-left: 2rem;
+      }
+    }
+
+    ul {
+      @apply my-6;
+
+      li {
+        @apply text-lg;
+        list-style: disc;
+        margin-left: 2rem;
+      }
     }
 
     p {
@@ -355,31 +427,17 @@
     }
 
     p.story {
-      @apply my-4 text-black/60 italic;
-    }
-    p:last-child {
-      @apply mb-0;
+      @apply my-6 text-black/60 italic;
     }
 
-    pre[class*="language-"] {
-      @apply text-sm md:text-base my-6 p-4 rounded-lg backdrop-blur-lg border border-white/20 shadow-2xl relative bg-red-400;
-      .toggle {
-        @apply absolute right-0 top-0 p-2 rounded-tr-lg rounded-bl-lg bg-gray-800 text-sm cursor-pointer;
-        .on {
-          @apply text-white/80 font-bold;
-        }
-        .off {
-          @apply text-white/30;
-        }
-        &:hover {
-          @apply bg-pink-800/30;
-        }
-      }
+    p:last-child {
+      @apply mb-0;
     }
   }
 
   .footnotes {
     @apply text-sm text-white/90 mt-12 mb-6;
+
     ol {
       @apply list-decimal list-inside space-y-3 text-lg;
     }
@@ -389,7 +447,8 @@
     }
 
     p {
-      @apply inline; /* Keep footnote text inline for better flow */
+      @apply inline;
+      /* Keep footnote text inline for better flow */
     }
 
     a {
@@ -407,11 +466,123 @@
     }
 
     /* Style any inline code inside footnotes */
-    p > code,
-    li > code {
+    p>code,
+    li>code {
       font-family: "Operator Mono", "Fira Code", Consolas, Monaco, "Andale Mono",
         "Ubuntu Mono", monospace;
       @apply text-yellow-200/90 bg-black/20 rounded px-1;
+    }
+  }
+
+  pre[class*="language-"] {
+    @apply text-sm md:text-base my-6 p-4 rounded-lg backdrop-blur-lg border border-white/20 relative;
+
+    .toggle {
+      @apply absolute right-0 top-0 p-2 rounded-tr-lg rounded-bl-lg bg-gray-800 text-sm cursor-pointer;
+
+      .on {
+        @apply text-white/80 font-bold;
+      }
+
+      .off {
+        @apply text-white/30;
+      }
+
+      &:hover {
+        @apply bg-pink-800/30;
+      }
+    }
+  }
+}
+
+html[data-theme="dark"] {
+  pre[class*="language-"] {
+    .toggle {
+      @apply bg-gray-800;
+
+      .on {
+        @apply text-white/80;
+      }
+
+      .off {
+        @apply text-white/30;
+      }
+
+      &:hover {
+        @apply bg-pink-800/30;
+      }
+    }
+  }
+}
+
+/* Light theme styles */
+html[data-theme="light"] {
+
+  .doc,
+  .footnotes {
+    @apply bg-white/80 border-gray-200 shadow-sm;
+  }
+
+  .doc,
+  .intro,
+  .footnotes {
+    @apply text-gray-900;
+    background: #f3f3f3c7;
+
+    h2 {
+      @apply text-gray-600;
+    }
+
+    h3 {
+      @apply text-gray-800;
+    }
+
+    h4 {
+      @apply text-gray-700;
+    }
+
+    p {
+      @apply text-gray-700;
+
+      a {
+        @apply text-blue-600 hover:text-blue-800;
+      }
+    }
+
+    ul li {
+      @apply text-gray-700;
+    }
+  }
+
+  code {
+    @apply text-gray-900 rounded bg-white/30;
+    font-size: 90%;
+    padding: 2px 3px;
+  }
+
+  pre[class*="language-"] {
+    border: 1px solid #a6b9c8;
+    border-radius: 8px !important;
+    background: #fafafa8d !important;
+
+    code {
+      background: none;
+    }
+
+    .toggle {
+      @apply bg-gray-200 text-gray-700;
+
+      .on {
+        @apply text-gray-900 font-bold;
+      }
+
+      .off {
+        @apply text-gray-500;
+      }
+
+      &:hover {
+        @apply bg-gray-300;
+      }
     }
   }
 }

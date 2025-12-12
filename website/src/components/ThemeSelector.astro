@@ -1,0 +1,50 @@
+---
+
+---
+
+<button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">
+  🌈
+</button>
+
+<script>
+  function getTheme(): "dark" | "light" {
+    if (typeof window === "undefined") return "dark";
+    const stored = localStorage.getItem("theme");
+    return (stored === "light" || stored === "dark" ? stored : "dark") as
+      | "dark"
+      | "light";
+  }
+
+  function setTheme(theme: "dark" | "light") {
+    if (typeof window === "undefined") return;
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("theme", theme);
+    updateButton();
+  }
+
+  function toggleTheme() {
+    const current = getTheme();
+    setTheme(current === "dark" ? "light" : "dark");
+  }
+
+  function updateButton() {
+    const button = document.getElementById("theme-toggle");
+    if (!button) return;
+    const theme = getTheme();
+    button.textContent = theme === "dark" ? "🌈" : "☀️";
+    button.setAttribute(
+      "aria-label",
+      `Current theme: ${theme}. Click to switch to ${theme === "dark" ? "light" : "dark"}`,
+    );
+  }
+
+  if (typeof window !== "undefined") {
+    document.addEventListener("DOMContentLoaded", () => {
+      const button = document.getElementById("theme-toggle");
+      if (button) {
+        button.addEventListener("click", toggleTheme);
+        updateButton();
+      }
+    });
+  }
+</script>
