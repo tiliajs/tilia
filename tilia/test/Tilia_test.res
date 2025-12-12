@@ -1700,3 +1700,14 @@ test("Should allow derived inside store", t => {
   t->is(p.sname, "B")
   t->isFalse(m.called)
 })
+
+test("should return helpful error on computed use outside of tilia object", t => {
+  let x = ref(0.)
+  let s = derived(() => 4.)
+  // Anti pattern ! Do not store computed value in variable.
+  let c = computed(() => s.value *. 2.)
+  // Zombie zone: extended glue zone.
+  t->throws(() => {
+    x.contents = c *. 2.
+  }, ~message="Cannot access value of an orphan computation.")
+})

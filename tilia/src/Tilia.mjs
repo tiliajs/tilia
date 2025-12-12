@@ -674,13 +674,34 @@ function makeBatch(root) {
   };
 }
 
+function warningHandler() {
+  return {
+          set: (function (param, _key, _value) {
+              return raise("Cannot modify an orphan computation. See: https://github.com/tiliajs/tilia/wiki/orphan-computations");
+            }),
+          deleteProperty: (function (param, _key) {
+              return raise("Cannot modify an orphan computation. See: https://github.com/tiliajs/tilia/wiki/orphan-computations");
+            }),
+          get: (function (target, key) {
+              if (key === dynamicKey || key === metaKey || key === "TAG" || key === "_0") {
+                return Reflect.get(target, key);
+              } else {
+                return raise("Cannot access value of an orphan computation. See: https://github.com/tiliajs/tilia/wiki/orphan-computations");
+              }
+            }),
+          ownKeys: (function (target) {
+              return Reflect.ownKeys(target);
+            })
+        };
+}
+
 function computed(fn) {
   var v = {
     TAG: "Computed",
     _0: fn
   };
   Reflect.set(v, dynamicKey, true);
-  return v;
+  return new Proxy(v, warningHandler());
 }
 
 function makeSource(tilia) {
