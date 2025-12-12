@@ -574,9 +574,15 @@ html[data-theme="light"] {
     border: 1px solid #a6b9c8;
     border-radius: 8px !important;
     background: #fafafa8d !important;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: visible;
 
     code {
       background: none;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      padding: 0;
     }
 
     .toggle {

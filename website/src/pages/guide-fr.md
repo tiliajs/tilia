@@ -13,7 +13,7 @@ keywords: tilia documentation, guide français, gestion d'état, programmation r
 Guide complet pour comprendre et utiliser Tilia, une bibliothèque de gestion d'état simple et performante. {.subtitle}
 
 <div class="text-center mt-4">
-  <a href="/guide" class="text-white/70 hover:text-white/90 underline text-sm">📖 Read in English</a>
+  <a href="/docs" class="text-white/70 hover:text-white/90 underline text-sm">📖 Read in English</a>
 </div>
 
 </section>

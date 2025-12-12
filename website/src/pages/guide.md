@@ -224,11 +224,11 @@ The **Observer pattern** (or Publish-Subscribe) is a behavioral design pattern w
 
 ```
 ┌─────────────────┐           ┌─────────────────┐
-│     Subject     │──notify──▶│    Observer 1   │
+│     Subject     │──notify──>│    Observer 1   │
 │  (source of     │           ├─────────────────┤
-│   truth)        │──notify──▶│    Observer 2   │
+│   truth)        │──notify──>│    Observer 2   │
 │                 │           ├─────────────────┤
-│                 │──notify──▶│    Observer 3   │
+│                 │──notify──>│    Observer 3   │
 └─────────────────┘           └─────────────────┘
 ```
 
