@@ -807,13 +807,16 @@ let makeBatch = (root: root) => (callback: unit => unit) => {
     flush(root)
   }
 }
+
+let orphanError = "Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan"
+
 let warningHandler = () =>
   {
     "set": (_, _key, _value) => {
-      raise(`Cannot modify an orphan computation. See: https://github.com/tiliajs/tilia/wiki/orphan-computations`)
+      raise(orphanError)
     },
     "deleteProperty": (_, _key) => {
-      raise(`Cannot modify an orphan computation. See: https://github.com/tiliajs/tilia/wiki/orphan-computations`)
+      raise(orphanError)
     },
     "get": (target, key) => {
       // Allow access ONLY to internal properties that Tilia needs to identify dynamic values
@@ -822,7 +825,7 @@ let warningHandler = () =>
       } else {
         // Throw error for any other property access, including valueOf, toString, toJSON
         // These are exactly what we want to catch (e.g., trouble * 2 calls valueOf)
-        raise(`Cannot access value of an orphan computation. See: https://github.com/tiliajs/tilia/wiki/orphan-computations`)
+        raise(orphanError)
       }
     },
     "ownKeys": target => Reflect.ownKeys(target),

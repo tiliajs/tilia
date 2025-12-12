@@ -1709,5 +1709,5 @@ test("should return helpful error on computed use outside of tilia object", t =>
   // Zombie zone: extended glue zone.
   t->throws(() => {
     x.contents = c *. 2.
-  }, ~message="Cannot access value of an orphan computation.")
+  }, ~message="Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan")
 })
