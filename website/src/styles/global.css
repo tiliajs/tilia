@@ -1,12 +1,20 @@
 @import "tailwindcss";
 
 @layer components {
+  body {
+    @apply bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen flex flex-col;
+  }
+
   a[id] {
     @apply scroll-mt-24;
   }
 
   .tilia-title {
     @apply text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 to-green-300;
+  }
+
+  nav {
+    @apply p-6 flex justify-between items-center bg-black/20 sticky top-0 z-50 backdrop-blur-lg;
   }
 
   .nav {
@@ -16,11 +24,11 @@
       @apply transition-colors;
 
       &.active {
-        @apply text-white/80 font-bold;
+        @apply font-bold text-white/80;
       }
 
       &:not(.active) {
-        @apply text-white/40 font-bold;
+        @apply font-bold text-white/40;
       }
     }
   }
@@ -59,7 +67,7 @@
   }
 
   p.subtitle {
-    @apply text-xl text-white/80 max-w-2xl mx-auto text-center;
+    @apply text-xl max-w-2xl mx-auto text-center;
   }
 
   h2 {
@@ -506,6 +514,7 @@
 }
 
 html[data-theme="dark"] {
+
   pre[class*="language-"] {
     .toggle {
       @apply bg-gray-800;

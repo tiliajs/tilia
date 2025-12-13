@@ -20,7 +20,7 @@ const image = "https://tiliajs.com/social.jpg";
 ---
 
 <!doctype html>
-<html lang="en" data-theme="rainbow">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -55,8 +55,7 @@ const image = "https://tiliajs.com/social.jpg";
       // Initialize theme before page renders to avoid flash
       (function () {
         const stored = localStorage.getItem("theme");
-        const theme =
-          stored === "light" || stored === "rainbow" ? stored : "rainbow";
+        const theme = stored === "light" || stored === "dark" ? stored : "dark";
         document.documentElement.setAttribute("data-theme", theme);
       })();
     </script>
@@ -94,12 +93,8 @@ const image = "https://tiliajs.com/social.jpg";
     </script>
   </head>
 
-  <body
-    class="bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen flex flex-col"
-  >
-    <nav
-      class="p-6 flex justify-between items-center bg-black/20 sticky top-0 z-50 backdrop-blur-lg"
-    >
+  <body>
+    <nav>
       <div class="flex items-center space-x-4">
         <a href="/">
           <Logo class="w-10 h-10" />

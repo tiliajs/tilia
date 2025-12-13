@@ -12,10 +12,6 @@ keywords: tilia documentation, API reference, tila, carve, domain-driven design,
 
 Complete guide to using Tilia for simple and fast state management in TypeScript and ReScript applications. {.subtitle}
 
-<div class="text-center mt-4">
-  <a href="/guide-fr" class="text-white/70 hover:text-white/90 underline text-sm">📖 Lire en français</a>
-</div>
-
 </section>
 
 <a id="installation"></a>
@@ -1519,7 +1515,7 @@ const TodoView = ({ todo }: { todo: Todo }) => {
 
   const selected = useComputed(() => app.todos.selected.id === todo.id);
 
-  return <div className={selected.value ? "text-pink-200" : ""}>...</div>;
+  return <div className={selected ? "text-pink-200" : ""}>...</div>;
 };
 ```
 
@@ -1532,11 +1528,11 @@ let make = () => {
 
   let selected = useComputed(() => app.todos.selected.id === todo.id)
 
-  <div className={selected.value ? "text-pink-200" : ""}>...</div>;
+  <div className={selected ? "text-pink-200" : ""}>...</div>;
 }
 ```
 
-With this helper, the TodoView does not depend on `app.todos.selected.id` but on `selected.value`. This prevents the component from re-rendering on every change to the selected todo.
+With this helper, the TodoView does not depend on `app.todos.selected.id` but on `selected`. This prevents the component from re-rendering on every change to the selected todo.
 
 </section>
 
@@ -1923,9 +1919,11 @@ const state = tilia({
 
 // ✅ GOOD: watch separates observation and mutation
 watch(
-  () => state.count,              // Observation: tracked
+  // Observation: tracked
+  () => state.count,              
   (count) => {
-    state.history.push(count);    // Mutation: no tracking here
+    // Mutation: no tracking here
+    state.history.push(count);    
   }
 );
 
