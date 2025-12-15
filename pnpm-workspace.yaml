@@ -4,3 +4,5 @@ packages:
   - "todo-app-ts"
   - "website"
   - "performance"
+  - "test-app1"
+  - "test-app2"
