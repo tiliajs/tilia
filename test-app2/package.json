@@ -25,6 +25,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
     "@vitest/ui": "^3.2.4",
+    "gentype": "^4.5.0",
     "jsdom": "^26.0.0",
     "rescript": "^11.1.4",
     "typescript": "~5.8.3",

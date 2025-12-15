@@ -3,8 +3,8 @@ import { render, within, waitFor, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect } from "vitest";
 import { Given } from "vitest-bdd";
-import { TodoList } from "./TodoList";
-import { make, addTodo } from "../domain/todos";
+import { make as TodoList } from "./TodoList.gen";
+import { make as makeTodos, makeTodo } from "../domain/Todo.gen";
 
 Given("I render the TodoList component", function ({ When, Then }) {
   // 1. Create a detached container for strict isolation
@@ -13,7 +13,7 @@ Given("I render the TodoList component", function ({ When, Then }) {
   document.body.appendChild(host);
 
   // 2. Create isolated domain state
-  const todos = make();
+  const todos = makeTodos();
 
   // 3. Render specifically into OUR host
   render(<TodoList todos={todos} />, { container: host });
@@ -23,7 +23,9 @@ Given("I render the TodoList component", function ({ When, Then }) {
 
   When("I add todo {string} with title {string}", async (id: string, title: string) => {
     await act(async () => {
-      addTodo(todos, id, title);
+      // Direct ReScript API usage
+      const todo = makeTodo(id, title);
+      todos.add(todo);
     });
   });
 
