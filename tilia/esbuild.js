@@ -1,5 +1,5 @@
 import esbuild from "esbuild";
-import { copyFileSync } from "fs";
+import {copyFileSync} from "fs";
 
 function copyFile(sourceFile, targetFile) {
   return {
@@ -14,7 +14,7 @@ const build = {
   entryPoints: ["src/index.js"],
   bundle: true,
   sourcemap: true,
-  minify: process.env.CANARY ? false : true,
+  minify: false,
   target: ["esnext"],
   ignoreAnnotations: true,
   packages: "external",

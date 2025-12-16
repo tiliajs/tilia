@@ -11,10 +11,11 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "prebuild": "pnpm tilia build",
+    "prebuild": "pnpm --filter tilia build",
     "canary": "./bin/publish.sh --canary",
     "beta": "./bin/publish.sh --beta",
     "pub": "./bin/publish.sh",
+    "pretest": "pnpm --filter tilia build",
     "test": "pnpm --recursive --sequential test"
   },
   "keywords": [],

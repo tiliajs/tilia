@@ -1,0 +1,14 @@
+{
+  "name": "test-app4",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "test": "vitest run --globals"
+  },
+  "dependencies": {
+    "tilia": "workspace:^"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "test-app1",
+  "name": "test-app2",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -15,7 +15,7 @@
     "@tilia/react": "workspace:^",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "tilia": "file:../tilia"
+    "tilia": "workspace:^"
   },
   "devDependencies": {
     "@rescript/core": "^1.6.1",
@@ -27,6 +27,7 @@
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.5.2",
     "@vitest/ui": "^3.2.4",
+    "gentype": "^4.5.0",
     "jsdom": "^26.0.0",
     "rescript": "^11.1.4",
     "typescript": "~5.8.3",
