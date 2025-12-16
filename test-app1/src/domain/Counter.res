@@ -1,21 +1,34 @@
-// Import TypeScript counter using raw JS access
-@module("./counter.ts") @val external counter: 'a = "counter"
+open Tilia
 
-let testCounter = () => {
-  // Test that we can use TypeScript counter in ReScript
-  let _ = %raw("counter.value = 0")
-  let _ = %raw("counter.increment()")
-  let _ = %raw("counter.increment()")
-  %raw("counter.value") == 2
+type counter = {
+  mutable value: float,
+  double: float,
+  increment: unit => unit,
+  decrement: unit => unit,
 }
 
-let testDouble = () => {
-  let _ = %raw("counter.value = 5")
-  %raw("counter.double") == 10
+let increment = self => () => {
+  self.value = self.value +. 1.0
 }
 
-let testDecrement = () => {
-  let _ = %raw("counter.value = 10")
-  let _ = %raw("counter.decrement()")
-  %raw("counter.value") == 9
+let decrement = self => () => {
+  self.value = self.value -. 1.0
+}
+
+let double = self => self.value *. 2.0
+
+@genType
+let make = () => {
+  carve(({derived}) => {
+    value: 0.0,
+    double: derived(double),
+    increment: derived(increment),
+    decrement: derived(decrement),
+  })
+}
+
+let observeCounter = (counter: counter, callback: float => unit) => {
+  observe(() => {
+    callback(counter.value)
+  })
 }

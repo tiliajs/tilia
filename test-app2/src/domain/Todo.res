@@ -1,13 +1,11 @@
 open Tilia
 
-@genType
 type todo = {
   id: string,
   title: string,
   mutable completed: bool,
 }
 
-@genType
 type todos = {
   mutable list: array<todo>,
   add: todo => unit,
@@ -16,7 +14,6 @@ type todos = {
   completedCount: int,
 }
 
-@genType
 let makeTodo = (id: string, title: string): todo => {
   {id, title, completed: false}
 }
@@ -39,7 +36,6 @@ let remove = self => id => {
 
 let completedCount = self => self.list->Array.filter(todo => todo.completed)->Array.length
 
-@genType
 let make = () =>
   carve(({derived}) => {
     list: [],

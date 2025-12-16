@@ -3,12 +3,13 @@ import { render, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect } from "vitest";
 import { Given } from "vitest-bdd";
-import { Counter } from "./Counter";
+import { Counter, CounterLeaf } from "../view/Counter";
 import { make } from "../domain/counter";
 
-Given("I render the Counter component", async function ({ When, Then }) {
+Given("I render the {string} component", async function ({ When, Then }, comp: string) {
   const counter = make();
-  const { container } = render(<Counter counter={counter} />);
+  const Component = comp === "Counter" ? Counter : CounterLeaf;
+  const { container } = render(<Component counter={counter} />);
   const withinScreen = within(container);
 
   // Wait for initial render
@@ -25,9 +26,8 @@ Given("I render the Counter component", async function ({ When, Then }) {
   });
 
   When("I set counter to {number}", async (value: number) => {
-    for (let i = 0; i < value; i++) {
-      await user.click(withinScreen.getByRole("button", { name: "Increment" }));
-    }
+    // Direct mutation
+    counter.value = value;
   });
 
   Then("I should see value {string}", async (expected: string) => {

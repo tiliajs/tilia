@@ -15,12 +15,18 @@
     "@rescript/core",
     "@rescript/react",
     "tilia",
-    "@tilia/react"
+    "@tilia/react",
+    "vitest-bdd"
   ],
   "bsc-flags": [
     "-open RescriptCore"
   ],
   "jsx": {
     "version": 4
+  },
+  "gentypeconfig": {
+    "module": "esmodule",
+    "moduleResolution": "bundler",
+    "generatedFileExtension": ".gen.tsx"
   }
 }

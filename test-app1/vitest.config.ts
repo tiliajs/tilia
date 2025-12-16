@@ -2,7 +2,7 @@ import react from "@vitejs/plugin-react";
 import { vitestBdd } from "vitest-bdd";
 import { defineConfig } from "vitest/config";
 import { existsSync } from "fs";
-import { join, dirname } from "path";
+import { join, dirname, resolve } from "path";
 
 function baseResolver(path: string): string | null {
   for (const ext of [".tsx", ".ts", ".js", ".mjs", ".cjs", ".res.mjs"]) {
@@ -49,6 +49,12 @@ function resolveFeatureTsx() {
 
 export default defineConfig({
   plugins: [react(), resolveFeatureTsx(), vitestBdd({ stepsResolver, concurrent: false })],
+  resolve: {
+    alias: {
+      "tilia/src/Tilia.res.mjs": resolve(__dirname, "../tilia/src/Tilia.res.mjs"),
+      "tilia": resolve(__dirname, "../tilia/src/Tilia.res.mjs"),
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",

@@ -1,5 +1,5 @@
 {
-  "name": "tilia",
+  "name": "tilia-monorepo",
   "private": true,
   "version": "4.0.0",
   "homepage": "https://tiliajs.com",
@@ -10,29 +10,20 @@
     "url": "https://github.com/tiliajs/tilia.git"
   },
   "scripts": {
-    "tilia": "pnpm --filter tilia",
-    "web": "pnpm --filter website",
-    "react": "pnpm --filter react",
-    "perf": "pnpm --filter performance",
     "build": "pnpm -r build",
     "prebuild": "pnpm tilia build",
-    "todo-ts": "pnpm --filter todo-app-ts",
-    "todo-re": "pnpm --filter todo-app-re",
     "canary": "./bin/publish.sh --canary",
     "beta": "./bin/publish.sh --beta",
     "pub": "./bin/publish.sh",
-    "pretest": "pnpm react res:dev-build && pnpm tilia res:dev-build",
-    "test": "pnpm tilia test && pnpm todo-ts test -- run"
+    "test": "pnpm --recursive --sequential test"
   },
   "keywords": [],
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT",
   "pnpm": {
     "overrides": {
-      "esbuild": ">=0.25.0",
-      "@babel/runtime": ">=7.26.10",
-      "@eslint/plugin-kit@<0.3.4": ">=0.3.4",
-      "brace-expansion": ">=1.1.12"
+      "react": "^19.1.0",
+      "react-dom": "^19.1.0"
     }
   }
 }

@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "test": "vitest",
-    "test:watch": "vitest --watch",
+    "pretest": "pnpm res:build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "res:build": "rescript",
     "res:dev": "rescript -w"
   },

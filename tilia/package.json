@@ -2,20 +2,10 @@
   "name": "tilia",
   "version": "0.0.0",
   "homepage": "https://tiliajs.com",
+  "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
-    },
-    "./src/Tilia.res": "./src/Tilia.res",
-    "./src/Tilia.resi": "./src/Tilia.resi",
-    "./src/Tilia.mjs": "./src/Tilia.mjs"
-  },
-  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/tiliajs/tilia.git"
@@ -26,24 +16,22 @@
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
     "test:watch": "ava --watch",
-    "build": "node esbuild.js",
     "clean": "rm -rf dist && rm -rf lib && rm -f *.tgz",
+    "build": "node esbuild.js",
     "prebuild": "pnpm clean && rescript",
     "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
+    "pretest": "pnpm res:build",
     "test": "ava"
   },
   "description": "🍃 State management library, domain-driven.",
   "keywords": [
     "state management",
     "domain-driven",
-    "ddd",
     "reactive",
-    "observable",
     "typescript",
     "rescript",
     "frp",
-    "signals",
     "computed",
     "minimal",
     "simple"
@@ -53,10 +41,10 @@
   "devDependencies": {
     "@dzakh/rescript-ava": "^3.1.0",
     "@rescript/core": "^1.6.1",
-    "@types/node": "^22.15.32",
     "ava": "5.2.0",
     "clean-package": "^2.2.0",
     "esbuild": "^0.25.5",
+    "esbuild-node-externals": "^1.18.0",
     "rescript": "^11.1.4"
   },
   "ava": {

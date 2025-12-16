@@ -1,7 +1,7 @@
 open TiliaReact
 open Todo
 
-@genType @react.component
+@react.component
 let make = leaf((~todos: todos) => {
   let todoList = todos.list
 

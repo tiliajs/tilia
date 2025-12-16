@@ -1,12 +1,8 @@
 import react from "@vitejs/plugin-react";
-import {vitestBdd} from "vitest-bdd";
-import {defineConfig} from "vitest/config";
-import {existsSync} from "fs";
-import {join, dirname} from "path";
-import {fileURLToPath} from "url";
-
-const base = dirname(fileURLToPath(import.meta.url));
-const toLib = (p: string) => p.replace(base, `${base}/lib/es6`);
+import { vitestBdd } from "vitest-bdd";
+import { defineConfig } from "vitest/config";
+import { existsSync } from "fs";
+import { join, dirname } from "path";
 
 function baseResolver(path: string): string | null {
   for (const ext of [".tsx", ".ts", ".js", ".mjs", ".cjs"]) {
@@ -26,7 +22,7 @@ function stepsResolver(path: string): string | null {
   // or   /foo/barSteps[.tsx|.ts|.js|...]
   for (const r of [".feature", ".steps", "Steps"]) {
     const basePath = path.replace(/\.feature$/, r);
-    const resolved = baseResolver(basePath) || baseResolver(toLib(basePath));
+    const resolved = baseResolver(basePath);
     if (resolved) {
       return resolved;
     }
@@ -38,8 +34,21 @@ function stepsResolver(path: string): string | null {
   return baseResolver(join(dir, "steps"));
 }
 
+// Vite plugin to resolve .feature.ts imports to .feature.tsx
+function resolveFeatureTsx() {
+  return {
+    name: "resolve-feature-tsx",
+    resolveId(id: string) {
+      if (id.endsWith(".feature.ts") && existsSync(id.replace(/\.ts$/, ".tsx"))) {
+        return id.replace(/\.ts$/, ".tsx");
+      }
+      return null;
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), vitestBdd({stepsResolver, concurrent: false})],
+  plugins: [react(), resolveFeatureTsx(), vitestBdd({ stepsResolver, concurrent: false })],
   test: {
     globals: true,
     environment: "jsdom",

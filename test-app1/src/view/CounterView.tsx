@@ -1,11 +1,11 @@
 import { useTilia } from "@tilia/react";
-import { type Counter } from "../domain/counter";
+import { type counter as Counter } from "../domain/Counter.gen";
 
 type CounterProps = {
   counter: Counter;
 };
 
-export function Counter({ counter }: CounterProps) {
+export function CounterView({ counter }: CounterProps) {
   useTilia();
 
   return (

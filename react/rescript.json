@@ -3,13 +3,11 @@
   "sources": [
     {
       "dir": "src",
-      "public": [
-        "TiliaReact"
-      ],
       "subdirs": true
     },
     {
       "dir": "test",
+      "subdirs": true,
       "type": "dev"
     }
   ],
@@ -19,14 +17,14 @@
   },
   "suffix": ".mjs",
   "bs-dependencies": [
-    "tilia"
-  ],
-  "bs-dev-dependencies": [
     "@rescript/core",
     "@rescript/react",
-    "@dzakh/rescript-ava"
+    "tilia",
+    "vitest-bdd"
   ],
-  "bsc-flags": [],
+  "bsc-flags": [
+    "-open RescriptCore"
+  ],
   "jsx": {
     "version": 4
   }
