@@ -49,7 +49,7 @@ importers:
     devDependencies:
       '@dzakh/rescript-ava':
         specifier: ^3.2.0
-        version: 3.2.0(ava@5.2.0)(rescript@12.0.0)
+        version: 3.2.0(ava@5.2.0)(rescript@12.0.1)
       '@rescript/react':
         specifier: ^0.14.0
         version: 0.14.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -57,8 +57,8 @@ importers:
         specifier: ^10.4.1
         version: 10.4.1
       '@testing-library/react':
-        specifier: ^16.3.0
-        version: 16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        specifier: ^16.3.1
+        version: 16.3.1(@testing-library/dom@10.4.1)(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       '@testing-library/user-event':
         specifier: ^14.6.1
         version: 14.6.1(@testing-library/dom@10.4.1)
@@ -78,8 +78,8 @@ importers:
         specifier: ^26.0.0
         version: 26.0.0(jsdom@26.1.0)
       rescript:
-        specifier: ^12.0.0
-        version: 12.0.0
+        specifier: ^12.0.1
+        version: 12.0.1
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -269,7 +269,7 @@ importers:
     devDependencies:
       '@dzakh/rescript-ava':
         specifier: ^3.2.0
-        version: 3.2.0(ava@5.2.0)(rescript@12.0.0)
+        version: 3.2.0(ava@5.2.0)(rescript@12.0.1)
       '@types/node':
         specifier: ^22.19.1
         version: 22.19.1
@@ -547,6 +547,9 @@ packages:
 
   '@cucumber/gherkin@32.1.2':
     resolution: {integrity: sha512-hj1DcaiIpXJg+mo58zpQyP8c6YsUY/NIOK8oWg1XxbXAWkuYNWr9kkM+i8Xxg1yT6YEzn1loLBG6GjL6SPYOZQ==}
+
+  '@cucumber/gherkin@32.2.0':
+    resolution: {integrity: sha512-X8xuVhSIqlUjxSRifRJ7t0TycVWyX58fygJH3wDNmHINLg9sYEkvQT0SO2G5YlRZnYc11TIFr4YPenscvdlBIw==}
 
   '@cucumber/messages@27.2.0':
     resolution: {integrity: sha512-f2o/HqKHgsqzFLdq6fAhfG1FNOQPdBdyMGpKwhb7hZqg0yZtx9BVqkTyuoNk83Fcvk3wjMVfouFXXHNEk4nddA==}
@@ -1142,26 +1145,26 @@ packages:
     peerDependencies:
       rescript: '>=11.1.0'
 
-  '@rescript/darwin-arm64@12.0.0':
-    resolution: {integrity: sha512-N2zNj/Uh0zrg8BJGWxdQjYTDf0d2ZV8D+Vmct8xORaUcEZvAkvZb+xA66UxP2QGhWmATcHmBth7oJ48xpWz/Vg==}
+  '@rescript/darwin-arm64@12.0.1':
+    resolution: {integrity: sha512-JJddiKKfOSc9X+2rt6IrbEUlOBaIfgjkWzCN986czZ5YV4lh3jysPVk6EQHaip2ibPkwf/nLv6Pin4t+XmdqLQ==}
     engines: {node: '>=20.11.0'}
     cpu: [arm64]
     os: [darwin]
 
-  '@rescript/darwin-x64@12.0.0':
-    resolution: {integrity: sha512-Qx/ao3Fl2lx3rF8mbRsyRK5HGAx8pmzyCdpSIAaUun5wLBnsJbNqgvqUH7VeI2TwaczHvcIljrYmnB7T5LJdFQ==}
+  '@rescript/darwin-x64@12.0.1':
+    resolution: {integrity: sha512-tZSeHr9MQ90oKULDIn9ugvP08eLCflH2uO02iF7z1i8RshPrfD36qFiPOn4WxzcSJuqynffNLEgeWYrnPiZ0JQ==}
     engines: {node: '>=20.11.0'}
     cpu: [x64]
     os: [darwin]
 
-  '@rescript/linux-arm64@12.0.0':
-    resolution: {integrity: sha512-H65csj/0uqqjYy235m0h5CFxbrsas6RoVfjy5Xjf91Vyg/r5R/QIGQvhMtFvl4QojYsa1wXzXGcujwXh+S15xQ==}
+  '@rescript/linux-arm64@12.0.1':
+    resolution: {integrity: sha512-V/xnkFgEvSRMlyT1XCptnWWXgySFR9aKdja74VeDyEGLc6MGmi8zopxUUFcwCQXxV/zPAFkIxjz8xMY0SBCAmQ==}
     engines: {node: '>=20.11.0'}
     cpu: [arm64]
     os: [linux]
 
-  '@rescript/linux-x64@12.0.0':
-    resolution: {integrity: sha512-WizQwyfMadxF096foZYU3I4zxcnNIc9XP7TP4fqdfe0v6OvQ5yHMI/uIfOsJ1GfNALce2UxvgS0pn67uxc55uA==}
+  '@rescript/linux-x64@12.0.1':
+    resolution: {integrity: sha512-WpVBjAvLsKATOJTckI6PDf4IFnHHxwsSVtklC+XAXbwqHLP1gqDDuVcykOOIWexxepod+QvBvEZGjzNPJ5L8gA==}
     engines: {node: '>=20.11.0'}
     cpu: [x64]
     os: [linux]
@@ -1178,11 +1181,11 @@ packages:
       react: '>=19.0.0'
       react-dom: '>=19.0.0'
 
-  '@rescript/runtime@12.0.0':
-    resolution: {integrity: sha512-STRbYHT5rnW61vWn2+Bdtj620XaprnoBSbPbkvOYZ+Zs8nfqtpBjhNw+JNpGQLXf73crk6MhxFGPxL2o5vb8TQ==}
+  '@rescript/runtime@12.0.1':
+    resolution: {integrity: sha512-pMoWvllPFK0cl87vMYBVvll+DaAdPAsRuLIIJa+Q8LMhcS7cqpaZVflU3LbH+U/kv3vWaUYIfLBObwGnXw/CDg==}
 
-  '@rescript/win32-x64@12.0.0':
-    resolution: {integrity: sha512-kkqj4kQGbni5YglWoPm76M6hUuzKJHDEiLce5EZxW2Q4FrkS9dNRgm02c2Ck1cz/uKCS3m+ZoKQGIMMXTvo5Jw==}
+  '@rescript/win32-x64@12.0.1':
+    resolution: {integrity: sha512-Hv6nwb6A94qtj6b4PcIsmoWhLIcLt6wLuHpD9YNxj4/d9FkrHM/yj9ZKhKan/9rfg4wkHl1cZE898AZe/nWq9g==}
     engines: {node: '>=20.11.0'}
     cpu: [x64]
     os: [win32]
@@ -1445,6 +1448,21 @@ packages:
 
   '@testing-library/react@16.3.0':
     resolution: {integrity: sha512-kFSyxiEDwv1WLl2fgsq6pPBbw5aWKrsY2/noi1Id0TK0UParSF62oFQFGHXIyaG4pp2tEub/Zlel+fjjZILDsw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@testing-library/dom': ^10.0.0
+      '@types/react': ^18.0.0 || ^19.0.0
+      '@types/react-dom': ^18.0.0 || ^19.0.0
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      '@types/react-dom':
+        optional: true
+
+  '@testing-library/react@16.3.1':
+    resolution: {integrity: sha512-gr4KtAWqIOQoucWYD/f6ki+j5chXfcPc74Col/6poTyqTmn7zRmodWahWRCp8tYd+GMqBonw6hstNzqjbs6gjw==}
     engines: {node: '>=18'}
     peerDependencies:
       '@testing-library/dom': ^10.0.0
@@ -3367,8 +3385,8 @@ packages:
     engines: {node: '>=10'}
     hasBin: true
 
-  rescript@12.0.0:
-    resolution: {integrity: sha512-DGcZI2L5W0c6FuEnspLE0MIe1UtTt1VsW/vQfzBFCEBxSsQtoA6YRHUB8Puwnb30PHqZiFK1ADhn6UgA8LWK0A==}
+  rescript@12.0.1:
+    resolution: {integrity: sha512-59JyEUyLj+IPd9VutAXpBXRGqaeaHCMtvACJNAy/oI1hjpjklQ2UJE07oLhxoWB4SDZrCxzowNUpE46UAgjOXg==}
     engines: {node: '>=20.11.0'}
     hasBin: true
 
@@ -3503,6 +3521,10 @@ packages:
   source-map@0.7.4:
     resolution: {integrity: sha512-l3BikUxvPOcn5E74dZiq5BGsTb5yEwhaTSzccU6t4sDOH8NWJCstKO5QT2CvtFoK6F0saL7p9xHAqHOlCPJygA==}
     engines: {node: '>= 8'}
+
+  source-map@0.7.6:
+    resolution: {integrity: sha512-i5uvt8C3ikiWeNZSVZNWcfZPItFQOsYTUAOkcUPGd8DqDy1uOUikjt5dG+uRlwyvR108Fb9DOd4GvXfT0N2/uQ==}
+    engines: {node: '>= 12'}
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
@@ -4316,6 +4338,10 @@ snapshots:
     dependencies:
       '@cucumber/messages': 27.2.0
 
+  '@cucumber/gherkin@32.2.0':
+    dependencies:
+      '@cucumber/messages': 27.2.0
+
   '@cucumber/messages@27.2.0':
     dependencies:
       '@types/uuid': 10.0.0
@@ -4323,10 +4349,10 @@ snapshots:
       reflect-metadata: 0.2.2
       uuid: 11.0.5
 
-  '@dzakh/rescript-ava@3.2.0(ava@5.2.0)(rescript@12.0.0)':
+  '@dzakh/rescript-ava@3.2.0(ava@5.2.0)(rescript@12.0.1)':
     dependencies:
       ava: 5.2.0
-      rescript: 12.0.0
+      rescript: 12.0.1
 
   '@emnapi/runtime@1.4.3':
     dependencies:
@@ -4729,16 +4755,16 @@ snapshots:
     dependencies:
       rescript: 11.1.4
 
-  '@rescript/darwin-arm64@12.0.0':
+  '@rescript/darwin-arm64@12.0.1':
     optional: true
 
-  '@rescript/darwin-x64@12.0.0':
+  '@rescript/darwin-x64@12.0.1':
     optional: true
 
-  '@rescript/linux-arm64@12.0.0':
+  '@rescript/linux-arm64@12.0.1':
     optional: true
 
-  '@rescript/linux-x64@12.0.0':
+  '@rescript/linux-x64@12.0.1':
     optional: true
 
   '@rescript/react@0.12.2(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
@@ -4751,9 +4777,9 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  '@rescript/runtime@12.0.0': {}
+  '@rescript/runtime@12.0.1': {}
 
-  '@rescript/win32-x64@12.0.0':
+  '@rescript/win32-x64@12.0.1':
     optional: true
 
   '@rolldown/pluginutils@1.0.0-beta.11': {}
@@ -5006,7 +5032,7 @@ snapshots:
       '@types/react': 19.1.8
       '@types/react-dom': 19.1.6(@types/react@19.1.8)
 
-  '@testing-library/react@16.3.0(@testing-library/dom@10.4.1)(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
+  '@testing-library/react@16.3.1(@testing-library/dom@10.4.1)(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)':
     dependencies:
       '@babel/runtime': 7.28.4
       '@testing-library/dom': 10.4.1
@@ -7495,15 +7521,15 @@ snapshots:
 
   rescript@11.1.4: {}
 
-  rescript@12.0.0:
+  rescript@12.0.1:
     dependencies:
-      '@rescript/runtime': 12.0.0
+      '@rescript/runtime': 12.0.1
     optionalDependencies:
-      '@rescript/darwin-arm64': 12.0.0
-      '@rescript/darwin-x64': 12.0.0
-      '@rescript/linux-arm64': 12.0.0
-      '@rescript/linux-x64': 12.0.0
-      '@rescript/win32-x64': 12.0.0
+      '@rescript/darwin-arm64': 12.0.1
+      '@rescript/darwin-x64': 12.0.1
+      '@rescript/linux-arm64': 12.0.1
+      '@rescript/linux-x64': 12.0.1
+      '@rescript/win32-x64': 12.0.1
 
   resolve-cwd@3.0.0:
     dependencies:
@@ -7675,6 +7701,8 @@ snapshots:
   source-map-js@1.2.1: {}
 
   source-map@0.7.4: {}
+
+  source-map@0.7.6: {}
 
   space-separated-tokens@2.0.2: {}
 
@@ -8030,9 +8058,9 @@ snapshots:
 
   vitest-bdd@0.6.0(vite@6.3.5(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1)):
     dependencies:
-      '@cucumber/gherkin': 32.1.2
+      '@cucumber/gherkin': 32.2.0
       '@cucumber/messages': 27.2.0
-      source-map: 0.7.4
+      source-map: 0.7.6
       vite: 6.3.5(@types/node@24.10.1)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1)
 
   vitest@3.2.4(@types/debug@4.1.12)(@types/node@24.10.1)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(yaml@2.6.1):

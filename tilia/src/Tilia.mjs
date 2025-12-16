@@ -628,13 +628,30 @@ function makeBatch(root) {
   };
 }
 
+let orphanError = "Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan";
+
+function warningHandler() {
+  return {
+    set: (param, _key, _value) => raise(orphanError),
+    deleteProperty: (param, _key) => raise(orphanError),
+    get: (target, key) => {
+      if (key === dynamicKey || key === metaKey || key === "TAG" || key === "_0") {
+        return Reflect.get(target, key);
+      } else {
+        return raise(orphanError);
+      }
+    },
+    ownKeys: target => Reflect.ownKeys(target)
+  };
+}
+
 function computed(fn) {
   let v = {
     TAG: "Computed",
     _0: fn
   };
   Reflect.set(v, dynamicKey, true);
-  return v;
+  return new Proxy(v, warningHandler());
 }
 
 function makeSource(tilia) {
