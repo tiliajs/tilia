@@ -1,7 +1,7 @@
 lockfileVersion: '9.0'
 
 settings:
-  autoInstallPeers: true
+  autoInstallPeers: false
   excludeLinksFromLockfile: false
 
 importers:
@@ -42,12 +42,6 @@ importers:
       esbuild-node-externals:
         specifier: ^1.15.0
         version: 1.15.0(esbuild@0.24.0)
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
       rescript:
         specifier: ^11.1.4
         version: 11.1.4

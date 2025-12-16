@@ -12,6 +12,7 @@ function copyFile(sourceFile, targetFile) {
 }
 
 const build = {
+  external: ['react', 'react-dom'],
   entryPoints: ["src/index.js"],
   bundle: true,
   sourcemap: true,

@@ -2,10 +2,10 @@
   "name": "@tilia/react",
   "version": "0.0.0",
   "homepage": "https://tiliajs.com",
-  "type": "module",
-  "main": "./dist/index.cjs",
+  "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "type": "module",
   "repository": {
     "type": "git",
     "url": "https://github.com/tiliajs/tilia.git"
@@ -15,14 +15,13 @@
     "res:dev-build": "rescript build -with-deps",
     "res:clean": "rescript clean",
     "res:dev": "rescript -w",
-    "test:watch": "vitest",
+    "test:watch": "ava --watch",
     "clean": "rm -rf dist && rm -rf lib && rm -f *.tgz",
     "build": "node esbuild.js",
     "prebuild": "pnpm clean && rescript",
     "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
-    "pretest": "pnpm res:build",
-    "test": "vitest run"
+    "test": "ava"
   },
   "description": "🍃 React State Management with Tilia.",
   "keywords": [
@@ -41,31 +40,26 @@
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT",
   "peerDependencies": {
-    "react": "*"
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
   },
   "dependencies": {
     "tilia": "file:../tilia"
   },
   "devDependencies": {
+    "@dzakh/rescript-ava": "^3.2.0",
     "@rescript/core": "^1.6.1",
-    "@rescript/react": "^0.12.2",
-    "@testing-library/dom": "^10.4.0",
-    "@testing-library/jest-dom": "^6.9.1",
+    "@rescript/react": "^0.14.0",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
-    "@vitejs/plugin-react": "^4.5.2",
     "ava": "5.2.0",
     "clean-package": "^2.2.0",
-    "esbuild": "^0.25.5",
-    "esbuild-node-externals": "^1.18.0",
+    "esbuild": "^0.27.1",
+    "esbuild-node-externals": "^1.20.1",
     "global-jsdom": "^26.0.0",
-    "jsdom": "^26.1.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "rescript": "^11.1.4",
-    "typescript": "^5.8.3",
-    "vitest": "^3.2.4",
-    "vitest-bdd": "^0.6.0"
+    "rescript": "^12.0.0",
+    "typescript": "^5.9.3"
   },
   "ava": {
     "files": [
