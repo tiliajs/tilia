@@ -14,8 +14,8 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
-- 2025-12-18 **4.0.0-beta**
-  - Changed @tilia/react dependency to track MAJOR.MINOR of tilia.
+- 2025-12-18 **4.0.0**
+  - Changed @tilia/react dependency to track MAJOR.MINOR version of tilia.
   - Add apps to test different project setup.
   - Improve error reporting for "Orphan Computation Error". See https://tiliajs.com/errors.
   - Remove explicit 'exports' from package.json to support any suffix in ReScript setup.
