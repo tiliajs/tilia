@@ -3,60 +3,55 @@
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Clouds from "./Clouds.mjs";
 import * as CloudLeaf from "./CloudLeaf.mjs";
+import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
 import * as VitestBdd from "vitest-bdd";
-import * as PervasivesU from "rescript/lib/es6/pervasivesU.js";
 import * as JsxRuntime from "react/jsx-runtime";
 import * as React from "@testing-library/react";
 import UserEvent from "@testing-library/user-event";
 
-VitestBdd.Given("I render the {string} component", (function (param, compName) {
-        var step = param.step;
-        var host = document.createElement("div");
-        document.body.appendChild(host);
-        var tree = Tilia.tilia({
-              flowers: "Are nice",
-              clouds: {
-                morning: "can be pink",
-                evening: "can be dark"
-              }
-            });
-        var onClick = function () {
-          tree.clouds.evening = "Blue";
-        };
-        var jsx;
-        switch (compName) {
-          case "CloudLeaf" :
-              jsx = JsxRuntime.jsx(CloudLeaf.make, {
-                    tree: tree,
-                    onClick: onClick
-                  });
-              break;
-          case "Clouds" :
-              jsx = JsxRuntime.jsx(Clouds.make, {
-                    tree: tree,
-                    onClick: onClick
-                  });
-              break;
-          default:
-            jsx = PervasivesU.failwith("Unknown component: " + compName);
-        }
-        React.render(jsx, {
-              container: host
-            });
-        var screen = React.within(host);
-        step("I click the change button", (async function () {
-                var user = UserEvent.setup();
-                var btn = screen.getByRole("button");
-                return await user.click(btn);
-              }));
-        step("I should see cloud {string}", (async function (expected) {
-                return await React.waitFor(async function () {
-                            expect(screen.getByRole("cloud")).toHaveTextContent(expected);
-                          });
-              }));
-      }));
+VitestBdd.Given("I render the {string} component", (param, compName) => {
+  let step = param.step;
+  let host = document.createElement("div");
+  document.body.appendChild(host);
+  let tree = Tilia.tilia({
+    flowers: "Are nice",
+    clouds: {
+      morning: "can be pink",
+      evening: "can be dark"
+    }
+  });
+  let onClick = () => {
+    tree.clouds.evening = "Blue";
+  };
+  let jsx;
+  switch (compName) {
+    case "CloudLeaf" :
+      jsx = JsxRuntime.jsx(CloudLeaf.make, {
+        tree: tree,
+        onClick: onClick
+      });
+      break;
+    case "Clouds" :
+      jsx = JsxRuntime.jsx(Clouds.make, {
+        tree: tree,
+        onClick: onClick
+      });
+      break;
+    default:
+      jsx = Pervasives.failwith("Unknown component: " + compName);
+  }
+  React.render(jsx, {
+    container: host
+  });
+  let screen = React.within(host);
+  step("I click the change button", async () => {
+    let user = UserEvent.setup();
+    let btn = screen.getByRole("button");
+    return await user.click(btn);
+  });
+  step("I should see cloud {string}", async expected => await React.waitFor(async () => {
+    expect(screen.getByRole("cloud")).toHaveTextContent(expected);
+  }));
+});
 
-export {
-  
-}
 /*  Not a pure module */

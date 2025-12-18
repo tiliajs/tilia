@@ -58,7 +58,7 @@ importers:
         version: link:../tilia
     devDependencies:
       '@rescript/react':
-        specifier: 0.14.0
+        specifier: ^0.14.0
         version: 0.14.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       '@rescript/runtime':
         specifier: ^12.0.0

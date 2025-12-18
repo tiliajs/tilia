@@ -4,69 +4,51 @@ import * as Tilia from "tilia/src/Tilia.mjs";
 import * as React from "react";
 
 function make(ctx) {
-  var _observe = ctx._observe;
-  var tilia = ctx.tilia;
-  var useTilia = function () {
-    var match = React.useState(0);
-    var setCount = match[1];
-    var o = _observe(function () {
-          setCount(function (i) {
-                return i + 1 | 0;
-              });
-        });
-    React.useEffect(function () {
-          Tilia._ready(o, true);
-          return (function () {
-                    Tilia._clear(o);
-                  });
-        });
+  let _observe = ctx._observe;
+  let tilia = ctx.tilia;
+  let useTilia = () => {
+    let match = React.useState(0);
+    let setCount = match[1];
+    let o = _observe(() => setCount(i => i + 1 | 0));
+    React.useEffect(() => {
+      Tilia._ready(o, true);
+      return () => Tilia._clear(o);
+    });
   };
-  var useComputed = function (fn) {
-    return React.useMemo((function () {
-                  return tilia({
-                              value: Tilia.computed(fn)
-                            });
-                }), []).value;
-  };
-  var leaf = function (fn) {
-    return function (p) {
-      var match = React.useState(0);
-      var setCount = match[1];
-      var o = _observe(function () {
-            setCount(function (i) {
-                  return i + 1 | 0;
-                });
-          });
-      React.useEffect(function () {
-            Tilia._ready(o, true);
-            return (function () {
-                      Tilia._clear(o);
-                    });
-          });
-      var node = fn(p);
-      Tilia._done(o);
-      return node;
-    };
-  };
+  let useComputed = fn => React.useMemo(() => tilia({
+    value: Tilia.computed(fn)
+  }), []).value;
+  let leaf = fn => (p => {
+    let match = React.useState(0);
+    let setCount = match[1];
+    let o = _observe(() => setCount(i => i + 1 | 0));
+    React.useEffect(() => {
+      Tilia._ready(o, true);
+      return () => Tilia._clear(o);
+    });
+    let node = fn(p);
+    Tilia._done(o);
+    return node;
+  });
   return {
-          useTilia: useTilia,
-          useComputed: useComputed,
-          leaf: leaf
-        };
+    useTilia: useTilia,
+    useComputed: useComputed,
+    leaf: leaf
+  };
 }
 
-var tr = make(Tilia._ctx);
+let tr = make(Tilia._ctx);
 
-var useTilia = tr.useTilia;
+let useTilia = tr.useTilia;
 
-var useComputed = tr.useComputed;
+let useComputed = tr.useComputed;
 
-var leaf = tr.leaf;
+let leaf = tr.leaf;
 
 export {
-  useTilia ,
-  useComputed ,
-  leaf ,
-  make ,
+  useTilia,
+  useComputed,
+  leaf,
+  make,
 }
 /* tr Not a pure module */

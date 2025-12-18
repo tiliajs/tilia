@@ -4,45 +4,41 @@ import * as TiliaReact from "../src/TiliaReact.mjs";
 import * as JsxRuntime from "react/jsx-runtime";
 
 function Clouds(props) {
-  var onClick = props.onClick;
-  var tree = props.tree;
+  let onClick = props.onClick;
+  let tree = props.tree;
   TiliaReact.useTilia();
-  var onChange = function (e) {
+  let onChange = e => {
     tree.clouds.evening = e.target.value;
   };
-  var isPink = TiliaReact.useComputed(function () {
-        return tree.clouds.evening === "pink";
-      });
+  let isPink = TiliaReact.useComputed(() => tree.clouds.evening === "pink");
   return JsxRuntime.jsxs("div", {
-              children: [
-                JsxRuntime.jsxs("div", {
-                      children: [
-                        "Evening clouds are ",
-                        tree.clouds.evening
-                      ],
-                      role: "cloud"
-                    }),
-                JsxRuntime.jsx("div", {
-                      children: isPink ? "Clouds are pink" : "",
-                      role: "flag"
-                    }),
-                JsxRuntime.jsx("button", {
-                      children: "Change",
-                      onClick: (function (param) {
-                          onClick();
-                        })
-                    }),
-                JsxRuntime.jsx("input", {
-                      value: tree.clouds.evening,
-                      onChange: onChange
-                    })
-              ]
-            });
+    children: [
+      JsxRuntime.jsxs("div", {
+        children: [
+          "Evening clouds are ",
+          tree.clouds.evening
+        ],
+        role: "cloud"
+      }),
+      JsxRuntime.jsx("div", {
+        children: isPink ? "Clouds are pink" : "",
+        role: "flag"
+      }),
+      JsxRuntime.jsx("button", {
+        children: "Change",
+        onClick: param => onClick()
+      }),
+      JsxRuntime.jsx("input", {
+        value: tree.clouds.evening,
+        onChange: onChange
+      })
+    ]
+  });
 }
 
-var make = Clouds;
+let make = Clouds;
 
 export {
-  make ,
+  make,
 }
 /* TiliaReact Not a pure module */
