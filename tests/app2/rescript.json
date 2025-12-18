@@ -23,7 +23,6 @@
   "dev-dependencies": [
     "vitest-bdd"
   ],
-  "compiler-flags": [],
   "jsx": {
     "version": 4
   }

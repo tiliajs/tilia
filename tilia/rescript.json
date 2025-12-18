@@ -21,6 +21,5 @@
   "dependencies": [],
   "dev-dependencies": [
     "@dzakh/rescript-ava"
-  ],
-  "compiler-flags": []
+  ]
 }
