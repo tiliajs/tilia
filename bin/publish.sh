@@ -76,7 +76,12 @@ npm --no-git-tag-version version $VERSION
 # Extract base version (remove pre-release suffix if present)
 BASE_VERSION="${VERSION%%-*}"
 MAJOR_MINOR_VERSION="${BASE_VERSION%.*}"
-npm pkg set dependencies.tilia="^$MAJOR_MINOR_VERSION"
+# Use exact version for canary/beta, otherwise use caret range
+if [[ $1 == "--beta" ]] || [[ $1 == "--canary" ]]; then
+  npm pkg set dependencies.tilia="$VERSION"
+else
+  npm pkg set dependencies.tilia="^$MAJOR_MINOR_VERSION"
+fi
 
 if [[ $1 == "--beta" ]]; then
   pnpm publish --tag beta --access public --no-git-checks
