@@ -58,6 +58,7 @@ if [[ $1 == "--beta" ]]; then
 elif [[ $1 == "--canary" ]]; then
   CANARY=true pnpm publish --tag canary --access public --no-git-checks
 else
+  git tag $VERSION
   pnpm publish --access public --no-git-checks
 fi
 cd ..
