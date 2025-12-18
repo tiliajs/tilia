@@ -464,13 +464,13 @@ test("Should support sub-object in array", t => {
     Array.toSorted(items.all, (a, b) => String.compare(a.name, b.name))
   })
   let o = _observe(() => m.called = true)
-  t->is(getExn(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
+  t->is(getOrThrow(items.sorted[2]).name, "carrot") // o observe [2] and [2].name
   _ready(o, true)
   items.selected = items.all[1] // carrot
   t->is(m.called, false)
-  getExn(items.selected).name = "avocado"
+  getOrThrow(items.selected).name = "avocado"
   t->is(m.called, true)
-  t->is(getExn(items.sorted[2]).name, "banana")
+  t->is(getOrThrow(items.sorted[2]).name, "banana")
   // apple
   // avocado (ex carrot)
   // banana
@@ -527,17 +527,17 @@ test("Should get internals with _meta", t => {
   switch getMeta(p) {
   | Value(meta) => {
       t->is(person, meta.target)
-      let n = Option.getExn(Map.get(meta.observed, "sname"))
+      let n = Option.getOrThrow(Map.get(meta.observed, "sname"))
       t->is(1, Set.size(n.observers))
 
-      let address = Option.getExn(Map.get(meta.proxied, "address")).proxy
+      let address = Option.getOrThrow(Map.get(meta.proxied, "address")).proxy
       t->is(p.address, address)
 
       let meta = getMeta(address)
       switch meta {
       | Value(meta) => {
           t->is(person.address, meta.target)
-          let n = Option.getExn(Map.get(meta.observed, "city"))
+          let n = Option.getOrThrow(Map.get(meta.observed, "city"))
           t->is(2, Set.size(n.observers))
         }
       | _ => t->fail("Meta is undefined")
@@ -557,7 +557,7 @@ test("Should clear if ready never called", t => {
   // Observers should be zero
   switch getMeta(p) {
   | Value(meta) => {
-      let n = Option.getExn(Map.get(meta.observed, "name"))
+      let n = Option.getOrThrow(Map.get(meta.observed, "name"))
       t->is(0, Set.size(n.observers))
     }
   | _ => t->fail("XXX Meta is undefined")
@@ -579,7 +579,7 @@ test("Should delete observations on set", t => {
 
   switch getMeta(p) {
   | Value(meta) => {
-      let n = Option.getExn(Map.get(meta.observed, "john"))
+      let n = Option.getOrThrow(Map.get(meta.observed, "john"))
       t->is(1, Set.size(n.observers))
       Dict.set(p, "john", person())
 
@@ -602,7 +602,7 @@ test("Should delete observations on delete", t => {
 
   switch getMeta(p) {
   | Value(meta) => {
-      let n = Option.getExn(Map.get(meta.observed, "john"))
+      let n = Option.getOrThrow(Map.get(meta.observed, "john"))
       t->is(1, Set.size(n.observers))
       Dict.delete(p, "john")
 
@@ -901,13 +901,13 @@ test("Returned object from a computed should be a proxy", t => {
   t->isTrue(m.called)
 })
 
-type dateo = {date: Js.Date.t}
+type dateo = {date: Date.t}
 
 test("Should not proxify class instance", t => {
-  let p = tilia({date: Js.Date.make()})
+  let p = tilia({date: Date.make()})
   t->isTrue(%raw(`p.date instanceof Date`))
   t->is(Tilia._meta(p.date), undefined)
-  t->is(p.date->Js.Date.getMilliseconds, %raw(`p.date.getMilliseconds()`))
+  t->is(p.date->Date.getMilliseconds, %raw(`p.date.getMilliseconds()`))
 })
 
 type machine = Blank | Loading | Loaded
@@ -1525,7 +1525,7 @@ test("Should lift signal", t => {
   t->is(obj.nb2, 1)
 })
 
-module Console = {
+module ErrorLog = {
   let silent: unit => unit = %raw(`function (e) {
   console.errorOrig = console.error;
   console.error = function () {};
@@ -1542,7 +1542,7 @@ module Console = {
 }
 
 test("Should not lock root on crash in computed", t => {
-  Console.silent()
+  ErrorLog.silent()
   try {
     let m = {called: false}
     let cm = {called: false}
@@ -1564,8 +1564,8 @@ test("Should not lock root on crash in computed", t => {
     try {
       setX("crash")
       // read
-      Js.log(bad.value)
-      Js.log("CONTINUE")
+      Console.log(bad.value)
+      Console.log("CONTINUE")
     } catch {
     | _ => cm.called = true
     }
@@ -1584,11 +1584,11 @@ test("Should not lock root on crash in computed", t => {
     p.name = "Nana"
     // Observer working
     t->isTrue(m.called)
-    Console.restore()
+    ErrorLog.restore()
   } catch {
   | e =>
-    Console.restore()
-    Console.reraise(e)
+    ErrorLog.restore()
+    ErrorLog.reraise(e)
   }
 })
 

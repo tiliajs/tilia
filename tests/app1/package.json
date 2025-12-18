@@ -9,7 +9,7 @@
     "test:watch": "vitest",
     "res:build": "rescript",
     "res:clean": "rescript clean",
-    "res:dev": "rescript -w"
+    "res:dev": "rescript watch"
   },
   "dependencies": {
     "@tilia/react": "workspace:^",
@@ -18,8 +18,8 @@
     "tilia": "workspace:^"
   },
   "devDependencies": {
-    "@rescript/core": "^1.6.1",
-    "@rescript/react": "^0.12.2",
+    "@rescript/react": "0.14.0",
+    "@rescript/runtime": "^12.0.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -28,9 +28,9 @@
     "@vitejs/plugin-react": "^4.5.2",
     "@vitest/ui": "^3.2.4",
     "jsdom": "^26.0.0",
-    "rescript": "^11.1.4",
+    "rescript": "^12.0.0",
     "typescript": "~5.8.3",
     "vitest": "^3",
-    "vitest-bdd": "^0.6.2"
+    "vitest-bdd": "1.0.0-beta.20251218T132423"
   }
 }

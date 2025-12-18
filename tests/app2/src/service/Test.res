@@ -17,7 +17,7 @@ type roleOptions = {name?: string}
 @send
 external queryByRole: (screen, string, ~options: roleOptions=?) => option<element> = "queryByRole"
 
-type roleOptionsRe = {name: Js.Re.t}
+type roleOptionsRe = {name: RegExp.t}
 @send external getByRoleRe: (screen, string, ~options: roleOptionsRe) => element = "getByRole"
 
 type assertion

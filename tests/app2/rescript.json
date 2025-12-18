@@ -15,18 +15,15 @@
     "module": "esmodule"
   },
   "suffix": ".mjs",
-  "bs-dependencies": [
-    "@rescript/core",
+  "dependencies": [
     "@rescript/react",
     "tilia",
     "@tilia/react"
   ],
-  "bs-dev-dependencies": [
+  "dev-dependencies": [
     "vitest-bdd"
   ],
-  "bsc-flags": [
-    "-open RescriptCore"
-  ],
+  "compiler-flags": [],
   "jsx": {
     "version": 4
   }

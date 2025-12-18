@@ -14,6 +14,8 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2025-12-18 **5.0.0-beta**
+  - Update to ReScript v12.
 - 2025-12-18 **4.0.0**
   - Changed @tilia/react dependency to track MAJOR.MINOR version of tilia.
   - Add apps to test different project setup.

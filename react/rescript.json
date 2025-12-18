@@ -16,17 +16,14 @@
     "in-source": true
   },
   "suffix": ".mjs",
-  "bs-dependencies": [
-    "@rescript/core",
+  "dependencies": [
     "@rescript/react",
     "tilia"
   ],
-  "bs-dev-dependencies": [
+  "dev-dependencies": [
     "vitest-bdd"
   ],
-  "bsc-flags": [
-    "-open RescriptCore"
-  ],
+  "compiler-flags": [],
   "jsx": {
     "version": 4
   }

@@ -57,12 +57,12 @@ importers:
         specifier: workspace:^
         version: link:../tilia
     devDependencies:
-      '@rescript/core':
-        specifier: ^1.6.1
-        version: 1.6.1(rescript@11.1.4)
       '@rescript/react':
-        specifier: ^0.12.2
-        version: 0.12.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        specifier: 0.14.0
+        version: 0.14.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@rescript/runtime':
+        specifier: ^12.0.0
+        version: 12.0.1
       '@testing-library/dom':
         specifier: ^10.4.0
         version: 10.4.0
@@ -103,8 +103,8 @@ importers:
         specifier: ^19.1.0
         version: 19.1.0(react@19.1.0)
       rescript:
-        specifier: ^11.1.4
-        version: 11.1.4
+        specifier: ^12.0.0
+        version: 12.0.1
       typescript:
         specifier: ^5.8.3
         version: 5.8.3
@@ -112,8 +112,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.3)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(yaml@2.6.1)
       vitest-bdd:
-        specifier: ^0.6.2
-        version: 0.6.2(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
+        specifier: 1.0.0-beta.20251218T132423
+        version: 1.0.0-beta.20251218T132423(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
 
   tests/app1:
     dependencies:
@@ -130,12 +130,12 @@ importers:
         specifier: workspace:^
         version: link:../../tilia
     devDependencies:
-      '@rescript/core':
-        specifier: ^1.6.1
-        version: 1.6.1(rescript@11.1.4)
       '@rescript/react':
-        specifier: ^0.12.2
-        version: 0.12.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        specifier: 0.14.0
+        version: 0.14.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@rescript/runtime':
+        specifier: ^12.0.0
+        version: 12.0.1
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.9.1
@@ -161,8 +161,8 @@ importers:
         specifier: ^26.0.0
         version: 26.1.0
       rescript:
-        specifier: ^11.1.4
-        version: 11.1.4
+        specifier: ^12.0.0
+        version: 12.0.1
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
@@ -170,8 +170,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.3)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(yaml@2.6.1)
       vitest-bdd:
-        specifier: ^0.6.2
-        version: 0.6.2(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
+        specifier: 1.0.0-beta.20251218T132423
+        version: 1.0.0-beta.20251218T132423(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
 
   tests/app2:
     dependencies:
@@ -188,12 +188,12 @@ importers:
         specifier: workspace:^
         version: link:../../tilia
     devDependencies:
-      '@rescript/core':
-        specifier: ^1.6.1
-        version: 1.6.1(rescript@11.1.4)
       '@rescript/react':
-        specifier: ^0.12.2
-        version: 0.12.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+        specifier: 0.14.0
+        version: 0.14.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
+      '@rescript/runtime':
+        specifier: ^12.0.0
+        version: 12.0.1
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.9.1
@@ -222,8 +222,8 @@ importers:
         specifier: ^26.0.0
         version: 26.1.0
       rescript:
-        specifier: ^11.1.4
-        version: 11.1.4
+        specifier: ^12.0.0
+        version: 12.0.1
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
@@ -231,8 +231,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.3)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(yaml@2.6.1)
       vitest-bdd:
-        specifier: ^0.6.2
-        version: 0.6.2(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
+        specifier: 1.0.0-beta.20251218T132423
+        version: 1.0.0-beta.20251218T132423(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
 
   tests/app3:
     dependencies:
@@ -280,8 +280,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.3)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(yaml@2.6.1)
       vitest-bdd:
-        specifier: ^0.6.2
-        version: 0.6.2(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
+        specifier: 1.0.0-beta.20251218T132423
+        version: 1.0.0-beta.20251218T132423(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
 
   tests/app4:
     dependencies:
@@ -296,11 +296,11 @@ importers:
   tilia:
     devDependencies:
       '@dzakh/rescript-ava':
-        specifier: ^3.1.0
-        version: 3.1.0(ava@5.2.0)(rescript@11.1.4)
-      '@rescript/core':
-        specifier: ^1.6.1
-        version: 1.6.1(rescript@11.1.4)
+        specifier: ^3.2.0
+        version: 3.2.0(ava@5.2.0)(rescript@12.0.1)
+      '@rescript/runtime':
+        specifier: ^12.0.0
+        version: 12.0.1
       ava:
         specifier: 5.2.0
         version: 5.2.0
@@ -314,8 +314,8 @@ importers:
         specifier: ^1.18.0
         version: 1.18.0(esbuild@0.25.5)
       rescript:
-        specifier: ^11.1.4
-        version: 11.1.4
+        specifier: ^12.0.0
+        version: 12.0.1
 
   todo-app-ts:
     dependencies:
@@ -387,8 +387,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.3)(@vitest/ui@3.2.4)(jiti@2.4.2)(jsdom@26.1.0)(lightningcss@1.30.1)(yaml@2.6.1)
       vitest-bdd:
-        specifier: ^0.6.2
-        version: 0.6.2(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
+        specifier: 1.0.0-beta.20251218T132423
+        version: 1.0.0-beta.20251218T132423(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1))
 
   website:
     dependencies:
@@ -605,11 +605,11 @@ packages:
   '@cucumber/messages@27.2.0':
     resolution: {integrity: sha512-f2o/HqKHgsqzFLdq6fAhfG1FNOQPdBdyMGpKwhb7hZqg0yZtx9BVqkTyuoNk83Fcvk3wjMVfouFXXHNEk4nddA==}
 
-  '@dzakh/rescript-ava@3.1.0':
-    resolution: {integrity: sha512-endQ+HhoSokFS6SvrCfvX+5m9HAcpgsk+sMtS53BchnoWNeGGtwJKRfUSE4EwQTbG/6bjDRQQyFKskrlve7OQg==}
+  '@dzakh/rescript-ava@3.2.0':
+    resolution: {integrity: sha512-OTr6fW2sG61Eb2p24WzbmD+DOLNhxkbCl0LSyO8Lf+XKESNZc8HUJLggTfbAEkb816od+N2y/86wcuMH8oouZg==}
     peerDependencies:
       ava: ^5.2.0 || 6
-      rescript: 11.x
+      rescript: '12'
 
   '@emnapi/runtime@1.7.1':
     resolution: {integrity: sha512-PVtJr5CmLwYAU9PZDMITZoR5iAOShYREoR45EyyLrbntV50mdePTgUn4AmOw90Ifcj+x2kRjdzr1HP3RrNiHGA==}
@@ -1220,16 +1220,44 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
-  '@rescript/core@1.6.1':
-    resolution: {integrity: sha512-vyb5k90ck+65Fgui+5vCja/mUfzKaK3kOPT4Z6aAJdHLH1eljEi1zKhXroCiCtpNLSWp8k4ulh1bdB5WS0hvqA==}
-    peerDependencies:
-      rescript: '>=11.1.0'
+  '@rescript/darwin-arm64@12.0.1':
+    resolution: {integrity: sha512-JJddiKKfOSc9X+2rt6IrbEUlOBaIfgjkWzCN986czZ5YV4lh3jysPVk6EQHaip2ibPkwf/nLv6Pin4t+XmdqLQ==}
+    engines: {node: '>=20.11.0'}
+    cpu: [arm64]
+    os: [darwin]
 
-  '@rescript/react@0.12.2':
-    resolution: {integrity: sha512-EOF19dLTG4Y9K59JqMjG5yfvIsrMZqfxGC2J/oe9gGgrMiUrzZh3KH9khTcR1Z3Ih0lRViSh0/iYnJz20gGoag==}
+  '@rescript/darwin-x64@12.0.1':
+    resolution: {integrity: sha512-tZSeHr9MQ90oKULDIn9ugvP08eLCflH2uO02iF7z1i8RshPrfD36qFiPOn4WxzcSJuqynffNLEgeWYrnPiZ0JQ==}
+    engines: {node: '>=20.11.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rescript/linux-arm64@12.0.1':
+    resolution: {integrity: sha512-V/xnkFgEvSRMlyT1XCptnWWXgySFR9aKdja74VeDyEGLc6MGmi8zopxUUFcwCQXxV/zPAFkIxjz8xMY0SBCAmQ==}
+    engines: {node: '>=20.11.0'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@rescript/linux-x64@12.0.1':
+    resolution: {integrity: sha512-WpVBjAvLsKATOJTckI6PDf4IFnHHxwsSVtklC+XAXbwqHLP1gqDDuVcykOOIWexxepod+QvBvEZGjzNPJ5L8gA==}
+    engines: {node: '>=20.11.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@rescript/react@0.14.0':
+    resolution: {integrity: sha512-ncOHWK7ujQmff+QMYKRmtwETvJVolzkwRpDa0MFenEXdUz9ZYywNbq+xH9F9RDQeSwC3/4s9JeUQVyTu4fMpHw==}
     peerDependencies:
-      react: '>=18.0.0'
-      react-dom: '>=18.0.0'
+      react: '>=19.0.0'
+      react-dom: '>=19.0.0'
+
+  '@rescript/runtime@12.0.1':
+    resolution: {integrity: sha512-pMoWvllPFK0cl87vMYBVvll+DaAdPAsRuLIIJa+Q8LMhcS7cqpaZVflU3LbH+U/kv3vWaUYIfLBObwGnXw/CDg==}
+
+  '@rescript/win32-x64@12.0.1':
+    resolution: {integrity: sha512-Hv6nwb6A94qtj6b4PcIsmoWhLIcLt6wLuHpD9YNxj4/d9FkrHM/yj9ZKhKan/9rfg4wkHl1cZE898AZe/nWq9g==}
+    engines: {node: '>=20.11.0'}
+    cpu: [x64]
+    os: [win32]
 
   '@rolldown/pluginutils@1.0.0-beta.11':
     resolution: {integrity: sha512-L/gAA/hyCSuzTF1ftlzUSI/IKr2POHsv1Dd78GfqkR83KMNuswWD61JxGV2L7nRwBBBSDr6R1gCkdTmoN7W4ag==}
@@ -3459,9 +3487,9 @@ packages:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
     engines: {node: '>=0.10.0'}
 
-  rescript@11.1.4:
-    resolution: {integrity: sha512-0bGU0bocihjSC6MsE3TMjHjY0EUpchyrREquLS8VsZ3ohSMD+VHUEwimEfB3kpBI1vYkw3UFZ3WD8R28guz/Vw==}
-    engines: {node: '>=10'}
+  rescript@12.0.1:
+    resolution: {integrity: sha512-59JyEUyLj+IPd9VutAXpBXRGqaeaHCMtvACJNAy/oI1hjpjklQ2UJE07oLhxoWB4SDZrCxzowNUpE46UAgjOXg==}
+    engines: {node: '>=20.11.0'}
     hasBin: true
 
   resolve-cwd@3.0.0:
@@ -4054,8 +4082,8 @@ packages:
       vite:
         optional: true
 
-  vitest-bdd@0.6.2:
-    resolution: {integrity: sha512-Ze77zYIKkqgrAm+tajZU4lQCH2FRJnFO5DFuPQX22VP31mBJ/XmOzKps0fgz6UAIFjc7dShrDPEPFFvHf3e1pQ==}
+  vitest-bdd@1.0.0-beta.20251218T132423:
+    resolution: {integrity: sha512-0QSuPhDd2zJQ+OQXAA4sOXN/nPswWUqrgubUMEkQDs+3+VkOGnwaLQetF9F9xGhlOOzXQau2T7B0Tyv6Kh+FKA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       vite: '>=6.4.1'
@@ -4505,10 +4533,10 @@ snapshots:
       reflect-metadata: 0.2.2
       uuid: 11.0.5
 
-  '@dzakh/rescript-ava@3.1.0(ava@5.2.0)(rescript@11.1.4)':
+  '@dzakh/rescript-ava@3.2.0(ava@5.2.0)(rescript@12.0.1)':
     dependencies:
       ava: 5.2.0
-      rescript: 11.1.4
+      rescript: 12.0.1
 
   '@emnapi/runtime@1.7.1':
     dependencies:
@@ -4928,14 +4956,27 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
-  '@rescript/core@1.6.1(rescript@11.1.4)':
-    dependencies:
-      rescript: 11.1.4
+  '@rescript/darwin-arm64@12.0.1':
+    optional: true
 
-  '@rescript/react@0.12.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
+  '@rescript/darwin-x64@12.0.1':
+    optional: true
+
+  '@rescript/linux-arm64@12.0.1':
+    optional: true
+
+  '@rescript/linux-x64@12.0.1':
+    optional: true
+
+  '@rescript/react@0.14.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)':
     dependencies:
       react: 19.1.0
       react-dom: 19.1.0(react@19.1.0)
+
+  '@rescript/runtime@12.0.1': {}
+
+  '@rescript/win32-x64@12.0.1':
+    optional: true
 
   '@rolldown/pluginutils@1.0.0-beta.11': {}
 
@@ -7726,7 +7767,15 @@ snapshots:
 
   require-directory@2.1.1: {}
 
-  rescript@11.1.4: {}
+  rescript@12.0.1:
+    dependencies:
+      '@rescript/runtime': 12.0.1
+    optionalDependencies:
+      '@rescript/darwin-arm64': 12.0.1
+      '@rescript/darwin-x64': 12.0.1
+      '@rescript/linux-arm64': 12.0.1
+      '@rescript/linux-x64': 12.0.1
+      '@rescript/win32-x64': 12.0.1
 
   resolve-cwd@3.0.0:
     dependencies:
@@ -8288,7 +8337,7 @@ snapshots:
     optionalDependencies:
       vite: 6.4.1(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1)
 
-  vitest-bdd@0.6.2(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1)):
+  vitest-bdd@1.0.0-beta.20251218T132423(vite@7.3.0(@types/node@24.0.3)(jiti@2.4.2)(lightningcss@1.30.1)(yaml@2.6.1)):
     dependencies:
       '@cucumber/gherkin': 32.1.2
       '@cucumber/messages': 27.2.0

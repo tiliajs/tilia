@@ -29,7 +29,7 @@ given("I render the TodoList component", ({step}, _) => {
 
   step("I click toggle for todo {string}", async title => {
     let user = userEvent->setup
-    let re = Js.Re.fromString(`(Complete|Undo) ${title}`)
+    let re = RegExp.fromString(`(Complete|Undo) ${title}`)
     let btn = screen->getByRoleRe("button", ~options={name: re})
     await user->click(btn)
   })

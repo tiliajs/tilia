@@ -1,7 +1,7 @@
 {
   "name": "tilia-monorepo",
   "private": true,
-  "version": "4.0.1",
+  "version": "5.0.0",
   "homepage": "https://tiliajs.com",
   "description": "tilia monorepo",
   "main": "index.js",
