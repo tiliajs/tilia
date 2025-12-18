@@ -5,6 +5,8 @@ import {existsSync} from "fs";
 import {join, dirname} from "path";
 import {fileURLToPath} from "url";
 
+// Out-of-source steps resolver for BDD tests
+
 const base = dirname(fileURLToPath(import.meta.url));
 const toLib = (p: string) => p.replace(base, `${base}/lib/es6`);
 
@@ -43,7 +45,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "jsdom",
-    include: ["src/**/*.feature"],
-    setupFiles: ["./src/test/setup.ts"],
+    include: ["test/**/*.feature"],
+    setupFiles: ["./test/setup.ts"],
   },
 });

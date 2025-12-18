@@ -20,11 +20,5 @@
   },
   "keywords": [],
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
-  "license": "MIT",
-  "pnpm": {
-    "overrides": {
-      "react": "^19.1.0",
-      "react-dom": "^19.1.0"
-    }
-  }
+  "license": "MIT"
 }

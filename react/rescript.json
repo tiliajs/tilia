@@ -19,7 +19,9 @@
   "bs-dependencies": [
     "@rescript/core",
     "@rescript/react",
-    "tilia",
+    "tilia"
+  ],
+  "bs-dev-dependencies": [
     "vitest-bdd"
   ],
   "bsc-flags": [

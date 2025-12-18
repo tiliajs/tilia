@@ -58,8 +58,8 @@ if [[ $1 == "--beta" ]]; then
 elif [[ $1 == "--canary" ]]; then
   CANARY=true pnpm publish --tag canary --access public --no-git-checks
 else
-  git tag $VERSION
   pnpm publish --access public --no-git-checks
+  git tag "v$VERSION"
 fi
 cd ..
 
@@ -73,7 +73,10 @@ sleep 3
 # ================ REACT
 cd react
 npm --no-git-tag-version version $VERSION
-npm pkg set dependencies.tilia="$VERSION"
+# Extract base version (remove pre-release suffix if present)
+BASE_VERSION="${VERSION%%-*}"
+MAJOR_MINOR_VERSION="${BASE_VERSION%.*}"
+npm pkg set dependencies.tilia="^$MAJOR_MINOR_VERSION"
 
 if [[ $1 == "--beta" ]]; then
   pnpm publish --tag beta --access public --no-git-checks

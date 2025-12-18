@@ -24,7 +24,7 @@
     "jsdom": "^26.0.0",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^3.2.4",
-    "vitest-bdd": "^0.6.0"
+    "vitest": "^3",
+    "vitest-bdd": "^0.6.2"
   }
 }

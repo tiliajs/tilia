@@ -4,6 +4,10 @@
     {
       "dir": "src",
       "subdirs": true
+    },
+    {
+      "dir": "test",
+      "type": "dev"
     }
   ],
   "package-specs": {
@@ -14,8 +18,10 @@
   "bs-dependencies": [
     "@rescript/core",
     "@rescript/react",
-    "tilia",
     "@tilia/react",
+    "tilia"
+  ],
+  "bs-dev-dependencies": [
     "vitest-bdd"
   ],
   "bsc-flags": [

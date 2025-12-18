@@ -35,7 +35,7 @@
     "typescript-eslint": "^8.34.1",
     "vite": "^6.3.5",
     "vite-tsconfig-paths": "^5.1.4",
-    "vitest": "^3.2.4",
-    "vitest-bdd": "0.1.0-canary.20250620T205053"
+    "vitest": "^3",
+    "vitest-bdd": "^0.6.2"
   }
 }
