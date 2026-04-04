@@ -18,21 +18,19 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 
 <section class="doc installation">
 
-#### This documentation is for the upcoming version **4.0**
+#### This documentation is for version **5.x** and **4.x**
 
-If you need the documentation for previous versions, please send me an email at
-(g dot a dot midasum dot com) and I will update the website to display previous
-versions API ☺️
+Branches **5.x** and **4.x** have the same API, version 5.x targets **ReScript v12** while version 4.x is for **ReScript v11**.
+
+There is no difference for TypeScript.
 
 
 ## Installation
 
-```bash
-# Version 4.0: Code is stable API might change.
-
-npm install tilia@beta 
-
-# With React
+```shell
+# Version 5.0 (ReScript v12)
+npm install tilia
+# If you are using tilia with React:
 npm install @tilia/react
 ```
 
@@ -2195,23 +2193,150 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
-      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-07-13 2.0.0 (beta version)</h3>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-12-18 5.0.0 (beta)</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
-        <li>Moved core to "tilia" npm package.</li>
-        <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context.</li>
-        <li>Enable forest mode to observe across separated objects.</li>
-        <li>Add <code class="text-yellow-300">computed</code> to compute values in branches.</li>
-        <li>Moved <code class="text-yellow-300">observe</code> into tilia context.</li>
-        <li>Added <code class="text-yellow-300">signal</code>, and <code class='text-yellow-300'>source</code> for FRP style programming.
-        </li>
-        <li>Added <code class="text-yellow-300">carve</code> for derivation.</li>
-        <li>Simplify <code class="text-yellow-300">useTilia</code> signature.</li>
-        <li>Add garbage collection to improve performance.</li>
+        <li>Update to ReScript v12.</li>
       </ul>
     </div>
-    <div class="text-sm text-white/70">
-      <p>See the full changelog in the <a href="https://github.com/tiliajs/tilia/blob/main/README.md"
-          class="text-blue-300 hover:text-blue-200 underline">README</a>.</p>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-12-18 4.0.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Changed <code class="text-yellow-300">@tilia/react</code> dependency to track MAJOR.MINOR version of tilia.</li>
+        <li>Add apps to test different project setup.</li>
+        <li>Improve error reporting for "Orphan Computation Error". See <a href="https://tiliajs.com/errors" class="text-blue-300 hover:text-blue-200 underline">https://tiliajs.com/errors</a>.</li>
+        <li>Remove explicit 'exports' from package.json to support any suffix in ReScript setup.</li>
+        <li>Add previous value to <code class="text-yellow-300">source</code> as first parameter.</li>
+        <li>Move parameter order in <code class="text-yellow-300">source</code>, starting with initial value.</li>
+        <li>Move <code class="text-yellow-300">source</code> and <code class="text-yellow-300">store</code> into the context and allow computed in source callback (to be used with derived).</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-09-09 3.0.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Rename <code class="text-yellow-300">unwrap</code> for <code class="text-yellow-300">lift</code>, change syntax for <code class="text-yellow-300">signal</code> to expose setter.</li>
+        <li>Protect tilia from exceptions in computed: the exception is caught, logged to <code class="text-yellow-300">console.error</code> and re-thrown at the end of the next flush.</li>
+        <li>Add <code class="text-yellow-300">leaf</code> to @tilia/react: a higher order component to close the observing phase at the exact end of the render.</li>
+        <li>Simplify <code class="text-yellow-300">useComputed</code> in @tilia/react to return the value directly.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-08-08 2.2.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add <code class="text-yellow-300">unwrap</code> to ease inserting a signal into a tilia object.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-08-08 2.1.1</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Fix <code class="text-yellow-300">source</code> type: ignore return value for easier async support.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-08-03 2.1.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add <code class="text-yellow-300">derived</code> to compute a signal from other tilia values.</li>
+        <li>Add <code class="text-yellow-300">watch</code> to separate the capture phase and the effect phase of observe.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-07-24 2.0.1</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Fix package.json configuration in @tilia/react publish script.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-07-21 2.0.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add tests and examples with Gherkin for todo app.</li>
+        <li>Moved core to npm "tilia" package.</li>
+        <li>Changed <code class="text-yellow-300">make</code> signature to build tilia context (provides the full API running in a separate context).</li>
+        <li>Enable <strong>forest mode</strong> to observe across separated objects.</li>
+        <li>Add <code class="text-yellow-300">computed</code> to compute values in branches (moved into <code class="text-yellow-300">tilia</code> context).</li>
+        <li>Moved <code class="text-yellow-300">observe</code> into <code class="text-yellow-300">tilia</code> context.</li>
+        <li><code class="text-yellow-300">observe</code> <em>will be called</em> for its own mutations (this is to allow state machines).</li>
+        <li>Removed re-exports in @tilia/react.</li>
+        <li>Removed <code class="text-yellow-300">compute</code> (replaced by <code class="text-yellow-300">computed</code>).</li>
+        <li>Removed <code class="text-yellow-300">track</code> as this cannot scale to multiple instances and computed.</li>
+        <li>Renamed internal <code class="text-yellow-300">_connect</code> to <code class="text-yellow-300">_observe</code>.</li>
+        <li>Reworked API to ensure strong typing and avoid runtime errors.</li>
+        <li>Add <code class="text-yellow-300">source</code>, <code class="text-yellow-300">readonly</code> and <code class="text-yellow-300">signal</code> for FRP style programming.</li>
+        <li>Add <code class="text-yellow-300">carve</code> to support derivation (build domain features from objects).</li>
+        <li>Improved flush strategy to trigger immediately but not in an observing function.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-05-05 1.6.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add <code class="text-yellow-300">compute</code> method to cache values on read.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-01-17 1.4.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add <code class="text-yellow-300">track</code> method to observe branches.</li>
+        <li>Add <code class="text-yellow-300">flush</code> strategy for tracking notification.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-01-02 1.3.2</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Fix extension in built artifacts.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-31 1.3.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Expose internals with <code class="text-yellow-300">_meta</code>.</li>
+        <li>Rewrite tracking to fix memory leaks when <code class="text-yellow-300">_ready</code> and <code class="text-yellow-300">clear</code> are never called.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-27 1.2.4</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add support for ready after clear.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-24 1.2.3</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Rewrite tracking to fix notify and clear before ready.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-18 1.2.2</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Fix readonly tracking: should not proxy.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-18 1.2.1</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Fix bug to not track prototype methods.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-18 1.2.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Improve ownKeys watching, notify on key deletion.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-18 1.1.1</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Fix build issue (rescript was still required).</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-17 1.1.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add support to share tracking between branches.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2024-12-13 1.0.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Alpha release.</li>
+      </ul>
     </div>
   </div>
 </section>

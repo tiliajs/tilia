@@ -20,6 +20,6 @@
   "suffix": ".mjs",
   "dependencies": [],
   "dev-dependencies": [
-    "@dzakh/rescript-ava"
+    "vitest-bdd"
   ]
 }

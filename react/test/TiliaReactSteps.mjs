@@ -50,7 +50,7 @@ VitestBdd.Given("I render the {string} component", (param, compName) => {
     return await user.click(btn);
   });
   step("I should see cloud {string}", async expected => await React.waitFor(async () => {
-    expect(screen.getByRole("cloud")).toHaveTextContent(expected);
+    expect(screen.getByRole("cloud").textContent).toContain(expected);
   }));
 });
 

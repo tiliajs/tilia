@@ -15,14 +15,14 @@
     "res:dev-build": "rescript",
     "res:clean": "rescript clean",
     "res:dev": "rescript watch",
-    "test:watch": "ava --watch",
+    "test:watch": "vitest",
     "clean": "rm -rf dist && rm -rf lib && rm -f *.tgz",
     "build": "node esbuild.js",
     "prebuild": "pnpm clean && rescript",
     "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
     "pretest": "pnpm res:build",
-    "test": "ava"
+    "test": "vitest run"
   },
   "description": "🍃 State management library, domain-driven.",
   "keywords": [
@@ -39,19 +39,13 @@
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT",
   "devDependencies": {
-    "@dzakh/rescript-ava": "^3.2.0",
     "@rescript/runtime": "^12.0.0",
-    "ava": "5.2.0",
     "clean-package": "^2.2.0",
     "esbuild": "^0.25.5",
     "esbuild-node-externals": "^1.18.0",
-    "rescript": "^12.0.0"
-  },
-  "ava": {
-    "files": [
-      "test/*_test.mjs",
-      "test/**/*_test.mjs"
-    ]
+    "rescript": "^12.2.0",
+    "vitest": "^1.0.0",
+    "vitest-bdd": "1.0.0-beta.20251218T132423"
   },
   "clean-package": {
     "remove": [

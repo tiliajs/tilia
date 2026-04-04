@@ -36,10 +36,8 @@ given("I render the {string} component", ({step}, compName) => {
   })
 
   step("I should see cloud {string}", async expected => {
-    await waitFor(
-      async () => {
-        Test.expect(screen->getByRole("cloud"))->toHaveTextContent(expected)
-      },
-    )
+    await waitFor(async () => {
+      Test.expect(screen->getByRole("cloud")->textContent)->toContain(expected)
+    })
   })
 })

@@ -725,18 +725,20 @@ and proxify = (root: root, target: 'a): meta<'a> => {
 
 let _done = (o: observer) => o.root.observer = Undefined
 
-let makeTilia = (root: root) => (value: 'a) => {
-  if !Typeof.proxiable(value) {
-    raise("tilia: value is not an object or array")
+let makeTilia = (root: root) =>
+  (value: 'a) => {
+    if !Typeof.proxiable(value) {
+      raise("tilia: value is not an object or array")
+    }
+    proxify(root, value).proxy
   }
-  proxify(root, value).proxy
-}
 
-let makeDerived = p => fn => {
-  let v = Computed(() => fn(p.contents))
-  ignore(Reflect.set(v, dynamicKey, true))
-  %raw(`v`)
-}
+let makeDerived = p =>
+  fn => {
+    let v = Computed(() => fn(p.contents))
+    ignore(Reflect.set(v, dynamicKey, true))
+    %raw(`v`)
+  }
 
 external makeReactive: (
   // derived
@@ -749,64 +751,68 @@ function makeReactive(derived) {
 }
 `)
 
-let makeCarve = (root: root) => (fn: deriver<'a> => 'a) => {
-  let p = ref(%raw(`{}`))
-  let ctx = makeReactive(makeDerived(p))
-  let value = fn(ctx)
-  if !Typeof.proxiable(value) {
-    raise("tilia: value is not an object or array")
+let makeCarve = (root: root) =>
+  (fn: deriver<'a> => 'a) => {
+    let p = ref(%raw(`{}`))
+    let ctx = makeReactive(makeDerived(p))
+    let value = fn(ctx)
+    if !Typeof.proxiable(value) {
+      raise("tilia: value is not an object or array")
+    }
+    let value = proxify(root, value).proxy
+    p := value
+    value
   }
-  let value = proxify(root, value).proxy
-  p := value
-  value
-}
 
-let makeObserve = (root: root) => (callback: unit => unit) => {
-  let rec notify = () => {
-    let o = _observe(root, notify)
-    try {
-      callback()
-      _ready(o, true)
-    } catch {
-    | _e => {
-        setError(root, %raw(`_e`))
-        _clear(o)
+let makeObserve = (root: root) =>
+  (callback: unit => unit) => {
+    let rec notify = () => {
+      let o = _observe(root, notify)
+      try {
+        callback()
+        _ready(o, true)
+      } catch {
+      | _e => {
+          setError(root, %raw(`_e`))
+          _clear(o)
+        }
       }
     }
+    notify()
   }
-  notify()
-}
 
-let makeWatch = (root, observe_) => (callback: unit => 'a, effect: 'a => unit) => {
-  let rec notify = () => {
-    let o = observe_(notify)
-    let v = callback()
-    _done(o)
-    if root.lock {
-      effect(v)
-    } else {
-      root.lock = true
-      effect(v)
-      root.lock = false
+let makeWatch = (root, observe_) =>
+  (callback: unit => 'a, effect: 'a => unit) => {
+    let rec notify = () => {
+      let o = observe_(notify)
+      let v = callback()
+      _done(o)
+      if root.lock {
+        effect(v)
+      } else {
+        root.lock = true
+        effect(v)
+        root.lock = false
+      }
+      _ready(o, false)
     }
+    // First registration: effect not called
+    let o = observe_(notify)
+    ignore(callback())
     _ready(o, false)
   }
-  // First registration: effect not called
-  let o = observe_(notify)
-  ignore(callback())
-  _ready(o, false)
-}
 
-let makeBatch = (root: root) => (callback: unit => unit) => {
-  if root.lock {
-    callback()
-  } else {
-    root.lock = true
-    callback()
-    root.lock = false
-    flush(root)
+let makeBatch = (root: root) =>
+  (callback: unit => unit) => {
+    if root.lock {
+      callback()
+    } else {
+      root.lock = true
+      callback()
+      root.lock = false
+      flush(root)
+    }
   }
-}
 
 let orphanError = "Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan"
 
@@ -837,50 +843,53 @@ let computed = fn => {
   Proxy.make(v, warningHandler())
 }
 
-let makeSource = tilia => (value, source) => {
-  ignore(tilia)
-  let s = switch Typeof.dynamic(source) {
-  | Value(d) => {
-      // We wrap source in tilia so that computed in the source can be resolved.
-      // Example: source("foo", derived(getFoo))
-      ignore(d)
-      %raw(`tilia({value, source: d})`)
+let makeSource = tilia =>
+  (value, source) => {
+    ignore(tilia)
+    let s = switch Typeof.dynamic(source) {
+    | Value(d) => {
+        // We wrap source in tilia so that computed in the source can be resolved.
+        // Example: source("foo", derived(getFoo))
+        ignore(d)
+        %raw(`tilia({value, source: d})`)
+      }
+    // We do not wrap non-dynamic sources to avoid unnecessary wrapping and allow computed removal for
+    // non-dynamic values.
+    | _ => {value, source}
     }
-  // We do not wrap non-dynamic sources to avoid unnecessary wrapping and allow computed removal for
-  // non-dynamic values.
-  | _ => {value, source}
+    let v = Source(s)
+    ignore(Reflect.set(v, dynamicKey, true))
+    %raw(`v`)
   }
-  let v = Source(s)
-  ignore(Reflect.set(v, dynamicKey, true))
-  %raw(`v`)
-}
 
-let makeStore = tilia => callback => {
-  ignore(tilia)
-  let s = switch Typeof.dynamic(callback) {
-  | Value(d) => {
-      // We wrap store in tilia so that computed in the store can be resolved.
-      // Example: store(derived(getFoo))
-      ignore(d)
-      %raw(`tilia({store: d})`)
+let makeStore = tilia =>
+  callback => {
+    ignore(tilia)
+    let s = switch Typeof.dynamic(callback) {
+    | Value(d) => {
+        // We wrap store in tilia so that computed in the store can be resolved.
+        // Example: store(derived(getFoo))
+        ignore(d)
+        %raw(`tilia({store: d})`)
+      }
+    // We do not wrap non-dynamic sources to avoid unnecessary wrapping and allow computed removal for
+    // non-dynamic values.
+    | _ => {store: callback}
     }
-  // We do not wrap non-dynamic sources to avoid unnecessary wrapping and allow computed removal for
-  // non-dynamic values.
-  | _ => {store: callback}
+    let v = Store(s)
+    ignore(Reflect.set(v, dynamicKey, true))
+    %raw(`v`)
   }
-  let v = Store(s)
-  ignore(Reflect.set(v, dynamicKey, true))
-  %raw(`v`)
-}
 
 @inline
-let makeSignal = (tilia: signal<'a> => signal<'a>) => (value: 'c) => {
-  let s = tilia({value: value})
-  let set = v => s.value = v
-  (s, set)
-}
-let makeDerived = (tilia: signal<'a> => signal<'a>) => (fn: 'c) =>
-  tilia({value: computed(() => fn())})
+let makeSignal = (tilia: signal<'a> => signal<'a>) =>
+  (value: 'c) => {
+    let s = tilia({value: value})
+    let set = v => s.value = v
+    (s, set)
+  }
+let makeDerived = (tilia: signal<'a> => signal<'a>) =>
+  (fn: 'c) => tilia({value: computed(() => fn())})
 
 let _done = (o: observer) => o.root.observer = Undefined
 

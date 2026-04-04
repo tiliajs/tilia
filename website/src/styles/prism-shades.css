@@ -8,6 +8,7 @@
 html[data-theme="dark"] {
 
   code[class*='language-'],
+  code[class*='language-'][is\:raw],
   pre[class*='language-'] {
     white-space: pre-wrap;
     color: #9efeff;
@@ -30,6 +31,12 @@ html[data-theme="dark"] {
     line-height: 1.3rem;
     letter-spacing: 0.5px;
     text-shadow: 0 1px #222245;
+  }
+  
+  /* Ensure tokens are styled even when code has is:raw attribute */
+  code[is\:raw] .token,
+  code .token {
+    /* All token styles should apply regardless of is:raw */
   }
 
   pre[class*='language-']::-moz-selection,
@@ -67,7 +74,7 @@ html[data-theme="dark"] {
   .token.comment,
   .token.prolog,
   .token.cdata {
-    color: #f9bfff;
+    color: #f9bfff !important;
     background-color: #00000045;
     padding: 4px 8px;
     border-radius: 0px;
