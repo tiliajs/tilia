@@ -14,6 +14,8 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2026-04-04 **5.0.0**
+  - Fix tests
 - 2025-12-18 **5.0.0 (beta)**
   - Update to ReScript v12.
 - 2025-12-18 **4.0.0**

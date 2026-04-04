@@ -51,7 +51,6 @@
     "remove": [
       "scripts",
       "devDependencies",
-      "ava",
       "clean-package"
     ]
   }
