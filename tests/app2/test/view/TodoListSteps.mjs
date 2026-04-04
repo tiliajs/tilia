@@ -2,6 +2,7 @@
 
 import * as Todo from "../../src/domain/Todo.mjs";
 import * as TodoList from "../../src/view/TodoList.mjs";
+import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
 import * as VitestBdd from "vitest-bdd";
 import * as JsxRuntime from "react/jsx-runtime";
 import * as React from "@testing-library/react";
@@ -37,23 +38,28 @@ VitestBdd.Given("I render the TodoList component", (param, param$1) => {
   step("I should see total {string}", async expected => await React.waitFor(async () => {
     expect(screen.getByRole("status", {
       name: "Total Count"
-    })).toHaveTextContent(`Total: ` + expected);
+    }).textContent).toContain(`Total: ` + expected);
   }));
   step("I should see completed {string}", async expected => await React.waitFor(async () => {
     expect(screen.getByRole("status", {
       name: "Completed Count"
-    })).toHaveTextContent(`Completed: ` + expected);
+    }).textContent).toContain(`Completed: ` + expected);
   }));
   step("I should see todo {string}", async title => await React.waitFor(async () => {
     expect(screen.getByRole("listitem", {
       name: title
-    })).toBeInTheDocument();
+    }).textContent).toContain(title);
   }));
-  step("I should not see todo {string}", async title => {
-    expect(screen.queryByRole("listitem", {
+  step("I should not see todo {string}", async title => await React.waitFor(async () => {
+    let match = screen.queryByRole("listitem", {
       name: title
-    })).not.toBeInTheDocument();
-  });
+    });
+    if (match == null) {
+      return;
+    } else {
+      return Pervasives.failwith("Expected todo to be absent: " + title);
+    }
+  }));
 });
 
 let TodoDomain;

@@ -32,13 +32,17 @@ Given("I render the {string} component", async function ({ When, Then }, comp: s
 
   Then("I should see value {string}", async (expected: string) => {
     await waitFor(() => {
-      expect(withinScreen.getByRole("status", { name: "Value" })).toHaveTextContent(`Value: ${expected}`);
+      expect(
+        withinScreen.getByRole("status", { name: "Value" }).textContent,
+      ).toContain(`Value: ${expected}`);
     });
   });
 
   Then("I should see double {string}", async (expected: string) => {
     await waitFor(() => {
-      expect(withinScreen.getByRole("status", { name: "Double" })).toHaveTextContent(`Double: ${expected}`);
+      expect(
+        withinScreen.getByRole("status", { name: "Double" }).textContent,
+      ).toContain(`Double: ${expected}`);
     });
   });
 });

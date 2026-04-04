@@ -15,16 +15,15 @@ external waitFor: (unit => promise<unit>) => promise<unit> = "waitFor"
 type roleOptions = {name?: string}
 @send external getByRole: (screen, string, ~options: roleOptions=?) => element = "getByRole"
 @send
-external queryByRole: (screen, string, ~options: roleOptions=?) => option<element> = "queryByRole"
+external queryByRole: (screen, string, ~options: roleOptions=?) => nullable<element> = "queryByRole"
 
 type roleOptionsRe = {name: RegExp.t}
 @send external getByRoleRe: (screen, string, ~options: roleOptionsRe) => element = "getByRole"
 
 type assertion
 @val external expect: 'a => assertion = "expect"
-@send external toHaveTextContent: (assertion, string) => unit = "toHaveTextContent"
-@send external toBeInTheDocument: assertion => unit = "toBeInTheDocument"
-@get external not_: assertion => assertion = "not"
+@get external textContent: element => string = "textContent"
+@send external toContain: (assertion, string) => unit = "toContain"
 @send external toHaveLength: (assertion, int) => unit = "toHaveLength"
 @send external toBe: (assertion, 'a) => unit = "toBe"
 

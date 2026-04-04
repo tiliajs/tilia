@@ -41,35 +41,33 @@ given("I render the TodoList component", ({step}, _) => {
   })
 
   step("I should see total {string}", async expected => {
-    await waitFor(
-      async () => {
-        Test.expect(screen->getByRole("status", ~options={name: "Total Count"}))->toHaveTextContent(
-          `Total: ${expected}`,
-        )
-      },
-    )
+    await waitFor(async () => {
+      Test.expect(screen->getByRole("status", ~options={name: "Total Count"})->textContent)->toContain(
+        `Total: ${expected}`,
+      )
+    })
   })
 
   step("I should see completed {string}", async expected => {
-    await waitFor(
-      async () => {
-        Test.expect(
-          screen->getByRole("status", ~options={name: "Completed Count"}),
-        )->toHaveTextContent(`Completed: ${expected}`)
-      },
-    )
+    await waitFor(async () => {
+      Test.expect(
+        screen->getByRole("status", ~options={name: "Completed Count"})->textContent,
+      )->toContain(`Completed: ${expected}`)
+    })
   })
 
   step("I should see todo {string}", async title => {
-    await waitFor(
-      async () => {
-        Test.expect(screen->getByRole("listitem", ~options={name: title}))->toBeInTheDocument
-      },
-    )
+    await waitFor(async () => {
+      Test.expect(screen->getByRole("listitem", ~options={name: title})->textContent)->toContain(title)
+    })
   })
 
   step("I should not see todo {string}", async title => {
-    // Checking sync query result
-    Test.expect(screen->queryByRole("listitem", ~options={name: title}))->not_->toBeInTheDocument
+    await waitFor(async () => {
+      switch screen->queryByRole("listitem", ~options={name: title}) {
+      | Value(_) => Pervasives.failwith("Expected todo to be absent: " ++ title)
+      | Null | Undefined => ()
+      }
+    })
   })
 })
