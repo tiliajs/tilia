@@ -74,8 +74,8 @@ html[data-theme="dark"] {
   .token.comment,
   .token.prolog,
   .token.cdata {
-    color: #f9bfff !important;
-    background-color: #00000045;
+    color: #bda2bf !important;
+    text-shadow: none;
     padding: 4px 8px;
     border-radius: 0px;
     border-radius: 2px;
@@ -88,12 +88,9 @@ html[data-theme="dark"] {
     .token.prolog,
     .token.cdata {
       color: #f9bfff;
-      background-color: #00000055;
       padding: 8px 12px;
       border-radius: 0px;
       border-radius: 0;
-      display: block;
-      transform: translateY(1rem);
       padding-left: 16px;
       margin-left: -16px;
       margin-right: -16px;

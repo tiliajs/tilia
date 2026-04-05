@@ -15,29 +15,34 @@ AI-focused ReScript documentation for the full Tilia API.
 ```rescript
 open Tilia
 
-type item = {price: float, mutable quantity: int}
-type cart = {
-  mutable items: array<item>,
-  total: float,
-  updateQty: (int, int) => unit,
+type feature = {
+  mutable count: int,
+  double: int,
+  add: int => unit,
 }
 
-let total = (self: cart) =>
-  self.items->Array.reduce(0.0, (acc, item) => acc +. item.price *. Float.fromInt(item.quantity))
-
-let updateQty = (self: cart) => (index: int, qty: int) => {
-  switch self.items[index] {
-  | Some(item) => item.quantity = qty
-  | None => ()
-  }
+type service = {
+  fetchCount: (int, int => unit) => unit,
+  updateCount: (int, unit => unit) => unit,
 }
 
-let makeCart = () =>
+let double = (self: feature) => self.count * 2
+
+let add = (service: service) => (self: feature) => (count: int) => {
+  let prevValue = self.count
+  self.count += count // optimistic write
+  service.updateCount(self.count, () => self.count = prevValue)
+}
+
+let makeFeature = service =>
   carve(({derived}) => {
-    items: [{price: 12.0, quantity: 1}],
-    total: derived(total),
-    updateQty: derived(updateQty),
+    count: source(0, service.fetchCount),
+    double: derived(double),
+    add: derived(add(service)),
   })
+
+let feature = makeFeature(service)
+feature.add(4)
 ```
 
 ## Anti-Pattern (Avoid)
@@ -59,6 +64,19 @@ let cart = carve(({derived}) => {
     sum
   }),
 })
+```
+
+## Feature File Organization
+
+Use this if the project does not provide other guidelines.
+
+```text
+[feature-name]/
+  index.res     // carve glue
+  type.res      // type of the feature
+  computed.res  // all computed/derived values
+  actions.res   // all mutating functions
+  service.res   // external dependencies (db fetch, etc)
 ```
 
 ## Full API Map (ReScript)

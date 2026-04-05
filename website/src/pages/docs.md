@@ -18,12 +18,13 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 
 <section class="doc installation">
 
-#### This documentation is for version **5.x** and **4.x**
+### This documentation is for version **5.x** and **4.x**
 
-Branches **5.x** and **4.x** have the same API, version 5.x targets **ReScript v12** while version 4.x is for **ReScript v11**.
+Branches **5.x** and **4.x** have the same API.
 
-Both work the same for TypeScript.
+For TypeScript, you should use the latest version.
 
+For ReScript 11, use version 4.
 
 ## Installation
 
@@ -31,6 +32,25 @@ Both work the same for TypeScript.
 npm install tilia
 # If you are using tilia with React
 npm install @tilia/react
+```
+
+</section>
+
+<a id="llm-entry"></a>
+
+<section class="doc leaf">
+
+### For LLMs / AI coding assistants
+
+```md
+Use the official Tilia LLM docs index:
+- https://tiliajs.com/llms.txt
+
+It links to:
+- ReScript patterns
+- TypeScript patterns
+- carve as feature boundary
+- derived as glue over pure functions
 ```
 
 </section>
@@ -53,175 +73,91 @@ npm install @tilia/react
 
 <section class="doc frp">
 
-### What is Functional Reactive Programming (FRP)?
+### Start from one practical problem
 
-**Functional Reactive Programming** (FRP) is a programming paradigm that combines two powerful approaches:
+UI code gets fragile when domain logic lives in components. You can ship quickly, but testing, refactoring, and cross-platform reuse become expensive.
 
-1. **Functional programming**: data manipulation via pure functions, without side effects
-2. **Reactive programming**: automatic propagation of changes throughout the system
+Tilia works best when each feature is isolated behind `carve`, with `derived` used as glue around explicit helper functions.
 
-#### The problem FRP solves
-
-In a traditional application, when data changes, you must manually update all parts of the application that depend on it. This leads to complex, fragile, and hard-to-maintain code:
+### Initial carve example (service-injected)
 
 ```typescript
-// ❌ Traditional imperative approach
-let count = 0;
-let double = count * 2;
-let quadruple = double * 2;
+import { carve, source } from "tilia";
 
-count = 5;
-// Oops! double and quadruple are now obsolete
-// Need to recalculate them manually...
-double = count * 2;
-quadruple = double * 2;
+type Counter = {
+  count: number;
+  double: number;
+  add: (count: number) => void;
+};
+
+type Service = {
+  fetchCount: () => (previous: number, set: (value: number) => void) => void;
+  updateCount: (next: number, rollback: () => void) => void;
+};
+
+const double = (self: Counter): number => self.count * 2;
+const add =
+  (service: Service) =>
+  (self: Counter) =>
+  (count: number): void => {
+    const prevValue = self.count;
+    self.count += count;
+    service.updateCount(self.count, () => (self.count = prevValue));
+  };
+
+const makeCounter = (service: Service) =>
+  carve<Counter>(({ derived }) => ({
+    count: source(0, service.fetchCount()),
+    double: derived(double),
+    add: derived(add(service)),
+  }));
+
+const feature = makeCounter(service);
+feature.add(4);
 ```
 
 ```rescript
-// ❌ Traditional imperative approach
-let count = ref(0)
-let double = ref(count.contents * 2)
-let quadruple = ref(double.contents * 2)
-
-count.contents = 5
-// Oops! double and quadruple are now obsolete
-// Need to recalculate them manually...
-double.contents = count.contents * 2
-quadruple.contents = double.contents * 2
-```
-
-With Tilia, dependencies are declared once and updates propagate automatically:
-
-```typescript
-// ✅ Reactive approach with carve + derived glue
-import { carve, observe } from "tilia";
-
-type State = { count: number; double: number; quadruple: number };
-const double = (self: State) => self.count * 2;
-const quadruple = (self: State) => self.double * 2;
-
-const state = carve<State>(({ derived }) => ({
-  count: 0,
-  double: derived(double),
-  quadruple: derived(quadruple),
-}));
-
-observe(() => {
-  console.log(`count=${state.count}, double=${state.double}, quadruple=${state.quadruple}`);
-});
-
-state.count = 5;
-// ✨ Automatically: double=10, quadruple=20
-// The observe() callback is called with the new values
-```
-
-```rescript
-// ✅ Reactive approach with carve + derived glue
 open Tilia
 
-type state = {mutable count: int, double: int, quadruple: int}
-let double = (self: state) => self.count * 2
-let quadruple = (self: state) => self.double * 2
+type counter = {
+  mutable count: int,
+  double: int,
+  add: int => unit,
+}
 
-let state = carve(({derived}) => {
-  count: 0,
-  double: derived(double),
-  quadruple: derived(quadruple),
-})
+type service = {
+  fetchCount: (int, int => unit) => unit,
+  updateCount: (int, unit => unit) => unit,
+}
 
-observe(() => {
-  Js.log(`count=${Int.toString(state.count)}, double=${Int.toString(state.double)}, quadruple=${Int.toString(state.quadruple)}`)
-})
+let double = (self: counter) => self.count * 2
+let add = (service: service) => (self: counter) => (count: int) => {
+  let prevValue = self.count
+  self.count += count
+  service.updateCount(self.count, () => self.count = prevValue)
+}
 
-state.count = 5
-// ✨ Automatically: double=10, quadruple=20
-// The observe() callback is called with the new values
+let makeCounter = service =>
+  carve(({derived}) => {
+    count: source(0, service.fetchCount),
+    double: derived(double),
+    add: derived(add(service)),
+  })
+
+let feature = makeCounter(service)
+feature.add(4)
 ```
 
-#### The two reactivity models
+### Suggested file organization
 
-Tilia intelligently combines two complementary reactivity models:
-
-**PUSH Reactivity (observe, watch)**
-
-The **push** model means that changes "push" notifications to observers. When a value changes, all callbacks that depend on it are automatically re-executed.
-
-```typescript
-observe(() => {
-  // This callback will be called every time alice.age changes
-  console.log("Alice is", alice.age, "years old");
-});
-
-alice.age = 11; // ✨ Automatically triggers the callback
+```text
+[feature-name]
+  actions.ts    // mutating functions
+  computed.ts   // computed/derived helpers
+  index.ts      // carve glue
+  service.ts    // external dependencies
+  type.ts       // feature type
 ```
-
-```rescript
-observe(() => {
-  // This callback will be called every time alice.age changes
-  Js.log2("Alice is", `${Int.toString(alice.age)} years old`)
-})
-
-alice.age = 11 // ✨ Automatically triggers the callback
-```
-
-**Use cases**: Side effects (logs, DOM updates, API calls), state synchronization.
-
-**PULL Reactivity (computed)**
-
-The **pull** model means that values are computed lazily, only when they are read. The value is then cached until one of its dependencies changes.
-
-```typescript
-type Totals = { items: number[]; total: number };
-const total = (self: Totals) => self.items.reduce((a, b) => a + b, 0);
-
-const state = carve<Totals>(({ derived }) => ({
-  items: [1, 2, 3, 4, 5],
-  total: derived(total),
-}));
-
-// First read: calculation performed, result cached
-console.log(state.total); // 15
-
-// Second read: value returned from cache (no recalculation)
-console.log(state.total); // 15
-
-state.items.push(6); // Invalidates the cache
-
-// Read after modification: recalculation
-console.log(state.total); // 21
-```
-
-```rescript
-type totals = {mutable items: array<int>, total: int}
-let total = (self: totals) => Array.reduce(self.items, 0, (a, b) => a + b)
-
-let state = carve(({derived}) => {
-  items: [1, 2, 3, 4, 5],
-  total: derived(total),
-})
-
-// First read: calculation performed, result cached
-Js.log(state.total) // 15
-
-// Second read: value returned from cache (no recalculation)
-Js.log(state.total) // 15
-
-state.items = Array.concat(state.items, [6]) // Invalidates the cache
-
-// Read after modification: recalculation
-Js.log(state.total) // 21
-```
-
-**Use cases**: Derived values, data transformations, filters, aggregations.
-
-#### Why combine both?
-
-| Model    | Advantage                       | Disadvantage                                           |
-| -------- | ------------------------------- | ------------------------------------------------------ |
-| **Push** | Immediate reaction to changes   | May recalculate unnecessarily if the value is not used |
-| **Pull** | Calculation only when necessary | Requires a read to trigger the calculation             |
-
-Tilia allows you to choose the appropriate model based on context, optimizing performance while keeping code expressive.
 
 </section>
 
@@ -229,157 +165,33 @@ Tilia allows you to choose the appropriate model based on context, optimizing pe
 
 <section class="doc observe">
 
-### The Observer Pattern
+### Observation in practice
 
-#### The classic pattern
-
-The **Observer pattern** (or Publish-Subscribe) is a behavioral design pattern where an object, called **Subject**, maintains a list of **Observers** and automatically notifies them of any state change.
-
-```
-┌─────────────────┐           ┌─────────────────┐
-│     Subject     │──notify──▶│    Observer 1   │
-│  (source of     │           ├─────────────────┤
-│   truth)        │──notify──▶│    Observer 2   │
-│                 │           ├─────────────────┤
-│                 │──notify──▶│    Observer 3   │
-└─────────────────┘           └─────────────────┘
-```
-
-In the classic implementation, the observer must explicitly subscribe and unsubscribe:
+`observe` and `watch` react only to what was read in the last run. This keeps updates precise without manual subscription code.
 
 ```typescript
-// Classic Observer pattern
-subject.subscribe(observer);    // Manual subscription
-// ... later
-subject.unsubscribe(observer);  // Manual unsubscription (source of bugs!)
-```
-
-```rescript
-// Classic Observer pattern
-subject->subscribe(observer)    // Manual subscription
-// ... later
-subject->unsubscribe(observer)  // Manual unsubscription (source of bugs!)
-```
-
-#### Tilia's approach: automatic tracking
-
-Tilia automatically detects which properties are observed, so you do not manage subscriptions manually.
-
-```typescript
-import { carve, observe } from "tilia";
-
-const alice = carve(() => ({
-  name: "Alice",
-  age: 10,
-  city: "Paris",
-}));
-
 observe(() => {
-  // Tilia detects that only 'name' and 'age' are read
-  console.log(`${alice.name} is ${alice.age} years old`);
-});
-
-alice.age = 11;     // ✨ Triggers the callback (age is observed)
-alice.city = "Lyon"; // 😴 Does NOT trigger the callback (city is not observed)
-```
-
-```rescript
-open Tilia
-
-let alice = carve(_ => {
-  name: "Alice",
-  age: 10,
-  city: "Paris",
-})
-
-observe(() => {
-  // Tilia detects that only 'name' and 'age' are read
-  Js.log2(`${alice.name} is`, `${Int.toString(alice.age)} years old`)
-})
-
-alice.age = 11     // ✨ Triggers the callback (age is observed)
-alice.city = "Lyon" // 😴 Does NOT trigger the callback (city is not observed)
-```
-
-#### Dynamic tracking: only the last execution matters
-
-A crucial detail: Tilia does not track what could be read. It tracks what was actually read during the last callback execution.
-
-This means that if your callback contains an `if` condition, dependencies change based on the executed branch:
-
-```typescript
-import { carve, observe } from "tilia";
-
-const state = carve(() => ({
-  showDetails: false,
-  name: "Alice",
-  email: "alice@example.com",
-  phone: "01 23 45 67 89",
-}));
-
-observe(() => {
-  // 'name' is ALWAYS read
-  console.log("Name:", state.name);
-  
-  if (state.showDetails) {
-    // 'email' and 'phone' are tracked only if show details is true
-    console.log("Email:", state.email);
-    console.log("Phone:", state.phone);
+  if (profile.showDetails) {
+    console.log(profile.email);
   }
 });
 
-// Initial state: showDetails = false
-// Current dependencies: { name, showDetails }
-
-state.email = "new@email.com";
-// 😴 No notification! 'email' was not read during the last execution
-
-state.showDetails = true;
-// ✨ Notification! showDetails is observed
-// The callback re-executes, this time reading email and phone
-// New dependencies: { name, showDetails, email, phone }
-
-state.email = "another@email.com";
-// ✨ Notification! Now email IS observed
+profile.email = "new@mail.com"; // no rerun while showDetails is false
+profile.showDetails = true;     // rerun
+profile.email = "another@mail.com"; // rerun now
 ```
 
 ```rescript
-open Tilia
-
-let state = carve(_ => {
-  showDetails: false,
-  name: "Alice",
-  email: "alice@example.com",
-  phone: "01 23 45 67 89",
-})
-
 observe(() => {
-  // 'name' is ALWAYS read
-  Js.log2("Name:", state.name)
-  
-  if state.showDetails {
-    // 'email' and 'phone' are read ONLY if showDetails === true
-    Js.log2("Email:", state.email)
-    Js.log2("Phone:", state.phone)
+  if profile.showDetails {
+    Js.log(profile.email)
   }
 })
 
-// Initial state: showDetails = false
-// Current dependencies: { name, showDetails }
-
-state.email = "new@email.com"
-// 😴 No notification! 'email' was not read during the last execution
-
-state.showDetails = true
-// ✨ Notification! showDetails is observed
-// The callback re-executes, this time reading email and phone
-// New dependencies: { name, showDetails, email, phone }
-
-state.email = "another@email.com"
-// ✨ Notification! Now email IS observed
+profile.email = "new@mail.com" // no rerun while showDetails is false
+profile.showDetails = true // rerun
+profile.email = "another@mail.com" // rerun now
 ```
-
-This keeps callbacks precise: updates only trigger when the last execution depended on that value.
 
 </section>
 
@@ -387,109 +199,11 @@ This keeps callbacks precise: updates only trigger when the last execution depen
 
 <section class="doc computed">
 
-### How Tilia Builds the Dependency Graph
+### Dependency tracking (short version)
 
-#### JavaScript's Proxy API
+Tilia uses JavaScript `Proxy` under the hood. Reads register dependencies, writes notify observers, and dependencies are recalculated dynamically on each run.
 
-Tilia uses JavaScript's [Proxy API](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Proxy) to intercept property access on objects. A Proxy is a transparent wrapper that allows defining custom behaviors for fundamental operations (read, write, etc.).
-
-```typescript
-// Simplified Proxy principle
-const handler = {
-  get(target, property) {
-    console.log(`Reading ${property}`);
-    return target[property];
-  },
-  set(target, property, value) {
-    console.log(`Writing ${property} = ${value}`);
-    target[property] = value;
-    return true;
-  }
-};
-
-const obj = { name: "Alice" };
-const proxy = new Proxy(obj, handler);
-
-proxy.name;        // Log: "Reading name"
-proxy.name = "Bob"; // Log: "Writing name = Bob"
-```
-
-#### The tracking mechanism
-
-When you call `carve(...)` (or `tilia(...)`), the object is wrapped in a Proxy with two essential traps:
-
-**1. The GET trap (read)**
-
-When a property is read **during the execution of an observation callback**, Tilia records this property as a dependency:
-
-```typescript
-// Simplified internal state of Tilia
-let currentObserver = null;  // The observer currently executing
-const dependencies = new Map();  // Map: observer -> Set of dependencies
-
-const handler = {
-  get(target, key) {
-    if (currentObserver !== null) {
-      // 📝 Recording the dependency
-      // "This observer depends on this property"
-      addDependency(currentObserver, target, key);
-    }
-    return target[key];
-  },
-  // ...
-};
-```
-
-**2. The SET trap (write)**
-
-When a property is modified, Tilia finds all observers that depend on it and notifies them:
-
-```typescript
-const handler = {
-  // ...
-  set(target, key, value) {
-    const oldValue = target[key];
-    target[key] = value;
-    
-    if (oldValue !== value) {
-      // 📢 Notification of observers
-      // "This property changed, notify all those who depend on it"
-      notifyObservers(target, key);
-    }
-    return true;
-  }
-};
-```
-
-#### Dynamic graph
-
-A crucial point: the dependency graph is **dynamic**. It is rebuilt on each callback execution, which allows handling conditions:
-
-```typescript
-const state = carve(() => ({
-  showDetails: false,
-  name: "Alice",
-  email: "alice@example.com",
-}));
-
-observe(() => {
-  console.log("Name:", state.name);
-  
-  if (state.showDetails) {
-    // 'email' is observed ONLY if showDetails is true
-    console.log("Email:", state.email);
-  }
-});
-
-// Current dependencies: {name, showDetails}
-
-state.email = "new@email.com";  // 😴 No notification (email not observed)
-
-state.showDetails = true;       // ✨ Notification + re-execution
-// Now dependencies include: {name, showDetails, email}
-
-state.email = "another@email.com"; // ✨ Notification (email is now observed)
-```
+For a full internal walkthrough, see the [**Deep Technical Reference**](#technical) section below.
 
 </section>
 
@@ -497,146 +211,344 @@ state.email = "another@email.com"; // ✨ Notification (email is now observed)
 
 <section class="doc ddd">
 
-### Carve and Domain-Driven Design
+### Before / After: feature isolation
 
-#### The accidental complexity problem
+#### Before: logic-heavy components
 
-In many state management libraries, business code ends up polluted with technical concepts. Developers must constantly juggle between domain logic and reactive mechanisms:
+<pre>
+
+[day 1 ] Looks good !
+[..    ] adding features... lalala (happy)
+[day 10] Hmmm, I have issues understanding this...
+[day 30] ARghhGh, how can I fix this bug without breaking everything ???
+[day 60] rewrite
+
+</pre>
 
 ```typescript
-// ❌ Code polluted with FRP concepts
-const personStore = createStore({
-  firstName: signal("Alice"),
-  lastName: signal("Dupont"),
-  fullName: computed(() => 
-    personStore.firstName.get() + " " + personStore.lastName.get()
-  ),
-});
+const TodoList = () => {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [sort, setSort] = useState<"date" | "title">("date");
 
-// To read a value, you must "think FRP"
-const name = personStore.firstName.get();  // .get() ? .value ? ()  ?
-personStore.lastName.set("Martin");        // .set() ? .update() ?
+  const add = async (title: string) => {
+    const prev = todos;
+    const next = [...todos, { id: crypto.randomUUID(), title, done: false }];
+    setTodos(next);
+    try {
+      await api.save(next);
+    } catch {
+      setTodos(prev);
+    }
+  };
+
+  const list = [...todos].sort(sort === "date" ? byDate : byTitle);
+  return (
+    <div>
+      <button onClick={() => add("New todo")}>Add</button>
+      <button onClick={() => setSort(sort === "date" ? "title" : "date")}>Toggle sort</button>
+      <ul>
+        {list.map((todo) => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+};
 ```
 
-This code exposes the **reactive plumbing** instead of the **business domain**. A business expert reading this code would see `.get()`, `.set()`, `signal()` instead of simply seeing "a person with a name".
+```rescript
+@react.component
+let make = () => {
+  let (todos, setTodos) = React.useState(() => [])
+  let (sort, setSort) = React.useState(() => ByDate)
 
-#### Tilia's approach: domain first
+  let add = async title => {
+    let prev = todos
+    let next = Array.concat(todos, [{id: "tmp", title, done: false}])
+    setTodos(_ => next)
+    try {
+      await Api.save(next)
+    } catch {
+    | _ => setTodos(_ => prev)
+    }
+  }
 
-With Tilia, you can keep domain code readable while wiring reactivity at the feature boundary:
+  let list = switch sort {
+  | ByDate => todos->Array.toSorted(byDate)
+  | ByTitle => todos->Array.toSorted(byTitle)
+  }
+  <div>
+    <button onClick={_ => add("New todo")}>{React.string("Add")}</button>
+    <button onClick={_ => setSort(_ => switch sort { | ByDate => ByTitle | ByTitle => ByDate })}>
+      {React.string("Toggle sort")}
+    </button>
+    <ul>
+      {list
+      ->Array.map(todo => <li key={todo.id}>{React.string(todo.title)}</li>)
+      ->React.array}
+    </ul>
+  </div>
+}
+```
+
+#### After: domain in feature, view as display adapter
 
 ```typescript
-type Person = { firstName: string; lastName: string; fullName: string };
-const fullName = (self: Person) => `${self.firstName} ${self.lastName}`;
+// domain/todos/index.ts
+const list = (self: Todos) =>
+  [...self.data].sort(self.sort === "date" ? byDate : byTitle);
 
-const person = carve<Person>(({ derived }) => ({
-  firstName: "Alice",
-  lastName: "Dupont",
-  fullName: derived(fullName),
-}));
+const add =
+  (service: Service) =>
+  (self: Todos) =>
+  async (): Promise<void> => {
+    const prevValue = self.data;
+    const todo = { id: crypto.randomUUID(), title: "New todo", done: false };
+    self.data = [...self.data, todo];
+    service.createTodo(todo, () => (self.data = prevValue));
+  };
 
-// Natural reading, like a normal object
-console.log(person.firstName);     // "Alice"
-console.log(person.fullName); // "Alice Dupont"
+const toggleSort = (self: Todos) => (): void => {
+  self.sort = self.sort === "date" ? "title" : "date";
+};
 
-// Natural modification
-person.lastName = "Martin";
-console.log(person.fullName); // "Alice Martin" ✨ Automatic
+export const makeTodos = (service: Service) =>
+  carve<Todos>(({ derived }) => ({
+    sort: "date",
+    list: derived(list),
+    add: derived(add(service)),
+    toggleSort: derived(toggleSort),
+    // private
+    data: source([], service.fetchTodos()),
+  }));
+
+// ui/TodoList.tsx (single component, global feature)
+import { leaf } from "@tilia/react";
+import { app } from "../../app";
+
+const TodoList = leaf(() => {
+  const todos = app.todos;
+  return (
+    <div>
+      <button onClick={todos.add}>Add</button>
+      <button onClick={todos.toggleSort}>Toggle sort</button>
+      <ul>
+        {todos.list.map((todo) => (
+          <li key={todo.id}>{todo.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+});
+```
+
+```rescript
+/* domain/todos/index.res */
+let list = (self: Todos.t) =>
+  switch self.sort {
+  | ByDate => self.data->Array.toSorted(byDate)
+  | ByTitle => self.data->Array.toSorted(byTitle)
+  }
+
+let add = service => self => async () => {
+  let prevValue = self.data
+  let todo = {id: "tmp", title: "New todo", done: false}
+  self.data = Array.concat(self.data, [todo])
+  service.createTodo(todo, () => self.data = prevValue)
+}
+
+let toggleSort = self => () =>
+  self.sort = switch self.sort {
+  | ByDate => ByTitle
+  | ByTitle => ByDate
+  }
+
+let makeTodos = service =>
+  carve(({derived}) => {
+    sort: ByDate,
+    list: derived(list),
+    add: derived(add(service)),
+    toggleSort: derived(toggleSort),
+    // private
+    data: source([], service.fetchTodos),
+  })
+
+/* ui/TodoList.res (single component, global feature) */
+open TiliaReact
+let app = App.app
+
+@react.component
+let make = leaf(() => {
+  let todos = app.todos
+  <div>
+    <button onClick={todos.add}>{React.string("Add")}</button>
+    <button onClick={todos.toggleSort}>
+      {React.string("Toggle sort")}
+    </button>
+    <ul>
+      {todos.list
+      ->Array.map(todo => <li key={todo.id}>{React.string(todo.title)}</li>)
+      ->React.array}
+    </ul>
+  </div>
+})
+```
+
+### Why this approach scales
+
+- easier testing: helpers are plain functions and services are injected
+- easier refactoring: UI and domain code evolve separately
+- easier portability: same feature model can back web and React Native views
+- better stability: optimistic writes have explicit rollback paths
+
+</section>
+
+## API Reference {.api}
+
+<a id="carve"></a>
+
+## <span>✨</span> Carving <span>✨</span> {.carve}
+
+<section class="doc computed wide-comment carve">
+
+### carve
+
+This is where Tilia truly shines. It lets you build a domain-driven, self-contained feature that is easy to test and reuse.
+
+Define your logic as pure functions:
+
+```typescript
+const total = (self: Basket) => 
+  self.items.reduce(
+    (sum, item) => sum + item.price * item.quantity, 0)
+```
+
+```rescript
+let total = self => 
+  self.items
+    ->Array.reduce(0, (sum, item) => sum + item.price * item.quantity)
+```
+
+Build your featuree as a single, reactive object.
+
+```typescript
+const basket = carve<Basket>(({ derived }) => ({
+   ...fields,
+   total: derived(total)
+}))
+```
+
+```rescript
+let feature = carve(({derived}) => {
+  ...fields,
+  total: derived(total)
+})
+```
+
+### Example
+
+```typescript
+import { carve, source } from "tilia";
+
+// A pure function for sorting todos, easy to test in isolation.
+const list = (todos: Todos) => {
+  const compare = todos.sort === "by date"
+    ? (a, b) => a.createdAt.localeCompare(b.createdAt)
+    : (a, b) => a.title.localeCompare(b.title);
+  return [...todos.data].sort(compare);
+};
+
+// A pure function for toggling a todo, also easily testable.
+const toggle = ({ data, repo }: Todos) => (id: string) => {
+  const todo = data.find(t => t.id === id);
+  if (todo) {
+    todo.completed = !todo.completed;
+    repo.save(todo)
+  } else {
+    throw new Error(`Todo ${id} not found`);
+  }
+};
+
+// Inject the dependency "repo"
+const makeTodos = (repo: Repo) => {
+  // ✨ Carve the todos feature ✨
+  return carve(({ derived }) => ({
+    // state
+    sort: "by date",
+    // computed state
+    list: derived(list),
+    // actions
+    toggle: derived(toggle),
+    // private
+    data: source([], repo.fetchTodos),
+  }));
+};
 ```
 
 ```rescript
 open Tilia
 
-type person = {
-  mutable firstName: string,
-  mutable lastName: string,
-  fullName: string,
-}
-let fullName = (self: person) => `${self.firstName} ${self.lastName}`
+// A pure function for sorting todos, easy to test in isolation.
+let list = todos =>
+  todos->Array.toSorted(switch todos.sort {
+    | ByDate => (a, b) => String.compare(a.createdAt, b.createdAt)
+    | ByTitle => (a, b) => String.compare(a.title, b.title)
+  })
 
-let person = carve(({derived}) => {
-  firstName: "Alice",
-  lastName: "Dupont",
-  fullName: derived(fullName),
-})
+// A pure function for toggling a todo, also easily testable.
+let toggle = ({ data, repo }: Todos.t) =>
+  switch data->Array.find(t => t.id === id) {
+    | None => raise(Not_found)
+    | Some(todo) =>
+      todo.completed = !todo.completed
+      repo.save(todo)
+  }
 
-// Natural reading, like a normal object
-Js.log(person.firstName)     // "Alice"
-Js.log(person.fullName) // "Alice Dupont"
-
-// Natural modification
-person.lastName = "Martin"
-Js.log(person.fullName) // "Alice Martin" ✨ Automatic
+// Inject the dependency "repo"
+let makeTodos = repo =>
+  // ✨ Carve the todos feature ✨
+  carve(({ derived }) => {
+    // state
+    sort: ByDate,
+    // computed state
+    list: derived(list),
+    // actions
+    toggle: derived(toggle),
+    // private
+    data: source([], repo.fetchTodos),
+  })
 ```
 
-Here, `person.firstName` still reads like normal object code. No `.get()` / `.set()` ceremony.
+**💡 Pro tip:** Carving is a powerful way to build domain-driven, self-contained features. Extracting logic into pure functions (like `list` and `toggle`) makes testing and reuse easy. {.pro}
 
-#### Ubiquitous Language
+#### Recursive derivation (state machines)
 
-**Domain-Driven Design** (DDD) emphasizes the importance of a shared vocabulary between developers and business experts. This vocabulary, called "ubiquitous language", should appear directly in the code.
-
-Tilia facilitates this approach by allowing you to write code that **resembles the domain**:
+For recursive derivation (such as state machines), use `source` inside `carve`:
 
 ```typescript
-type Cart = {
-  items: Array<{ price: number; quantity: number }>;
-  promoCode: { percentage: number } | null;
-  subtotal: number;
-  discount: number;
-  total: number;
-};
-const subtotal = (self: Cart) =>
-  self.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-const discount = (self: Cart) =>
-  self.promoCode?.percentage ? (self.subtotal * self.promoCode.percentage) / 100 : 0;
-const total = (self: Cart) => self.subtotal - self.discount;
-
-const cart = carve<Cart>(({ derived }) => ({
-  items: [],
-  promoCode: null,
-  subtotal: derived(subtotal),
-  discount: derived(discount),
-  total: derived(total),
-}));
-
-// A business expert can read and understand this code
-if (cart.total > 100) {
-  applyFreeShipping();
-}
+const stateMachine = 
+  (self) => source(initialValue, machine(self));
 ```
 
-This keeps the model close to business language: `cart`, `items`, `discount`, `total`.
-
-#### Bounded Contexts and modularity
-
-In DDD, a **Bounded Context** is a conceptual boundary where a particular model is defined and applicable. Tilia and `carve` naturally allow creating these boundaries:
-
-```typescript
-const search = (self: CatalogContext) => (term: string) => { /* ... */ };
-const filterByCategory = (self: CatalogContext) => (cat: string) => { /* ... */ };
-const add = (self: CartContext) => (product: Product, quantity: number) => { /* ... */ };
-const total = (self: CartContext) => { /* ... */ };
-
-// "Catalog" context
-const catalog = carve<CatalogContext>(({ derived }) => ({
-  products: [],
-  categories: [],
-  search: derived(search),
-  filterByCategory: derived(filterByCategory),
-}));
-
-// "Cart" context - different model, same product
-const cart = carve<CartContext>(({ derived }) => ({
-  lines: [],  // Not "products" - different vocabulary in this context
-  add: derived(add),
-  total: derived(total),
-}));
+```rescript
+let stateMachine = 
+  self => source(initialValue, machine(self))
 ```
 
-Each context uses its own vocabulary, its own rules, while remaining reactive.
+This allows you to create dynamic or self-referential state that reacts to
+changes in other parts of the tree.
+
+<div class="text-center text-3xl text-black hue-rotate-230">💡</div>
+
+#### Difference from `computed`
+
+- Use `computed` for pure derived values that do **not** depend on the entire object.
+- Use `derived` (via `carve`) when you need access to the full reactive object
+  for cross-property logic or methods.
+
+Look at <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/todos/todos.ts">todos.ts</a> for an example of using `carve` to build the todos feature.
 
 </section>
-
-## API Reference {.api}
 
 <a id="tilia"></a>
 
@@ -644,7 +556,7 @@ Each context uses its own vocabulary, its own rules, while remaining reactive.
 
 ### tilia
 
-Transform an object or array into a reactive tilia value.
+Transform an object or array into a reactive object. Use this when you want a "quick and dirty" reactive object and you are not designing a feature.
 
 ```typescript
 import { tilia } from "tilia";
@@ -738,7 +650,7 @@ watch(
 
 // ✨ This triggers the effect
 exercise.result = "Pass";
-// 😴 This does not trigger the effect
+// This does not trigger the effect 💤
 alice.score = alice.score + 10;
 ```
 
@@ -758,7 +670,7 @@ watch(
 
 // ✨ This triggers the effect
 exercise.result = "Pass";
-// 😴 This does not trigger the effect
+// This does not trigger the effect 💤
 alice.score = alice.score + 10;
 ```
 
@@ -1311,129 +1223,59 @@ let todo = tilia({
 
 </section>
 
-<a id="carve"></a>
-
-## <span>✨</span> Carving <span>✨</span> {.carve}
-
-<section class="doc computed wide-comment carve">
-
-### carve
-
-This is where Tilia truly shines. It lets you build a domain-driven, self-contained feature that is easy to test and reuse.
-
-```typescript
-const total = (self: Feature) => self.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
-const feature = carve<Feature>(({ derived }) => ({ ...fields, total: derived(total) }))
-```
-
-```rescript
-let total = (self: feature) => self.items->Array.reduce(0, (sum, item) => sum + item.price * item.quantity)
-let feature = carve(({derived}) => {...fields, total: derived(total)})
-```
-
-The `derived` function in the carve argument is like a `computed` but with the
-object itself as first parameter.
-
-### Example
-
-```typescript
-import { carve, source } from "tilia";
-
-// A pure function for sorting todos, easy to test in isolation.
-const list = (todos: Todos) => {
-  const compare = todos.sort === "by date"
-    ? (a, b) => a.createdAt.localeCompare(b.createdAt)
-    : (a, b) => a.title.localeCompare(b.title);
-  return [...todos.data].sort(compare);
-};
-
-// A pure function for toggling a todo, also easily testable.
-const toggle = ({ data, repo }: Todos) => (id: string) => {
-  const todo = data.find(t => t.id === id);
-  if (todo) {
-    todo.completed = !todo.completed;
-    repo.save(todo)
-  } else {
-    throw new Error(`Todo ${id} not found`);
-  }
-};
-
-// Injecting the dependency "repo"
-const makeTodos = (repo: Repo) => {
-  // ✨ Carve the todos feature ✨
-  return carve(({ derived }) => ({
-    sort: "by date",
-    list: derived(list),
-    data: source([], repo.fetchTodos),
-    toggle: derived(toggle),
-    repo,
-  }));
-};
-```
-
-```rescript
-open Tilia
-
-// A pure function for sorting todos, easy to test in isolation.
-let list = todos =>
-  todos->Array.toSorted(switch todos.sort {
-    | ByDate => (a, b) => String.compare(a.createdAt, b.createdAt)
-    | ByTitle => (a, b) => String.compare(a.title, b.title)
-  })
-
-// A pure function for toggling a todo, also easily testable.
-let toggle = ({ data, repo }: Todos.t) =>
-  switch data->Array.find(t => t.id === id) {
-    | None => raise(Not_found)
-    | Some(todo) =>
-      todo.completed = !todo.completed
-      repo.save(todo)
-  }
-
-// Injecting the dependency "repo"
-let makeTodos = repo =>
-  // ✨ Carve the todos feature ✨
-  carve(({ derived }) => {
-    sort: ByDate,
-    list: derived(list),
-    data: source([], repo.fetchTodos),
-    toggle: derived(toggle),
-  })
-```
-
-**💡 Pro tip:** Carving is a powerful way to build domain-driven, self-contained features. Extracting logic into pure functions (like `list` and `toggle`) makes testing and reuse easy. {.pro}
-
-#### Recursive derivation (state machines)
-
-For recursive derivation (such as state machines), use `source`:
-
-```typescript
-const stateMachine = (self) => source(initialValue, machine(self));
-derived(stateMachine);
-```
-
-```rescript
-let stateMachine = self => source(initialValue, machine(self))
-derived(stateMachine)
-```
-
-This allows you to create dynamic or self-referential state that reacts to
-changes in other parts of the tree.
-
-<div class="text-center text-3xl text-black hue-rotate-230">💡</div>
-
-#### Difference from `computed`
-
-- Use `computed` for pure derived values that do **not** depend on the entire object.
-- Use `derived` (via `carve`) when you need access to the full reactive object
-  for cross-property logic or methods.
-
-Look at <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/todos/todos.ts">todos.ts</a> for an example of using `carve` to build the todos feature.
-
-</section>
 <a id="react"></a>
 
 ## React Integration {.react}
+
+<a id="leaf"></a>
+
+<section class="doc react leaf">
+
+### leaf <small>(React Higher Order Component)</small> {.leaf}
+
+This is the **favored** way of making reactive components. Compared to using the
+`useTilia` hook, the dependency tracking is exact which is not doable with hooks.
+
+#### Installation
+
+```bash
+npm install @tilia/react
+```
+
+Wrap your component with `leaf`:
+
+```typescript
+import { leaf } from "@tilia/react";
+
+const App = leaf(() => {
+  if (alice.age >= 13) {
+    return <SocialMediaApp />;
+  } else {
+    return <NormalApp />;
+  }
+});
+```
+
+```rescript
+open TiliaReact
+
+@react.component
+let make = leaf(() => {
+  useTilia()
+
+  if (alice.age >= 13) {
+    <SocialMedia />
+  } else {
+    <NormalApp />
+  }
+})
+```
+
+The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render and the `leaf` wrapper tracks dependencies.
+
+</section>
+
+<a id="useTilia"></a>
 
 <section class="doc react useTilia">
 
@@ -1445,7 +1287,7 @@ Look at <a href="https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/doma
 npm install @tilia/react
 ```
 
-Insert `useTilia` at the top of the React components that consume tilia values.
+Insert `useTilia` at the top of the React components that consume tilia values. This offers an easy way to make existing components reactive.
 
 ```typescript
 import { useTilia } from "@tilia/react";
@@ -1476,57 +1318,8 @@ let make = () => {
 }
 ```
 
-The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render.
-
 </section>
 
-<section class="doc react useTilia">
-
-### leaf <small>(React Higher Order Component)</small> {.leaf}
-
-This is the **favored** way of making reactive components. Compared to
-`useTilia`, this tracking is exact due to proper begin/end tracking of the
-render phase which is not doable with hooks.
-
-#### Installation
-
-```bash
-npm install @tilia/react
-```
-
-Wrap your component with `leaf`:
-
-```typescript
-import { leaf } from "@tilia/react";
-
-// Use a named function to have proper component names in React dev tools.
-const App = leaf(() => {
-  if (alice.age >= 13) {
-    return <SocialMediaApp />;
-  } else {
-    return <NormalApp />;
-  }
-});
-```
-
-```rescript
-open TiliaReact
-
-@react.component
-let make = leaf(() => {
-  useTilia()
-
-  if (alice.age >= 13) {
-    <SocialMedia />
-  } else {
-    <NormalApp />
-  }
-})
-```
-
-The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render.
-
-</section>
 
 <a id="useComputed"></a>
 
@@ -1564,6 +1357,8 @@ let make = () => {
 With this helper, the TodoView does not depend on `app.todos.selected.id` but on `selected`. This prevents the component from re-rendering on every change to the selected todo.
 
 </section>
+
+<a id="technical"></a>
 
 ## Deep Technical Reference {.api}
 
@@ -1648,7 +1443,7 @@ const createHandler = (context: TiliaContext) => ({
 ┌─────────────────────────────────────────────────────────────┐
 │                    INITIAL STATE                            │
 │  computed created but not yet executed                      │
-│  cache = EMPTY, valid = false                               │
+│  cache = EMPTY                                              |
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼ (first read)
@@ -1657,14 +1452,14 @@ const createHandler = (context: TiliaContext) => ({
 │  1. currentObserver = this computed                         │
 │  2. Execution of the function                               │
 │  3. Dependencies recorded during execution                  │
-│  4. cache = result, valid = true                            │
-│  5. currentObserver = null                                  │
+│  4. cache = result                                          |
+│  5. currentObserver = previous observer                     |
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼ (subsequent reads)
 ┌─────────────────────────────────────────────────────────────┐
 │                    CACHE HIT                                │
-│  valid = true → return cache directly                       │
+│  cache exists → return cache directly                       │
 │  No recalculation                                           │
 └─────────────────────────────────────────────────────────────┘
                             │
@@ -1672,8 +1467,9 @@ const createHandler = (context: TiliaContext) => ({
 ┌─────────────────────────────────────────────────────────────┐
 │                    INVALIDATION                             │
 │  1. SET detected on a dependency                            │
-│  2. valid = false                                           │
-│  3. Notification propagated to observers                    │
+│  2. if observed : value recomputed                          |
+│  3. value changed ? → notification propagated to observers  |
+│  4. not observed : cache reset                              |
 └─────────────────────────────────────────────────────────────┘
                             │
                             ▼ (next read)
@@ -1710,7 +1506,7 @@ This is possible thanks to the shared global context that maintains dependencies
 
 <section class="doc errors wide-comment">
 
-### The "Glue Zone" and Security (v4)
+### The "Glue Zone" and Security
 
 #### The Orphan Computations Problem
 
@@ -1739,9 +1535,9 @@ const obj = tilia({
 });
 ```
 
-#### Safety Proxies (v4)
+#### Safety Proxies
 
-In v4, computation definitions (`computed`, `source`, `store`) are wrapped in a Safety Proxy:
+Since v4, computation definitions (`computed`, `source`, `store`) are wrapped in a Safety Proxy:
 
 - **In a reactive context** (tilia/carve): the proxy unwraps transparently
 - **Outside**: the proxy **throws a descriptive error**
@@ -1778,7 +1574,7 @@ const obj = tilia({
 
 <a id="flush-batching"></a>
 
-<section class="doc batch wide-comment">
+<section class="doc batch wide-comment summary">
 
 ### Flush Strategy and Batching
 
@@ -1786,14 +1582,14 @@ const obj = tilia({
 
 When Tilia notifies observers depends on **where** the modification occurs:
 
-| Context                        | Behavior            | Example                                               |
-| ------------------------------ | ------------------- | ----------------------------------------------------- |
-| **Outside observation**        | **Immediate** flush | Code in an event handler, setTimeout, etc.            |
-| **Inside observation context** | **Deferred** flush  | In `computed`, `observe`, `watch`, `leaf`, `useTilia` |
+| Context                        | Behavior            | Example                                    |
+| ------------------------------ | ------------------- | ------------------------------------------ |
+| **Outside observation**        | **Immediate** flush | Code in an event handler, setTimeout, etc. |
+| **Inside observation context** | **Deferred** flush  | In `derived`, `observe`, `leaf`, etc.      |
 
 #### Outside observation context: immediate flush
 
-When you modify a value **outside** an observation context, each modification triggers **immediately** a notification:
+When you modify a value **outside** an observation context, each modification triggers an **immediate** notification:
 
 ```typescript
 const state = tilia({ a: 1, b: 2 });
@@ -1919,13 +1715,34 @@ The main danger of mutations in a `computed` is the risk of an **infinite loop**
 
 ```typescript
 const state = tilia({
-  items: [] as number[],
+  items: [],
   
   // ❌ DANGER: the computed reads AND modifies 'items'
   count: computed(() => {
-    const len = state.items.length;  // Read 'items'
-    state.items.push(len);           // Write to 'items' → invalidates the computed!
-    return len;                      // → Recalculate → Read → Write → ∞
+    // Read 'items'
+    const len = state.items.length;
+    // Write to 'items' → invalidates the computed!
+    state.items.push(len);           
+    // → Recalculate → Read → Write → ∞
+    return len;                      
+  }),
+});
+
+// Accessing state.count causes an infinite loop!
+```
+
+```rescript
+let state = tilia({
+  items: [],
+  
+  // ❌ DANGER: the computed reads AND modifies 'items'
+  count: computed(() => {
+    // Read 'items'
+    const len = state.items->Array.length;
+    // Write to 'items' → invalidates the computed!
+    state.items->Array.push(len);           
+    // → Recalculate → Read → Write → ∞
+    return len;                      
   }),
 });
 
@@ -1944,6 +1761,26 @@ const state = tilia({
 const state = tilia({
   count: 0,
   history: [] as number[],
+});
+
+// ✅ GOOD: watch separates observation and mutation
+watch(
+  // Observation: tracked
+  () => state.count,              
+  (count) => {
+    // Mutation: no tracking here
+    state.history.push(count);    
+  }
+);
+
+state.count = 1;  // history becomes [1]
+state.count = 2;  // history becomes [1, 2]
+```
+
+```rescript
+let state = tilia({
+  count: 0,
+  history: [],
 });
 
 // ✅ GOOD: watch separates observation and mutation

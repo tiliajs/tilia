@@ -13,30 +13,39 @@ AI-focused TypeScript documentation for the full Tilia API.
 ## Canonical Carve Pattern
 
 ```typescript
-import { carve } from "tilia";
+import { carve, source } from "tilia";
 
-type Item = { price: number; quantity: number };
-type Cart = {
-  items: Item[];
-  total: number;
-  updateQty: (index: number, quantity: number) => void;
+type Feature = {
+  count: number;
+  double: number;
+  add: (count: number) => void;
 };
 
-const total = (self: Cart): number =>
-  self.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-
-const updateQty = (self: Cart) => (index: number, quantity: number): void => {
-  const item = self.items[index];
-  if (!item) return;
-  item.quantity = quantity;
+type Service = {
+  fetchCount: () => (previous: number, set: (value: number) => void) => void;
+  updateCount: (next: number, rollback: () => void) => void;
 };
 
-export const makeCart = () =>
-  carve<Cart>(({ derived }) => ({
-    items: [{ price: 12, quantity: 1 }],
-    total: derived(total),
-    updateQty: derived(updateQty),
+const double = (self: Feature): number => self.count * 2;
+
+const add =
+  (service: Service) =>
+  (self: Feature) =>
+  (count: number): void => {
+    const prevValue = self.count;
+    self.count += count; // optimistic write
+    service.updateCount(self.count, () => (self.count = prevValue));
+  };
+
+export const makeFeature = (service: Service) =>
+  carve<Feature>(({ derived }) => ({
+    count: source(0, service.fetchCount()),
+    double: derived(double),
+    add: derived(add(service)),
   }));
+
+const feature = makeFeature(service);
+feature.add(4);
 ```
 
 ## Anti-Pattern (Avoid)
@@ -45,16 +54,27 @@ export const makeCart = () =>
 import { carve } from "tilia";
 
 // Avoid: logic-heavy body inside carve.
-const cart = carve(({ derived }) => ({
-  items: [{ price: 10, quantity: 1 }],
-  total: derived((self) => {
-    let sum = 0;
-    for (const item of self.items) {
-      if (item.quantity > 0) sum += item.price * item.quantity;
-    }
-    return sum;
+const feature = carve(({ derived }) => ({
+  count: 0,
+  double: derived((self) => {
+    let acc = 0;
+    for (let i = 0; i < self.count; i++) acc += 2;
+    return acc;
   }),
 }));
+```
+
+## Feature File Organization
+
+Use this if the project does not provide other guidelines.
+
+```text
+[feature-name]/
+  index.ts      // carve glue
+  type.ts       // ts type of the feature
+  computed.ts   // all computed/derived values
+  actions.ts    // all mutating functions
+  service.ts    // external dependencies (db fetch, etc)
 ```
 
 ## Full API Map (TypeScript)

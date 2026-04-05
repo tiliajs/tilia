@@ -586,6 +586,7 @@ html[data-theme="light"] {
     white-space: pre-wrap;
     word-wrap: break-word;
     overflow-x: visible;
+    font-size: 90%;
 
     code {
       background: none;
