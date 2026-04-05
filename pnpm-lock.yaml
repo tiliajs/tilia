@@ -123,8 +123,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: 1.0.0-beta.20251218T132423
-        version: 1.0.0-beta.20251218T132423(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.0.0
+        version: 1.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app1:
     dependencies:
@@ -181,8 +181,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: 1.0.0-beta.20251218T132423
-        version: 1.0.0-beta.20251218T132423(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.0.0
+        version: 1.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app2:
     dependencies:
@@ -242,8 +242,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: 1.0.0-beta.20251218T132423
-        version: 1.0.0-beta.20251218T132423(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.0.0
+        version: 1.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app3:
     dependencies:
@@ -291,8 +291,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: 1.0.0-beta.20251218T132423
-        version: 1.0.0-beta.20251218T132423(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.0.0
+        version: 1.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app4:
     dependencies:
@@ -325,8 +325,8 @@ importers:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@25.0.3)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: 1.0.0-beta.20251218T132423
-        version: 1.0.0-beta.20251218T132423(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.0.0
+        version: 1.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   todo-app-ts:
     dependencies:
@@ -398,8 +398,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: 1.0.0-beta.20251218T132423
-        version: 1.0.0-beta.20251218T132423(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.0.0
+        version: 1.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   website:
     dependencies:
@@ -3925,8 +3925,8 @@ packages:
       vite:
         optional: true
 
-  vitest-bdd@1.0.0-beta.20251218T132423:
-    resolution: {integrity: sha512-0QSuPhDd2zJQ+OQXAA4sOXN/nPswWUqrgubUMEkQDs+3+VkOGnwaLQetF9F9xGhlOOzXQau2T7B0Tyv6Kh+FKA==}
+  vitest-bdd@1.0.0:
+    resolution: {integrity: sha512-k6Dgk//Wi/IVn1E0UHwuQ5+zSW6mva5PbZ6OrQdkboYw2S1wtkXcgjN9c5mOY3AAB+FreuORMuWPiv0W6ZbHcA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       vite: '*'
@@ -7888,14 +7888,14 @@ snapshots:
     optionalDependencies:
       vite: 7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)
 
-  vitest-bdd@1.0.0-beta.20251218T132423(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
+  vitest-bdd@1.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
     dependencies:
       '@cucumber/gherkin': 32.2.0
       '@cucumber/messages': 27.2.0
       source-map: 0.7.6
       vite: 6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)
 
-  vitest-bdd@1.0.0-beta.20251218T132423(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
+  vitest-bdd@1.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
     dependencies:
       '@cucumber/gherkin': 32.2.0
       '@cucumber/messages': 27.2.0
