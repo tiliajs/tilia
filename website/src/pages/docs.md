@@ -22,15 +22,14 @@ Complete guide to using Tilia for simple and fast state management in TypeScript
 
 Branches **5.x** and **4.x** have the same API, version 5.x targets **ReScript v12** while version 4.x is for **ReScript v11**.
 
-There is no difference for TypeScript.
+Both work the same for TypeScript.
 
 
 ## Installation
 
 ```shell
-# Version 5.0 (ReScript v12)
 npm install tilia
-# If you are using tilia with React:
+# If you are using tilia with React
 npm install @tilia/react
 ```
 
@@ -52,7 +51,7 @@ npm install @tilia/react
 
 <a id="frp"></a>
 
-<section class="doc frp wide-comment">
+<section class="doc frp">
 
 ### What is Functional Reactive Programming (FRP)?
 
@@ -91,17 +90,21 @@ double.contents = count.contents * 2
 quadruple.contents = double.contents * 2
 ```
 
-With FRP, dependencies are declared once and updates propagate automatically:
+With Tilia, dependencies are declared once and updates propagate automatically:
 
 ```typescript
-// ✅ Reactive approach with Tilia
-import { tilia, computed, observe } from "tilia";
+// ✅ Reactive approach with carve + derived glue
+import { carve, observe } from "tilia";
 
-const state = tilia({
+type State = { count: number; double: number; quadruple: number };
+const double = (self: State) => self.count * 2;
+const quadruple = (self: State) => self.double * 2;
+
+const state = carve<State>(({ derived }) => ({
   count: 0,
-  double: computed(() => state.count * 2),
-  quadruple: computed(() => state.double * 2),
-});
+  double: derived(double),
+  quadruple: derived(quadruple),
+}));
 
 observe(() => {
   console.log(`count=${state.count}, double=${state.double}, quadruple=${state.quadruple}`);
@@ -113,13 +116,17 @@ state.count = 5;
 ```
 
 ```rescript
-// ✅ Reactive approach with Tilia
+// ✅ Reactive approach with carve + derived glue
 open Tilia
 
-let state = tilia({
+type state = {mutable count: int, double: int, quadruple: int}
+let double = (self: state) => self.count * 2
+let quadruple = (self: state) => self.double * 2
+
+let state = carve(({derived}) => {
   count: 0,
-  double: computed(() => state.count * 2),
-  quadruple: computed(() => state.double * 2),
+  double: derived(double),
+  quadruple: derived(quadruple),
 })
 
 observe(() => {
@@ -164,11 +171,13 @@ alice.age = 11 // ✨ Automatically triggers the callback
 The **pull** model means that values are computed lazily, only when they are read. The value is then cached until one of its dependencies changes.
 
 ```typescript
-const state = tilia({
+type Totals = { items: number[]; total: number };
+const total = (self: Totals) => self.items.reduce((a, b) => a + b, 0);
+
+const state = carve<Totals>(({ derived }) => ({
   items: [1, 2, 3, 4, 5],
-  // Computed only when 'total' is read
-  total: computed(() => state.items.reduce((a, b) => a + b, 0)),
-});
+  total: derived(total),
+}));
 
 // First read: calculation performed, result cached
 console.log(state.total); // 15
@@ -183,10 +192,12 @@ console.log(state.total); // 21
 ```
 
 ```rescript
-let state = tilia({
+type totals = {mutable items: array<int>, total: int}
+let total = (self: totals) => Array.reduce(self.items, 0, (a, b) => a + b)
+
+let state = carve(({derived}) => {
   items: [1, 2, 3, 4, 5],
-  // Computed only when 'total' is read
-  total: computed(() => Array.reduce(state.items, 0, (a, b) => a + b)),
+  total: derived(total),
 })
 
 // First read: calculation performed, result cached
@@ -216,7 +227,7 @@ Tilia allows you to choose the appropriate model based on context, optimizing pe
 
 <a id="observer-pattern"></a>
 
-<section class="doc observe wide-comment">
+<section class="doc observe">
 
 ### The Observer Pattern
 
@@ -252,16 +263,16 @@ subject->unsubscribe(observer)  // Manual unsubscription (source of bugs!)
 
 #### Tilia's approach: automatic tracking
 
-Tilia revolutionizes this pattern by **automatically detecting** which properties are observed. No need to manually subscribe or unsubscribe!
+Tilia automatically detects which properties are observed, so you do not manage subscriptions manually.
 
 ```typescript
-import { tilia, observe } from "tilia";
+import { carve, observe } from "tilia";
 
-const alice = tilia({
+const alice = carve(() => ({
   name: "Alice",
   age: 10,
   city: "Paris",
-});
+}));
 
 observe(() => {
   // Tilia detects that only 'name' and 'age' are read
@@ -275,7 +286,7 @@ alice.city = "Lyon"; // 😴 Does NOT trigger the callback (city is not observed
 ```rescript
 open Tilia
 
-let alice = tilia({
+let alice = carve(_ => {
   name: "Alice",
   age: 10,
   city: "Paris",
@@ -292,19 +303,19 @@ alice.city = "Lyon" // 😴 Does NOT trigger the callback (city is not observed)
 
 #### Dynamic tracking: only the last execution matters
 
-A crucial point to understand: Tilia doesn't look statically at which properties **could** be read in your function. It only records properties that were **actually read during the last execution** of the callback.
+A crucial detail: Tilia does not track what could be read. It tracks what was actually read during the last callback execution.
 
 This means that if your callback contains an `if` condition, dependencies change based on the executed branch:
 
 ```typescript
-import { tilia, observe } from "tilia";
+import { carve, observe } from "tilia";
 
-const state = tilia({
+const state = carve(() => ({
   showDetails: false,
   name: "Alice",
   email: "alice@example.com",
   phone: "01 23 45 67 89",
-});
+}));
 
 observe(() => {
   // 'name' is ALWAYS read
@@ -335,7 +346,7 @@ state.email = "another@email.com";
 ```rescript
 open Tilia
 
-let state = tilia({
+let state = carve(_ => {
   showDetails: false,
   name: "Alice",
   email: "alice@example.com",
@@ -368,13 +379,13 @@ state.email = "another@email.com"
 // ✨ Notification! Now email IS observed
 ```
 
-This dynamic behavior is extremely powerful: your callbacks are never notified for values they don't actually use, which automatically optimizes performance.
+This keeps callbacks precise: updates only trigger when the last execution depended on that value.
 
 </section>
 
 <a id="dependency-graph"></a>
 
-<section class="doc computed wide-comment">
+<section class="doc computed">
 
 ### How Tilia Builds the Dependency Graph
 
@@ -405,7 +416,7 @@ proxy.name = "Bob"; // Log: "Writing name = Bob"
 
 #### The tracking mechanism
 
-When you call `tilia({...})`, the object is wrapped in a Proxy with two essential "traps" (interceptions):
+When you call `carve(...)` (or `tilia(...)`), the object is wrapped in a Proxy with two essential traps:
 
 **1. The GET trap (read)**
 
@@ -455,11 +466,11 @@ const handler = {
 A crucial point: the dependency graph is **dynamic**. It is rebuilt on each callback execution, which allows handling conditions:
 
 ```typescript
-const state = tilia({
+const state = carve(() => ({
   showDetails: false,
   name: "Alice",
   email: "alice@example.com",
-});
+}));
 
 observe(() => {
   console.log("Name:", state.name);
@@ -484,7 +495,7 @@ state.email = "another@email.com"; // ✨ Notification (email is now observed)
 
 <a id="ddd"></a>
 
-<section class="doc ddd wide-comment">
+<section class="doc ddd">
 
 ### Carve and Domain-Driven Design
 
@@ -511,15 +522,17 @@ This code exposes the **reactive plumbing** instead of the **business domain**. 
 
 #### Tilia's approach: domain first
 
-With Tilia, you manipulate your business objects like ordinary JavaScript objects. Reactivity is **invisible**:
+With Tilia, you can keep domain code readable while wiring reactivity at the feature boundary:
 
 ```typescript
-// ✅ Domain-oriented code
-const person = tilia({
+type Person = { firstName: string; lastName: string; fullName: string };
+const fullName = (self: Person) => `${self.firstName} ${self.lastName}`;
+
+const person = carve<Person>(({ derived }) => ({
   firstName: "Alice",
   lastName: "Dupont",
-  fullName: computed(() => `${person.firstName} ${person.lastName}`),
-});
+  fullName: derived(fullName),
+}));
 
 // Natural reading, like a normal object
 console.log(person.firstName);     // "Alice"
@@ -531,13 +544,19 @@ console.log(person.fullName); // "Alice Martin" ✨ Automatic
 ```
 
 ```rescript
-// ✅ Domain-oriented code
 open Tilia
 
-let person = tilia({
+type person = {
+  mutable firstName: string,
+  mutable lastName: string,
+  fullName: string,
+}
+let fullName = (self: person) => `${self.firstName} ${self.lastName}`
+
+let person = carve(({derived}) => {
   firstName: "Alice",
   lastName: "Dupont",
-  fullName: computed(() => `${person.firstName} ${person.lastName}`),
+  fullName: derived(fullName),
 })
 
 // Natural reading, like a normal object
@@ -549,7 +568,7 @@ person.lastName = "Martin"
 Js.log(person.fullName) // "Alice Martin" ✨ Automatic
 ```
 
-Here, `person.firstName` reads exactly like in any JavaScript code. No `.get()`, no `.value`, no function to call. It's simply an object with properties.
+Here, `person.firstName` still reads like normal object code. No `.get()` / `.set()` ceremony.
 
 #### Ubiquitous Language
 
@@ -558,23 +577,26 @@ Here, `person.firstName` reads exactly like in any JavaScript code. No `.get()`,
 Tilia facilitates this approach by allowing you to write code that **resembles the domain**:
 
 ```typescript
-// The code speaks the same language as the business
-const cart = tilia({
+type Cart = {
+  items: Array<{ price: number; quantity: number }>;
+  promoCode: { percentage: number } | null;
+  subtotal: number;
+  discount: number;
+  total: number;
+};
+const subtotal = (self: Cart) =>
+  self.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+const discount = (self: Cart) =>
+  self.promoCode?.percentage ? (self.subtotal * self.promoCode.percentage) / 100 : 0;
+const total = (self: Cart) => self.subtotal - self.discount;
+
+const cart = carve<Cart>(({ derived }) => ({
   items: [],
   promoCode: null,
-  
-  subtotal: computed(() => 
-    cart.items.reduce((sum, a) => sum + a.price * a.quantity, 0)
-  ),
-  
-  discount: computed(() => 
-    cart.promoCode?.percentage 
-      ? cart.subtotal * cart.promoCode.percentage / 100 
-      : 0
-  ),
-  
-  total: computed(() => cart.subtotal - cart.discount),
-});
+  subtotal: derived(subtotal),
+  discount: derived(discount),
+  total: derived(total),
+}));
 
 // A business expert can read and understand this code
 if (cart.total > 100) {
@@ -582,26 +604,31 @@ if (cart.total > 100) {
 }
 ```
 
-No trace of FRP in this code. We talk about `cart`, `items`, `total` - exactly the same terms an e-commerce manager would use.
+This keeps the model close to business language: `cart`, `items`, `discount`, `total`.
 
 #### Bounded Contexts and modularity
 
 In DDD, a **Bounded Context** is a conceptual boundary where a particular model is defined and applicable. Tilia and `carve` naturally allow creating these boundaries:
 
 ```typescript
+const search = (self: CatalogContext) => (term: string) => { /* ... */ };
+const filterByCategory = (self: CatalogContext) => (cat: string) => { /* ... */ };
+const add = (self: CartContext) => (product: Product, quantity: number) => { /* ... */ };
+const total = (self: CartContext) => { /* ... */ };
+
 // "Catalog" context
 const catalog = carve<CatalogContext>(({ derived }) => ({
   products: [],
   categories: [],
-  search: derived((self) => (term: string) => { /* ... */ }),
-  filterByCategory: derived((self) => (cat: string) => { /* ... */ }),
+  search: derived(search),
+  filterByCategory: derived(filterByCategory),
 }));
 
 // "Cart" context - different model, same product
 const cart = carve<CartContext>(({ derived }) => ({
   lines: [],  // Not "products" - different vocabulary in this context
-  add: derived((self) => (product: Product, quantity: number) => { /* ... */ }),
-  total: derived((self) => /* ... */),
+  add: derived(add),
+  total: derived(total),
 }));
 ```
 
@@ -1295,11 +1322,13 @@ let todo = tilia({
 This is where Tilia truly shines. It lets you build a domain-driven, self-contained feature that is easy to test and reuse.
 
 ```typescript
-const feature = carve(({ derived }) => { ... fields })
+const total = (self: Feature) => self.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+const feature = carve<Feature>(({ derived }) => ({ ...fields, total: derived(total) }))
 ```
 
 ```rescript
-let feature = carve(({derived}) => { ... fields })
+let total = (self: feature) => self.items->Array.reduce(0, (sum, item) => sum + item.price * item.quantity)
+let feature = carve(({derived}) => {...fields, total: derived(total)})
 ```
 
 The `derived` function in the carve argument is like a `computed` but with the
@@ -1332,13 +1361,13 @@ const toggle = ({ data, repo }: Todos) => (id: string) => {
 // Injecting the dependency "repo"
 const makeTodos = (repo: Repo) => {
   // ✨ Carve the todos feature ✨
-  return carve({ derived }) => ({
+  return carve(({ derived }) => ({
     sort: "by date",
     list: derived(list),
     data: source([], repo.fetchTodos),
     toggle: derived(toggle),
     repo,
-  });
+  }));
 };
 ```
 
@@ -1379,11 +1408,13 @@ let makeTodos = repo =>
 For recursive derivation (such as state machines), use `source`:
 
 ```typescript
-derived((tree) => source(initialValue, machine));
+const stateMachine = (self) => source(initialValue, machine(self));
+derived(stateMachine);
 ```
 
 ```rescript
-derived(tree => source(initialValue, machine))
+let stateMachine = self => source(initialValue, machine(self))
+derived(stateMachine)
 ```
 
 This allows you to create dynamic or self-referential state that reacts to

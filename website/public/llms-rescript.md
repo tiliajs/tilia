@@ -1,0 +1,229 @@
+# Tilia LLM Guide (ReScript)
+
+AI-focused ReScript documentation for the full Tilia API.
+
+## Primary Rule
+
+- Use `carve` as the default for feature modules.
+- `carve` must glue parts into one reactive object.
+- Do not put business complexity inside `carve`.
+- Put logic in standalone functions that take `self`.
+- Bind with `field: derived(field)` when possible.
+
+## Canonical Carve Pattern
+
+```rescript
+open Tilia
+
+type item = {price: float, mutable quantity: int}
+type cart = {
+  mutable items: array<item>,
+  total: float,
+  updateQty: (int, int) => unit,
+}
+
+let total = (self: cart) =>
+  self.items->Array.reduce(0.0, (acc, item) => acc +. item.price *. Float.fromInt(item.quantity))
+
+let updateQty = (self: cart) => (index: int, qty: int) => {
+  switch self.items[index] {
+  | Some(item) => item.quantity = qty
+  | None => ()
+  }
+}
+
+let makeCart = () =>
+  carve(({derived}) => {
+    items: [{price: 12.0, quantity: 1}],
+    total: derived(total),
+    updateQty: derived(updateQty),
+  })
+```
+
+## Anti-Pattern (Avoid)
+
+```rescript
+open Tilia
+
+// Avoid: logic-heavy body inside carve.
+let cart = carve(({derived}) => {
+  items: [{price: 10.0, quantity: 1}],
+  total: derived(self => {
+    let mutable sum = 0.0
+    for i in 0 to Array.length(self.items) - 1 {
+      switch self.items[i] {
+      | Some(item) => sum = sum +. item.price *. Float.fromInt(item.quantity)
+      | None => ()
+      }
+    }
+    sum
+  }),
+})
+```
+
+## Full API Map (ReScript)
+
+### `tilia`
+
+Wrap an object/array into a reactive proxy.
+
+```rescript
+let state = tilia({count: 0})
+state.count = 1
+```
+
+### `carve`
+
+Create a reactive feature object with helper-function injection via `derived`.
+
+```rescript
+type feature = {value: int, doubled: int}
+let doubled = (self: feature) => self.value * 2
+
+let feature = carve(({derived}) => {
+  value: 1,
+  doubled: derived(doubled),
+})
+```
+
+### `observe`
+
+Push reactivity. Callback re-runs when tracked reads change.
+
+```rescript
+observe(() => Js.log(state.count))
+```
+
+### `watch`
+
+Split tracking and effect.
+
+```rescript
+watch(
+  () => state.count,
+  v => Js.log(v),
+)
+```
+
+### `batch`
+
+Group writes and flush once.
+
+```rescript
+batch(() => {
+  state.a = 1
+  state.b = 2
+})
+```
+
+### `signal`
+
+Single mutable reactive value + setter.
+
+```rescript
+let (count, setCount) = signal(0)
+setCount(2)
+```
+
+### `derived` (signal API)
+
+Create a derived signal from signals or reactive reads.
+
+```rescript
+let (a, setA) = signal(1)
+let b = derived(() => a.value * 2)
+setA(2)
+```
+
+### `lift`
+
+Insert signal value into a `tilia` object.
+
+```rescript
+let (s, setS) = signal(0)
+let state = tilia({count: lift(s), setS})
+```
+
+### `readonly`
+
+Insert non-tracked immutable data wrapper.
+
+```rescript
+let app = tilia({form: readonly(bigData)})
+```
+
+### `computed`
+
+Pull reactivity. Re-computes on read after dependency invalidation.
+
+```rescript
+let state = tilia({
+  count: 1,
+  double: computed(() => state.count * 2),
+})
+```
+
+### `source` (async query and re-query)
+
+Use `source(initial, setup)` for async loaders and re-loaders.
+
+- `initial` is returned until `set` is called.
+- `setup(previous, set)` runs on first read.
+- `setup(previous, set)` runs again when tracked dependencies inside setup change.
+- `set(next)` updates the source value imperatively.
+- `previous` is the last emitted value, useful for incremental updates.
+
+```rescript
+open Tilia
+
+let sleep: unit => promise<unit> = async () =>
+  %raw(`new Promise(resolve => setTimeout(resolve, 10))`)
+
+let (query, setQuery) = signal("helena")
+
+let fetchName = async (q, previous, set) => {
+  await sleep()
+  switch q {
+  | "helena" => set("Helena")
+  | "bob" => set("William")
+  | _ => set(previous ++ "+" ++ q)
+  }
+}
+
+let user = tilia({
+  name: source("Loading", fetchName(query.value, ...)),
+})
+
+// Re-query
+setQuery("bob")
+```
+
+### `store`
+
+Managed state with setup returning current value and receiving a setter.
+
+```rescript
+type auth = LoggedOut | Loading | LoggedIn
+
+let machine = set => LoggedOut
+let app = tilia({auth: store(machine)})
+```
+
+### `make`
+
+Create isolated Tilia context (`tilia`, `carve`, `observe`, etc.).
+
+```rescript
+let ctx = make()
+let local = ctx.tilia({count: 0})
+```
+
+## Generation Rules for AI
+
+- Prefer `carve` over ad-hoc `tilia` for feature modules.
+- Keep `carve` declarative and short.
+- Extract domain logic into external functions.
+- Functions wired with `derived` take `self` first.
+- Use `source` for async query/re-query flows.
+- Explain `set` as imperative emitter and `previous` as last emitted value.
+
