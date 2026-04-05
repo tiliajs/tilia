@@ -2,6 +2,7 @@
   "name": "tilia-monorepo",
   "private": true,
   "version": "5.0.0",
+  "packageManager": "pnpm@10.17.1",
   "homepage": "https://tiliajs.com",
   "description": "tilia monorepo",
   "main": "index.js",
