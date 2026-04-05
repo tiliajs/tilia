@@ -41,4 +41,7 @@ This index is optimized for AI agents and coding assistants.
   - setup re-runs when tracked dependencies change
   - `set` emits the next value imperatively
   - `previous` is the last emitted value
+  - recommended example: `source(empty(), derived(loader(service)))` where loader sets `stale(previous)` before async fetch
+  - when used with `carve` + `derived(loader)`, `previous` should be used to keep stale UI data visible during reload (no blink)
+  - the `derived(loader)` pattern enables conditional loader strategies based on sibling feature fields
 

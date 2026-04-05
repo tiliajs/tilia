@@ -538,6 +538,9 @@ let stateMachine =
 This allows you to create dynamic or self-referential state that reacts to
 changes in other parts of the tree.
 
+For conditional loaders derived from the carved object itself, see
+[Derived loader inside source](#source-derived-loader).
+
 <div class="text-center text-3xl text-black hue-rotate-230">💡</div>
 
 #### Difference from `computed`
@@ -972,6 +975,67 @@ let app = tilia({
 
 The see different uses of `source`, `store` and `computed`, you can have a look
 at the [todo app](/todo-app-ts).
+
+<a id="source-derived-loader"></a>
+
+#### Derived loader inside source
+
+If you need to load data that depends on other parameters, you can combine `source` with `derived`:
+
+```typescript
+const loader = (service: Service) => 
+  (self: { projectId: string }) => 
+  async (previous: Project, set: (value: Project) => void) => {
+    // change the previous data to stale and show this while loading
+    set(stale(previous));
+    // load the new selected project
+    const project = await service.loadProject(self.projectId);
+    // fully loaded: show
+    set(loaded(project));
+  };
+
+const selectProject = (self: ProjectBranch) =>
+  (id: string) => (self.projectId = id);
+
+const makeProject = (service: Service) =>
+  carve<ProjectBranch>(({ derived }) => ({
+    // state
+    projectId: "main",
+    // computed state
+    project: source(empty(), derived(loader(service))),
+    // actions
+    selectProject: derived(selectProject),
+  }));
+```
+
+```rescript
+let loader = service => self => async (previous, set) => {
+  // change the previous data to stale and show this while loading
+  set(stale(previous))
+  // load the new selected project
+  let project = await service.loadProject(self.projectId)
+  // fully loaded: show
+  set(loaded(project))
+}
+
+let selectProject = self => id => self.projectId = id
+
+let makeProject = service =>
+  carve(({derived}) => {
+    // state
+    projectId: "main",
+    // computed state
+    project: source(empty(), derived(loader(service))),
+    // actions
+    selectProject: derived(selectProject),
+  })
+```
+
+- `derived(loader)` injects the carved object into `loader`, so the source setup can
+  use sibling fields like `self.projectId`.
+- This lets the loader react to selection changes and refetch the right project.
+- `previous` keeps the last value available while new values are loading, so the UI
+  can keep showing stale data (for example greyed out) instead of blinking.
 
 </section>
 

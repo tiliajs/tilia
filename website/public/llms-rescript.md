@@ -190,6 +190,7 @@ Use `source(initial, setup)` for async loaders and re-loaders.
 - `setup(previous, set)` runs again when tracked dependencies inside setup change.
 - `set(next)` updates the source value imperatively.
 - `previous` is the last emitted value, useful for incremental updates.
+- `previous` also supports stale-while-revalidate UI (keep old data visible, e.g. greyed out, while reloading to avoid blinking).
 
 ```rescript
 open Tilia
@@ -215,6 +216,28 @@ let user = tilia({
 // Re-query
 setQuery("bob")
 ```
+
+#### `source` + `derived` inside `carve` (conditional loader strategy)
+
+```rescript
+open Tilia
+
+let loader = service => self => async (previous, set) => {
+  set(stale(previous))
+  let project = await service.loadProject(self.projectId)
+  set(loaded(project))
+}
+
+let selectProject = self => id => self.projectId = id
+
+let projectBranch = carve(({derived}) => {
+  projectId: "main",
+  project: source(empty(), derived(loader(service))),
+  selectProject: derived(selectProject),
+})
+```
+
+Use this when loading depends on feature fields (`self.projectId`) and keep `previous` to preserve old UI data until new values are ready.
 
 ### `store`
 
