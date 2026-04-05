@@ -3,7 +3,7 @@ import {copyFileSync} from "fs";
 
 function copyFile(sourceFile, targetFile) {
   return {
-    name: "copy-dts",
+    name: "copy-file",
     setup(build) {
       build.onEnd(() => copyFileSync(sourceFile, targetFile));
     },
@@ -18,7 +18,12 @@ const build = {
   target: ["esnext"],
   ignoreAnnotations: true,
   packages: "external",
-  plugins: [copyFile("./src/index.d.ts", "./dist/index.d.ts")],
+  plugins: [
+    copyFile("./src/index.d.ts", "./dist/index.d.ts"),
+    copyFile("../website/public/llms.txt", "./llms.txt"),
+    copyFile("../website/public/llms-rescript.md", "./llms-rescript.md"),
+    copyFile("../website/public/llms-typescript.md", "./llms-typescript.md"),
+  ],
 };
 
 Promise.all([

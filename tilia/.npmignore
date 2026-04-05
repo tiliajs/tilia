@@ -10,3 +10,8 @@
 
 # TypeScript target: include build result from esbuild
 !dist/*
+
+# Include AI/coding-assistant docs
+!llms.txt
+!llms-rescript.md
+!llms-typescript.md
