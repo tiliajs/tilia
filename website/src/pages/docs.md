@@ -38,9 +38,9 @@ npm install @tilia/react
 
 <a id="llm-entry"></a>
 
-<section class="doc leaf">
+<section class="doc llms">
 
-### For LLMs / AI coding assistants
+## For LLMs / AI coding assistants
 
 Tilia was built to help your projects grow while staying maintainable and readable wether you prefer typin' o vibin'. 
 
@@ -55,7 +55,7 @@ It links to:
 - derived to build reactivity from pure functions
 ```
 
-You can also directly copy [llms-rescript.md](/llms-rescript.md) or [llms-typescript.md](/llms-typescript.md) into your project (or workspace) rules (**Knowledge** tab on Lovable for example).
+You can also directly copy [llms-rescript.md](/llms-rescript.md) or [llms-typescript.md](/llms-typescript.md) into your project or workspace rules (**Knowledge** tab on Lovable for example).
 
 </section>
 
@@ -81,7 +81,9 @@ Since this documentation is about the **glue** to make the code alive, it can fe
 
 When building an application, it helps to think in terms of features. We talk with clients, business analysts, and end users and come up with a **need**.
 
-For example, [Léa Monster](https://lea.monster) is an app built with tilia to help with interleaved learning. It contains **5** tabs:
+For example, [Léa Monster](https://lea.monster) is an open source app built with tilia to help with interleaved learning. The source can be found [here](https://github.com/midsasum/lea-monster).
+
+The app contains **5** tabs:
 
 * Gardens (define the subjects you want to study).
 * Method (just some documentation, not really a feature).
@@ -91,9 +93,9 @@ For example, [Léa Monster](https://lea.monster) is an app built with tilia to h
 
 ![Léa Monster home page](/img/lea-home.jpg)
 
-The app was built with [Lovable](https://lovable.ai) to explore the state of this art of AIAD (AI assisted development).
+The app was built with [Lovable](https://lovable.ai) to explore AIAD (AI assisted development).
 
-I decided to let the AI do whatever it wanted to do and never look at the generated source code or give it directions.
+I decided to let the AI do whatever it wanted and never look at the generated source code or give it directions.
 
 It worked fine until I hit the "Grow" feature with the slot selection:
 
@@ -110,11 +112,14 @@ Here the AI did a lot of mistakes:
 * Using `setInterval` and ... counting seconds instead of computing elapsed time.
 * Doing a lot of procedural updates to state duplicated in many components through extreme use of `useState`.
 * Computing the next slot to work on with a mix of state machine and list traversal.
+* Complexe use of `useEffect` and `useQuery`.
 
-It was a mess and it was _not working properly_. I told it to read the [LLM docs](/llms.txt) and asked it to:
+You can view the [app before tilia](https://github.com/midasum/lea-monster/tree/before-tilia) on github.
+
+It was (in my view) a mess and it was _not working properly_. I told it to read the [LLM docs](/llms.txt) and asked it to:
 
 1. Create a global state object to store the session feature.
-2. Use `carve` for the feature. Use `self` convention.
+2. Use `carve` for the feature.
 3. Use arrow functions (to prepare for dependency injection).
 4. Move mutations in the feature.
 5. etc.
@@ -1017,16 +1022,16 @@ let todo = tilia({
 
 <section class="doc react leaf">
 
-### leaf <small>(React Higher Order Component)</small> {.leaf}
-
-This is the **favored** way of making reactive components. Compared to using the
-`useTilia` hook, the dependency tracking is exact which is not doable with hooks.
-
 #### Installation
 
 ```bash
 npm install @tilia/react
 ```
+
+### leaf <small>(React Higher Order Component)</small> {.leaf}
+
+This is the **favored** way of making reactive components. Compared to using the
+`useTilia` hook, the dependency tracking is exact which is not doable with hooks.
 
 Wrap your component with `leaf`:
 
@@ -1034,6 +1039,8 @@ Wrap your component with `leaf`:
 import { leaf } from "@tilia/react";
 
 const App = leaf(() => {
+  // Now tilia tracks read operations and registers the exact 
+  // dependencies of the current render.
   if (alice.age >= 13) {
     return <SocialMediaApp />;
   } else {
@@ -1047,8 +1054,8 @@ open TiliaReact
 
 @react.component
 let make = leaf(() => {
-  useTilia()
-
+  // Now tilia tracks read operations and registers the exact 
+  // dependencies of the current render.
   if (alice.age >= 13) {
     <SocialMedia />
   } else {
@@ -1059,6 +1066,89 @@ let make = leaf(() => {
 
 The App component will now re-render when `alice.age` changes because "age" was read from "alice" during the last render and the `leaf` wrapper tracks dependencies.
 
+#### useApp
+
+This is just an advice on architecture and shows `leaf` usage with dependency injection for components (to make components testable).
+
+Create an app context. Because tracking is fine-grained and the global state is mutated in place, this works seamlessly.
+
+```typescript
+export type App = {
+  // ... compose app type from features
+}
+
+export const emptyApp = {
+  // default values. Can be used as basis for
+  // creating app mock objects during testing.
+}
+
+const AppContext = createContext<App>(emptyApp);
+
+export const AppProvider = ({ app, children }: { app: App; children: React.ReactNode }) => 
+    <AppContext.Provider value={app}>{children}</AppContext.Provider>;
+
+export const useApp = (): App => useContext(AppContext);
+```
+
+```rescript
+// App module
+
+let app = {
+  // .. compose type
+}
+
+let empty: app = {
+  // default values. Can be used as basis for
+  // creating app mock objects during testing.
+}
+
+let context = React.createContext(empty);
+
+let useApp = () => React.useContext(context)
+
+module Provider = {
+  let make (~app) => React.Context.provider(app)
+}
+```
+
+And then, components use the app like this:
+
+```typescript
+import { leaf } from "@tilia/react"
+import { useApp } from "../App"
+
+export const TodoList = leaf(() => {
+  // ❌ AVOID reading all required elements at the top (it
+  // defeats the granularity of dependency tracking).
+  // const { todos: { list, count } } = useApp()
+
+  // ✅ do this for easy property renaming and readable values
+  // in the JSX: `count` can be anything `todos.count` is obvious.
+  // Plus it makes cleanup and refactoring easier.
+  const { todos } = useApp()
+
+  return <div>{todos.count}</div>
+})
+```
+
+```rescript
+open TiliaReact
+open App
+
+@react.component
+let make = leaf(() => {
+  // ❌ AVOID reading all required elements at the top (it
+  // defeats the granularity of dependency tracking).
+  // const { todos: { list, count } } = useApp()
+
+  // ✅ do this for easy property renaming and readable values
+  // in the JSX: `count` can be anything `todos.count` is obvious.
+  // Plus it makes cleanup and refactoring easier.
+  let {todos} = useApp()
+
+  <div>{todos.count->Int.toString->React.string}</div>
+})
+```
 </section>
 
 <a id="useTilia"></a>
@@ -1073,7 +1163,7 @@ The App component will now re-render when `alice.age` changes because "age" was 
 npm install @tilia/react
 ```
 
-Insert `useTilia` at the top of the React components that consume tilia values. This offers an easy way to make existing components reactive.
+Insert `useTilia` at the top of the React components that consume tilia values. This offers an easy way to make existing components reactive but it should be avoided because of the extra `useEffect` it requires to close dependency tracking at the end of the render phase. Use `leaf` instead.
 
 ```typescript
 import { useTilia } from "@tilia/react";
@@ -1106,14 +1196,13 @@ let make = () => {
 
 </section>
 
-
 <a id="useComputed"></a>
 
 <section class="doc react useComputed">
 
 ### useComputed <small>(React Hook)</small> {.useComputed}
 
-`useComputed` lets you compute a value and only re-render if the result changes.
+`useComputed` lets you compute a value and only re-render if the result of the value changes (not the dependencies). This is useful for quick view only computations.
 
 ```typescript
 import { useTilia, useComputed } from "@tilia/react";

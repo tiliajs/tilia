@@ -11,7 +11,7 @@ html[data-theme="dark"] {
   code[class*='language-'][is\:raw],
   pre[class*='language-'] {
     white-space: pre-wrap;
-    color: #9efeff;
+    color: #c9feff;
     direction: ltr;
     text-align: left;
     word-spacing: normal;
