@@ -700,9 +700,6 @@ let app = tilia({
 })
 ```
 
-The see different uses of `source`, `store` and `computed`, you can have a look
-at the [todo app](/todo-app-ts).
-
 <a id="source-derived-loader"></a>
 
 #### Derived loader inside source
@@ -712,13 +709,17 @@ If you need to load data that depends on other parameters, you can combine `sour
 ```typescript
 const loader = (service: Service) => 
   (self: { projectId: string }) => 
-  async (previous: Project, set: (value: Project) => void) => {
+  (previous: Project, set: (value: Project) => void) => {
+    // 1. Synchronous read (tracked)
+    const id = self.projectId;
     // change the previous data to stale and show this while loading
     set(stale(previous));
-    // load the new selected project
-    const project = await service.loadProject(self.projectId);
-    // fully loaded: show
-    set(loaded(project));
+    
+    // 2. Delegate async work
+    service.loadProject(id).then((project) => {
+      // fully loaded: show
+      set(loaded(project));
+    });
   };
 
 const selectProject = (self: ProjectBranch) =>
@@ -736,13 +737,17 @@ const makeProject = (service: Service) =>
 ```
 
 ```rescript
-let loader = service => self => async (previous, set) => {
+let loader = service => self => (previous, set) => {
+  // 1. Synchronous read (tracked)
+  let id = self.projectId
   // change the previous data to stale and show this while loading
   set(stale(previous))
-  // load the new selected project
-  let project = await service.loadProject(self.projectId)
-  // fully loaded: show
-  set(loaded(project))
+  
+  // 2. Delegate async work
+  let _ = service.loadProject(id)->Promise.thenResolve(project => {
+    // fully loaded: show
+    set(loaded(project))
+  })
 }
 
 let selectProject = self => id => self.projectId = id
@@ -763,6 +768,8 @@ let makeProject = service =>
 - This lets the loader react to selection changes and refetch the right project.
 - `previous` keeps the last value available while new values are loading, so the UI
   can keep showing stale data (for example greyed out) instead of blinking.
+
+**💡 Pro tip:** Make sure that the `source` callback **is not async**. Tilia tracks reactive reads during synchronous execution only. Read dependencies synchronously, then delegate async work.
 
 </section>
 

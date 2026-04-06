@@ -198,6 +198,7 @@ const state = tilia({
 
 Use `source(initial, setup)` for async loading and re-loading.
 
+- **Tracking rule:** Never use `async` in the `setup` function. Tilia tracks reactive reads during synchronous execution of `setup` only. Tracking ONLY HAPPENS INSIDE A CALLBACK. Read dependencies synchronously, then delegate async work.
 - `initial` is returned before first `set`.
 - `setup(previous, set)` runs on first read.
 - `setup(previous, set)` runs again when tracked dependencies in setup change.
@@ -206,26 +207,31 @@ Use `source(initial, setup)` for async loading and re-loading.
 - `previous` also supports stale-while-revalidate UI (keep old data visible, e.g. greyed out, while reloading to avoid blinking).
 
 ```typescript
-import { signal, tilia, source } from "tilia";
+import { carve, source } from "tilia";
 
 const sleep = () => new Promise((resolve) => setTimeout(resolve, 10));
-const [query, setQuery] = signal("helena");
 
-const fetchName =
-  (q: string) =>
-  async (previous: string, set: (value: string) => void): Promise<void> => {
-    await sleep();
+type User = { query: string; name: string };
+
+const fetchName = (self: User) => (previous: string, set: (value: string) => void): void => {
+  // 1. Synchronous read (tracked)
+  const q = self.query;
+
+  // 2. Delegate async work
+  sleep().then(() => {
     if (q === "helena") set("Helena");
     else if (q === "bob") set("William");
     else set(`${previous}+${q}`);
-  };
+  });
+};
 
-const user = tilia({
-  name: source("Loading", fetchName(query.value)),
-});
+const user = carve<User>(({ derived }) => ({
+  query: "helena",
+  name: source("Loading", derived(fetchName)),
+}));
 
 // Re-query
-setQuery("bob");
+user.query = "bob";
 ```
 
 #### `source` + `derived` inside `carve` (conditional loader strategy)
@@ -234,10 +240,15 @@ setQuery("bob");
 const loader =
   (service: Service) =>
   (self: { projectId: string }) =>
-  async (previous: Project, set: (value: Project) => void) => {
+  (previous: Project, set: (value: Project) => void) => {
+    // 1. Synchronous read (tracked)
+    const id = self.projectId;
     set(stale(previous));
-    const project = await service.loadProject(self.projectId);
-    set(loaded(project));
+    
+    // 2. Delegate async work
+    service.loadProject(id).then((project) => {
+      set(loaded(project));
+    });
   };
 
 const selectProject = (self: ProjectBranch) => (id: string) => {

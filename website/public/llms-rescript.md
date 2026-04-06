@@ -189,6 +189,7 @@ let state = tilia({
 
 Use `source(initial, setup)` for async loaders and re-loaders.
 
+- **Tracking rule:** Never use `async` in the `setup` function. Tilia tracks reactive reads during synchronous execution of `setup` only. Tracking ONLY HAPPENS INSIDE A CALLBACK. Read dependencies synchronously, then delegate async work.
 - `initial` is returned until `set` is called.
 - `setup(previous, set)` runs on first read.
 - `setup(previous, set)` runs again when tracked dependencies inside setup change.
@@ -202,23 +203,27 @@ open Tilia
 let sleep: unit => promise<unit> = async () =>
   %raw(`new Promise(resolve => setTimeout(resolve, 10))`)
 
-let (query, setQuery) = signal("helena")
+let fetchName = self => (previous, set) => {
+  // 1. Synchronous read (tracked)
+  let q = self.query
 
-let fetchName = async (q, previous, set) => {
-  await sleep()
-  switch q {
-  | "helena" => set("Helena")
-  | "bob" => set("William")
-  | _ => set(previous ++ "+" ++ q)
-  }
+  // 2. Delegate async work
+  let _ = sleep()->Promise.thenResolve(() => {
+    switch q {
+    | "helena" => set("Helena")
+    | "bob" => set("William")
+    | _ => set(previous ++ "+" ++ q)
+    }
+  })
 }
 
-let user = tilia({
-  name: source("Loading", fetchName(query.value, ...)),
+let user = carve(({derived}) => {
+  query: "helena",
+  name: source("Loading", derived(fetchName)),
 })
 
 // Re-query
-setQuery("bob")
+user.query = "bob"
 ```
 
 #### `source` + `derived` inside `carve` (conditional loader strategy)
@@ -226,10 +231,15 @@ setQuery("bob")
 ```rescript
 open Tilia
 
-let loader = service => self => async (previous, set) => {
+let loader = service => self => (previous, set) => {
+  // 1. Synchronous read (tracked)
+  let id = self.projectId
   set(stale(previous))
-  let project = await service.loadProject(self.projectId)
-  set(loaded(project))
+  
+  // 2. Delegate async work
+  let _ = service.loadProject(id)->Promise.thenResolve(project => {
+    set(loaded(project))
+  })
 }
 
 let selectProject = self => id => self.projectId = id
