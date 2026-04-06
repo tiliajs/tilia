@@ -267,14 +267,11 @@ let local = ctx.tilia({count: 0})
 
 ### Dependency Injection (useApp)
 
-Create a context-based hook to inject the app state.
+Create a context-based hook to inject the app state. Track with `leaf`, provision app with `useApp`.
 
 ```rescript
 let context = React.createContext(emptyApp)
-let useApp = () => {
-  TiliaReact.useTilia() // Tracks component renders
-  React.useContext(context)
-}
+let useApp = () => React.useContext(context)
 ```
 
 ### Avoid Over-Destructuring
