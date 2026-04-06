@@ -274,6 +274,36 @@ const ctx = make();
 const local = ctx.tilia({ count: 0 });
 ```
 
+## React Integration
+
+### Dependency Injection (useApp)
+
+Create a context-based hook to inject the app state.
+
+```typescript
+import { createContext, useContext } from "react";
+import { useTilia } from "@tilia/react";
+
+const AppContext = createContext<App>(emptyApp);
+export const useApp = () => {
+  useTilia(); // Tracks component renders
+  return useContext(AppContext);
+};
+```
+
+### Avoid Over-Destructuring
+
+Do not destructure all state variables at the top of a component, as it defeats granular tracking by reading everything immediately.
+
+```typescript
+// ❌ BAD: Reads `total` immediately, defeating conditional tracking
+const { cart: { total } } = useApp();
+
+// ✅ GOOD: Read properties only when needed in the JSX
+const { cart } = useApp();
+return <div>{cart.total}</div>;
+```
+
 ## Generation Rules for AI
 
 - Prefer `carve` for feature boundaries.

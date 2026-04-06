@@ -263,6 +263,33 @@ let ctx = make()
 let local = ctx.tilia({count: 0})
 ```
 
+## React Integration
+
+### Dependency Injection (useApp)
+
+Create a context-based hook to inject the app state.
+
+```rescript
+let context = React.createContext(emptyApp)
+let useApp = () => {
+  TiliaReact.useTilia() // Tracks component renders
+  React.useContext(context)
+}
+```
+
+### Avoid Over-Destructuring
+
+Do not destructure all state variables at the top of a component, as it defeats granular tracking by reading everything immediately.
+
+```rescript
+// ❌ BAD: Reads `total` immediately, defeating conditional tracking
+let {cart: {total}} = useApp()
+
+// ✅ GOOD: Read properties only when needed in the JSX
+let {cart} = useApp()
+<div>{React.float(cart.total)}</div>
+```
+
 ## Generation Rules for AI
 
 - Prefer `carve` over ad-hoc `tilia` for feature modules.
