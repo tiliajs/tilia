@@ -42,6 +42,8 @@ npm install @tilia/react
 
 ### For LLMs / AI coding assistants
 
+Tilia was built to help your projects grow while staying maintainable and readable wether you prefer typin' o vibin'. 
+
 ```md
 Use the official Tilia LLM docs index:
 - https://tiliajs.com/llms.txt
@@ -49,9 +51,11 @@ Use the official Tilia LLM docs index:
 It links to:
 - ReScript patterns
 - TypeScript patterns
-- carve as feature boundary
-- derived as glue over pure functions
+- carve to build self-contained features
+- derived to build reactivity from pure functions
 ```
+
+You can also directly copy [llms-rescript.md](/llms-rescript.md) or [llms-typescript.md](/llms-typescript.md) into your project (or workspace) rules (**Knowledge** tab on Lovable for example).
 
 </section>
 
@@ -63,345 +67,63 @@ It links to:
 
 <strong class="goal-text">The goal</strong> of Tilia is to provide a minimal and fast state management solution that supports domain-oriented development (such as Clean Architecture or Diagonal Architecture). Tilia is designed so that your code looks and behaves like business logic, rather than being cluttered with library-specific details.
 
+Since this documentation is about the **glue** to make the code alive, it can feel that you will end up with a lot of library logic in your code. This is absolutely not the case. Tilia helps you build entire applications with **pure functions** and **lean views**.
+
 <strong class="non-goal-text">Non-goal</strong> Tilia is not a framework.
-
-</section>
-
-## Fundamental Concepts {.api}
-
-<a id="frp"></a>
-
-<section class="doc frp">
-
-### Start from one practical problem
-
-UI code gets fragile when domain logic lives in components. You can ship quickly, but testing, refactoring, and cross-platform reuse become expensive.
-
-Tilia works best when each feature is isolated behind `carve`, with `derived` used as glue around explicit helper functions.
-
-### Initial carve example (service-injected)
-
-```typescript
-import { carve, source } from "tilia";
-
-type Counter = {
-  count: number;
-  double: number;
-  add: (count: number) => void;
-};
-
-type Service = {
-  fetchCount: () => (previous: number, set: (value: number) => void) => void;
-  updateCount: (next: number, rollback: () => void) => void;
-};
-
-const double = (self: Counter): number => self.count * 2;
-const add =
-  (service: Service) =>
-  (self: Counter) =>
-  (count: number): void => {
-    const prevValue = self.count;
-    self.count += count;
-    service.updateCount(self.count, () => (self.count = prevValue));
-  };
-
-const makeCounter = (service: Service) =>
-  carve<Counter>(({ derived }) => ({
-    count: source(0, service.fetchCount()),
-    double: derived(double),
-    add: derived(add(service)),
-  }));
-
-const feature = makeCounter(service);
-feature.add(4);
-```
-
-```rescript
-open Tilia
-
-type counter = {
-  mutable count: int,
-  double: int,
-  add: int => unit,
-}
-
-type service = {
-  fetchCount: (int, int => unit) => unit,
-  updateCount: (int, unit => unit) => unit,
-}
-
-let double = (self: counter) => self.count * 2
-let add = (service: service) => (self: counter) => (count: int) => {
-  let prevValue = self.count
-  self.count += count
-  service.updateCount(self.count, () => self.count = prevValue)
-}
-
-let makeCounter = service =>
-  carve(({derived}) => {
-    count: source(0, service.fetchCount),
-    double: derived(double),
-    add: derived(add(service)),
-  })
-
-let feature = makeCounter(service)
-feature.add(4)
-```
-
-### Suggested file organization
-
-```text
-[feature-name]
-  actions.ts    // mutating functions
-  computed.ts   // computed/derived helpers
-  index.ts      // carve glue
-  service.ts    // external dependencies
-  type.ts       // feature type
-```
-
-</section>
-
-<a id="observer-pattern"></a>
-
-<section class="doc observe">
-
-### Observation in practice
-
-`observe` and `watch` react only to what was read in the last run. This keeps updates precise without manual subscription code.
-
-```typescript
-observe(() => {
-  if (profile.showDetails) {
-    console.log(profile.email);
-  }
-});
-
-profile.email = "new@mail.com"; // no rerun while showDetails is false
-profile.showDetails = true;     // rerun
-profile.email = "another@mail.com"; // rerun now
-```
-
-```rescript
-observe(() => {
-  if profile.showDetails {
-    Js.log(profile.email)
-  }
-})
-
-profile.email = "new@mail.com" // no rerun while showDetails is false
-profile.showDetails = true // rerun
-profile.email = "another@mail.com" // rerun now
-```
-
-</section>
-
-<a id="dependency-graph"></a>
-
-<section class="doc computed">
-
-### Dependency tracking (short version)
-
-Tilia uses JavaScript `Proxy` under the hood. Reads register dependencies, writes notify observers, and dependencies are recalculated dynamically on each run.
-
-For a full internal walkthrough, see the [**Deep Technical Reference**](#technical) section below.
 
 </section>
 
 <a id="ddd"></a>
 
+## The main idea {.api}
+
 <section class="doc ddd">
 
-### Before / After: feature isolation
+When building an application, it helps to think in terms of features. We talk with clients, business analysts, and end users and come up with a **need**.
 
-#### Before: logic-heavy components
+For example, [Léa Monster](https://lea.monster) is an app built with tilia to help with interleaved learning. It contains **5** tabs:
 
-<pre>
+* Gardens (define the subjects you want to study).
+* Method (just some documentation, not really a feature).
+* Grow (create a randomized interleaved learning).
+* Stats (show little dots of work).
+* Settings (change language, theme colors).
 
-[day 1 ] Looks good !
-[..    ] adding features... lalala (happy)
-[day 10] Hmmm, I have issues understanding this...
-[day 30] ARghhGh, how can I fix this bug without breaking everything ???
-[day 60] rewrite
+![Léa Monster home page](/img/lea-home.jpg)
 
-</pre>
+The app was built with [Lovable](https://lovable.ai) to explore the state of this art of AIAD (AI assisted development).
 
-```typescript
-const TodoList = () => {
-  const [todos, setTodos] = useState<Todo[]>([]);
-  const [sort, setSort] = useState<"date" | "title">("date");
+I decided to let the AI do whatever it wanted to do and never look at the generated source code or give it directions.
 
-  const add = async (title: string) => {
-    const prev = todos;
-    const next = [...todos, { id: crypto.randomUUID(), title, done: false }];
-    setTodos(next);
-    try {
-      await api.save(next);
-    } catch {
-      setTodos(prev);
-    }
-  };
+It worked fine until I hit the "Grow" feature with the slot selection:
 
-  const list = [...todos].sort(sort === "date" ? byDate : byTitle);
-  return (
-    <div>
-      <button onClick={() => add("New todo")}>Add</button>
-      <button onClick={() => setSort(sort === "date" ? "title" : "date")}>Toggle sort</button>
-      <ul>
-        {list.map((todo) => (
-          <li key={todo.id}>{todo.title}</li>
-        ))}
-      </ul>
-    </div>
-  );
-};
-```
+![Léa Monster grow page](/img/lea-grow.jpg)
 
-```rescript
-@react.component
-let make = () => {
-  let (todos, setTodos) = React.useState(() => [])
-  let (sort, setSort) = React.useState(() => ByDate)
+and timer:
 
-  let add = async title => {
-    let prev = todos
-    let next = Array.concat(todos, [{id: "tmp", title, done: false}])
-    setTodos(_ => next)
-    try {
-      await Api.save(next)
-    } catch {
-    | _ => setTodos(_ => prev)
-    }
-  }
+![Léa Monster timer](/img/lea-timer.jpg)
 
-  let list = switch sort {
-  | ByDate => todos->Array.toSorted(byDate)
-  | ByTitle => todos->Array.toSorted(byTitle)
-  }
-  <div>
-    <button onClick={_ => add("New todo")}>{React.string("Add")}</button>
-    <button onClick={_ => setSort(_ => switch sort { | ByDate => ByTitle | ByTitle => ByDate })}>
-      {React.string("Toggle sort")}
-    </button>
-    <ul>
-      {list
-      ->Array.map(todo => <li key={todo.id}>{React.string(todo.title)}</li>)
-      ->React.array}
-    </ul>
-  </div>
-}
-```
+(You can create a login on [lea.monster](https://lea.monster) to see it running.) {.story}
 
-#### After: domain in feature, view as display adapter
+Here the AI did a lot of mistakes:
 
-```typescript
-// domain/todos/index.ts
-const list = (self: Todos) =>
-  [...self.data].sort(self.sort === "date" ? byDate : byTitle);
+* Using `setInterval` and ... counting seconds instead of computing elapsed time.
+* Doing a lot of procedural updates to state duplicated in many components through extreme use of `useState`.
+* Computing the next slot to work on with a mix of state machine and list traversal.
 
-const add =
-  (service: Service) =>
-  (self: Todos) =>
-  async (): Promise<void> => {
-    const prevValue = self.data;
-    const todo = { id: crypto.randomUUID(), title: "New todo", done: false };
-    self.data = [...self.data, todo];
-    service.createTodo(todo, () => (self.data = prevValue));
-  };
+It was a mess and it was _not working properly_. I told it to read the [LLM docs](/llms.txt) and asked it to:
 
-const toggleSort = (self: Todos) => (): void => {
-  self.sort = self.sort === "date" ? "title" : "date";
-};
+1. Create a global state object to store the session feature.
+2. Use `carve` for the feature. Use `self` convention.
+3. Use arrow functions (to prepare for dependency injection).
+4. Move mutations in the feature.
+5. etc.
 
-export const makeTodos = (service: Service) =>
-  carve<Todos>(({ derived }) => ({
-    sort: "date",
-    list: derived(list),
-    add: derived(add(service)),
-    toggleSort: derived(toggleSort),
-    // private
-    data: source([], service.fetchTodos()),
-  }));
+All the advice I gave the AI on how to use tilia for state management are in the [llms.txt](/llms.txt) documentation.
 
-// ui/TodoList.tsx (single component, global feature)
-import { leaf } from "@tilia/react";
-import { app } from "../../app";
+The app now works correctly. Using tilia from the start with proper directions would have saved me half of the time and half of the credits used.
 
-const TodoList = leaf(() => {
-  const todos = app.todos;
-  return (
-    <div>
-      <button onClick={todos.add}>Add</button>
-      <button onClick={todos.toggleSort}>Toggle sort</button>
-      <ul>
-        {todos.list.map((todo) => (
-          <li key={todo.id}>{todo.title}</li>
-        ))}
-      </ul>
-    </div>
-  );
-});
-```
-
-```rescript
-/* domain/todos/index.res */
-let list = (self: Todos.t) =>
-  switch self.sort {
-  | ByDate => self.data->Array.toSorted(byDate)
-  | ByTitle => self.data->Array.toSorted(byTitle)
-  }
-
-let add = service => self => async () => {
-  let prevValue = self.data
-  let todo = {id: "tmp", title: "New todo", done: false}
-  self.data = Array.concat(self.data, [todo])
-  service.createTodo(todo, () => self.data = prevValue)
-}
-
-let toggleSort = self => () =>
-  self.sort = switch self.sort {
-  | ByDate => ByTitle
-  | ByTitle => ByDate
-  }
-
-let makeTodos = service =>
-  carve(({derived}) => {
-    sort: ByDate,
-    list: derived(list),
-    add: derived(add(service)),
-    toggleSort: derived(toggleSort),
-    // private
-    data: source([], service.fetchTodos),
-  })
-
-/* ui/TodoList.res (single component, global feature) */
-open TiliaReact
-let app = App.app
-
-@react.component
-let make = leaf(() => {
-  let todos = app.todos
-  <div>
-    <button onClick={todos.add}>{React.string("Add")}</button>
-    <button onClick={todos.toggleSort}>
-      {React.string("Toggle sort")}
-    </button>
-    <ul>
-      {todos.list
-      ->Array.map(todo => <li key={todo.id}>{React.string(todo.title)}</li>)
-      ->React.array}
-    </ul>
-  </div>
-})
-```
-
-### Why this approach scales
-
-- easier testing: helpers are plain functions and services are injected
-- easier refactoring: UI and domain code evolve separately
-- easier portability: same feature model can back web and React Native views
-- better stability: optimistic writes have explicit rollback paths
-
-</section>
+Source code [here](https://github.com/midasum/lea-monster).
 
 ## API Reference {.api}
 

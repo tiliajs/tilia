@@ -2,10 +2,6 @@
 
 AI-focused ReScript documentation for the full Tilia API.
 
-## Install
-
-npm install tilia @tilia/react
-
 ## Primary Rule
 
 - Use `carve` as the default for feature modules.

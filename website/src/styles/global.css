@@ -2,7 +2,7 @@
 
 @layer components {
   body {
-    @apply bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 text-white min-h-screen flex flex-col;
+    @apply bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600 min-h-screen flex flex-col;
   }
 
   a[id] {
