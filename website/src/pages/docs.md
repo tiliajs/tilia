@@ -81,54 +81,71 @@ Since this documentation is about the **glue** to make the code alive, it can fe
 
 When building an application, it helps to think in terms of features. We talk with clients, business analysts, and end users and come up with a **need**.
 
-For example, [Léa Monster](https://lea.monster) is an open source app built with tilia to help with interleaved learning. The source can be found [here](https://github.com/midsasum/lea-monster).
+By building an application into separate features (and roles), we help make it maintainable both by humans and AI.
 
-The app contains **5** tabs:
+The rule I use for building apps is to separate into three "categories":
 
-* Gardens (define the subjects you want to study).
-* Method (just some documentation, not really a feature).
-* Grow (create a randomized interleaved learning).
-* Stats (show little dots of work).
-* Settings (change language, theme colors).
+* **repo** The persistence layer. In this folder, there is one "carved" object for each data type that is saved.
+* **features** The business logic. Here, every feature gets it's own "carved" object.
 
-![Léa Monster home page](/img/lea-home.jpg)
+In both of these, technical "connectors" to the outside world (such as translations, WebAudio, Supabase wrappers) are written into a `service` file that is injected into the feature (or repo).
 
-The app was built with [Lovable](https://lovable.ai) to explore AIAD (AI assisted development).
+Here is real world example of a settings feature for [lea.monster](https://lea.monster) (a training focus app built with tilia).
 
-I decided to let the AI do whatever it wanted and never look at the generated source code or give it directions.
+```typescript
+// feature/settings/index.ts
+import { loader, update } from "./actions";
 
-It worked fine until I hit the "Grow" feature with the slot selection:
+export const settingsBranch = (service: SettingsService, auth: AuthState) =>
+  carve<SettingsRepo>(({ derived }) => ({
+    userId: computed(() => auth.userId),
+    data: source({ ...DEFAULT_PREFERENCES }, derived(loader(service))),
+    update: derived(update(service)),
+  }));
+```
 
-![Léa Monster grow page](/img/lea-grow.jpg)
+```rescript
+// feature/settings/index.ts
+// Please switch to typescript for the example.
+```
 
-and timer:
+```typescript
+// feature/settings/actions.ts
+import type { SettingsService } from "./service";
+import type { SettingsRepo, UserPreferences } from "./type";
+import { DEFAULT_PREFERENCES } from "./type";
 
-![Léa Monster timer](/img/lea-timer.jpg)
+export const loader =
+  (service: SettingsService) =>
+  (self: SettingsRepo) =>
+  (_previous: UserPreferences, set: (v: UserPreferences) => void): void => {
+    // self === settingsBranch
+    // Observes self.userId
+    const uid = self.userId;
+    if (!uid) { set({ ...DEFAULT_PREFERENCES }); return; }
+    service.load(uid).then(set);
+  };
 
-(You can create a login on [lea.monster](https://lea.monster) to see it running.) {.story}
+export const update =
+  (service: SettingsService) =>
+  (self: SettingsRepo) =>
+  (fields: Partial<UserPreferences>): void => {
+    const uid = self.userId;
+    if (!uid) return;
+    const prev = self.data;
+    self.data = { ...self.data, ...fields };
+    service.update(uid, fields).catch(() => {
+      self.data = prev;
+    });
+  };
+```
 
-Here the AI did a lot of mistakes:
-
-* Using `setInterval` and ... counting seconds instead of computing elapsed time.
-* Doing a lot of procedural updates to state duplicated in many components through extreme use of `useState`.
-* Computing the next slot to work on with a mix of state machine and list traversal.
-* Complexe use of `useEffect` and `useQuery`.
-
-You can view the [app before tilia](https://github.com/midasum/lea-monster/tree/before-tilia) on github.
-
-It was (in my view) a mess and it was _not working properly_. I told it to read the [LLM docs](/llms.txt) and asked it to:
-
-1. Create a global state object to store the session feature.
-2. Use `carve` for the feature.
-3. Use arrow functions (to prepare for dependency injection).
-4. Move mutations in the feature.
-5. etc.
+```rescript
+// feature/settings/actions.ts
+// Please switch to typescript for the example.
+```
 
 All the advice I gave the AI on how to use tilia for state management are in the [llms.txt](/llms.txt) documentation.
-
-The app now works correctly. Using tilia from the start with proper directions would have saved me half of the time and half of the credits used.
-
-Source code [here](https://github.com/midasum/lea-monster).
 
 ## API Reference {.api}
 
