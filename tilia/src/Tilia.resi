@@ -245,6 +245,22 @@ let source: ('a, ('a, 'a => unit) => 'ignored) => 'a
  */
 let store: (('a => unit) => 'a) => 'a
 
+/**
+ * Track key-level writes on a tilia-proxied object.
+ *
+ * Returns a capture function for use with `watch`. Each call creates an
+ * independent accumulator. Written keys are collected internally and drained
+ * (returned and cleared) when the capture is read by `watch`.
+ *
+ * When a `guard` is provided and returns false, keys accumulate silently
+ * without triggering the watcher. When the guard becomes true, the
+ * effect fires with all the accumulated keys.
+ *
+ * @param obj The tilia-proxied object to track.
+ * @param guard Optional reactive guard function.
+ */
+let changes: ('a, ~guard: unit => bool=?) => unit => array<string>
+
 /** ---------- Internal types and functions for library developers ---------- */
 /** 
  * Internal: Register an observer callback.
