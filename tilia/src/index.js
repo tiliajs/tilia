@@ -7,6 +7,7 @@ export {
   _ready,
   batch,
   carve,
+  changed,
   computed,
   derived,
   lift,

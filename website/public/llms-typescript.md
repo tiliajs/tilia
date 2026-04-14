@@ -275,6 +275,50 @@ const auth = (set: (next: Auth) => void): Auth => ({ t: "LoggedOut" });
 const app = tilia({ auth: store(auth) });
 ```
 
+### `changed` (write tracking for sync connectors)
+
+Track which keys are written on a tilia-proxied object. Returns a capture function for `watch` that drains accumulated keys. Each call creates an independent accumulator.
+
+- `changed(obj)` -- captures all writes. When read by `watch`, returns the array of written keys and clears the accumulator.
+- `changed(obj, guard)` -- optional reactive guard function. When guard returns false, keys accumulate silently without triggering the watcher. When guard flips to true, all accumulated keys drain and the effect fires.
+
+```typescript
+import { tilia, watch, changed } from "tilia";
+
+type SyncService = { sync: (keys: string[]) => void };
+type LocalDb = { batchWrite: (keys: string[]) => void };
+type Actor = { online: boolean };
+
+const makeItemsRepo = (service: SyncService, localDb: LocalDb, actor: Actor) => {
+  const data = tilia<Record<string, unknown>>({});
+
+  // Local DB: always sync
+  watch(changed(data), (keys) => {
+    localDb.batchWrite(keys);
+  });
+
+  // Remote: sync only when online
+  watch(changed(data, () => actor.online), (keys) => {
+    service.sync(keys);
+  });
+
+  return data;
+};
+```
+
+Multiple repos use the same pattern:
+
+```typescript
+watch(changed(settingsRepo.data, () => actor.online), (keys) => {
+  settingsService.sync(keys);
+});
+```
+
+Architectural summary:
+- `source` handles inbound (loading from external into reactive data)
+- `changed` + `watch` handles outbound (pushing reactive writes to external)
+- The guard parameter leverages tilia's natural tracking for offline accumulation
+
 ### `make`
 
 Create isolated Tilia context.
@@ -321,4 +365,6 @@ return <div>{cart.total}</div>;
 - Helpers wired through `derived` must accept `self`.
 - Use `source` for async query/re-query flows.
 - Explain `set` as imperative emission and `previous` as last emitted value.
+- Use `changed` + `watch` for outbound sync connectors (persistence, remote sync).
+- `source` = inbound, `changed` = outbound.
 

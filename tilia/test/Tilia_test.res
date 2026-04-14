@@ -1801,12 +1801,12 @@ describe("Tilia", () => {
     )
   })
 
-  // ================ CHANGES ================
+  // ================ CHANGED ================
 
-  it("Should track key writes with changes", () => {
+  it("Should track key writes with changed", () => {
     let p = tilia({name: "John", username: "jo"})
     let tracked = ref([])
-    watch(changes(p), keys => tracked := keys)
+    watch(changed(p), keys => tracked := keys)
     expect(tracked.contents).toEqual([])
 
     p.name = "Mary"
@@ -1817,10 +1817,10 @@ describe("Tilia", () => {
     expect(tracked.contents).toEqual(["username"])
   })
 
-  it("Should drain all keys in batch with changes", () => {
+  it("Should drain all keys in batch with changed", () => {
     let p = tilia({name: "John", username: "jo"})
     let tracked = ref([])
-    watch(changes(p), keys => tracked := keys)
+    watch(changed(p), keys => tracked := keys)
 
     batch(
       () => {
@@ -1831,11 +1831,11 @@ describe("Tilia", () => {
     expect(tracked.contents).toEqual(["name", "username"])
   })
 
-  it("Should accumulate with guard in changes", () => {
+  it("Should accumulate with guard in changed", () => {
     let p = tilia({name: "John", username: "jo"})
     let (gate, setGate) = signal(false)
     let tracked = ref([])
-    watch(changes(p, ~guard=() => gate.value), keys => tracked := keys)
+    watch(changed(p, ~guard=() => gate.value), keys => tracked := keys)
 
     p.name = "Mary"
     p.username = "ma"

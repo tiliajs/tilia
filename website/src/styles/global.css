@@ -236,6 +236,24 @@
       }
     }
 
+    &.changed {
+      h3 {
+        @apply text-pink-300/80;
+      }
+    }
+
+    &.lift {
+      h3 {
+        @apply text-lime-300/80;
+      }
+    }
+
+    &.derived {
+      h3 {
+        @apply text-indigo-300/80;
+      }
+    }
+
     &.react {
       h3.useTilia {
         @apply text-emerald-300/80;

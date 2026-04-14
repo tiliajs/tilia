@@ -15,6 +15,11 @@ export type Tilia = {
   derived: <T>(fn: () => T) => Signal<T>;
   source: <T>(initialValue: T, fn: (previous: T, set: Setter<T>) => unknown) => T;
   store: <T>(fn: (set: Setter<T>) => T) => T;
+  /**
+   * Track key-level writes on a tilia-proxied object. Returns a capture function
+   * for use with `watch`. Each call creates an independent accumulator.
+   */
+  changed: <T>(obj: T, guard?: () => boolean) => () => string[];
 
   // Internal
   _observe(callback: () => void): Observer;
@@ -39,6 +44,14 @@ export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 export function lift<T>(s: Signal<T>): T;
+/**
+ * Track key-level writes on a tilia-proxied object. Returns a capture function
+ * for use with `watch`. Each call creates an independent accumulator.
+ *
+ * When `guard` is provided and returns false, keys accumulate silently; when it
+ * becomes true, accumulated keys drain on the next capture.
+ */
+export function changed<T>(obj: T, guard?: () => boolean): () => string[];
 
 // Internal
 export function _observe(callback: () => void): Observer;

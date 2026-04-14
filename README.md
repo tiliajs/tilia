@@ -14,6 +14,8 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2026-04-15 **5.1.0**
+  - Add `changed` hook to receive the list of changed keys in watch for a tilia object.
 - 2026-04-05 **5.0.1**
   - Copy AI coding assistant docs in package on build.
 - 2026-04-05 **5.0.0**

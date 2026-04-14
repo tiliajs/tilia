@@ -264,6 +264,50 @@ let machine = set => LoggedOut
 let app = tilia({auth: store(machine)})
 ```
 
+### `changed` (write tracking for sync connectors)
+
+Track which keys are written on a tilia-proxied object. Returns a capture function for `watch` that drains accumulated keys. Each call creates an independent accumulator.
+
+- `changed(obj)` -- captures all writes. When read by `watch`, returns the array of written keys and clears the accumulator.
+- `changed(obj, ~guard=() => expr)` -- optional reactive guard. When guard returns false, keys accumulate silently without triggering the watcher. When guard flips to true, all accumulated keys drain and the effect fires.
+
+```rescript
+open Tilia
+
+type syncService = {sync: array<string> => unit}
+type localDb = {batchWrite: array<string> => unit}
+type actor = {mutable online: bool}
+
+let makeItemsRepo = (service: syncService, localDb: localDb, actor: actor) => {
+  let data = tilia(Dict.make())
+
+  // Local DB: always sync
+  watch(changed(data), keys => {
+    localDb.batchWrite(keys)
+  })
+
+  // Remote: sync only when online
+  watch(changed(data, ~guard=() => actor.online), keys => {
+    service.sync(keys)
+  })
+
+  data
+}
+```
+
+Multiple repos use the same pattern:
+
+```rescript
+watch(changed(settingsRepo.data, ~guard=() => actor.online), keys => {
+  settingsService.sync(keys)
+})
+```
+
+Architectural summary:
+- `source` handles inbound (loading from external into reactive data)
+- `changed` + `watch` handles outbound (pushing reactive writes to external)
+- The guard parameter leverages tilia's natural tracking for offline accumulation
+
 ### `make`
 
 Create isolated Tilia context (`tilia`, `carve`, `observe`, etc.).
@@ -305,4 +349,6 @@ let {cart} = useApp()
 - Functions wired with `derived` take `self` first.
 - Use `source` for async query/re-query flows.
 - Explain `set` as imperative emitter and `previous` as last emitted value.
+- Use `changed` + `watch` for outbound sync connectors (persistence, remote sync).
+- `source` = inbound, `changed` = outbound.
 

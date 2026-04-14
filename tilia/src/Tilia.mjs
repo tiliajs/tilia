@@ -198,7 +198,7 @@ function notify(root, observed, key) {
   }
 }
 
-function set(root, observed, proxied, computes, isArray, _fromComputed, target, _key, _value) {
+function set(node, isArray, _fromComputed, target, _key, _value) {
   while (true) {
     let value = _value;
     let key = _key;
@@ -221,14 +221,14 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
     }
     let key$1 = isArray && key === "length" ? indexKey : key;
     if (proxiable$1) {
-      proxied.delete(key$1);
+      node.proxied.delete(key$1);
     }
     if (!fromComputed) {
-      let clear = computes.get(key$1);
+      let clear = node.computes.get(key$1);
       if (clear == null) {
         clear === null;
       } else {
-        computes.delete(key$1);
+        node.computes.delete(key$1);
         clear();
       }
     }
@@ -236,7 +236,7 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
     if (match == null) {
       match === null;
     } else {
-      let w = observed.get(key$1);
+      let w = node.observed.get(key$1);
       if (w == null) {
         return true;
       }
@@ -244,9 +244,9 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
         return true;
       }
       Reflect.set(target, key$1, prev);
-      let compile$1 = callback => compile(root, observed, proxied, computes, isArray, target, key$1, callback);
+      let compile$1 = callback => compile(node, isArray, target, key$1, callback);
       let setter = v => {
-        set(root, observed, proxied, computes, isArray, true, target, key$1, v);
+        set(node, isArray, true, target, key$1, v);
       };
       let get = _value => {
         while (true) {
@@ -298,15 +298,23 @@ function set(root, observed, proxied, computes, isArray, _fromComputed, target, 
       _fromComputed = true;
       continue;
     }
-    notify(root, observed, key$1);
+    if (!fromComputed) {
+      let cbs = node.changes;
+      if (cbs == null) {
+        cbs === null;
+      } else {
+        cbs.forEach(cb => cb(key));
+      }
+    }
+    notify(node.root, node.observed, key$1);
     if (!hadKey) {
-      notify(root, observed, indexKey);
+      notify(node.root, node.observed, indexKey);
     }
     return true;
   };
 }
 
-function compile(root, observed, proxied, computes, isArray, target, key, callback) {
+function compile(node, isArray, target, key, callback) {
   let lastValue = {
     v: undefined
   };
@@ -326,20 +334,20 @@ function compile(root, observed, proxied, computes, isArray, target, key, callba
     if (v !== compiled) {
       lastValue.v = v;
     }
-    let w = observed.get(key);
+    let w = node.observed.get(key);
     if (w !== null && w !== undefined) {
       if (w.observers.size > 0) {
-        set(root, observed, proxied, computes, isArray, true, target, key, rebuild());
+        set(node, isArray, true, target, key, rebuild());
       } else {
         w.state = "Changed";
-        observed.delete(key);
-        proxied.delete(key);
+        node.observed.delete(key);
+        node.proxied.delete(key);
         Reflect.set(target, key, compiled);
       }
       return;
     }
     w === null;
-    proxied.delete(key);
+    node.proxied.delete(key);
     Reflect.set(target, key, compiled);
   };
   let rebuild = () => {
@@ -349,20 +357,21 @@ function compile(root, observed, proxied, computes, isArray, target, key, callba
     } else {
       lastValue.v = curr;
     }
+    let o_root = node.root;
     let o_observing = [];
     let o = {
-      root: root,
+      root: o_root,
       notify: notify,
       observing: o_observing
     };
     observer.o = o;
-    let previous = root.observer;
-    root.observer = o;
+    let previous = node.root.observer;
+    node.root.observer = o;
     let v;
     try {
       v = callback();
     } catch (_e) {
-      setError(root, _e);
+      setError(node.root, _e);
       _clear(o);
       if (previous == null) {
         previous === null;
@@ -371,10 +380,10 @@ function compile(root, observed, proxied, computes, isArray, target, key, callba
       }
       v = lastValue.v;
     }
-    root.observer = previous;
+    node.root.observer = previous;
     if (o_observing.length === 0) {
       _clear(o);
-      computes.delete(key);
+      node.computes.delete(key);
     } else {
       _ready(o, false);
     }
@@ -389,16 +398,13 @@ function compile(root, observed, proxied, computes, isArray, target, key, callba
     _clear(o);
     ((o.observing.length = 0));
   };
-  computes.set(key, clear);
+  node.computes.set(key, clear);
   return rebuild();
 }
 
 function proxify(root, _target) {
   while (true) {
     let target = _target;
-    let proxied = new Map();
-    let observed = new Map();
-    let computes = new Map();
     let m = Reflect.get(target, metaKey);
     if (m == null) {
       m === null;
@@ -409,21 +415,28 @@ function proxify(root, _target) {
       _target = m.target;
       continue;
     }
-    let meta = ({root, target, observed, proxied, computes});
+    let node = {
+      root: root,
+      observed: new Map(),
+      proxied: new Map(),
+      computes: new Map(),
+      changes: undefined
+    };
+    let meta = ((node.target = target, node));
     let isArray = Array.isArray(target);
     let proxy = new Proxy(target, {
-      set: (extra, extra$1, extra$2) => set(root, observed, proxied, computes, isArray, false, extra, extra$1, extra$2),
+      set: (extra, extra$1, extra$2) => set(node, isArray, false, extra, extra$1, extra$2),
       deleteProperty: (extra, extra$1) => {
         let res = Reflect.deleteProperty(extra, extra$1);
-        proxied.delete(extra$1);
-        let clear = computes.get(extra$1);
+        node.proxied.delete(extra$1);
+        let clear = node.computes.get(extra$1);
         if (clear == null) {
           clear === null;
         } else {
-          computes.delete(extra$1);
+          node.computes.delete(extra$1);
           clear();
         }
-        notify(root, observed, extra$1);
+        notify(node.root, node.observed, extra$1);
         return res;
       },
       get: (extra, extra$1) => {
@@ -438,27 +451,27 @@ function proxify(root, _target) {
         if (!(value === undefined || own)) {
           return value;
         }
-        let o = root.observer;
+        let o = node.root.observer;
         if (o == null) {
           o === null;
         } else if (isArray && extra$1 === "length") {
-          let w = observeKey(observed, indexKey);
+          let w = observeKey(node.observed, indexKey);
           o.observing.push(w);
         } else {
-          let w$1 = observeKey(observed, extra$1);
+          let w$1 = observeKey(node.observed, extra$1);
           o.observing.push(w$1);
         }
         if (!(proxiable(value) && !readonly(extra, extra$1))) {
           return value;
         }
-        let m = proxied.get(extra$1);
+        let m = node.proxied.get(extra$1);
         if (m !== null && m !== undefined) {
           return m.proxy;
         }
         m === null;
-        let compile$1 = callback => compile(root, observed, proxied, computes, isArray, extra, extra$1, callback);
+        let compile$1 = callback => compile(node, isArray, extra, extra$1, callback);
         let setter = v => {
-          set(root, observed, proxied, computes, isArray, true, extra, extra$1, v);
+          set(node, isArray, true, extra, extra$1, v);
         };
         let get = _value => {
           while (true) {
@@ -509,11 +522,13 @@ function proxify(root, _target) {
         if (!proxiable(v)) {
           return v;
         }
-        let m$1 = proxify(root, v);
-        proxied.set(extra$1, m$1);
+        let m$1 = proxify(node.root, v);
+        node.proxied.set(extra$1, m$1);
         return m$1.proxy;
       },
       ownKeys: extra => {
+        let root = node.root;
+        let observed = node.observed;
         let keys = Reflect.ownKeys(extra);
         let o = root.observer;
         if (o == null) {
@@ -788,6 +803,66 @@ function lift(s) {
   return computed(() => s.value);
 }
 
+let drain = (function(s) {
+  var a = Array.from(s);
+  s.clear();
+  return a;
+});
+
+let emptyKeys = [];
+
+function changed(obj, guard) {
+  let meta = Reflect.get(obj, metaKey);
+  if (meta == null) {
+    return raise("changed: argument is not a tilia proxy");
+  }
+  let cbs = meta.changes;
+  let cbs$1;
+  let exit = 0;
+  if (cbs == null) {
+    exit = 1;
+  } else {
+    cbs$1 = cbs;
+  }
+  if (exit === 1) {
+    let cbs$2 = new Set();
+    meta.changes = cbs$2;
+    cbs$1 = cbs$2;
+  }
+  let keys = new Set();
+  let counter = proxify(meta.root, {
+    changed: 0
+  }).proxy;
+  let cb = key => {
+    keys.add(key);
+    counter.changed = counter.changed + 1 | 0;
+  };
+  cbs$1.add(cb);
+  if (guard !== undefined) {
+    return () => {
+      if (guard()) {
+        Reflect.get(counter, "changed");
+        if (keys.size === 0) {
+          return emptyKeys;
+        } else {
+          return drain(keys);
+        }
+      } else {
+        return emptyKeys;
+      }
+    };
+  } else {
+    return () => {
+      Reflect.get(counter, "changed");
+      if (keys.size === 0) {
+        return emptyKeys;
+      } else {
+        return drain(keys);
+      }
+    };
+  }
+}
+
 let tilia = _ctx.tilia;
 
 let carve = _ctx.carve;
@@ -826,6 +901,7 @@ export {
   lift,
   source,
   store,
+  changed,
   _observe,
   _done,
   _ready,

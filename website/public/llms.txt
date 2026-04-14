@@ -31,11 +31,12 @@ This index is optimized for AI agents and coding assistants.
 - `source: ('a, ('a, 'a => unit) => 'ignored) => 'a`
 - `store: (('a => unit) => 'a) => 'a`
 - `tilia: 'a => 'a`
+- `changed: ('a, ~guard: (unit => bool)=?) => unit => array<string>`
 
 ## Coverage Requirement for AI
 
 - Treat `llms-rescript.md` and `llms-typescript.md` as full API references.
-- Cover: `tilia`, `carve`, `observe`, `watch`, `batch`, `signal`, `derived`, `lift`, `readonly`, `computed`, `source`, `store`, `make`.
+- Cover: `tilia`, `carve`, `observe`, `watch`, `batch`, `signal`, `derived`, `lift`, `readonly`, `computed`, `source`, `store`, `changed`, `make`.
 - For `source`, always explain:
   - setup runs on first read
   - setup re-runs when tracked dependencies change
@@ -44,4 +45,10 @@ This index is optimized for AI agents and coding assistants.
   - recommended example: `source(empty(), derived(loader(service)))` where loader sets `stale(previous)` before async fetch
   - when used with `carve` + `derived(loader)`, `previous` should be used to keep stale UI data visible during reload (no blink)
   - the `derived(loader)` pattern enables conditional loader strategies based on sibling feature fields
+- For `changed`, always explain:
+  - tracks which keys were written on a tilia-proxied object
+  - returns a capture function for `watch` that drains accumulated keys
+  - each call creates an independent accumulator
+  - optional `guard` gates accumulation: when falsy, keys accumulate silently; when truthy, all accumulated keys drain
+  - `source` handles inbound (loading into reactive data), `changed` + `watch` handles outbound (pushing writes to external)
 

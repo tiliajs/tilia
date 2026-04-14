@@ -255,6 +255,22 @@ let source: (('a => unit) => 'ignored, 'a) => 'a
  */
 let store: (('a => unit) => 'a) => 'a
 
+/**
+ * Track key-level writes on a tilia-proxied object.
+ *
+ * Returns a capture function for use with `watch`. Each call creates an
+ * independent accumulator. Written keys are collected internally and drained
+ * (returned and cleared) when the capture is read by `watch`.
+ *
+ * When a `guard` is provided and returns false, keys accumulate silently
+ * without triggering the watcher. When the guard becomes true, the
+ * effect fires with all the accumulated keys.
+ *
+ * @param obj The tilia-proxied object to track.
+ * @param ~guard Optional reactive guard function.
+ */
+let changed: ('a, ~guard: unit => bool=?) => unit => array<string>
+
 /** ---------- Internal types and functions for library developers ---------- */
 /** 
  * Internal: Register an observer callback.
@@ -309,6 +325,7 @@ export type Tilia = {
   derived: <T>(fn: () => T) => Signal<T>;
   source: <T>(initialValue: T, fn: (previous: T, set: Setter<T>) => unknown) => T;
   store: <T>(fn: (set: Setter<T>) => T) => T;
+  changed: <T>(obj: T, guard?: () => boolean) => () => string[];
 
   // Internal
   _observe(callback: () => void): Observer;
@@ -333,6 +350,7 @@ export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 export function lift<T>(s: Signal<T>): T;
+export function changed<T>(obj: T, guard?: () => boolean): () => string[];
 
 // Internal
 export function _observe(callback: () => void): Observer;
@@ -371,13 +389,11 @@ observe(() => {
 
 Demonstrates how to use `carve` for features where methods and properties depend on each other.
 
-See the [full source code](https://github.com/tiliajs/tilia/blob/main/todo-app-ts/src/domain/feature/todos/todos.ts).
-
 ```ts
-export function makeTodos(repo: RepoReady, data: Todo[]) {
-  return carve<Todos>(({ derived }) => ({
+export function makeTodos(remote: Remote, data: Todo[]) {
+  const todos = carve<Todos>(({ derived }) => ({
     // State
-    filter: source(fetchFilter(repo), "all"),
+    filter: source(fetchFilter(remote), "all"),
     selected: newTodo(),
 
     // Computed state
@@ -394,8 +410,14 @@ export function makeTodos(repo: RepoReady, data: Todo[]) {
     toggle: derived(toggle),
 
     // Private state
-    repo,
     data,
   }));
+
+  // Sync writes to remote
+  watch(changed(todos), (keys) => {
+    remote.sync(keys.map((k) => todos[k]));
+  });
+
+  return todos;
 }
 ```

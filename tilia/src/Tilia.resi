@@ -259,7 +259,7 @@ let store: (('a => unit) => 'a) => 'a
  * @param obj The tilia-proxied object to track.
  * @param guard Optional reactive guard function.
  */
-let changes: ('a, ~guard: unit => bool=?) => unit => array<string>
+let changed: ('a, ~guard: unit => bool=?) => unit => array<string>
 
 /** ---------- Internal types and functions for library developers ---------- */
 /** 

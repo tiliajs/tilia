@@ -471,7 +471,7 @@ network->subscribe((updates) => {
 
 ## Functional Reactive Programming {.frp}
 
-✨ **Rainbow architect**, tilia has <span>7</span> more functions for you! ✨ {.rainbow}
+✨ **Rainbow architect**, tilia has <span>8</span> more functions for you! ✨ {.rainbow}
 
 Before introducing each one, let us show you an overview. {.subtitle}
 
@@ -486,6 +486,7 @@ Before introducing each one, let us show you an overview. {.subtitle}
 | [`source`](#source)     | External/async updates                  |    ❌ No    |     ✅ Yes      | ✅ Yes  | ❌ No         |
 | [`store`](#store)       | State machine/init logic                |    ❌ No    |      ❌ No      | ✅ Yes  | ✅ Yes        |
 | [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |                |        |              |
+| [`changed`](#changed)   | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes (keys) |
 
 And some syntactic sugar:
 
@@ -1038,6 +1039,72 @@ let todo = tilia({
 
 </section>
 
+<a id="changed"></a>
+
+<section class="doc frp wide-comment changed">
+
+### changed
+
+Track which keys are written on a tilia-proxied object. Returns a capture
+function for `watch` that drains the accumulated keys on each cycle.
+
+Each call to `changed()` creates an independent accumulator, so multiple
+connectors can independently track the same object.
+
+```typescript
+import { tilia, watch, changed } from "tilia";
+
+const data = tilia<Record<string, Item>>({});
+
+// Local DB: always sync
+watch(changed(data), (keys) => {
+  localDb.batchWrite(keys.map((k) => data[k]));
+});
+
+// Remote: sync only when online (guard)
+watch(changed(data, () => actor.online), (keys) => {
+  service.sync(keys.map((k) => data[k]));
+});
+
+// Feature code just writes full updated objects directly
+// (mutating a single field like "name" will not trigger the sync)
+data[item.id] = item;
+```
+
+```rescript
+open Tilia
+
+let data = tilia(Dict.make())
+
+// Local DB: always sync
+watch(changed(data), keys => {
+  localDB.upsert(keys->Array.map(k => Dict.getUnsafe(data, k)))
+})
+
+// Remote: sync only when online (guard)
+watch(changed(data, ~guard=() => actor.online), keys => {
+  service.sync(keys->Array.map(k => Dict.getUnsafe(data, k)))
+})
+
+// Feature code just writes full updated objects directly
+// (mutating a single field like "name" will not trigger the sync)
+Dict.set(data, item.id, item)
+```
+
+#### The guard parameter
+
+When a `guard` function is provided and returns `false`, keys accumulate
+silently without triggering the watcher. Only the guard is tracked. When the
+guard flips to `true`, all accumulated keys drain and the effect fires with
+the full batch. This uses tilia's natural tracking — no special gating logic.
+
+**💡 Pro tip:** `source` handles **inbound** data (loading from external into
+reactive state). `changed` + `watch` handles **outbound** data (pushing
+reactive writes to external systems). Together they decouple persistence
+from feature logic entirely. {.pro}
+
+</section>
+
 <a id="react"></a>
 
 ## React Integration {.react}
@@ -1467,6 +1534,18 @@ const obj = tilia({ value: myComputed });
 const obj = tilia({
   value: computed(() => ...)
 });
+```
+
+Similarly, `changed()` must be passed directly to `watch` — do not store its
+return value in a variable:
+
+```typescript
+// ❌ Bad
+const capture = changed(data);
+watch(capture, (keys) => { ... });
+
+// ✅ Good
+watch(changed(data), (keys) => { ... });
 ```
 
 </section>
