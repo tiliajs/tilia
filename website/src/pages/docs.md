@@ -479,14 +479,14 @@ Before introducing each one, let us show you an overview. {.subtitle}
 
 <section class="doc patterns wide-comment summary frp">
 
-| Function                | Use-case                                | Tree param | Previous value | Setter | Return value |
-| :---------------------- | :-------------------------------------- | :--------: | :------------: | :----: | ------------ |
-| [`computed`](#computed) | Computed value from external sources    |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes        |
-| [`carve`](#carve)       | Cross-property computation              |   ✅ Yes    |      ❌ No      |  ❌ No  | ✅ Yes        |
-| [`source`](#source)     | External/async updates                  |    ❌ No    |     ✅ Yes      | ✅ Yes  | ❌ No         |
-| [`store`](#store)       | State machine/init logic                |    ❌ No    |      ❌ No      | ✅ Yes  | ✅ Yes        |
-| [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |                |        |              |
-| [`changed`](#changed)   | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes ({keys, mute}) |
+| Function                | Use-case                                | Tree param | Previous value | Setter | Return value            |
+| :---------------------- | :-------------------------------------- | :--------: | :------------: | :----: | ----------------------- |
+| [`computed`](#computed) | Computed value from external sources    |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes                   |
+| [`carve`](#carve)       | Cross-property computation              |   ✅ Yes    |      ❌ No      |  ❌ No  | ✅ Yes                   |
+| [`source`](#source)     | External/async updates                  |    ❌ No    |     ✅ Yes      | ✅ Yes  | ❌ No                    |
+| [`store`](#store)       | State machine/init logic                |    ❌ No    |      ❌ No      | ✅ Yes  | ✅ Yes                   |
+| [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |                |        |                         |
+| [`changed`](#changed)   | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes ({entries, mute}) |
 
 And some syntactic sugar:
 
@@ -1045,9 +1045,11 @@ let todo = tilia({
 
 ### changed
 
-Track which keys are written on a tilia-proxied object. Returns `{ keys, mute }`:
-`keys` is a capture function for `watch` that drains accumulated keys on each
-cycle; `mute` runs a callback with tracking temporarily suppressed.
+Track key-level writes on a tilia-proxied dict. Takes an accessor function
+`() => dict` so the tracker can follow `source` swaps. Returns `{ entries, mute }`:
+`entries` is a capture function for `watch` that drains accumulated `[key, value]`
+pairs on each cycle; `mute` runs a callback with tracking temporarily suppressed.
+Deletions appear as `[key, undefined]`. Last write wins for same-key overwrites.
 
 Each call to `changed()` creates an independent accumulator, so multiple
 connectors can independently track the same object.
@@ -1058,20 +1060,16 @@ import { tilia, watch, changed } from "tilia";
 const data = tilia<Record<string, Item>>({});
 
 // Local DB: always sync
-const { keys } = changed(data);
-watch(keys, (changedKeys) => {
-  localDb.batchWrite(changedKeys.map((k) => data[k]));
-});
+const { entries } = changed(() => data);
+watch(entries, localDb.upsert);
 
 // Remote: sync only when online (guard)
-const remote = changed(data, () => actor.online);
-watch(remote.keys, (changedKeys) => {
-  service.sync(changedKeys.map((k) => data[k]));
-});
+const remote = changed(() => data, () => actor.online);
+watch(remote.entries, service.sync);
 
-// Feature code just writes full updated objects directly
-// (mutating a single field like "name" will not trigger the sync)
+// Feature code writes full updated objects (or deletes)
 data[item.id] = item;
+delete data[item.id]; // tracked as [id, undefined]
 ```
 
 ```rescript
@@ -1080,62 +1078,54 @@ open Tilia
 let data = tilia(Dict.make())
 
 // Local DB: always sync
-let {keys} = changed(data)
-watch(keys, changedKeys => {
-  localDB->upsert(changedKeys->Array.map(k => Dict.getUnsafe(data, k)))
-})
+let {entries} = changed(() => data)
+watch(entries, localDB.upsert)
 
 // Remote: sync only when online (guard)
-let remote = changed(data, ~guard=() => actor.online)
-watch(remote.keys, changedKeys => {
-  service->sync(changedKeys->Array.map(k => Dict.getUnsafe(data, k)))
-})
+let remote = changed(() => data, ~guard=() => actor.online)
+watch(remote.entries, service.sync)
 
-// Feature code just writes full updated objects directly
-// (mutating a single field like "name" will not trigger the sync)
+// Feature code writes full updated objects (or deletes)
 Dict.set(data, item.id, item)
+Dict.delete(data, item.id) // tracked as (id, Undefined)
 ```
 
 #### The guard parameter
 
-When a `guard` function is provided and returns `false`, keys accumulate
+When a `guard` function is provided and returns `false`, entries accumulate
 silently without triggering the watcher. Only the guard is tracked. When the
-guard flips to `true`, all accumulated keys drain and the effect fires with
+guard flips to `true`, all accumulated entries drain and the effect fires with
 the full batch. This uses tilia's natural tracking — no special gating logic.
 
 #### The mute function
 
 Use `mute` to write inbound data (e.g., from a remote server) without
 triggering outbound tracking. Writes inside `mute` are still reactive — the
-UI updates — but they don't appear in `keys`. This prevents feedback loops
+UI updates — but they don't appear in `entries`. This prevents feedback loops
 in bidirectional sync scenarios.
 
 ```typescript
-const { keys, mute } = changed(data);
+const { entries, mute } = changed(() => data);
 
-watch(keys, (changedKeys) => {
-  remote.sync(changedKeys.map((k) => data[k]));
-});
+watch(entries, remote.sync);
 
 // Inbound: apply remote data without triggering outbound sync
 mute(() => Object.assign(data, remoteData));
 ```
 
 ```rescript
-let {keys, mute} = changed(data)
+let {entries, mute} = changed(() => data)
 
-watch(keys, changedKeys => {
-  remote->sync(changedKeys->Array.map(k => Dict.getUnsafe(data, k)))
-})
+watch(entries, remote->sync)
 
 // Inbound: apply remote data without triggering outbound sync
 mute(() => Dict.assign(data, remoteData))
 ```
 
-**Do not** use `changed` on `source` fields. `source` is for filtered data
-queries (e.g. loading a subset based on reactive parameters). `changed` is
-for data synchronization and logging (tracking what was written and pushing
-it outbound). They serve different purposes and should not be mixed. {.warn}
+The accessor pattern `() => data` lets `changed` follow data swaps. When
+`source` replaces the underlying dict (e.g. loading a new page of tabular
+data), the tracker re-registers on the new object automatically. Accumulated
+entries from the old object are preserved and drain together. {.warn}
 
 **💡 Pro tip:** `source` handles **inbound** filtered queries (loading from
 external into reactive state). `changed` + `watch` handles **outbound** data
@@ -1573,15 +1563,6 @@ const obj = tilia({ value: myComputed });
 const obj = tilia({
   value: computed(() => ...)
 });
-```
-
-Similarly, `changed()` returns `{ keys, mute }` — destructure it and pass
-`keys` to `watch`:
-
-```typescript
-// ✅ Good
-const { keys, mute } = changed(data);
-watch(keys, (changedKeys) => { ... });
 ```
 
 </section>
@@ -2075,7 +2056,13 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
-      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-12-18 5.0.0 (beta)</h3>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.1.0</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add <code class="text-yellow-300">changed</code> for dict-level outbound write tracking.</li>
+      </ul>
+    </div>
+    <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2025-12-18 5.0.0</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
         <li>Update to ReScript v12.</li>
       </ul>

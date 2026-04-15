@@ -15,12 +15,12 @@ Simple documentation on the [README](./tilia/README.md).
 ### Changelog
 
 - 2026-04-15 **5.1.0**
-  - Add `changed` hook to receive the list of changed keys in watch for a tilia object.
+  - Add `changed` for dict-level outbound write tracking: accessor `() => dict`, returns `{ entries, mute }`; `entries` drains `[key, value]` pairs (deletions as `undefined`).
 - 2026-04-05 **5.0.1**
   - Copy AI coding assistant docs in package on build.
 - 2026-04-05 **5.0.0**
   - Fix tests.
-- 2025-12-18 **5.0.0 (beta)**
+- 2025-12-18 **5.0.0**
   - Update to ReScript v12.
 - 2025-12-18 **4.0.0**
   - Changed @tilia/react dependency to track MAJOR.MINOR version of tilia.
@@ -48,7 +48,7 @@ Simple documentation on the [README](./tilia/README.md).
   - Add tests and examples with Gherkin for todo app.
   - Moved core to npm "tilia" package.
   - Changed `make` signature to build tilia context (provides the full API running in a separate context).
-  - Enable **forest mode** to observve across separated objects.
+  - Enable **forest mode** to observe across separated objects.
   - Add `computed` to compute values in branches (moved into `tilia` context).
   - Moved `observe` into `tilia` context.
   - `observe` _will be called_ for its own mutations (this is to allow state machines).

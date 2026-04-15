@@ -256,22 +256,25 @@ let source: (('a => unit) => 'ignored, 'a) => 'a
 let store: (('a => unit) => 'a) => 'a
 
 /**
- * Track key-level writes on a tilia-proxied object.
+ * Track key-level writes on a tilia-proxied dict.
  *
- * Returns `{ keys, mute }`:
- * - `keys`: capture function for `watch`. Drains accumulated keys on read.
+ * Takes an accessor `() => dict<'a>` so the tracker can follow source swaps.
+ *
+ * Returns `{ entries, mute }`:
+ * - `entries`: capture function for `watch`. Drains accumulated (key, nullable value)
+ *   pairs on read. Deletions appear as `(key, Undefined)`. Last write wins.
  * - `mute`: run a callback with this tracker's dirty tracking temporarily
  *   removed. Writes inside `mute` are still reactive but not tracked.
  *
- * When a `guard` is provided and returns false, keys accumulate silently
+ * When a `guard` is provided and returns false, entries accumulate silently
  * without triggering the watcher. When the guard becomes true, the
- * effect fires with all the accumulated keys.
+ * effect fires with all the accumulated entries.
  *
- * @param obj The tilia-proxied object to track.
+ * @param accessor Function returning the tilia-proxied dict to track.
  * @param ~guard Optional reactive guard function.
  */
-type changed = {keys: unit => array<string>, mute: (unit => unit) => unit}
-let changed: ('a, ~guard: unit => bool=?) => changed
+type changed<'a> = {entries: unit => array<(string, nullable<'a>)>, mute: (unit => unit) => unit}
+let changed: (unit => dict<'a>, ~guard: unit => bool=?) => changed<'a>
 
 /** ---------- Internal types and functions for library developers ---------- */
 /** 
@@ -327,7 +330,7 @@ export type Tilia = {
   derived: <T>(fn: () => T) => Signal<T>;
   source: <T>(initialValue: T, fn: (previous: T, set: Setter<T>) => unknown) => T;
   store: <T>(fn: (set: Setter<T>) => T) => T;
-  changed: <T>(obj: T, guard?: () => boolean) => Changed;
+  changed: <T>(accessor: () => Record<string, T>, guard?: () => boolean) => Changed<T>;
 
   // Internal
   _observe(callback: () => void): Observer;
@@ -352,11 +355,11 @@ export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 export function lift<T>(s: Signal<T>): T;
-export interface Changed {
-  keys: () => string[];
+export interface Changed<T> {
+  entries: () => [string, T | undefined][];
   mute: (fn: () => void) => void;
 }
-export function changed<T>(obj: T, guard?: () => boolean): Changed;
+export function changed<T>(accessor: () => Record<string, T>, guard?: () => boolean): Changed<T>;
 
 // Internal
 export function _observe(callback: () => void): Observer;
@@ -420,10 +423,8 @@ export function makeTodos(remote: Remote, data: Todo[]) {
   }));
 
   // Sync writes to remote
-  const { keys, mute } = changed(todos);
-  watch(keys, (changedKeys) => {
-    remote.sync(changedKeys.map((k) => todos[k]));
-  });
+  const { entries, mute } = changed(() => todos);
+  watch(entries, remote.sync);
 
   return todos;
 }

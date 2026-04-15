@@ -266,32 +266,29 @@ let app = tilia({auth: store(machine)})
 
 ### `changed` (write tracking for sync connectors)
 
-Track which keys are written on a tilia-proxied object. Returns `{ keys, mute }`: `keys` is a capture function for `watch` that drains accumulated keys; `mute` runs a callback with tracking suppressed. Each call creates an independent accumulator.
+Track key-level writes on a tilia-proxied dict. Takes an accessor `() => dict<'a>` so the tracker can follow source swaps. Returns `{ entries, mute }`: `entries` drains accumulated `(key, nullable value)` pairs when read by `watch`; `mute` runs a callback with tracking suppressed. Deletions appear as `(key, Undefined)`. Last write wins for same-key overwrites. Each call creates an independent accumulator.
 
-- `changed(obj)` -- returns `{ keys, mute }`. `keys` drains accumulated written keys when read by `watch`. `mute(fn)` runs `fn` without tracking (for inbound writes).
-- `changed(obj, ~guard=() => expr)` -- optional reactive guard. When guard returns false, keys accumulate silently without triggering the watcher. When guard flips to true, all accumulated keys drain and the effect fires.
+- `changed(() => data)` -- returns `{ entries, mute }`. `entries` drains accumulated `[key, value]` pairs. `mute(fn)` runs `fn` without tracking (for inbound writes).
+- `changed(() => data, ~guard=() => expr)` -- optional reactive guard. When guard returns false, entries accumulate silently. When guard flips to true, all accumulated entries drain and the effect fires.
 
 ```rescript
 open Tilia
 
-type syncService = {sync: array<string> => unit}
-type localDb = {batchWrite: array<string> => unit}
+type item = {name: string, quantity: int}
+type syncService = {sync: array<(string, nullable<item>)> => unit}
+type localDb = {upsert: array<(string, nullable<item>)> => unit}
 type actor = {mutable online: bool}
 
 let makeItemsRepo = (service: syncService, localDb: localDb, actor: actor) => {
-  let data = tilia(Dict.make())
+  let data: dict<item> = tilia(Dict.make())
 
   // Local DB: always sync
-  let {keys} = changed(data)
-  watch(keys, changedKeys => {
-    localDb.batchWrite(changedKeys)
-  })
+  let {entries} = changed(() => data)
+  watch(entries, localDb.upsert)
 
   // Remote: sync only when online
-  let remote = changed(data, ~guard=() => actor.online)
-  watch(remote.keys, changedKeys => {
-    service.sync(changedKeys)
-  })
+  let remote = changed(() => data, ~guard=() => actor.online)
+  watch(remote.entries, service.sync)
 
   // Inbound: apply remote data without triggering outbound sync
   // remote.mute(() => Dict.assign(data, remoteData))
@@ -303,18 +300,17 @@ let makeItemsRepo = (service: syncService, localDb: localDb, actor: actor) => {
 Multiple repos use the same pattern:
 
 ```rescript
-let settings = changed(settingsRepo.data, ~guard=() => actor.online)
-watch(settings.keys, changedKeys => {
-  settingsService.sync(changedKeys)
-})
+let settings = changed(() => settingsRepo.data, ~guard=() => actor.online)
+watch(settings.entries, settingsService.sync)
 ```
 
 Architectural summary:
 - `source` handles inbound (loading from external into reactive data)
 - `changed` + `watch` handles outbound (pushing reactive writes to external)
+- `entries` returns `[key, value]` pairs — values captured at write time, deletions as `[key, undefined]`
 - `mute` prevents feedback loops: inbound writes are reactive but not tracked
 - The guard parameter leverages tilia's natural tracking for offline accumulation
-- Do not use `changed` on `source` fields — `source` replaces values entirely
+- The accessor pattern `() => data` lets the tracker follow source swaps automatically
 
 ### `make`
 
@@ -357,7 +353,8 @@ let {cart} = useApp()
 - Functions wired with `derived` take `self` first.
 - Use `source` for async query/re-query flows.
 - Explain `set` as imperative emitter and `previous` as last emitted value.
-- Use `changed` + `watch` for outbound sync connectors (persistence, remote sync). Destructure `{ keys, mute }`.
+- Use `changed(() => data)` + `watch` for outbound sync connectors (persistence, remote sync). Destructure `{ entries, mute }`.
+- `entries` returns `[key, value]` pairs with deletions as `[key, undefined]`. Use the accessor pattern so the tracker follows source swaps.
 - Use `mute` for inbound writes to prevent feedback loops in bidirectional sync.
-- `source` = inbound, `changed` = outbound. Do not use `changed` on `source` fields.
+- `source` = inbound, `changed` = outbound.
 

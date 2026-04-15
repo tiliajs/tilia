@@ -10,6 +10,8 @@ let reraise = (function (e) {
   throw e
 });
 
+let callCb = (function(cb, k, v) { cb(k, v) });
+
 function cleanTrace(stack) {
   if (typeof stack !== "string") return stack;
   
@@ -303,7 +305,7 @@ function set(node, isArray, _fromComputed, target, _key, _value) {
       if (cbs == null) {
         cbs === null;
       } else {
-        cbs.forEach(cb => cb(key));
+        cbs.forEach(cb => callCb(cb, key, value));
       }
     }
     notify(node.root, node.observed, key$1);
@@ -435,6 +437,12 @@ function proxify(root, _target) {
         } else {
           node.computes.delete(extra$1);
           clear();
+        }
+        let cbs = node.changes;
+        if (cbs == null) {
+          cbs === null;
+        } else {
+          cbs.forEach(cb => callCb(cb, extra$1, undefined));
         }
         notify(node.root, node.observed, extra$1);
         return res;
@@ -803,63 +811,73 @@ function lift(s) {
   return computed(() => s.value);
 }
 
-let drain = (function(s) {
-  var a = Array.from(s);
-  s.clear();
-  return a;
-});
+let _changed = (function(accessor, guard) {
+  var empty = [];
+  var obj = accessor();
+  var meta = obj[metaKey];
+  if (!meta) throw new Error("changed: argument is not a tilia proxy");
+  var root = meta.root;
+  var pending = {};
+  var counterMeta = proxify(root, {changed: 0});
+  var counter = counterMeta.proxy;
+  var currentMeta = meta;
 
-let emptyKeys = [];
+  function reg(m, cb) {
+    var cbs = m.changes;
+    if (!cbs) { cbs = new Set(); m.changes = cbs; }
+    cbs.add(cb);
+    return cbs;
+  }
 
-function changed(obj, guard) {
-  let meta = Reflect.get(obj, metaKey);
-  if (meta == null) {
-    return raise("changed: argument is not a tilia proxy");
+  function drain() {
+    var a = Object.entries(pending);
+    for (var k in pending) delete pending[k];
+    return a;
   }
-  let root = meta.root;
-  let cbs = meta.changes;
-  let cbs$1;
-  let exit = 0;
-  if (cbs == null) {
-    exit = 1;
-  } else {
-    cbs$1 = cbs;
+
+  function cb(key, value) {
+    pending[key] = value;
+    counter.changed = counter.changed + 1;
   }
-  if (exit === 1) {
-    let cbs$2 = new Set();
-    meta.changes = cbs$2;
-    cbs$1 = cbs$2;
+
+  var currentCbs = reg(meta, cb);
+
+  function reregister() {
+    var obj = accessor();
+    var m = obj[metaKey];
+    if (m && m !== currentMeta) {
+      currentCbs.delete(cb);
+      currentCbs = reg(m, cb);
+      currentMeta = m;
+    }
   }
-  let keys = new Set();
-  let counter = proxify(root, {
-    changed: 0
-  }).proxy;
-  let cb = key => {
-    keys.add(key);
-    counter.changed = counter.changed + 1 | 0;
-  };
-  cbs$1.add(cb);
-  let capture = guard !== undefined ? () => {
-      if (guard()) {
-        Reflect.get(counter, "changed");
-        if (keys.size === 0) {
-          return emptyKeys;
-        } else {
-          return drain(keys);
-        }
-      } else {
-        return emptyKeys;
-      }
-    } : () => {
-      Reflect.get(counter, "changed");
-      if (keys.size === 0) {
-        return emptyKeys;
-      } else {
-        return drain(keys);
-      }
+
+  function read() { Reflect.get(counter, "changed"); }
+
+  function hasKeys() {
+    for (var k in pending) return true;
+    return false;
+  }
+
+  var capture;
+  if (guard) {
+    capture = function() {
+      reregister();
+      if (!guard()) return empty;
+      read();
+      return hasKeys() ? drain() : empty;
     };
-  let mute = fn => {
-    cbs$1.delete(cb);
+  } else {
+    capture = function() {
+      reregister();
+      read();
+      return hasKeys() ? drain() : empty;
+    };
+  }
+
+  function mute(fn) {
+    reregister();
+    currentCbs.delete(cb);
     if (root.lock) {
       fn();
     } else {
@@ -868,12 +886,14 @@ function changed(obj, guard) {
       root.lock = false;
       flush(root);
     }
-    cbs$1.add(cb);
-  };
-  return {
-    keys: capture,
-    mute: mute
-  };
+    currentCbs.add(cb);
+  }
+
+  return { entries: capture, mute: mute };
+});
+
+function changed(accessor, guard) {
+  return _changed(accessor, guard);
 }
 
 let tilia = _ctx.tilia;

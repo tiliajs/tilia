@@ -246,23 +246,27 @@ let source: ('a, ('a, 'a => unit) => 'ignored) => 'a
 let store: (('a => unit) => 'a) => 'a
 
 /**
- * Track key-level writes on a tilia-proxied object.
+ * Track key-level writes on a tilia-proxied dict.
  *
- * Returns `{ keys, mute }`:
- * - `keys`: capture function for `watch`. Drains accumulated keys on read.
+ * Takes an accessor `() => dict<'a>` so the tracker can follow source swaps.
+ *
+ * Returns `{ entries, mute }`:
+ * - `entries`: capture function for `watch`. Drains accumulated (key, nullable value)
+ *   pairs on read. Values are captured at write time. Deletions appear as
+ *   `(key, Undefined)`. Last write wins for same-key overwrites.
  * - `mute`: run a callback with this tracker's dirty tracking temporarily
  *   removed. Writes inside `mute` are still reactive but not tracked.
  *   Includes `batch` internally for atomicity.
  *
- * When a `guard` is provided and returns false, keys accumulate silently
+ * When a `guard` is provided and returns false, entries accumulate silently
  * without triggering the watcher. When the guard becomes true, the
- * effect fires with all the accumulated keys.
+ * effect fires with all the accumulated entries.
  *
- * @param obj The tilia-proxied object to track.
+ * @param accessor Function returning the tilia-proxied dict to track.
  * @param ~guard Optional reactive guard function.
  */
-type changed = {keys: unit => array<string>, mute: (unit => unit) => unit}
-let changed: ('a, ~guard: unit => bool=?) => changed
+type changed<'a> = {entries: unit => array<(string, nullable<'a>)>, mute: (unit => unit) => unit}
+let changed: (unit => dict<'a>, ~guard: unit => bool=?) => changed<'a>
 
 /** ---------- Internal types and functions for library developers ---------- */
 /** 

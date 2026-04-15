@@ -116,6 +116,7 @@ let flush = (t: track, fn) => t.flush = fn
 
 type familiy = dict<person>
 
+type repo = {mutable data: dict<item>}
 type dateo = {date: Date.t}
 
 type machine = Blank | Loading | Loaded
@@ -1803,94 +1804,208 @@ describe("Tilia", () => {
 
   // ================ CHANGED ================
 
-  it("Should track key writes with changed", () => {
-    let p = tilia({name: "John", username: "jo"})
-    let tracked = ref([])
-    let {keys} = changed(p)
-    watch(keys, k => tracked := k)
+  let row = (name, quantity) => {name, quantity}
+
+  it("Should track row updates with changed", () => {
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
+    Dict.set(rows, "todo-2", row("Walk dog", 1))
+
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => rows)
+    watch(entries, e => tracked := e)
     expect(tracked.contents).toEqual([])
 
-    p.name = "Mary"
-    expect(tracked.contents).toEqual(["name"])
+    Dict.set(rows, "todo-1", row("Buy milk", 3))
+    expect(tracked.contents).toEqual([("todo-1", Value(row("Buy milk", 3)))])
 
     tracked := []
-    p.username = "ma"
-    expect(tracked.contents).toEqual(["username"])
+    Dict.set(rows, "todo-2", row("Walk dog", 2))
+    expect(tracked.contents).toEqual([("todo-2", Value(row("Walk dog", 2)))])
   })
 
-  it("Should drain all keys in batch with changed", () => {
-    let p = tilia({name: "John", username: "jo"})
-    let tracked = ref([])
-    let {keys} = changed(p)
-    watch(keys, k => tracked := k)
+  it("Should drain all entries in batch with changed", () => {
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
+    Dict.set(rows, "todo-2", row("Walk dog", 1))
+
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => rows)
+    watch(entries, e => tracked := e)
 
     batch(
       () => {
-        p.name = "Mary"
-        p.username = "ma"
+        Dict.set(rows, "todo-1", row("Buy milk", 3))
+        Dict.set(rows, "todo-2", row("Walk dog", 2))
       },
     )
-    expect(tracked.contents).toEqual(["name", "username"])
+    expect(tracked.contents).toEqual([
+      ("todo-1", Value(row("Buy milk", 3))),
+      ("todo-2", Value(row("Walk dog", 2))),
+    ])
   })
 
   it("Should accumulate with guard in changed", () => {
-    let p = tilia({name: "John", username: "jo"})
-    let (gate, setGate) = signal(false)
-    let tracked = ref([])
-    let {keys} = changed(p, ~guard=() => gate.value)
-    watch(keys, k => tracked := k)
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
+    Dict.set(rows, "todo-2", row("Walk dog", 1))
 
-    p.name = "Mary"
-    p.username = "ma"
+    let (online, setOnline) = signal(false)
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => rows, ~guard=() => online.value)
+    watch(entries, e => tracked := e)
+
+    Dict.set(rows, "todo-1", row("Buy milk", 3))
+    Dict.set(rows, "todo-2", row("Walk dog", 2))
     expect(tracked.contents).toEqual([])
 
-    setGate(true)
-    expect(tracked.contents).toEqual(["name", "username"])
+    setOnline(true)
+    expect(tracked.contents).toEqual([
+      ("todo-1", Value(row("Buy milk", 3))),
+      ("todo-2", Value(row("Walk dog", 2))),
+    ])
   })
 
   it("Should not track muted writes", () => {
-    let p = tilia({name: "John", username: "jo"})
-    let tracked = ref([])
-    let {keys, mute} = changed(p)
-    watch(keys, k => tracked := k)
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
 
-    p.name = "Mary"
-    expect(tracked.contents).toEqual(["name"])
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries, mute} = changed(() => rows)
+    watch(entries, e => tracked := e)
+
+    Dict.set(rows, "todo-1", row("Buy milk", 3))
+    expect(tracked.contents).toEqual([("todo-1", Value(row("Buy milk", 3)))])
 
     tracked := []
-    mute(() => p.username = "ma")
+    mute(() => Dict.set(rows, "todo-2", row("Walk dog", 1)))
     expect(tracked.contents).toEqual([])
   })
 
   it("Should preserve reactivity during mute", () => {
-    let p = tilia({name: "John", username: "jo"})
-    let name = ref("")
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
+
+    let quantity = ref(0)
     observe(() => {
-      name := p.name
+      quantity := switch Dict.get(rows, "todo-1") {
+      | Some(r) => r.quantity
+      | None => 0
+      }
     })
-    expect(name.contents).toEqual("John")
+    expect(quantity.contents).toEqual(1)
 
-    let {mute} = changed(p)
+    let {mute} = changed(() => rows)
 
-    p.name = "trigger"
-    expect(name.contents).toEqual("trigger")
+    Dict.set(rows, "todo-1", row("Buy milk", 5))
+    expect(quantity.contents).toEqual(5)
 
-    mute(() => p.name = "muted")
-    expect(name.contents).toEqual("muted")
+    mute(() => Dict.set(rows, "todo-1", row("Buy milk", 10)))
+    expect(quantity.contents).toEqual(10)
   })
 
   it("Should only track non-muted writes in mixed scenario", () => {
-    let p = tilia({name: "John", username: "jo"})
-    let tracked = ref([])
-    let {keys, mute} = changed(p)
-    watch(keys, k => tracked := k)
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
 
-    p.name = "Mary"
-    expect(tracked.contents).toEqual(["name"])
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries, mute} = changed(() => rows)
+    watch(entries, e => tracked := e)
+
+    Dict.set(rows, "todo-1", row("Buy milk", 3))
+    expect(tracked.contents).toEqual([("todo-1", Value(row("Buy milk", 3)))])
 
     tracked := []
-    mute(() => p.username = "ma")
-    p.name = "Jane"
-    expect(tracked.contents).toEqual(["name"])
+    mute(() => Dict.set(rows, "todo-2", row("Walk dog", 1)))
+    Dict.set(rows, "todo-1", row("Buy milk", 5))
+    expect(tracked.contents).toEqual([("todo-1", Value(row("Buy milk", 5)))])
+  })
+
+  it("Should track deletion as entry with undefined value", () => {
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
+    Dict.set(rows, "todo-2", row("Walk dog", 1))
+
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => rows)
+    watch(entries, e => tracked := e)
+
+    Dict.delete(rows, "todo-1")
+    expect(tracked.contents).toEqual([("todo-1", Undefined)])
+  })
+
+  it("Should keep latest value on multiple writes to same key", () => {
+    let table: dict<item> = Dict.make()
+    let rows = tilia(table)
+    Dict.set(rows, "todo-1", row("Buy milk", 1))
+
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => rows)
+    watch(entries, e => tracked := e)
+
+    batch(
+      () => {
+        Dict.set(rows, "todo-1", row("Buy milk", 3))
+        Dict.set(rows, "todo-1", row("Buy milk", 5))
+      },
+    )
+    expect(tracked.contents).toEqual([("todo-1", Value(row("Buy milk", 5)))])
+  })
+
+  it("Should re-register on data swap and keep accumulated entries", () => {
+    let page1: dict<item> = Dict.make()
+    Dict.set(page1, "todo-1", row("Buy milk", 1))
+    Dict.set(page1, "todo-2", row("Walk dog", 1))
+    let page2: dict<item> = Dict.make()
+    Dict.set(page2, "todo-3", row("Clean house", 1))
+
+    let repo = tilia({data: page1})
+
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => repo.data)
+    watch(entries, e => tracked := e)
+
+    Dict.set(repo.data, "todo-1", row("Buy milk", 3))
+    expect(tracked.contents).toEqual([("todo-1", Value(row("Buy milk", 3)))])
+
+    tracked := []
+    repo.data = page2
+
+    Dict.set(repo.data, "todo-3", row("Clean house", 2))
+    expect(tracked.contents).toEqual([("todo-3", Value(row("Clean house", 2)))])
+  })
+
+  it("Should accumulate across data swap while offline", () => {
+    let page1: dict<item> = Dict.make()
+    Dict.set(page1, "todo-1", row("Buy milk", 1))
+    let page2: dict<item> = Dict.make()
+    Dict.set(page2, "todo-2", row("Walk dog", 1))
+
+    let repo = tilia({data: page1})
+    let (online, setOnline) = signal(false)
+
+    let tracked: ref<array<(string, nullable<item>)>> = ref([])
+    let {entries} = changed(() => repo.data, ~guard=() => online.value)
+    watch(entries, e => tracked := e)
+
+    Dict.set(repo.data, "todo-1", row("Buy milk", 3))
+    expect(tracked.contents).toEqual([])
+
+    repo.data = page2
+    Dict.set(repo.data, "todo-2", row("Walk dog", 2))
+    expect(tracked.contents).toEqual([])
+
+    setOnline(true)
+    expect(tracked.contents).toEqual([
+      ("todo-1", Value(row("Buy milk", 3))),
+      ("todo-2", Value(row("Walk dog", 2))),
+    ])
   })
 })

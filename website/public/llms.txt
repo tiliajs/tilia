@@ -31,7 +31,7 @@ This index is optimized for AI agents and coding assistants.
 - `source: ('a, ('a, 'a => unit) => 'ignored) => 'a`
 - `store: (('a => unit) => 'a) => 'a`
 - `tilia: 'a => 'a`
-- `changed: ('a, ~guard: (unit => bool)=?) => { keys: unit => array<string>, mute: (unit => unit) => unit }`
+- `changed: (unit => dict<'a>, ~guard: (unit => bool)=?) => { entries: unit => array<(string, nullable<'a>)>, mute: (unit => unit) => unit }`
 
 ## Coverage Requirement for AI
 
@@ -46,11 +46,13 @@ This index is optimized for AI agents and coding assistants.
   - when used with `carve` + `derived(loader)`, `previous` should be used to keep stale UI data visible during reload (no blink)
   - the `derived(loader)` pattern enables conditional loader strategies based on sibling feature fields
 - For `changed`, always explain:
-  - tracks which keys were written on a tilia-proxied object
-  - returns `{ keys, mute }`: `keys` is a capture function for `watch` that drains accumulated keys; `mute` runs a callback with tracking suppressed
+  - takes an accessor `() => dict` so the tracker can follow source swaps
+  - tracks key-level writes on a tilia-proxied dict, capturing `[key, value]` pairs (deletions as `[key, undefined]`)
+  - returns `{ entries, mute }`: `entries` is a capture function for `watch` that drains accumulated `[key, value]` pairs; `mute` runs a callback with tracking suppressed
+  - last write wins for same-key overwrites within a batch
   - each call creates an independent accumulator
-  - optional `guard` gates accumulation: when falsy, keys accumulate silently; when truthy, all accumulated keys drain
+  - optional `guard` gates accumulation: when falsy, entries accumulate silently; when truthy, all accumulated entries drain
   - `mute` is for inbound sync writes: writes inside `mute` are still reactive but not tracked, preventing feedback loops
-  - do not use `changed` on `source` fields — `source` replaces values entirely
+  - the accessor pattern enables use with `source`-backed data: when `source` replaces the dict, the tracker re-registers on the new object
   - `source` handles inbound (loading into reactive data), `changed` + `watch` handles outbound (pushing writes to external)
 

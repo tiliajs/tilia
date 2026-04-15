@@ -16,6 +16,8 @@ let reraise: 'a => 'b = %raw(`function (e) {
   throw e
 }`)
 
+let callCb: ('a, string, 'b) => unit = %raw(`function(cb, k, v) { cb(k, v) }`)
+
 %%raw(`
 function cleanTrace(stack) {
   if (typeof stack !== "string") return stack;
@@ -193,8 +195,8 @@ type rec meta<'a> = {
   proxied: dict<meta<'a>>,
   /** Per-key clear callbacks for installed computed values. */
   computes: dict<unit => unit>,
-  /** Optional listeners for [changes]; each callback receives the written key string. */
-  mutable changes: nullable<Set.t<string => unit>>,
+  /** Optional listeners for [changes]; each cb receives (key, value) from proxy handler. */
+  mutable changes: nullable<Set.t<'a>>,
   /** The Proxy wrapping [target]. */
   mutable proxy: 'a,
 }
@@ -210,7 +212,7 @@ type node<'c> = {
   /** See [meta.computes]. */
   computes: dict<unit => unit>,
   /** See [meta.changes]. */
-  mutable changes: nullable<Set.t<string => unit>>,
+  mutable changes: nullable<Set.t<'c>>,
 }
 
 type signal<'a> = {mutable value: 'a}
@@ -488,7 +490,7 @@ let rec set = (
       | Undefined | Null => {
           if !fromComputed {
             switch node.changes {
-            | Value(cbs) => Set.forEach(cbs, cb => cb(writeKey))
+            | Value(cbs) => Set.forEach(cbs, cb => callCb(cb, writeKey, value))
             | _ => ()
             }
           }
@@ -640,6 +642,10 @@ let deleteProperty = (
       Dict.delete(node.computes, key)
       clear()
     }
+  | _ => ()
+  }
+  switch node.changes {
+  | Value(cbs) => Set.forEach(cbs, cb => callCb(cb, key, %raw(`undefined`)))
   | _ => ()
   }
   notify(node.root, node.observed, key)
@@ -1008,77 +1014,91 @@ let readonly = (data: 'a) => {
 
 let lift = s => computed(() => s.value)
 
-type counter = {mutable changed: int}
-type changed = {keys: unit => array<string>, mute: (unit => unit) => unit}
+type changed<'a> = {entries: unit => array<(string, nullable<'a>)>, mute: (unit => unit) => unit}
 
-let drain: Set.t<string> => array<string> = %raw(`function(s) {
-  var a = Array.from(s);
-  s.clear();
-  return a;
+let _changed: (unit => 'a, option<unit => bool>) => changed<'a> = %raw(`function(accessor, guard) {
+  var empty = [];
+  var obj = accessor();
+  var meta = obj[metaKey];
+  if (!meta) throw new Error("changed: argument is not a tilia proxy");
+  var root = meta.root;
+  var pending = {};
+  var counterMeta = proxify(root, {changed: 0});
+  var counter = counterMeta.proxy;
+  var currentMeta = meta;
+
+  function reg(m, cb) {
+    var cbs = m.changes;
+    if (!cbs) { cbs = new Set(); m.changes = cbs; }
+    cbs.add(cb);
+    return cbs;
+  }
+
+  function drain() {
+    var a = Object.entries(pending);
+    for (var k in pending) delete pending[k];
+    return a;
+  }
+
+  function cb(key, value) {
+    pending[key] = value;
+    counter.changed = counter.changed + 1;
+  }
+
+  var currentCbs = reg(meta, cb);
+
+  function reregister() {
+    var obj = accessor();
+    var m = obj[metaKey];
+    if (m && m !== currentMeta) {
+      currentCbs.delete(cb);
+      currentCbs = reg(m, cb);
+      currentMeta = m;
+    }
+  }
+
+  function read() { Reflect.get(counter, "changed"); }
+
+  function hasKeys() {
+    for (var k in pending) return true;
+    return false;
+  }
+
+  var capture;
+  if (guard) {
+    capture = function() {
+      reregister();
+      if (!guard()) return empty;
+      read();
+      return hasKeys() ? drain() : empty;
+    };
+  } else {
+    capture = function() {
+      reregister();
+      read();
+      return hasKeys() ? drain() : empty;
+    };
+  }
+
+  function mute(fn) {
+    reregister();
+    currentCbs.delete(cb);
+    if (root.lock) {
+      fn();
+    } else {
+      root.lock = true;
+      fn();
+      root.lock = false;
+      flush(root);
+    }
+    currentCbs.add(cb);
+  }
+
+  return { entries: capture, mute: mute };
 }`)
 
-let emptyKeys: array<string> = []
-
-let changed = (obj, ~guard=?) => {
-  switch _meta(obj) {
-  | Value(meta) => {
-      let root = meta.root
-      let cbs = switch meta.changes {
-      | Value(cbs) => cbs
-      | _ =>
-        let cbs = Set.make()
-        meta.changes = Value(cbs)
-        cbs
-      }
-      let keys: Set.t<string> = Set.make()
-      let counter: counter = proxify(root, {changed: 0}).proxy
-      let cb = key => {
-        Set.add(keys, key)
-        counter.changed = counter.changed + 1
-      }
-      Set.add(cbs, cb)
-      let read = () => ignore(Reflect.get(counter, "changed"))
-      let capture = switch guard {
-      | Some(guard) =>
-        () => {
-          if !guard() {
-            emptyKeys
-          } else {
-            read()
-            if Set.size(keys) === 0 {
-              emptyKeys
-            } else {
-              drain(keys)
-            }
-          }
-        }
-      | None =>
-        () => {
-          read()
-          if Set.size(keys) === 0 {
-            emptyKeys
-          } else {
-            drain(keys)
-          }
-        }
-      }
-      let mute = fn => {
-        ignore(Set.delete(cbs, cb))
-        if root.lock {
-          fn()
-        } else {
-          root.lock = true
-          fn()
-          root.lock = false
-          flush(root)
-        }
-        Set.add(cbs, cb)
-      }
-      {keys: capture, mute}
-    }
-  | _ => raise("changed: argument is not a tilia proxy")
-  }
-}
+external identity: 'a => 'b = "%identity"
+let changed = (accessor, ~guard=?) => _changed(identity(accessor), guard)
 
 let tilia = _ctx.tilia
 let carve = _ctx.carve
