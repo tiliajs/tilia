@@ -1806,7 +1806,8 @@ describe("Tilia", () => {
   it("Should track key writes with changed", () => {
     let p = tilia({name: "John", username: "jo"})
     let tracked = ref([])
-    watch(changed(p), keys => tracked := keys)
+    let {keys} = changed(p)
+    watch(keys, k => tracked := k)
     expect(tracked.contents).toEqual([])
 
     p.name = "Mary"
@@ -1820,7 +1821,8 @@ describe("Tilia", () => {
   it("Should drain all keys in batch with changed", () => {
     let p = tilia({name: "John", username: "jo"})
     let tracked = ref([])
-    watch(changed(p), keys => tracked := keys)
+    let {keys} = changed(p)
+    watch(keys, k => tracked := k)
 
     batch(
       () => {
@@ -1835,7 +1837,8 @@ describe("Tilia", () => {
     let p = tilia({name: "John", username: "jo"})
     let (gate, setGate) = signal(false)
     let tracked = ref([])
-    watch(changed(p, ~guard=() => gate.value), keys => tracked := keys)
+    let {keys} = changed(p, ~guard=() => gate.value)
+    watch(keys, k => tracked := k)
 
     p.name = "Mary"
     p.username = "ma"
@@ -1843,5 +1846,51 @@ describe("Tilia", () => {
 
     setGate(true)
     expect(tracked.contents).toEqual(["name", "username"])
+  })
+
+  it("Should not track muted writes", () => {
+    let p = tilia({name: "John", username: "jo"})
+    let tracked = ref([])
+    let {keys, mute} = changed(p)
+    watch(keys, k => tracked := k)
+
+    p.name = "Mary"
+    expect(tracked.contents).toEqual(["name"])
+
+    tracked := []
+    mute(() => p.username = "ma")
+    expect(tracked.contents).toEqual([])
+  })
+
+  it("Should preserve reactivity during mute", () => {
+    let p = tilia({name: "John", username: "jo"})
+    let name = ref("")
+    observe(() => {
+      name := p.name
+    })
+    expect(name.contents).toEqual("John")
+
+    let {mute} = changed(p)
+
+    p.name = "trigger"
+    expect(name.contents).toEqual("trigger")
+
+    mute(() => p.name = "muted")
+    expect(name.contents).toEqual("muted")
+  })
+
+  it("Should only track non-muted writes in mixed scenario", () => {
+    let p = tilia({name: "John", username: "jo"})
+    let tracked = ref([])
+    let {keys, mute} = changed(p)
+    watch(keys, k => tracked := k)
+
+    p.name = "Mary"
+    expect(tracked.contents).toEqual(["name"])
+
+    tracked := []
+    mute(() => p.username = "ma")
+    p.name = "Jane"
+    expect(tracked.contents).toEqual(["name"])
   })
 })

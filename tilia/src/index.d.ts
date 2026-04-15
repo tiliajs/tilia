@@ -30,8 +30,8 @@ export type Tilia = {
    * dependencies change. It receives a setter and returns the initial value.
    */
   store: <T>(fn: (set: Setter<T>) => T) => T;
-  /** Track key-level writes on a tilia proxy. Returns a capture for `watch` that drains accumulated keys. */
-  changed: <T>(obj: T, guard?: () => boolean) => () => string[];
+  /** Track key-level writes on a tilia proxy. Returns `{ keys, mute }`. */
+  changed: <T>(obj: T, guard?: () => boolean) => Changed;
   /** @internal */
   _observe(callback: () => void): Observer;
 };
@@ -79,13 +79,21 @@ export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 /** Lift a signal into a computed value that tracks its inner `value` field. */
 export function lift<T>(s: Signal<T>): T;
+export interface Changed {
+  /** Capture function for `watch`. Drains accumulated keys on read. */
+  keys: () => string[];
+  /** Run a callback with tracking temporarily removed. Includes `batch`. */
+  mute: (fn: () => void) => void;
+}
+
 /**
- * Track key-level writes on a tilia proxy. Returns a capture function for
- * `watch` that drains accumulated keys. Each call creates an independent
- * accumulator. When `guard` returns false, keys accumulate silently; when
- * it becomes true, all accumulated keys drain.
+ * Track key-level writes on a tilia proxy. Returns `{ keys, mute }`.
+ * `keys` is a capture function for `watch` that drains accumulated keys.
+ * `mute` runs code without tracking (for inbound sync writes).
+ * Each call creates an independent accumulator. When `guard` returns false,
+ * keys accumulate silently; when it becomes true, all accumulated keys drain.
  */
-export function changed<T>(obj: T, guard?: () => boolean): () => string[];
+export function changed<T>(obj: T, guard?: () => boolean): Changed;
 
 /** @internal */
 export function _observe(callback: () => void): Observer;

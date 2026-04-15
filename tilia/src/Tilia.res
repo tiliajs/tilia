@@ -1009,6 +1009,7 @@ let readonly = (data: 'a) => {
 let lift = s => computed(() => s.value)
 
 type counter = {mutable changed: int}
+type changed = {keys: unit => array<string>, mute: (unit => unit) => unit}
 
 let drain: Set.t<string> => array<string> = %raw(`function(s) {
   var a = Array.from(s);
@@ -1021,6 +1022,7 @@ let emptyKeys: array<string> = []
 let changed = (obj, ~guard=?) => {
   switch _meta(obj) {
   | Value(meta) => {
+      let root = meta.root
       let cbs = switch meta.changes {
       | Value(cbs) => cbs
       | _ =>
@@ -1029,14 +1031,14 @@ let changed = (obj, ~guard=?) => {
         cbs
       }
       let keys: Set.t<string> = Set.make()
-      let counter: counter = proxify(meta.root, {changed: 0}).proxy
+      let counter: counter = proxify(root, {changed: 0}).proxy
       let cb = key => {
         Set.add(keys, key)
         counter.changed = counter.changed + 1
       }
       Set.add(cbs, cb)
       let read = () => ignore(Reflect.get(counter, "changed"))
-      switch guard {
+      let capture = switch guard {
       | Some(guard) =>
         () => {
           if !guard() {
@@ -1060,6 +1062,19 @@ let changed = (obj, ~guard=?) => {
           }
         }
       }
+      let mute = fn => {
+        ignore(Set.delete(cbs, cb))
+        if root.lock {
+          fn()
+        } else {
+          root.lock = true
+          fn()
+          root.lock = false
+          flush(root)
+        }
+        Set.add(cbs, cb)
+      }
+      {keys: capture, mute}
     }
   | _ => raise("changed: argument is not a tilia proxy")
   }

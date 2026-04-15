@@ -816,6 +816,7 @@ function changed(obj, guard) {
   if (meta == null) {
     return raise("changed: argument is not a tilia proxy");
   }
+  let root = meta.root;
   let cbs = meta.changes;
   let cbs$1;
   let exit = 0;
@@ -830,7 +831,7 @@ function changed(obj, guard) {
     cbs$1 = cbs$2;
   }
   let keys = new Set();
-  let counter = proxify(meta.root, {
+  let counter = proxify(root, {
     changed: 0
   }).proxy;
   let cb = key => {
@@ -838,8 +839,7 @@ function changed(obj, guard) {
     counter.changed = counter.changed + 1 | 0;
   };
   cbs$1.add(cb);
-  if (guard !== undefined) {
-    return () => {
+  let capture = guard !== undefined ? () => {
       if (guard()) {
         Reflect.get(counter, "changed");
         if (keys.size === 0) {
@@ -850,9 +850,7 @@ function changed(obj, guard) {
       } else {
         return emptyKeys;
       }
-    };
-  } else {
-    return () => {
+    } : () => {
       Reflect.get(counter, "changed");
       if (keys.size === 0) {
         return emptyKeys;
@@ -860,7 +858,22 @@ function changed(obj, guard) {
         return drain(keys);
       }
     };
-  }
+  let mute = fn => {
+    cbs$1.delete(cb);
+    if (root.lock) {
+      fn();
+    } else {
+      root.lock = true;
+      fn();
+      root.lock = false;
+      flush(root);
+    }
+    cbs$1.add(cb);
+  };
+  return {
+    keys: capture,
+    mute: mute
+  };
 }
 
 let tilia = _ctx.tilia;

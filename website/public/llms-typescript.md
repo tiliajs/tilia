@@ -277,9 +277,9 @@ const app = tilia({ auth: store(auth) });
 
 ### `changed` (write tracking for sync connectors)
 
-Track which keys are written on a tilia-proxied object. Returns a capture function for `watch` that drains accumulated keys. Each call creates an independent accumulator.
+Track which keys are written on a tilia-proxied object. Returns `{ keys, mute }`: `keys` is a capture function for `watch` that drains accumulated keys; `mute` runs a callback with tracking suppressed. Each call creates an independent accumulator.
 
-- `changed(obj)` -- captures all writes. When read by `watch`, returns the array of written keys and clears the accumulator.
+- `changed(obj)` -- returns `{ keys, mute }`. `keys` drains accumulated written keys when read by `watch`. `mute(fn)` runs `fn` without tracking (for inbound writes).
 - `changed(obj, guard)` -- optional reactive guard function. When guard returns false, keys accumulate silently without triggering the watcher. When guard flips to true, all accumulated keys drain and the effect fires.
 
 ```typescript
@@ -293,14 +293,19 @@ const makeItemsRepo = (service: SyncService, localDb: LocalDb, actor: Actor) => 
   const data = tilia<Record<string, unknown>>({});
 
   // Local DB: always sync
-  watch(changed(data), (keys) => {
-    localDb.batchWrite(keys);
+  const { keys } = changed(data);
+  watch(keys, (changedKeys) => {
+    localDb.batchWrite(changedKeys);
   });
 
   // Remote: sync only when online
-  watch(changed(data, () => actor.online), (keys) => {
-    service.sync(keys);
+  const remote = changed(data, () => actor.online);
+  watch(remote.keys, (changedKeys) => {
+    service.sync(changedKeys);
   });
+
+  // Inbound: apply remote data without triggering outbound sync
+  // remote.mute(() => Object.assign(data, remoteData));
 
   return data;
 };
@@ -309,15 +314,18 @@ const makeItemsRepo = (service: SyncService, localDb: LocalDb, actor: Actor) => 
 Multiple repos use the same pattern:
 
 ```typescript
-watch(changed(settingsRepo.data, () => actor.online), (keys) => {
-  settingsService.sync(keys);
+const settings = changed(settingsRepo.data, () => actor.online);
+watch(settings.keys, (changedKeys) => {
+  settingsService.sync(changedKeys);
 });
 ```
 
 Architectural summary:
 - `source` handles inbound (loading from external into reactive data)
 - `changed` + `watch` handles outbound (pushing reactive writes to external)
+- `mute` prevents feedback loops: inbound writes are reactive but not tracked
 - The guard parameter leverages tilia's natural tracking for offline accumulation
+- Do not use `changed` on `source` fields — `source` replaces values entirely
 
 ### `make`
 
@@ -365,6 +373,7 @@ return <div>{cart.total}</div>;
 - Helpers wired through `derived` must accept `self`.
 - Use `source` for async query/re-query flows.
 - Explain `set` as imperative emission and `previous` as last emitted value.
-- Use `changed` + `watch` for outbound sync connectors (persistence, remote sync).
-- `source` = inbound, `changed` = outbound.
+- Use `changed` + `watch` for outbound sync connectors (persistence, remote sync). Destructure `{ keys, mute }`.
+- Use `mute` for inbound writes to prevent feedback loops in bidirectional sync.
+- `source` = inbound, `changed` = outbound. Do not use `changed` on `source` fields.
 

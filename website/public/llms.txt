@@ -31,7 +31,7 @@ This index is optimized for AI agents and coding assistants.
 - `source: ('a, ('a, 'a => unit) => 'ignored) => 'a`
 - `store: (('a => unit) => 'a) => 'a`
 - `tilia: 'a => 'a`
-- `changed: ('a, ~guard: (unit => bool)=?) => unit => array<string>`
+- `changed: ('a, ~guard: (unit => bool)=?) => { keys: unit => array<string>, mute: (unit => unit) => unit }`
 
 ## Coverage Requirement for AI
 
@@ -47,8 +47,10 @@ This index is optimized for AI agents and coding assistants.
   - the `derived(loader)` pattern enables conditional loader strategies based on sibling feature fields
 - For `changed`, always explain:
   - tracks which keys were written on a tilia-proxied object
-  - returns a capture function for `watch` that drains accumulated keys
+  - returns `{ keys, mute }`: `keys` is a capture function for `watch` that drains accumulated keys; `mute` runs a callback with tracking suppressed
   - each call creates an independent accumulator
   - optional `guard` gates accumulation: when falsy, keys accumulate silently; when truthy, all accumulated keys drain
+  - `mute` is for inbound sync writes: writes inside `mute` are still reactive but not tracked, preventing feedback loops
+  - do not use `changed` on `source` fields — `source` replaces values entirely
   - `source` handles inbound (loading into reactive data), `changed` + `watch` handles outbound (pushing writes to external)
 

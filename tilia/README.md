@@ -258,9 +258,10 @@ let store: (('a => unit) => 'a) => 'a
 /**
  * Track key-level writes on a tilia-proxied object.
  *
- * Returns a capture function for use with `watch`. Each call creates an
- * independent accumulator. Written keys are collected internally and drained
- * (returned and cleared) when the capture is read by `watch`.
+ * Returns `{ keys, mute }`:
+ * - `keys`: capture function for `watch`. Drains accumulated keys on read.
+ * - `mute`: run a callback with this tracker's dirty tracking temporarily
+ *   removed. Writes inside `mute` are still reactive but not tracked.
  *
  * When a `guard` is provided and returns false, keys accumulate silently
  * without triggering the watcher. When the guard becomes true, the
@@ -269,7 +270,8 @@ let store: (('a => unit) => 'a) => 'a
  * @param obj The tilia-proxied object to track.
  * @param ~guard Optional reactive guard function.
  */
-let changed: ('a, ~guard: unit => bool=?) => unit => array<string>
+type changed = {keys: unit => array<string>, mute: (unit => unit) => unit}
+let changed: ('a, ~guard: unit => bool=?) => changed
 
 /** ---------- Internal types and functions for library developers ---------- */
 /** 
@@ -325,7 +327,7 @@ export type Tilia = {
   derived: <T>(fn: () => T) => Signal<T>;
   source: <T>(initialValue: T, fn: (previous: T, set: Setter<T>) => unknown) => T;
   store: <T>(fn: (set: Setter<T>) => T) => T;
-  changed: <T>(obj: T, guard?: () => boolean) => () => string[];
+  changed: <T>(obj: T, guard?: () => boolean) => Changed;
 
   // Internal
   _observe(callback: () => void): Observer;
@@ -350,7 +352,11 @@ export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 export function lift<T>(s: Signal<T>): T;
-export function changed<T>(obj: T, guard?: () => boolean): () => string[];
+export interface Changed {
+  keys: () => string[];
+  mute: (fn: () => void) => void;
+}
+export function changed<T>(obj: T, guard?: () => boolean): Changed;
 
 // Internal
 export function _observe(callback: () => void): Observer;
@@ -414,8 +420,9 @@ export function makeTodos(remote: Remote, data: Todo[]) {
   }));
 
   // Sync writes to remote
-  watch(changed(todos), (keys) => {
-    remote.sync(keys.map((k) => todos[k]));
+  const { keys, mute } = changed(todos);
+  watch(keys, (changedKeys) => {
+    remote.sync(changedKeys.map((k) => todos[k]));
   });
 
   return todos;
