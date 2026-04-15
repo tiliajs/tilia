@@ -2056,9 +2056,17 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.2.0 (beta)</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Improved <code class='text-yellow-300'>changed</code> API to support data loaded via <code class='text-yellow-300'>source</code>.
+        </li>
+      </ul>
+    </div>
+    <div>
       <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.1.0</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
-        <li>Add <code class="text-yellow-300">changed</code> for dict-level outbound write tracking.</li>
+        <li>Add <code class="text-yellow-300">changed</code> for dictionary key change tracking.
+        </li>
       </ul>
     </div>
     <div>

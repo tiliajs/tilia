@@ -14,8 +14,10 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2026-04-15 **5.2.0 (beta)**
+  - Improved `changed` API to support sourced data.
 - 2026-04-15 **5.1.0**
-  - Add `changed` for dict-level outbound write tracking: accessor `() => dict`, returns `{ entries, mute }`; `entries` drains `[key, value]` pairs (deletions as `undefined`).
+  - Add `changed` for dictionary key change tracking.
 - 2026-04-05 **5.0.1**
   - Copy AI coding assistant docs in package on build.
 - 2026-04-05 **5.0.0**
