@@ -1014,13 +1014,14 @@ let readonly = (data: 'a) => {
 
 let lift = s => computed(() => s.value)
 
-type changed<'a> = {entries: unit => array<(string, nullable<'a>)>, mute: (unit => unit) => unit}
+type changes<'a> = {upsert: array<'a>, remove: array<string>}
+type changing<'a> = {changes: unit => changes<'a>, mute: (unit => unit) => unit}
 
-let _changed: (unit => 'a, option<unit => bool>) => changed<'a> = %raw(`function(accessor, guard) {
-  var empty = [];
+let _changing: (unit => 'a, option<unit => bool>) => changing<'a> = %raw(`function(accessor, guard) {
+  var empty = {upsert: [], remove: []};
   var obj = accessor();
   var meta = obj[metaKey];
-  if (!meta) throw new Error("changed: argument is not a tilia proxy");
+  if (!meta) throw new Error("changing: argument is not a tilia proxy");
   var root = meta.root;
   var pending = {};
   var counterMeta = proxify(root, {changed: 0});
@@ -1035,9 +1036,14 @@ let _changed: (unit => 'a, option<unit => bool>) => changed<'a> = %raw(`function
   }
 
   function drain() {
-    var a = Object.entries(pending);
-    for (var k in pending) delete pending[k];
-    return a;
+    var u = [], r = [];
+    for (var k in pending) {
+      var v = pending[k];
+      if (v === undefined) r.push(k);
+      else u.push(v);
+      delete pending[k];
+    }
+    return {upsert: u, remove: r};
   }
 
   function cb(key, value) {
@@ -1094,11 +1100,11 @@ let _changed: (unit => 'a, option<unit => bool>) => changed<'a> = %raw(`function
     currentCbs.add(cb);
   }
 
-  return { entries: capture, mute: mute };
+  return { changes: capture, mute: mute };
 }`)
 
 external identity: 'a => 'b = "%identity"
-let changed = (accessor, ~guard=?) => _changed(identity(accessor), guard)
+let changing = (accessor, ~guard=?) => _changing(identity(accessor), guard)
 
 let tilia = _ctx.tilia
 let carve = _ctx.carve

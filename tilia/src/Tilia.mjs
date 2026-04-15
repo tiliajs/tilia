@@ -811,11 +811,11 @@ function lift(s) {
   return computed(() => s.value);
 }
 
-let _changed = (function(accessor, guard) {
-  var empty = [];
+let _changing = (function(accessor, guard) {
+  var empty = {upsert: [], remove: []};
   var obj = accessor();
   var meta = obj[metaKey];
-  if (!meta) throw new Error("changed: argument is not a tilia proxy");
+  if (!meta) throw new Error("changing: argument is not a tilia proxy");
   var root = meta.root;
   var pending = {};
   var counterMeta = proxify(root, {changed: 0});
@@ -830,9 +830,14 @@ let _changed = (function(accessor, guard) {
   }
 
   function drain() {
-    var a = Object.entries(pending);
-    for (var k in pending) delete pending[k];
-    return a;
+    var u = [], r = [];
+    for (var k in pending) {
+      var v = pending[k];
+      if (v === undefined) r.push(k);
+      else u.push(v);
+      delete pending[k];
+    }
+    return {upsert: u, remove: r};
   }
 
   function cb(key, value) {
@@ -889,11 +894,11 @@ let _changed = (function(accessor, guard) {
     currentCbs.add(cb);
   }
 
-  return { entries: capture, mute: mute };
+  return { changes: capture, mute: mute };
 });
 
-function changed(accessor, guard) {
-  return _changed(accessor, guard);
+function changing(accessor, guard) {
+  return _changing(accessor, guard);
 }
 
 let tilia = _ctx.tilia;
@@ -934,7 +939,7 @@ export {
   lift,
   source,
   store,
-  changed,
+  changing,
   _observe,
   _done,
   _ready,

@@ -486,7 +486,7 @@ Before introducing each one, let us show you an overview. {.subtitle}
 | [`source`](#source)     | External/async updates                  |    ❌ No    |     ✅ Yes      | ✅ Yes  | ❌ No                    |
 | [`store`](#store)       | State machine/init logic                |    ❌ No    |      ❌ No      | ✅ Yes  | ✅ Yes                   |
 | [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |                |        |                         |
-| [`changed`](#changed)   | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes ({entries, mute}) |
+| [`changing`](#changing)  | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes ({changes, mute}) |
 
 And some syntactic sugar:
 
@@ -1039,37 +1039,44 @@ let todo = tilia({
 
 </section>
 
-<a id="changed"></a>
+<a id="changing"></a>
 
-<section class="doc frp wide-comment changed">
+<section class="doc frp wide-comment changing">
 
-### changed
+### changing
 
 Track key-level writes on a tilia-proxied dict. Takes an accessor function
-`() => dict` so the tracker can follow `source` swaps. Returns `{ entries, mute }`:
-`entries` is a capture function for `watch` that drains accumulated `[key, value]`
-pairs on each cycle; `mute` runs a callback with tracking temporarily suppressed.
-Deletions appear as `[key, undefined]`. Last write wins for same-key overwrites.
+`() => dict` so the tracker can follow `source` swaps. Returns `{ changes, mute }`:
+`changes` is a capture function for `watch` that drains accumulated changes into
+`{ upsert, remove }` on each cycle; `mute` runs a callback with tracking temporarily
+suppressed. `upsert` contains objects captured at write time. `remove` contains keys
+of deleted entries. Last write wins per key.
 
-Each call to `changed()` creates an independent accumulator, so multiple
+Each call to `changing()` creates an independent accumulator, so multiple
 connectors can independently track the same object.
 
 ```typescript
-import { tilia, watch, changed } from "tilia";
+import { tilia, watch, changing } from "tilia";
 
 const data = tilia<Record<string, Item>>({});
 
 // Local DB: always sync
-const { entries } = changed(() => data);
-watch(entries, localDb.upsert);
+const { changes } = changing(() => data);
+watch(changes, ({ upsert, remove }) => {
+  localDb.upsert(upsert);
+  localDb.remove(remove);
+});
 
 // Remote: sync only when online (guard)
-const remote = changed(() => data, () => actor.online);
-watch(remote.entries, service.sync);
+const remote = changing(() => data, () => actor.online);
+watch(remote.changes, ({ upsert, remove }) => {
+  service.upsert(upsert);
+  service.remove(remove);
+});
 
 // Feature code writes full updated objects (or deletes)
 data[item.id] = item;
-delete data[item.id]; // tracked as [id, undefined]
+delete data[item.id]; // appears in remove
 ```
 
 ```rescript
@@ -1078,57 +1085,69 @@ open Tilia
 let data = tilia(Dict.make())
 
 // Local DB: always sync
-let {entries} = changed(() => data)
-watch(entries, localDB.upsert)
+let {changes} = changing(() => data)
+watch(changes, ({upsert, remove}) => {
+  localDB.upsert(upsert)
+  localDB.remove(remove)
+})
 
 // Remote: sync only when online (guard)
-let remote = changed(() => data, ~guard=() => actor.online)
-watch(remote.entries, service.sync)
+let remote = changing(() => data, ~guard=() => actor.online)
+watch(remote.changes, ({upsert, remove}) => {
+  service.upsert(upsert)
+  service.remove(remove)
+})
 
 // Feature code writes full updated objects (or deletes)
 Dict.set(data, item.id, item)
-Dict.delete(data, item.id) // tracked as (id, Undefined)
+Dict.delete(data, item.id) // appears in remove
 ```
 
 #### The guard parameter
 
-When a `guard` function is provided and returns `false`, entries accumulate
+When a `guard` function is provided and returns `false`, changes accumulate
 silently without triggering the watcher. Only the guard is tracked. When the
-guard flips to `true`, all accumulated entries drain and the effect fires with
+guard flips to `true`, all accumulated changes drain and the effect fires with
 the full batch. This uses tilia's natural tracking — no special gating logic.
 
 #### The mute function
 
 Use `mute` to write inbound data (e.g., from a remote server) without
 triggering outbound tracking. Writes inside `mute` are still reactive — the
-UI updates — but they don't appear in `entries`. This prevents feedback loops
+UI updates — but they don't appear in `changes`. This prevents feedback loops
 in bidirectional sync scenarios.
 
 ```typescript
-const { entries, mute } = changed(() => data);
+const { changes, mute } = changing(() => data);
 
-watch(entries, remote.sync);
+watch(changes, ({ upsert, remove }) => {
+  remote.upsert(upsert);
+  remote.remove(remove);
+});
 
 // Inbound: apply remote data without triggering outbound sync
 mute(() => Object.assign(data, remoteData));
 ```
 
 ```rescript
-let {entries, mute} = changed(() => data)
+let {changes, mute} = changing(() => data)
 
-watch(entries, remote->sync)
+watch(changes, ({upsert, remove}) => {
+  remote.upsert(upsert)
+  remote.remove(remove)
+})
 
 // Inbound: apply remote data without triggering outbound sync
 mute(() => Dict.assign(data, remoteData))
 ```
 
-The accessor pattern `() => data` lets `changed` follow data swaps. When
+The accessor pattern `() => data` lets `changing` follow data swaps. When
 `source` replaces the underlying dict (e.g. loading a new page of tabular
 data), the tracker re-registers on the new object automatically. Accumulated
-entries from the old object are preserved and drain together. {.warn}
+changes from the old object are preserved and drain together. {.warn}
 
 **💡 Pro tip:** `source` handles **inbound** filtered queries (loading from
-external into reactive state). `changed` + `watch` handles **outbound** data
+external into reactive state). `changing` + `watch` handles **outbound** data
 sync (pushing reactive writes to external systems). Together they decouple
 persistence from feature logic entirely. {.pro}
 
@@ -2056,16 +2075,23 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.3.0 (beta)</h3>
+      <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Renamed <code class='text-yellow-300'>changed</code> to <code class='text-yellow-300'>changing</code> with simplified API: <code>{ changes, mute }</code> where <code>changes</code> returns <code>{ upsert, remove }</code>.
+        </li>
+      </ul>
+    </div>
+    <div>
       <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.2.0 (beta)</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
-        <li>Improved <code class='text-yellow-300'>changed</code> API to support data loaded via <code class='text-yellow-300'>source</code>.
+        <li>Improved <code class='text-yellow-300'>changing</code> API to support data loaded via <code class='text-yellow-300'>source</code>.
         </li>
       </ul>
     </div>
     <div>
       <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.1.0</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
-        <li>Add <code class="text-yellow-300">changed</code> for dictionary key change tracking.
+        <li>Add <code class="text-yellow-300">changing</code> for dictionary key change tracking.
         </li>
       </ul>
     </div>

@@ -30,8 +30,8 @@ export type Tilia = {
    * dependencies change. It receives a setter and returns the initial value.
    */
   store: <T>(fn: (set: Setter<T>) => T) => T;
-  /** Track key-level writes on a tilia-proxied dict. Returns `{ entries, mute }`. */
-  changed: <T>(accessor: () => Record<string, T>, guard?: () => boolean) => Changed<T>;
+  /** Track key-level writes on a tilia-proxied dict. Returns `{ changes, mute }`. */
+  changing: <T>(accessor: () => Record<string, T>, guard?: () => boolean) => Changing<T>;
   /** @internal */
   _observe(callback: () => void): Observer;
 };
@@ -79,23 +79,27 @@ export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 /** Lift a signal into a computed value that tracks its inner `value` field. */
 export function lift<T>(s: Signal<T>): T;
-export interface Changed<T> {
-  /** Capture function for `watch`. Drains accumulated [key, value] pairs on read. */
-  entries: () => [string, T | undefined][];
+export interface Changes<T> {
+  upsert: T[];
+  remove: string[];
+}
+export interface Changing<T> {
+  /** Capture function for `watch`. Drains accumulated changes into `{ upsert, remove }`. */
+  changes: () => Changes<T>;
   /** Run a callback with tracking temporarily removed. Includes `batch`. */
   mute: (fn: () => void) => void;
 }
 
 /**
  * Track key-level writes on a tilia-proxied dict. Takes an accessor so the
- * tracker follows source swaps. Returns `{ entries, mute }`.
- * `entries` drains accumulated [key, value] pairs. Deletions appear as
- * `[key, undefined]`. Last write wins for same-key overwrites.
+ * tracker follows source swaps. Returns `{ changes, mute }`.
+ * `changes` drains accumulated changes: `upsert` contains objects captured at
+ * write time, `remove` contains keys of deleted entries. Last write wins per key.
  * `mute` runs code without tracking (for inbound sync writes).
  * Each call creates an independent accumulator. When `guard` returns false,
- * entries accumulate silently; when it becomes true, all accumulated entries drain.
+ * changes accumulate silently; when it becomes true, all accumulated changes drain.
  */
-export function changed<T>(accessor: () => Record<string, T>, guard?: () => boolean): Changed<T>;
+export function changing<T>(accessor: () => Record<string, T>, guard?: () => boolean): Changing<T>;
 
 /** @internal */
 export function _observe(callback: () => void): Observer;

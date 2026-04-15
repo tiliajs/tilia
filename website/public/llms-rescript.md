@@ -264,31 +264,43 @@ let machine = set => LoggedOut
 let app = tilia({auth: store(machine)})
 ```
 
-### `changed` (write tracking for sync connectors)
+### `changing` (write tracking for sync connectors)
 
-Track key-level writes on a tilia-proxied dict. Takes an accessor `() => dict<'a>` so the tracker can follow source swaps. Returns `{ entries, mute }`: `entries` drains accumulated `(key, nullable value)` pairs when read by `watch`; `mute` runs a callback with tracking suppressed. Deletions appear as `(key, Undefined)`. Last write wins for same-key overwrites. Each call creates an independent accumulator.
+Track key-level writes on a tilia-proxied dict. Takes an accessor `() => dict<'a>` so the tracker can follow source swaps. Returns `{ changes, mute }`: `changes` drains accumulated changes into `{ upsert, remove }` when read by `watch`; `mute` runs a callback with tracking suppressed. `upsert` contains objects captured at write time. `remove` contains keys of deleted entries. Last write wins per key. Each call creates an independent accumulator.
 
-- `changed(() => data)` -- returns `{ entries, mute }`. `entries` drains accumulated `[key, value]` pairs. `mute(fn)` runs `fn` without tracking (for inbound writes).
-- `changed(() => data, ~guard=() => expr)` -- optional reactive guard. When guard returns false, entries accumulate silently. When guard flips to true, all accumulated entries drain and the effect fires.
+- `changing(() => data)` -- returns `{ changes, mute }`. `changes` drains accumulated changes as `{ upsert: array<'a>, remove: array<string> }`. `mute(fn)` runs `fn` without tracking (for inbound writes).
+- `changing(() => data, ~guard=() => expr)` -- optional reactive guard. When guard returns false, changes accumulate silently. When guard flips to true, all accumulated changes drain and the effect fires.
 
 ```rescript
 open Tilia
 
-type item = {name: string, quantity: int}
-type syncService = {sync: array<(string, nullable<item>)> => unit}
-type localDb = {upsert: array<(string, nullable<item>)> => unit}
+type item = {id: string, name: string, quantity: int}
+type syncService = {
+  upsert: array<item> => unit,
+  remove: array<string> => unit,
+}
+type localDb = {
+  upsert: array<item> => unit,
+  remove: array<string> => unit,
+}
 type actor = {mutable online: bool}
 
 let makeItemsRepo = (service: syncService, localDb: localDb, actor: actor) => {
   let data: dict<item> = tilia(Dict.make())
 
   // Local DB: always sync
-  let {entries} = changed(() => data)
-  watch(entries, localDb.upsert)
+  let {changes} = changing(() => data)
+  watch(changes, ({upsert, remove}) => {
+    localDb.upsert(upsert)
+    localDb.remove(remove)
+  })
 
   // Remote: sync only when online
-  let remote = changed(() => data, ~guard=() => actor.online)
-  watch(remote.entries, service.sync)
+  let remote = changing(() => data, ~guard=() => actor.online)
+  watch(remote.changes, ({upsert, remove}) => {
+    service.upsert(upsert)
+    service.remove(remove)
+  })
 
   // Inbound: apply remote data without triggering outbound sync
   // remote.mute(() => Dict.assign(data, remoteData))
@@ -300,14 +312,17 @@ let makeItemsRepo = (service: syncService, localDb: localDb, actor: actor) => {
 Multiple repos use the same pattern:
 
 ```rescript
-let settings = changed(() => settingsRepo.data, ~guard=() => actor.online)
-watch(settings.entries, settingsService.sync)
+let settings = changing(() => settingsRepo.data, ~guard=() => actor.online)
+watch(settings.changes, ({upsert, remove}) => {
+  settingsService.upsert(upsert)
+  settingsService.remove(remove)
+})
 ```
 
 Architectural summary:
 - `source` handles inbound (loading from external into reactive data)
-- `changed` + `watch` handles outbound (pushing reactive writes to external)
-- `entries` returns `[key, value]` pairs — values captured at write time, deletions as `[key, undefined]`
+- `changing` + `watch` handles outbound (pushing reactive writes to external)
+- `changes` returns `{ upsert, remove }` — upsert contains objects captured at write time, remove contains keys of deleted entries
 - `mute` prevents feedback loops: inbound writes are reactive but not tracked
 - The guard parameter leverages tilia's natural tracking for offline accumulation
 - The accessor pattern `() => data` lets the tracker follow source swaps automatically
@@ -353,8 +368,8 @@ let {cart} = useApp()
 - Functions wired with `derived` take `self` first.
 - Use `source` for async query/re-query flows.
 - Explain `set` as imperative emitter and `previous` as last emitted value.
-- Use `changed(() => data)` + `watch` for outbound sync connectors (persistence, remote sync). Destructure `{ entries, mute }`.
-- `entries` returns `[key, value]` pairs with deletions as `[key, undefined]`. Use the accessor pattern so the tracker follows source swaps.
+- Use `changing(() => data)` + `watch` for outbound sync connectors (persistence, remote sync). Destructure `{ changes, mute }`.
+- `changes` returns `{ upsert, remove }` — upsert contains objects, remove contains keys. Use the accessor pattern so the tracker follows source swaps.
 - Use `mute` for inbound writes to prevent feedback loops in bidirectional sync.
-- `source` = inbound, `changed` = outbound.
+- `source` = inbound, `changing` = outbound.
 

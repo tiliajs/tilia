@@ -236,7 +236,7 @@
       }
     }
 
-    &.changed {
+    &.changing {
       h3 {
         @apply text-pink-300/80;
       }
