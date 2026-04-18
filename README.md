@@ -14,7 +14,7 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
-- 2026-04-15 **5.2.0 (beta)**
+- 2026-04-18 **5.2.0**
   - Improved `changing` API to support sourced data.
   - Renamed change tracking to `changing` with simplified API: `{ changes, mute }` where `changes` returns `{ upsert, remove }`.
 - 2026-04-15 **5.1.0**

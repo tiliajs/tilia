@@ -486,7 +486,7 @@ Before introducing each one, let us show you an overview. {.subtitle}
 | [`source`](#source)     | External/async updates                  |    ❌ No    |     ✅ Yes      | ✅ Yes  | ❌ No                    |
 | [`store`](#store)       | State machine/init logic                |    ❌ No    |      ❌ No      | ✅ Yes  | ✅ Yes                   |
 | [`readonly`](#readonly) | Avoid tracking on (large) readonly data |            |                |        |                         |
-| [`changing`](#changing)  | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes ({changes, mute}) |
+| [`changing`](#changing) | Outbound write tracking for connectors  |    ❌ No    |      ❌ No      |  ❌ No  | ✅ Yes ({changes, mute}) |
 
 And some syntactic sugar:
 
@@ -2095,14 +2095,8 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
   </h2>
   <div class="space-y-6 text-white/90">
     <div>
-      <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.3.0 (beta)</h3>
+      <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-18 5.2.0</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
-        <li>Renamed <code class='text-yellow-300'>changed</code> to <code class='text-yellow-300'>changing</code> with simplified API: <code>{ changes, mute }</code> where <code>changes</code> returns <code>{ upsert, remove }</code>.
-        </li>
-      </ul>
-    </div>
-    <div>
-      <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.2.0 (beta)</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
         <li>Improved <code class='text-yellow-300'>changing</code> API to support data loaded via <code class='text-yellow-300'>source</code>.
         </li>
@@ -2111,7 +2105,7 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
     <div>
       <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-15 5.1.0</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
-        <li>Add <code class="text-yellow-300">changing</code> for dictionary key change tracking.
+        <li>Add change tracking for dictionary key.
         </li>
       </ul>
     </div>
