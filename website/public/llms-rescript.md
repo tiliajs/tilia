@@ -253,6 +253,18 @@ let projectBranch = carve(({derived}) => {
 
 Use this when loading depends on feature fields (`self.projectId`) and keep `previous` to preserve old UI data until new values are ready.
 
+#### Loading state sentinel pattern
+
+To represent a "loading" state, use an empty tilia object as a sentinel. Use `===` identity comparison to distinguish "loading" from "loaded but empty."
+
+```rescript
+let loading = tilia(Dict.make())
+let repo = carve(({derived}) => {
+  data: source(loading, derived(loader(service))),
+})
+if repo.data === loading { /* still loading */ }
+```
+
 ### `store`
 
 Managed state with setup returning current value and receiving a setter.

@@ -16,7 +16,10 @@ let reraise: 'a => 'b = %raw(`function (e) {
   throw e
 }`)
 
-let callCb: ('a, string, 'b) => unit = %raw(`function(cb, k, v) { cb(k, v) }`)
+/** Opaque handle for a [changing] subscriber stored in [meta.changes]. */
+type changeCb
+external makeCb: ((string, 'v) => unit) => changeCb = "%identity"
+let callCb: (changeCb, string, 'a) => unit = %raw(`function(cb, k, v) { cb(k, v) }`)
 
 %%raw(`
 function cleanTrace(stack) {
@@ -116,6 +119,8 @@ module Dict = {
   @send external get: (t<'a>, string) => nullable<'a> = "get"
   @send external set: (t<'a>, string, 'b) => unit = "set"
   @send external delete: (t<'a>, string) => unit = "delete"
+  @get external size: t<'a> => int = "size"
+  @send external forEach: (t<'a>, ('a, string) => unit) => unit = "forEach"
 }
 
 type dict<'a> = Dict.t<'a>
@@ -196,7 +201,7 @@ type rec meta<'a> = {
   /** Per-key clear callbacks for installed computed values. */
   computes: dict<unit => unit>,
   /** Optional listeners for [changes]; each cb receives (key, value) from proxy handler. */
-  mutable changes: nullable<Set.t<'a>>,
+  mutable changes: nullable<Set.t<changeCb>>,
   /** The Proxy wrapping [target]. */
   mutable proxy: 'a,
 }
@@ -212,7 +217,7 @@ type node<'c> = {
   /** See [meta.computes]. */
   computes: dict<unit => unit>,
   /** See [meta.changes]. */
-  mutable changes: nullable<Set.t<'c>>,
+  mutable changes: nullable<Set.t<changeCb>>,
 }
 
 type signal<'a> = {mutable value: 'a}
@@ -508,10 +513,8 @@ let rec set = (
             // Computed value is observed: rebuild and notify if changed
             // Put back previous value to detect changes
             ignore(Reflect.set(target, key, prev))
-            let compile = callback =>
-              compile(node, isArray, target, key, callback)
-            let setter = v =>
-              ignore(set(node, isArray, true, target, key, v))
+            let compile = callback => compile(node, isArray, target, key, callback)
+            let setter = v => ignore(set(node, isArray, true, target, key, v))
             let v = getValue(compile, setter, value)
             set(node, isArray, true, target, key, v)
           }
@@ -522,13 +525,7 @@ let rec set = (
   }
 }
 
-and compile = (
-  node: node<'c>,
-  isArray: bool,
-  target: 'a,
-  key: string,
-  callback: unit => 'b,
-) => {
+and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback: unit => 'b) => {
   let lastValue: lastValue<'b> = {v: %raw(`undefined`)}
   let observer = {o: Undefined}
   // Initial compute has raw callback as rebuild method
@@ -630,11 +627,7 @@ and compile = (
   rebuild()
 }
 
-let deleteProperty = (
-  node: node<'c>,
-  target: 'a,
-  key: string,
-) => {
+let deleteProperty = (node: node<'c>, target: 'a, key: string) => {
   let res = Reflect.deleteProperty(target, key)
   Dict.delete(node.proxied, key)
   switch Dict.get(node.computes, key) {
@@ -652,13 +645,7 @@ let deleteProperty = (
   res
 }
 
-let rec get = (
-  node: node<'c>,
-  meta: meta<'a>,
-  isArray: bool,
-  target: 'a,
-  key: string,
-): 'b => {
+let rec get = (node: node<'c>, meta: meta<'a>, isArray: bool, target: 'a, key: string): 'b => {
   if key === metaKey {
     // We use this to avoid argument removal by compilation (it is not included
     // in JS compiled code).
@@ -687,10 +674,8 @@ let rec get = (
         switch Dict.get(node.proxied, key) {
         | Value(m) => m.proxy
         | _ => {
-            let compile = callback =>
-              compile(node, isArray, target, key, callback)
-            let setter = v =>
-              ignore(set(node, isArray, true, target, key, v))
+            let compile = callback => compile(node, isArray, target, key, callback)
+            let setter = v => ignore(set(node, isArray, true, target, key, v))
             let v = getValue(compile, setter, value)
             ignore(Reflect.set(target, key, v))
             if Typeof.proxiable(v) {
@@ -1017,91 +1002,99 @@ let lift = s => computed(() => s.value)
 type changes<'a> = {upsert: array<'a>, remove: array<string>}
 type changing<'a> = {changes: unit => changes<'a>, mute: (unit => unit) => unit}
 
-let _changing: (unit => 'a, option<unit => bool>) => changing<'a> = %raw(`function(accessor, guard) {
-  var empty = {upsert: [], remove: []};
-  var obj = accessor();
-  var meta = obj[metaKey];
-  if (!meta) throw new Error("changing: argument is not a tilia proxy");
-  var root = meta.root;
-  var pending = {};
-  var counterMeta = proxify(root, {changed: 0});
-  var counter = counterMeta.proxy;
-  var currentMeta = meta;
+type changeCounter = {mutable changed: int}
 
-  function reg(m, cb) {
-    var cbs = m.changes;
-    if (!cbs) { cbs = new Set(); m.changes = cbs; }
-    cbs.add(cb);
-    return cbs;
+let _changing = (accessor: unit => 'a, guard: option<unit => bool>): changing<'a> => {
+  let empty: changes<'a> = {upsert: [], remove: []}
+  let meta = switch _meta(accessor()) {
+  | Value(m) => m
+  | _ => raise("changing: argument is not a tilia proxy")
   }
+  let root = meta.root
+  let pending: dict<nullable<'a>> = Dict.make()
+  let counter = proxify(root, {changed: 0}).proxy
+  let currentMeta = ref(meta)
 
-  function drain() {
-    var u = [], r = [];
-    for (var k in pending) {
-      var v = pending[k];
-      if (v === undefined) r.push(k);
-      else u.push(v);
-      delete pending[k];
+  let register = (m: meta<'a>, cb) => {
+    let cbs = switch m.changes {
+    | Value(cbs) => cbs
+    | _ => {
+        let cbs = Set.make()
+        m.changes = Value(cbs)
+        cbs
+      }
     }
-    return {upsert: u, remove: r};
+    Set.add(cbs, cb)
+    cbs
   }
 
-  function cb(key, value) {
-    pending[key] = value;
-    counter.changed = counter.changed + 1;
+  let drain = () => {
+    let upsert = []
+    let remove = []
+    Dict.forEach(pending, (v, k) => {
+      switch v {
+      | Value(x) => Array.push(upsert, x)
+      | _ => Array.push(remove, k)
+      }
+      Dict.delete(pending, k)
+    })
+    {upsert, remove}
   }
 
-  var currentCbs = reg(meta, cb);
+  let cb = makeCb((key, value) => {
+    Dict.set(pending, key, value)
+    counter.changed = counter.changed + 1
+  })
 
-  function reregister() {
-    var obj = accessor();
-    var m = obj[metaKey];
-    if (m && m !== currentMeta) {
-      currentCbs.delete(cb);
-      currentCbs = reg(m, cb);
-      currentMeta = m;
+  let currentCbs = ref(register(meta, cb))
+
+  let reregister = () => {
+    switch _meta(accessor()) {
+    | Value(m) if m !== currentMeta.contents => {
+        ignore(Set.delete(currentCbs.contents, cb))
+        currentCbs := register(m, cb)
+        currentMeta := m
+      }
+    | _ => ()
     }
   }
 
-  function read() { Reflect.get(counter, "changed"); }
+  // Subscribe the current observer to [counter.changed] through the proxy.
+  let read = () => ignore((Reflect.get(counter, "changed"): int))
 
-  function hasKeys() {
-    for (var k in pending) return true;
-    return false;
+  let capture = switch guard {
+  | Some(g) => () => {
+      reregister()
+      if !g() {
+        empty
+      } else {
+        read()
+        Dict.size(pending) > 0 ? drain() : empty
+      }
+    }
+  | _ => () => {
+      reregister()
+      read()
+      Dict.size(pending) > 0 ? drain() : empty
+    }
   }
 
-  var capture;
-  if (guard) {
-    capture = function() {
-      reregister();
-      if (!guard()) return empty;
-      read();
-      return hasKeys() ? drain() : empty;
-    };
-  } else {
-    capture = function() {
-      reregister();
-      read();
-      return hasKeys() ? drain() : empty;
-    };
-  }
-
-  function mute(fn) {
-    reregister();
-    currentCbs.delete(cb);
-    if (root.lock) {
-      fn();
+  let mute = fn => {
+    reregister()
+    ignore(Set.delete(currentCbs.contents, cb))
+    if root.lock {
+      fn()
     } else {
-      root.lock = true;
-      fn();
-      root.lock = false;
-      flush(root);
+      root.lock = true
+      fn()
+      root.lock = false
+      flush(root)
     }
-    currentCbs.add(cb);
+    Set.add(currentCbs.contents, cb)
   }
 
-  return { changes: capture, mute: mute };
-}`)
+  {changes: capture, mute}
+}
 
 external identity: 'a => 'b = "%identity"
 let changing = (accessor, ~guard=?) => _changing(identity(accessor), guard)

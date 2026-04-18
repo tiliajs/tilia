@@ -811,78 +811,99 @@ function lift(s) {
   return computed(() => s.value);
 }
 
-let _changing = (function(accessor, guard) {
-  var empty = {upsert: [], remove: []};
-  var obj = accessor();
-  var meta = obj[metaKey];
-  if (!meta) throw new Error("changing: argument is not a tilia proxy");
-  var root = meta.root;
-  var pending = {};
-  var counterMeta = proxify(root, {changed: 0});
-  var counter = counterMeta.proxy;
-  var currentMeta = meta;
-
-  function reg(m, cb) {
-    var cbs = m.changes;
-    if (!cbs) { cbs = new Set(); m.changes = cbs; }
-    cbs.add(cb);
-    return cbs;
-  }
-
-  function drain() {
-    var u = [], r = [];
-    for (var k in pending) {
-      var v = pending[k];
-      if (v === undefined) r.push(k);
-      else u.push(v);
-      delete pending[k];
+function changing(accessor, guard) {
+  let empty_upsert = [];
+  let empty_remove = [];
+  let empty = {
+    upsert: empty_upsert,
+    remove: empty_remove
+  };
+  let m = Reflect.get(accessor(), metaKey);
+  let meta;
+  meta = (m == null) ? raise("changing: argument is not a tilia proxy") : m;
+  let root = meta.root;
+  let pending = new Map();
+  let counter = proxify(root, {
+    changed: 0
+  }).proxy;
+  let currentMeta = {
+    contents: meta
+  };
+  let register = (m, cb) => {
+    let cbs = m.changes;
+    let cbs$1;
+    let exit = 0;
+    if (cbs == null) {
+      exit = 1;
+    } else {
+      cbs$1 = cbs;
     }
-    return {upsert: u, remove: r};
-  }
-
-  function cb(key, value) {
-    pending[key] = value;
-    counter.changed = counter.changed + 1;
-  }
-
-  var currentCbs = reg(meta, cb);
-
-  function reregister() {
-    var obj = accessor();
-    var m = obj[metaKey];
-    if (m && m !== currentMeta) {
-      currentCbs.delete(cb);
-      currentCbs = reg(m, cb);
-      currentMeta = m;
+    if (exit === 1) {
+      let cbs$2 = new Set();
+      m.changes = cbs$2;
+      cbs$1 = cbs$2;
     }
-  }
-
-  function read() { Reflect.get(counter, "changed"); }
-
-  function hasKeys() {
-    for (var k in pending) return true;
-    return false;
-  }
-
-  var capture;
-  if (guard) {
-    capture = function() {
-      reregister();
-      if (!guard()) return empty;
-      read();
-      return hasKeys() ? drain() : empty;
+    cbs$1.add(cb);
+    return cbs$1;
+  };
+  let drain = () => {
+    let upsert = [];
+    let remove = [];
+    pending.forEach((v, k) => {
+      if (v == null) {
+        remove.push(k);
+      } else {
+        upsert.push(v);
+      }
+      pending.delete(k);
+    });
+    return {
+      upsert: upsert,
+      remove: remove
     };
-  } else {
-    capture = function() {
+  };
+  let cb = (key, value) => {
+    pending.set(key, value);
+    counter.changed = counter.changed + 1 | 0;
+  };
+  let currentCbs = {
+    contents: register(meta, cb)
+  };
+  let reregister = () => {
+    let m = Reflect.get(accessor(), metaKey);
+    if ((m == null) || m === currentMeta.contents) {
+      return;
+    } else {
+      currentCbs.contents.delete(cb);
+      currentCbs.contents = register(m, cb);
+      currentMeta.contents = m;
+      return;
+    }
+  };
+  let capture = guard !== undefined ? () => {
       reregister();
-      read();
-      return hasKeys() ? drain() : empty;
+      if (guard()) {
+        Reflect.get(counter, "changed");
+        if (pending.size > 0) {
+          return drain();
+        } else {
+          return empty;
+        }
+      } else {
+        return empty;
+      }
+    } : () => {
+      reregister();
+      Reflect.get(counter, "changed");
+      if (pending.size > 0) {
+        return drain();
+      } else {
+        return empty;
+      }
     };
-  }
-
-  function mute(fn) {
+  let mute = fn => {
     reregister();
-    currentCbs.delete(cb);
+    currentCbs.contents.delete(cb);
     if (root.lock) {
       fn();
     } else {
@@ -891,14 +912,12 @@ let _changing = (function(accessor, guard) {
       root.lock = false;
       flush(root);
     }
-    currentCbs.add(cb);
-  }
-
-  return { changes: capture, mute: mute };
-});
-
-function changing(accessor, guard) {
-  return _changing(accessor, guard);
+    currentCbs.contents.add(cb);
+  };
+  return {
+    changes: capture,
+    mute: mute
+  };
 }
 
 let tilia = _ctx.tilia;

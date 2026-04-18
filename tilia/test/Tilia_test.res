@@ -450,6 +450,28 @@ describe("Tilia", () => {
     expect(m.called).toBe(true)
   })
 
+  it("Should observe null values", () => {
+    let m = {called: false}
+    let p = person()
+    let p = tilia(p)
+    let o = _observe(() => m.called = true)
+    let phone = p.phone
+    expect(phone === Undefined).toBe(true)
+    _ready(o, true)
+
+    p.phone = Null
+    expect(m.called).toBe(true)
+    m.called = false
+
+    let o2 = _observe(() => m.called = true)
+    let phone2 = p.phone
+    expect(phone2 === Null).toBe(true)
+    _ready(o2, true)
+
+    p.phone = Value("555")
+    expect(m.called).toBe(true)
+  })
+
   it("Should notify if update before ready", () => {
     let m = {called: false}
     let p = person()
@@ -1442,6 +1464,25 @@ describe("Tilia", () => {
     }
   })
 
+  it("Should load source with null initial value", async () => {
+    let loader = async (_prev, set: nullable<person> => unit) => {
+      await sleep()
+      set(Value(person()))
+    }
+
+    let init: nullable<person> = Null
+    let c = tilia({
+      contents: source(init, loader),
+    })
+    expect(c.contents === Null).toBe(true)
+
+    await sleep()
+    switch c.contents {
+    | Value(p) => expect(p.name).toBe("John")
+    | _ => throw("Expected person")
+    }
+  })
+
   it("Should wrap readonly value", () => {
     let p = person()
     let app = tilia({
@@ -2011,5 +2052,27 @@ describe("Tilia", () => {
       upsert: [row("Buy milk", 3), row("Walk dog", 2)],
       remove: [],
     })
+  })
+
+  it("Should use sentinel object as loading state with changing", () => {
+    let loading = tilia(Dict.make())
+
+    let repo = tilia({data: loading})
+
+    let result = ref(none)
+    let {changes} = changing(() => repo.data)
+    watch(changes, e => result := e)
+
+    expect(repo.data === loading).toBe(true)
+    expect(result.contents).toEqual(none)
+
+    let page = Dict.make()
+    Dict.set(page, "todo-1", row("Buy milk", 1))
+    repo.data = page
+
+    expect(repo.data === loading).toBe(false)
+
+    Dict.set(repo.data, "todo-1", row("Buy milk", 3))
+    expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
   })
 })

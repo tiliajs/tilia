@@ -789,6 +789,26 @@ let makeProject = service =>
 
 **💡 Pro tip:** Make sure that the `source` callback **is not async**. Tilia tracks reactive reads during synchronous execution only. Read dependencies synchronously, then delegate async work.
 
+**💡 Pro tip:** To represent a "loading" state, use an empty tilia object as a sentinel: {.pro}
+
+```typescript
+const loading = tilia({});
+const repo = carve(({ derived }) => ({
+  data: source(loading, derived(loader(service))),
+}));
+if (repo.data === loading) { /* still loading */ }
+```
+
+```rescript
+let loading = tilia(Dict.make())
+let repo = carve(({derived}) => {
+  data: source(loading, derived(loader(service))),
+})
+if repo.data === loading { /* still loading */ }
+```
+
+Use `===` identity comparison to distinguish "loading" from "loaded but empty." {.pro}
+
 </section>
 
 <a id="store"></a>

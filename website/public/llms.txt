@@ -45,6 +45,7 @@ This index is optimized for AI agents and coding assistants.
   - recommended example: `source(empty(), derived(loader(service)))` where loader sets `stale(previous)` before async fetch
   - when used with `carve` + `derived(loader)`, `previous` should be used to keep stale UI data visible during reload (no blink)
   - the `derived(loader)` pattern enables conditional loader strategies based on sibling feature fields
+  - loading state sentinel pattern: use `tilia({})` as initial value; check with `===` identity comparison to distinguish "loading" from "loaded but empty"
 - For `changing`, always explain:
   - takes an accessor `() => dict` so the tracker can follow source swaps
   - tracks key-level writes on a tilia-proxied dict
