@@ -45,7 +45,7 @@
     "esbuild-node-externals": "^1.18.0",
     "rescript": "^12.2.0",
     "vitest": "^1.0.0",
-    "vitest-bdd": "1.0.0"
+    "vitest-bdd": "^1.0.1"
   },
   "clean-package": {
     "remove": [
