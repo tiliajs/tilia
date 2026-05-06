@@ -1,8 +1,8 @@
 ---
 layout: ../components/Layout.astro
 title: Tilia Documentation - Complete API Reference & Guide
-description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, lift, source, store functions and React integration with useTilia, and useComputed hooks.
-keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, lift, source, store, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
+description: Complete documentation for Tilia state management library. Learn tilia, carve, observe, watch, signal, batch, computed, derived, lift, source, store, changing functions and React integration with useTilia, and useComputed hooks.
+keywords: tilia documentation, API reference, tila, carve, domain-driven design, ddd, observe, watch, signal, computed, derived, lift, source, store, changing, useTilia, useComputed, React hook, state management guide, TypeScript tutorial, ReScript tutorial, pull reactivity, push reactivity
 ---
 
 <main class="container mx-auto px-6 py-8 max-w-4xl">
@@ -1402,117 +1402,10 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
 
 ### Internal Architecture
 
-#### Proxy Handler Structure
+#### Library developer helpers
 
-Here is a simplified representation of the Proxy handler used by Tilia:
-
-```typescript
-// Simplified for understanding
-const createHandler = (context: TiliaContext) => ({
-  get(target: object, key: string | symbol, receiver: unknown) {
-    // 1. Ignore symbols and internal properties
-    if (typeof key === "symbol" || key.startsWith("_")) {
-      return Reflect.get(target, key, receiver);
-    }
-    
-    // 2. Record dependency if an observer is active
-    if (context.currentObserver !== null) {
-      context.addDependency(context.currentObserver, target, key);
-    }
-    
-    // 3. Retrieve the value
-    const value = Reflect.get(target, key, receiver);
-    
-    // 4. If it's an object, wrap it recursively
-    if (isObject(value) && !isProxy(value)) {
-      return createProxy(value, context);
-    }
-    
-    // 5. If it's a computed, execute it
-    if (isComputed(value)) {
-      return executeComputed(value, context);
-    }
-    
-    return value;
-  },
-  
-  set(target: object, key: string | symbol, value: unknown, receiver: unknown) {
-    const oldValue = Reflect.get(target, key, receiver);
-    
-    // 1. Perform the modification
-    const result = Reflect.set(target, key, value, receiver);
-    
-    // 2. Notify if the value changed
-    if (!Object.is(oldValue, value)) {
-      context.notify(target, key);
-    }
-    
-    return result;
-  },
-  
-  deleteProperty(target: object, key: string | symbol) {
-    const result = Reflect.deleteProperty(target, key);
-    
-    // Notify of the deletion
-    if (result) {
-      context.notify(target, key);
-    }
-    
-    return result;
-  },
-  
-  ownKeys(target: object) {
-    // Track iteration over keys
-    if (context.currentObserver !== null) {
-      context.addDependency(context.currentObserver, target, KEYS_SYMBOL);
-    }
-    return Reflect.ownKeys(target);
-  },
-});
-```
-
-#### Lifecycle of a computed
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    INITIAL STATE                            │
-│  computed created but not yet executed                      │
-│  cache = EMPTY                                              |
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼ (first read)
-┌─────────────────────────────────────────────────────────────┐
-│                    EXECUTION                                │
-│  1. currentObserver = this computed                         │
-│  2. Execution of the function                               │
-│  3. Dependencies recorded during execution                  │
-│  4. cache = result                                          |
-│  5. currentObserver = previous observer                     |
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼ (subsequent reads)
-┌─────────────────────────────────────────────────────────────┐
-│                    CACHE HIT                                │
-│  cache exists → return cache directly                       │
-│  No recalculation                                           │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼ (dependency changes)
-┌─────────────────────────────────────────────────────────────┐
-│                    INVALIDATION                             │
-│  1. SET detected on a dependency                            │
-│  2. if observed : value recomputed                          |
-│  3. value changed ? → notification propagated to observers  |
-│  4. not observed : cache reset                              |
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼ (next read)
-┌─────────────────────────────────────────────────────────────┐
-│                    RE-EXECUTION                             │
-│  Same process as EXECUTION                                  │
-│  Potentially different new dependencies                     │
-└─────────────────────────────────────────────────────────────┘
-```
+Tilia exposes a small internal surface for libraries that build on top of the
+reactive graph. These helpers are not needed in ordinary application code (check source code).
 
 #### Forest Mode
 
@@ -1969,7 +1862,7 @@ const state = tilia({
 
 <div class="flex flex-row space-x-4 justify-center items-center w-full gap-12">
   <a href="/compare"
-    class="bg-gradient-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
+    class="bg-linear-to-r from-green-400 to-blue-500 px-6 py-3 rounded-full font-bold hover:scale-105 transform transition">
     Compare with...
   </a>
   <a href="https://github.com/tiliajs/tilia"
@@ -1979,7 +1872,7 @@ const state = tilia({
 </div>
 
 <div class="bg-black/20 backdrop-blur-lg rounded-xl md:p-8 p-4 border border-white/20 my-8">
-  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-blue-500">
+  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-linear-to-r from-green-400 to-blue-500">
     Main Features
   </h2>
   <div class="grid lg:grid-cols-2 lg:gap-6 gap-3">
@@ -2056,7 +1949,7 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
 </section>
 
 <section class="doc examples">
-  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-pink-900">
+  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-linear-to-r from-yellow-200 to-pink-900">
     Examples
   </h2>
   <div class="space-y-4 text-lg text-white/90">
@@ -2073,7 +1966,7 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
 </section>
 
 <section class="doc translations">
-  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-purple-200 to-cyan-900">
+  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-linear-to-r from-purple-200 to-cyan-900">
     Complete Guides
   </h2>
   <div class="space-y-4 text-lg text-white/90">
@@ -2090,7 +1983,7 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
 </section>
 
 <section class="doc changelog">
-  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-gradient-to-r from-red-300 to-teal-900">
+  <h2 class="text-3xl font-bold mb-6 text-transparent bg-clip-text bg-linear-to-r from-red-300 to-teal-900">
     Changelog
   </h2>
   <div class="space-y-6 text-white/90">
@@ -2098,6 +1991,8 @@ Tilia's minimal, expressive API and focus on modeling state and logic directly i
       <h3 class="text-xl font-bold text-green-200/80 mb-2">2026-04-18 5.2.0</h3>
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
       <ul class="list-disc list-outside space-y-1 ml-4 text-sm md:text-base">
+        <li>Add <code class='text-yellow-300'>_canopy</code> for library developers to inspect which keys have observers.
+        </li>
         <li>Improved <code class='text-yellow-300'>changing</code> API to support data loaded via <code class='text-yellow-300'>source</code>.
         </li>
       </ul>

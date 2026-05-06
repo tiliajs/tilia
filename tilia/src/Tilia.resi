@@ -297,6 +297,17 @@ let _clear: observer => unit
  */
 let _meta: 'a => nullable<'b>
 
+type canopy = {
+  live: Set.t<string>,
+  idle: Set.t<string>,
+}
+
+/**
+ * Internal: Inspect which keys have observers (live) versus
+ * the ones that are not observed (idle).
+ */
+let _canopy: 'a => canopy
+
 /** 
  * Internal: The default tilia context.
  */

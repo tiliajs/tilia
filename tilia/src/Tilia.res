@@ -102,6 +102,7 @@ function(v) {
 module Object = {
   type descriptor<'a> = {writable: bool, enumerable: bool, configurable: bool, value: 'a}
   external hasOwn: ('a, string) => bool = "Object.hasOwn"
+  external keys: 'a => array<string> = "Object.keys"
   external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
     "Object.getOwnPropertyDescriptor"
   let readonly: ('a, string) => bool = (o, k) => {
@@ -227,6 +228,10 @@ type node<'c> = {
 type signal<'a> = {mutable value: 'a}
 type readonly<'a> = {data: 'a}
 type setter<'a> = 'a => unit
+type canopy = {
+  live: Set.t<string>,
+  idle: Set.t<string>,
+}
 type deriver<'p> = {
   /** 
    * Return a derived value to be inserted into a tilia object. This is like
@@ -317,9 +322,7 @@ let unwatch = (observer: observer, prune: bool) => {
       // Add to gc set
       Set.add(root.gc.active, watchers)
 
-      // Back-propagate: if this watcher had a computed, clear it.
-      // The computed's clear() will recursively clear its own
-      // upstream observers, creating the domino effect.
+      // Prune cold computed dependencies on disposal.
       if prune {
         switch Dict.get(watchers.computes, watchers.key) {
         | Value(clear) => clear(true)
@@ -634,24 +637,12 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
   compute.rebuild = rebuild
 
   let clear = reset => {
-    // Clear our cache: clears observer
     switch observer.o {
     | Value(o) => {
-        // No more active listeners.
-
-        // On back propagation, if we call clear without `notify` it creates weird side effects.
-        // We need to figure out how to cleanup correctly.
-        // This does not work (it breaks many other use cases).
-        // THIS SHOULD WORK... ?
-        // ??
         _clear(o)
-        // We do not have any observers: reset value.
-        // Make sure the previous proxy (if any) is removed so that it is not
-        // served in place of triggering the compute.
-        // Empty in case "ready" is called after clear (but we only
-        // do this for computed).
         ignore(%raw(`o.observing.length = 0`))
         if reset {
+          // Keep lastValue, but force the next read to rebuild.
           ignore(Dict.delete(node.proxied, key))
           ignore(Reflect.set(target, key, compiled))
         }
@@ -1034,6 +1025,23 @@ let readonly = (data: 'a) => {
 }
 
 let lift = s => computed(() => s.value)
+
+let _canopy = proxy => {
+  let meta = switch _meta(proxy) {
+  | Value(m) => m
+  | _ => raise("_canopy: argument is not a tilia proxy")
+  }
+  flush(meta.root)
+  let live = Set.make()
+  let idle = Set.make()
+  Object.keys(meta.target)->Array.forEach(key => {
+    switch Dict.get(meta.observed, key) {
+    | Value(w) if w.state === Pristine && Set.size(w.observers) > 0 => Set.add(live, key)
+    | _ => Set.add(idle, key)
+    }
+  })
+  {live, idle}
+}
 
 type changes<'a> = {upsert: array<'a>, remove: array<string>}
 type changing<'a> = {changes: unit => changes<'a>, mute: (unit => unit) => unit}

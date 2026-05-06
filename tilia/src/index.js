@@ -3,6 +3,7 @@ export {
   _ctx,
   _done,
   _meta,
+  _canopy,
   _observe,
   _ready,
   batch,

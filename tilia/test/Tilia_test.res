@@ -2127,11 +2127,11 @@ describe("Tilia", () => {
   it("Should not re-trigger computed after all downstream observers are cleared", () => {
     let query = tilia({value: "initial value"})
 
-    let computedCalls = ref(0)
+    let calls = ref(0)
     let p = tilia({
       label: computed(
         () => {
-          computedCalls := computedCalls.contents + 1
+          calls := calls.contents + 1
           "computed: " ++ query.value
         },
       ),
@@ -2139,7 +2139,7 @@ describe("Tilia", () => {
 
     // Read to install the computed
     expect(p.label).toBe("computed: initial value")
-    expect(computedCalls.contents).toBe(1)
+    expect(calls.contents).toBe(1)
 
     // Terminal observer watches p.label
     let m = {called: false}
@@ -2147,7 +2147,7 @@ describe("Tilia", () => {
     expect(p.label).toBe("computed: initial value")
     _ready(o, true)
     // Second read should be cached, no extra call
-    expect(computedCalls.contents).toBe(1)
+    expect(calls.contents).toBe(1)
 
     // Clear terminal observer
     _clear(o)
@@ -2159,6 +2159,66 @@ describe("Tilia", () => {
     // the computed should NOT be called again and computedCalls stays at 1.
     // If it's still warm, it will be called (computedCalls goes to 2).
     // This assertion reveals whether the computed stays warm after losing observers.
-    expect(computedCalls.contents).toBe(1)
+    expect(calls.contents).toBe(1)
+  })
+
+  // === _canopy developer helper ===
+
+  it("Should list keys without observers in _canopy idle set", () => {
+    let table = TestObject.make()
+    TestObject.set(table, "todo-1", "Buy milk")
+    TestObject.set(table, "todo-2", "Walk dog")
+    let rows = tilia(table)
+
+    let c = _canopy(rows)
+
+    expect(Set.size(c.live)).toBe(0)
+    expect(Set.size(c.idle)).toBe(2)
+    expect(c.idle->Set.has("todo-1")).toBe(true)
+    expect(c.idle->Set.has("todo-2")).toBe(true)
+  })
+
+  it("Should list observed keys in _canopy live set", () => {
+    let table = TestObject.make()
+    TestObject.set(table, "todo-1", "Buy milk")
+    TestObject.set(table, "todo-2", "Walk dog")
+    let rows = tilia(table)
+
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    expect(TestObject.get(rows, "todo-1")).toBe("Buy milk")
+    _ready(o, true)
+
+    let c = _canopy(rows)
+
+    expect(Set.size(c.live)).toBe(1)
+    expect(Set.size(c.idle)).toBe(1)
+    expect(c.live->Set.has("todo-1")).toBe(true)
+    expect(c.idle->Set.has("todo-2")).toBe(true)
+
+    _clear(o)
+
+    let c = _canopy(rows)
+
+    expect(Set.size(c.live)).toBe(0)
+    expect(Set.size(c.idle)).toBe(2)
+    expect(c.idle->Set.has("todo-1")).toBe(true)
+    expect(c.idle->Set.has("todo-2")).toBe(true)
+  })
+
+  it("Should only list current keys in _canopy", () => {
+    let table = TestObject.make()
+    TestObject.set(table, "todo-1", "Buy milk")
+    TestObject.set(table, "todo-2", "Walk dog")
+    let rows = tilia(table)
+
+    TestObject.remove(rows, "todo-2")
+
+    let c = _canopy(rows)
+
+    expect(Set.size(c.live)).toBe(0)
+    expect(Set.size(c.idle)).toBe(1)
+    expect(c.idle->Set.has("todo-1")).toBe(true)
+    expect(c.idle->Set.has("todo-2")).toBe(false)
   })
 })

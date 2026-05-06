@@ -831,6 +831,35 @@ function lift(s) {
   return computed(() => s.value);
 }
 
+function _canopy(proxy) {
+  let m = Reflect.get(proxy, metaKey);
+  let meta;
+  meta = (m == null) ? raise("_canopy: argument is not a tilia proxy") : m;
+  flush(meta.root);
+  let live = new Set();
+  let idle = new Set();
+  Object.keys(meta.target).forEach(key => {
+    let w = meta.observed.get(key);
+    if (w !== null && w !== undefined) {
+      if (w.state === "Pristine" && w.observers.size > 0) {
+        live.add(key);
+      } else {
+        idle.add(key);
+      }
+      return;
+    }
+    if (w === null) {
+      idle.add(key);
+      return;
+    }
+    idle.add(key);
+  });
+  return {
+    live: live,
+    idle: idle
+  };
+}
+
 function changing(accessor, guard) {
   let empty_upsert = [];
   let empty_remove = [];
@@ -984,6 +1013,7 @@ export {
   _ready,
   _clear,
   _meta,
+  _canopy,
   _ctx,
 }
 /*  Not a pure module */

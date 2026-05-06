@@ -102,6 +102,10 @@ export interface Changing<T> {
 export function changing<T>(accessor: () => Record<string, T>, guard?: () => boolean): Changing<T>;
 
 /** @internal */
+export type Canopy = { live: Set<string>; idle: Set<string> };
+/** @internal */
+export function _canopy<T extends object>(tree: T): Canopy;
+/** @internal */
 export function _observe(callback: () => void): Observer;
 /** @internal */
 export function _done(observer: Observer): void;

@@ -42,6 +42,10 @@ type observer
 type signal<'a> = {mutable value: 'a}
 type readonly<'a> = {data: 'a}
 type setter<'a> = 'a => unit
+type canopy = {
+  live: Set.t<string>,
+  idle: Set.t<string>,
+}
 type deriver<'p> = {
   /** 
    * Return a derived value to be inserted into a tilia object. This is like
@@ -306,6 +310,12 @@ let _clear: observer => unit
  */
 let _meta: 'a => nullable<'b>
 
+/**
+ * Internal: Inspect which keys have observers (live) versus
+ * the ones that are not observed (idle).
+ */
+let _canopy: 'a => canopy
+
 /** 
  * Internal: The default tilia context.
  */
@@ -321,6 +331,8 @@ export type Observer = { readonly [o]: true };
 export type Signal<T> = { value: T };
 export type Readonly<T> = { readonly data: T };
 export type Setter<T> = (v: T) => void;
+/** @internal */
+export type Canopy = { live: Set<string>; idle: Set<string> };
 export type Deriver<U> = { derived: <T>(fn: (p: U) => T) => T };
 export type Tilia = {
   tilia: <T>(branch: T) => T;
@@ -364,6 +376,7 @@ export interface Changing<T> {
 export function changing<T>(accessor: () => Record<string, T>, guard?: () => boolean): Changing<T>;
 
 // Internal
+export function _canopy<T extends object>(tree: T): Canopy;
 export function _observe(callback: () => void): Observer;
 export function _done(observer: Observer): void;
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;
@@ -371,6 +384,10 @@ export function _clear(observer: Observer): void;
 export function _meta<T>(tree: T): unknown;
 export const _ctx: Tilia;
 ```
+
+`_canopy(tree)` is an internal helper for library developers. It flushes
+pending notifications, then returns current own keys split into `live` (has
+observers) and `idle` (no observers).
 
 ## Basic Example
 
