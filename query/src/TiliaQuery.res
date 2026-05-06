@@ -5,91 +5,104 @@ type loadable<'a> =
 
 module Dict = {
   type t<'a>
-  @new external make: unit => t<'a> = "Map"
-  @send external get: (t<'a>, string) => nullable<'a> = "get"
-  @send external set: (t<'a>, string, 'a) => unit = "set"
+  let make: unit => t<'a> = %raw(`() => ({})`)
+  @val @scope("Reflect") external get: (t<'a>, string) => nullable<'a> = "get"
+  @val @scope("Reflect") external getKnown: (t<'a>, string) => 'a = "get"
+  @val @scope("Reflect") external set: (t<'a>, string, 'a) => bool = "set"
 }
 
-type t<'a> = {
+type dict<'a>
+
+module Object = {
+  @val @scope("Reflect") external get: (dict<'a>, string) => nullable<'a> = "get"
+  @val @scope("Object") external fromEntries: array<(string, 'a)> => dict<'a> = "fromEntries"
+}
+
+module Json = {
+  let sortedStringify: 'a => string = %raw(`
+function sortedStringify(value) {
+  return JSON.stringify(value, function(_key, value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const sorted = {};
+      for (const key of Object.keys(value).sort()) {
+        sorted[key] = value[key];
+      }
+      return sorted;
+    }
+    return value;
+  });
+}`)
+}
+
+type t<'a, 'query> = {
   get: string => loadable<'a>,
-  find: string => loadable<array<string>>,
+  array: 'query => loadable<array<'a>>,
+  dict: 'query => loadable<dict<'a>>,
 }
 
-type data<'a> = {
+type data<'a, 'query> = {
   id: 'a => string,
-  fetch: string => promise<array<'a>>,
-  objects: Dict.t<'a>,
-  queries: Dict.t<Tilia.signal<loadable<array<string>>>>,
+  fetch: 'query => promise<array<'a>>,
+  cache: Dict.t<'a>,
+  queries: Dict.t<loadable<array<string>>>,
 }
 
-let run = async (data, key, set) => {
-  let list = await data.fetch(key)
+let run = async (data, cacheKey, filter) => {
+  let list = await data.fetch(filter)
   let ids = list->Array.map(item => {
     let id = data.id(item)
-    Dict.set(data.objects, id, item)
+    ignore(Dict.set(data.cache, id, item))
     id
   })
-  set(Loaded(ids))
+  ignore(Dict.set(data.queries, cacheKey, Loaded(ids)))
 }
 
-let make = (~id, ~fetch, ()) => {
+let make = (~id, ~fetch, ~key=Json.sortedStringify, ()) => {
+  open Tilia
   let data = {
     id,
     fetch,
-    objects: Dict.make(),
-    queries: Dict.make(),
+    cache: Dict.make()->tilia,
+    queries: Dict.make()->tilia,
   }
 
   let get = id =>
-    switch Dict.get(data.objects, id) {
+    switch Dict.get(data.cache, id) {
     | Value(item) => Loaded(item)
     | _ => NotFound
     }
 
-  let find = key => {
-    let query = switch Dict.get(data.queries, key) {
+  let query = filter => {
+    let cacheKey = key(filter)
+    switch Dict.get(data.queries, cacheKey) {
     | Value(query) => query
     | _ => {
-        let (query, set) = Tilia.signal(Loading)
-        Dict.set(data.queries, key, query)
-        ignore(run(data, key, set))
-        query
+        ignore(Dict.set(data.queries, cacheKey, Loading))
+        ignore(run(data, cacheKey, filter))
+        Loading
       }
     }
-    query.value
   }
 
-  {get, find}
-}
-
-let toArray = repo =>
-  list =>
-    switch list {
+  let array = filter =>
+    switch query(filter) {
     | Loading => Loading
     | NotFound => NotFound
-    | Loaded(ids) => {
-        let loaded = ids->Array.reduce([], (acc, id) =>
-          switch repo.get(id) {
-          | Loaded(item) => [...acc, item]
-          | _ => acc
-          }
-        )
-        Loaded(loaded)
-      }
+    | Loaded(ids) => Loaded(ids->Array.map(id => computed(() => Dict.getKnown(data.cache, id)))->tilia)
     }
 
+  let dict = filter =>
+    switch query(filter) {
+    | Loading => Loading
+    | NotFound => NotFound
+    | Loaded(ids) =>
+      Loaded(
+        ids
+        ->Array.map(id => (id, computed(() => Dict.getKnown(data.cache, id))))
+        ->Object.fromEntries
+        ->Tilia.tilia,
+      )
+    }
 
-/*
-
-
-let byId => repo => list => switch list.value {
-  | Loading => Loading
-  | NotFound => NotFound
-  | Loaded(ids) => Object.fromValues(list->Array.map(id => (id, lift(repo.getUnsafe(id))))
+  {get, array, dict}
 }
-
-// if in the code we use
-data = list->byId(repo)
-bob = data['xxx'] this is reactive and focused on repo.getUnsafe read. So any changes to the object id can be pushed by updating the tilia cache in repo.getUnsafe.
-
- */
