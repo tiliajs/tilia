@@ -1,0 +1,27 @@
+{
+  "name": "@tilia/query",
+  "sources": [
+    {
+      "dir": "src",
+      "public": [
+        "TiliaQuery"
+      ],
+      "subdirs": true
+    },
+    {
+      "dir": "test",
+      "type": "dev"
+    }
+  ],
+  "package-specs": {
+    "module": "esmodule",
+    "in-source": true
+  },
+  "suffix": ".mjs",
+  "dependencies": [
+    "tilia"
+  ],
+  "dev-dependencies": [
+    "vitest-bdd"
+  ]
+}

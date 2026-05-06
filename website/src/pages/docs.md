@@ -1394,7 +1394,7 @@ With this helper, the TodoView does not depend on `app.todos.selected.id` but on
 
 <a id="technical"></a>
 
-## Deep Technical Reference {.api}
+## Technical Reference {.api}
 
 <a id="architecture"></a>
 

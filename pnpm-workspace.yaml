@@ -1,5 +1,6 @@
 packages:
   - tilia
+  - query
   - react
   - todo-app-ts
   - website
