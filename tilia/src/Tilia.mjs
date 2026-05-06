@@ -78,7 +78,7 @@ let setError = (function (root, e) {
   }
 });
 
-function observeKey(observed, key) {
+function observeKey(observed, key, computes) {
   let w = observed.get(key);
   if (w !== null && w !== undefined) {
     return w;
@@ -88,7 +88,8 @@ function observeKey(observed, key) {
     state: "Pristine",
     key: key,
     observed: observed,
-    observers: new Set()
+    observers: new Set(),
+    computes: computes
   };
   observed.set(key, w$1);
   return w$1;
@@ -122,12 +123,21 @@ function flush(root) {
   reraise(e);
 }
 
-function _clear(observer) {
+function unwatch(observer, prune) {
   let root = observer.root;
   observer.observing.forEach(watchers => {
-    if (watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0) {
-      root.gc.active.add(watchers);
+    if (!(watchers.state === "Pristine" && watchers.observers.delete(observer) && watchers.observers.size === 0)) {
       return;
+    }
+    root.gc.active.add(watchers);
+    if (!prune) {
+      return;
+    }
+    let clear = watchers.computes.get(watchers.key);
+    if (clear == null) {
+      return;
+    } else {
+      return clear(true);
     }
   });
   let o = root.observer;
@@ -143,6 +153,10 @@ function _clear(observer) {
   }
 }
 
+function _clear(observer) {
+  unwatch(observer, true);
+}
+
 function _ready(observer, notifyIfChanged) {
   observer.observing.find((w, idx) => {
     let match = w.state;
@@ -155,11 +169,11 @@ function _ready(observer, notifyIfChanged) {
         break;
     }
     if (notifyIfChanged) {
-      _clear(observer);
+      unwatch(observer, false);
       observer.notify();
       return true;
     }
-    let w$1 = observeKey(w.observed, w.key);
+    let w$1 = observeKey(w.observed, w.key, w.computes);
     w$1.observers.add(observer);
     observer.observing[idx] = w$1;
     return false;
@@ -187,7 +201,7 @@ function notify(root, observed, key) {
   watchers.state = "Changed";
   let expired = root.expired;
   watchers.observers.forEach(observer => {
-    _clear(observer);
+    unwatch(observer, false);
     expired.add(observer);
   });
   let match = root.observer;
@@ -231,7 +245,7 @@ function set(node, isArray, _fromComputed, target, _key, _value) {
         clear === null;
       } else {
         node.computes.delete(key$1);
-        clear();
+        clear(false);
       }
     }
     let match = dynamic(value);
@@ -392,13 +406,18 @@ function compile(node, isArray, target, key, callback) {
     return v;
   };
   compute.rebuild = rebuild;
-  let clear = () => {
+  let clear = reset => {
     let o = observer.o;
     if (o == null) {
       return;
     }
     _clear(o);
     ((o.observing.length = 0));
+    if (reset) {
+      node.proxied.delete(key);
+      Reflect.set(target, key, compiled);
+      return;
+    }
   };
   node.computes.set(key, clear);
   return rebuild();
@@ -436,7 +455,7 @@ function proxify(root, _target) {
           clear === null;
         } else {
           node.computes.delete(extra$1);
-          clear();
+          clear(false);
         }
         let cbs = node.changes;
         if (cbs == null) {
@@ -463,10 +482,10 @@ function proxify(root, _target) {
         if (o == null) {
           o === null;
         } else if (isArray && extra$1 === "length") {
-          let w = observeKey(node.observed, indexKey);
+          let w = observeKey(node.observed, indexKey, node.computes);
           o.observing.push(w);
         } else {
-          let w$1 = observeKey(node.observed, extra$1);
+          let w$1 = observeKey(node.observed, extra$1, node.computes);
           o.observing.push(w$1);
         }
         if (!(proxiable(value) && !readonly(extra, extra$1))) {
@@ -537,12 +556,13 @@ function proxify(root, _target) {
       ownKeys: extra => {
         let root = node.root;
         let observed = node.observed;
+        let computes = node.computes;
         let keys = Reflect.ownKeys(extra);
         let o = root.observer;
         if (o == null) {
           o === null;
         } else {
-          let w = observeKey(observed, indexKey);
+          let w = observeKey(observed, indexKey, computes);
           o.observing.push(w);
         }
         return keys;

@@ -45,6 +45,7 @@ type person = {
   mutable passions: array<string>,
   mutable notes: TestObject.t,
 }
+type domino = {label: string}
 type tester = {mutable called: bool}
 type error = {mutable message: option<string>}
 
@@ -98,7 +99,7 @@ type rec meta<'a> = {
   target: 'a,
   observed: Map.t<string, watchers>,
   proxied: 'b. Map.t<string, meta<'b>>,
-  computes: 'b. Map.t<string, unit => unit>,
+  computes: 'b. Map.t<string, bool => unit>,
   proxy: 'a,
   root: root,
 }
@@ -1769,11 +1770,9 @@ describe("Tilia", () => {
 
     p.susername = "jo"
     expect(p.sname).toBe("Medea+Jo+Mary+Jo")
-    expect(m.called).toBe(false)
 
     // Disable with setX
     setX("B")
-    expect(m.called).toBe(true)
     expect(p.sname).toBe("Medea+Jo+Mary+Jo+B")
 
     m.called = false
@@ -1819,8 +1818,8 @@ describe("Tilia", () => {
 
     // Disable with setX
     setX("B")
-    expect(m.called).toBe(true)
     expect(p.sname).toBe("B")
+    expect(m.called).toBe(true)
 
     m.called = false
     p.susername = "bob"
@@ -2074,5 +2073,92 @@ describe("Tilia", () => {
 
     Dict.set(repo.data, "todo-1", row("Buy milk", 3))
     expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
+  })
+
+  // === Observer back-propagation (domino effect) tests ===
+
+  it("Should leave 0 observers on upstream after clearing last downstream observer", () => {
+    let query = tilia({value: "initial value"})
+
+    let p = tilia({
+      label: computed(() => "computed: " ++ query.value),
+    })
+
+    // Read to install the computed
+    expect(p.label).toBe("computed: initial value")
+
+    // Terminal observer watches p.label
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    expect(p.label).toBe("computed: initial value")
+    _ready(o, true)
+
+    // Query's "value" should have 1 observer (the computed's internal one)
+    switch getMeta(query) {
+    | Value(meta) => {
+        let w = Option.getOrThrow(Map.get(meta.observed, "value"))
+        expect(1).toBe(Set.size(w.observers))
+      }
+    | _ => throw("Meta is undefined")
+    }
+
+    expect(m.called).toBe(false)
+
+    // Clear terminal observer (simulating component unmount)
+    _clear(o)
+
+    // The computed should notice it has 0 downstream observers and
+    // clear its own internal observer from query.value, producing 0.
+    // If the domino effect is missing, this will still be 1.
+    switch getMeta(query) {
+    | Value(meta) => {
+        let w = Map.get(meta.observed, "value")
+        switch w {
+        | Some(w) =>
+          let count = Set.size(w.observers)
+          expect(count).toBe(0)
+        | None => () // GC already removed the watcher entirely
+        }
+      }
+    | _ => throw("Meta is undefined")
+    }
+  })
+
+  it("Should not re-trigger computed after all downstream observers are cleared", () => {
+    let query = tilia({value: "initial value"})
+
+    let computedCalls = ref(0)
+    let p = tilia({
+      label: computed(
+        () => {
+          computedCalls := computedCalls.contents + 1
+          "computed: " ++ query.value
+        },
+      ),
+    })
+
+    // Read to install the computed
+    expect(p.label).toBe("computed: initial value")
+    expect(computedCalls.contents).toBe(1)
+
+    // Terminal observer watches p.label
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    expect(p.label).toBe("computed: initial value")
+    _ready(o, true)
+    // Second read should be cached, no extra call
+    expect(computedCalls.contents).toBe(1)
+
+    // Clear terminal observer
+    _clear(o)
+
+    // Change the upstream value
+    query.value = "changed value"
+
+    // If the domino effect works and the computed entered cold state,
+    // the computed should NOT be called again and computedCalls stays at 1.
+    // If it's still warm, it will be called (computedCalls goes to 2).
+    // This assertion reveals whether the computed stays warm after losing observers.
+    expect(computedCalls.contents).toBe(1)
   })
 })

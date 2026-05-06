@@ -156,6 +156,10 @@ and watchers = {
   observed: observed,
   // Set of observers to notify on change.
   observers: observers,
+  // Per-key clear callbacks for installed computed values.
+  // Stored here so _clear can trigger back-propagation without
+  // creating a closure per computed.
+  computes: dict<bool => unit>,
 }
 and gc = {
   mutable active: Set.t<watchers>,
@@ -199,7 +203,7 @@ type rec meta<'a> = {
   /** Cached child branch meta (nested proxies keyed by property name). */
   proxied: dict<meta<'a>>,
   /** Per-key clear callbacks for installed computed values. */
-  computes: dict<unit => unit>,
+  computes: dict<bool => unit>,
   /** Optional listeners for [changes]; each cb receives (key, value) from proxy handler. */
   mutable changes: nullable<Set.t<changeCb>>,
   /** The Proxy wrapping [target]. */
@@ -215,7 +219,7 @@ type node<'c> = {
   /** See [meta.proxied]. */
   proxied: dict<meta<'c>>,
   /** See [meta.computes]. */
-  computes: dict<unit => unit>,
+  computes: dict<bool => unit>,
   /** See [meta.changes]. */
   mutable changes: nullable<Set.t<changeCb>>,
 }
@@ -255,7 +259,7 @@ let _observe = (root, notify) => {
   observer
 }
 
-let observeKey = (observed, key) => {
+let observeKey = (observed, key, computes) => {
   switch Dict.get(observed, key) {
   | Value(w) => w
   | _ => {
@@ -264,6 +268,7 @@ let observeKey = (observed, key) => {
         key,
         observed,
         observers: Set.make(),
+        computes,
       }
       Dict.set(observed, key, w)
       w
@@ -300,7 +305,7 @@ let flush = root => {
   }
 }
 
-let _clear = (observer: observer) => {
+let unwatch = (observer: observer, prune: bool) => {
   let root = observer.root
   Array.forEach(observer.observing, watchers => {
     if (
@@ -311,6 +316,16 @@ let _clear = (observer: observer) => {
     ) {
       // Add to gc set
       Set.add(root.gc.active, watchers)
+
+      // Back-propagate: if this watcher had a computed, clear it.
+      // The computed's clear() will recursively clear its own
+      // upstream observers, creating the domino effect.
+      if prune {
+        switch Dict.get(watchers.computes, watchers.key) {
+        | Value(clear) => clear(true)
+        | _ => ()
+        }
+      }
     }
   })
   switch root.observer {
@@ -324,6 +339,8 @@ let _clear = (observer: observer) => {
   }
 }
 
+let _clear = (observer: observer) => unwatch(observer, true)
+
 let _ready = (observer: observer, notifyIfChanged: bool) => {
   ignore(
     Array.findWithIndex(observer.observing, (w, idx) => {
@@ -333,14 +350,14 @@ let _ready = (observer: observer, notifyIfChanged: bool) => {
           false
         }
       | Changed | Cleared if notifyIfChanged => {
-          _clear(observer)
+          unwatch(observer, false)
           observer.notify()
           true // abort find
         }
       | _ => {
           // Cleared or Changed, but without notifyIfChanged.
           // We need to re-subscribe to the key
-          let w = observeKey(w.observed, w.key)
+          let w = observeKey(w.observed, w.key, w.computes)
           ignore(Set.add(w.observers, observer))
           observer.observing[idx] = w
           false
@@ -360,11 +377,16 @@ let _ready = (observer: observer, notifyIfChanged: bool) => {
   }
 }
 
-let ownKeys = (root: root, observed: dict<watchers>, target: 'a): 'b => {
+let ownKeys = (
+  root: root,
+  observed: dict<watchers>,
+  computes: dict<bool => unit>,
+  target: 'a,
+): 'b => {
   let keys = Reflect.ownKeys(target)
   switch root.observer {
   | Value(o) => {
-      let w = observeKey(observed, indexKey)
+      let w = observeKey(observed, indexKey, computes)
       Array.push(o.observing, w)
     }
   | _ => ()
@@ -383,7 +405,7 @@ let notify = (root, observed, key) => {
 
       // Notify
       Set.forEach(watchers.observers, observer => {
-        _clear(observer)
+        unwatch(observer, false)
         Set.add(expired, observer)
       })
 
@@ -486,7 +508,7 @@ let rec set = (
         switch Dict.get(node.computes, key) {
         | Value(clear) => {
             Dict.delete(node.computes, key)
-            clear()
+            clear(false)
           }
         | _ => ()
         }
@@ -611,14 +633,28 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
   }
   compute.rebuild = rebuild
 
-  let clear = () => {
-    // Clear our cache clearing observer
+  let clear = reset => {
+    // Clear our cache: clears observer
     switch observer.o {
     | Value(o) => {
+        // No more active listeners.
+
+        // On back propagation, if we call clear without `notify` it creates weird side effects.
+        // We need to figure out how to cleanup correctly.
+        // This does not work (it breaks many other use cases).
+        // THIS SHOULD WORK... ?
+        // ??
         _clear(o)
+        // We do not have any observers: reset value.
+        // Make sure the previous proxy (if any) is removed so that it is not
+        // served in place of triggering the compute.
         // Empty in case "ready" is called after clear (but we only
         // do this for computed).
         ignore(%raw(`o.observing.length = 0`))
+        if reset {
+          ignore(Dict.delete(node.proxied, key))
+          ignore(Reflect.set(target, key, compiled))
+        }
       }
     | _ => ()
     }
@@ -633,7 +669,7 @@ let deleteProperty = (node: node<'c>, target: 'a, key: string) => {
   switch Dict.get(node.computes, key) {
   | Value(clear) => {
       Dict.delete(node.computes, key)
-      clear()
+      clear(false)
     }
   | _ => ()
   }
@@ -661,10 +697,10 @@ let rec get = (node: node<'c>, meta: meta<'a>, isArray: bool, target: 'a, key: s
       switch node.root.observer {
       | Value(o) =>
         if isArray && key == "length" {
-          let w = observeKey(node.observed, indexKey)
+          let w = observeKey(node.observed, indexKey, node.computes)
           Array.push(o.observing, w)
         } else {
-          let w = observeKey(node.observed, key)
+          let w = observeKey(node.observed, key, node.computes)
           Array.push(o.observing, w)
         }
       | _ => ()
@@ -718,7 +754,7 @@ and proxify = (root: root, target: 'a): meta<'a> => {
         "set": set(node, isArray, false, ...),
         "deleteProperty": deleteProperty(node, ...),
         "get": get(node, meta, isArray, ...),
-        "ownKeys": ownKeys(node.root, node.observed, ...),
+        "ownKeys": ownKeys(node.root, node.observed, node.computes, ...),
       },
     )
     meta.proxy = proxy
@@ -1063,7 +1099,8 @@ let _changing = (accessor: unit => 'a, guard: option<unit => bool>): changing<'a
   let read = () => ignore((Reflect.get(counter, "changed"): int))
 
   let capture = switch guard {
-  | Some(g) => () => {
+  | Some(g) =>
+    () => {
       reregister()
       if !g() {
         empty
@@ -1072,7 +1109,8 @@ let _changing = (accessor: unit => 'a, guard: option<unit => bool>): changing<'a
         Dict.size(pending) > 0 ? drain() : empty
       }
     }
-  | _ => () => {
+  | _ =>
+    () => {
       reregister()
       read()
       Dict.size(pending) > 0 ? drain() : empty
