@@ -4,15 +4,15 @@
 
 - Query cache stores fetched objects by id and query results as arrays of ids.
 - Query keys use sorted JSON stringification by default.
-- `tick()` uses `Tilia._canopy(queries)` to split live and idle queries.
+- Write operations: `upsert(id, object)` updates the local cache and triggers the remote upsert.
+
+## Next
+
+- Add `tick()` that uses `Tilia._canopy(queries)` to split live and idle queries.
 - Idle queries expire after `gc` seconds and purge only objects not referenced by remaining queries.
 - Live stale queries refresh in the background without clearing current data.
 - Timing uses seconds: `stale`, `gc`, and `now`.
 - Scheduling is owned by library users; `@tilia/query` exposes `tick()` but does not start timers.
-
-## Next
-
-- Add write operations: `upsert(id, object)` should update the local cache and trigger the remote upsert.
 - Add TypeScript types.
 - Add ReScript and TypeScript tests in test apps (tests/app...).
 - Add an explicit invalidation API for real-time updates, e.g. `invalidate(key)` or `invalidate(filter)`.

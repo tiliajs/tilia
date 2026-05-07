@@ -36,7 +36,7 @@ async function run(data, cacheKey, filter) {
   });
 }
 
-function make$1(id, fetch, keyOpt, param) {
+function make$1(id, fetch, upsert, keyOpt, param) {
   let key = keyOpt !== undefined ? keyOpt : sortedStringify;
   let data_cache = Tilia.tilia(make());
   let data_queries = Tilia.tilia(make());
@@ -45,6 +45,10 @@ function make$1(id, fetch, keyOpt, param) {
     fetch: fetch,
     cache: data_cache,
     queries: data_queries
+  };
+  let upsertItem = (id, item) => {
+    Reflect.set(data_cache, id, item);
+    upsert(id, item);
   };
   let get = id => {
     let item = Reflect.get(data_cache, id);
@@ -104,7 +108,8 @@ function make$1(id, fetch, keyOpt, param) {
   return {
     get: get,
     array: array,
-    dict: dict
+    dict: dict,
+    upsert: upsertItem
   };
 }
 

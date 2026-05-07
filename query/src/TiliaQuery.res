@@ -8,7 +8,7 @@ module Dict = {
   let make: unit => t<'a> = %raw(`() => ({})`)
   @val @scope("Reflect") external get: (t<'a>, string) => nullable<'a> = "get"
   @val @scope("Reflect") external getKnown: (t<'a>, string) => 'a = "get"
-  @val @scope("Reflect") external set: (t<'a>, string, 'a) => bool = "set"
+  @val @scope("Reflect") external set: (t<'a>, string, 'a) => unit = "set"
 }
 
 type dict<'a>
@@ -38,6 +38,7 @@ type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
+  upsert: (string, 'a) => unit,
 }
 
 type data<'a, 'query> = {
@@ -51,19 +52,24 @@ let run = async (data, cacheKey, filter) => {
   let list = await data.fetch(filter)
   let ids = list->Array.map(item => {
     let id = data.id(item)
-    ignore(Dict.set(data.cache, id, item))
+    Dict.set(data.cache, id, item)
     id
   })
-  ignore(Dict.set(data.queries, cacheKey, Loaded(ids)))
+  Dict.set(data.queries, cacheKey, Loaded(ids))
 }
 
-let make = (~id, ~fetch, ~key=Json.sortedStringify, ()) => {
+let make = (~id, ~fetch, ~upsert, ~key=Json.sortedStringify, ()) => {
   open Tilia
   let data = {
     id,
     fetch,
     cache: Dict.make()->tilia,
     queries: Dict.make()->tilia,
+  }
+
+  let upsertItem = (id, item) => {
+    Dict.set(data.cache, id, item)
+    ignore(upsert(id, item))
   }
 
   let get = id =>
@@ -77,7 +83,7 @@ let make = (~id, ~fetch, ~key=Json.sortedStringify, ()) => {
     switch Dict.get(data.queries, cacheKey) {
     | Value(query) => query
     | _ => {
-        ignore(Dict.set(data.queries, cacheKey, Loading))
+        Dict.set(data.queries, cacheKey, Loading)
         ignore(run(data, cacheKey, filter))
         Loading
       }
@@ -104,5 +110,5 @@ let make = (~id, ~fetch, ~key=Json.sortedStringify, ()) => {
       )
     }
 
-  {get, array, dict}
+  {get, array, dict, upsert: upsertItem}
 }

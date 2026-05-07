@@ -1,6 +1,7 @@
 open VitestBdd
 open Tilia
-open TiliaQuery
+
+type loadable<'a> = TiliaQuery.loadable<'a> = Loading | Loaded('a) | NotFound
 
 let sleep: unit => promise<unit> = async () =>
   %raw(`new Promise(resolve => setTimeout(resolve, 10))`)
@@ -44,9 +45,11 @@ module Assert = {
 module Sullybase = {
   type api<'a, 'query> = {
     fetch: 'query => promise<array<'a>>,
+    upsert: (string, 'a) => promise<unit>,
   }
 
-  let make = (_table, id, api) => TiliaQuery.make(~id, ~fetch=api.fetch, ())
+  let make = (_table, id, api) =>
+    TiliaQuery.make(~id, ~fetch=api.fetch, ~upsert=api.upsert, ())
 }
 
 describe("TiliaQuery", () => {
@@ -59,6 +62,7 @@ describe("TiliaQuery", () => {
         await sleep()
         [item("todo-1", "Buy milk", count.contents)]
       },
+      upsert: async (_, _) => (),
     }
 
     let items = Sullybase.make("items", item => item.id, api)
@@ -90,6 +94,7 @@ describe("TiliaQuery", () => {
         await sleep()
         [item("todo-1", "Buy milk", count.contents)]
       },
+      upsert: async (_, _) => (),
     }
 
     let items = Sullybase.make("items", item => item.id, api)
@@ -118,6 +123,7 @@ describe("TiliaQuery", () => {
         await sleep()
         [item("todo-1", "Buy milk", count.contents)]
       },
+      upsert: async (_, _) => (),
     }
 
     let items = Sullybase.make("items", item => item.id, api)
@@ -128,5 +134,33 @@ describe("TiliaQuery", () => {
     let sameQuery: reversedQuery = {owner: "me", status: "active"}
     expect(items.array((sameQuery :> sortedQuery))).toEqual(Loaded([item("todo-1", "Buy milk", 1)]))
     expect(count.contents).toBe(1)
+  })
+
+  it("should update local cache and trigger remote upsert", async () => {
+    let upserted = ref([])
+    let api: Sullybase.api<item, itemQuery> = {
+      fetch: async _q => {
+        await sleep()
+        [item("todo-1", "Buy milk", 1)]
+      },
+      upsert: async (id, value) => {
+        upserted := [(id, value), ...upserted.contents]
+      },
+    }
+
+    let items = Sullybase.make("items", item => item.id, api)
+    ignore(items.array({status: "active"}))
+    await sleep()
+
+    let array = items.array({status: "active"})->Assert.array
+    Assert.first(array, item("todo-1", "Buy milk", 1))
+
+    items.upsert("todo-1", item("todo-1", "Buy bread", 5))
+
+    expect(items.get("todo-1")).toEqual(Loaded(item("todo-1", "Buy bread", 5)))
+    Assert.first(array, item("todo-1", "Buy bread", 5))
+
+    await sleep()
+    expect(upserted.contents).toEqual([("todo-1", item("todo-1", "Buy bread", 5))])
   })
 })

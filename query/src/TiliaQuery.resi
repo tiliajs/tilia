@@ -18,11 +18,13 @@ type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
+  upsert: (string, 'a) => unit,
 }
 
 let make: (
   ~id: 'a => string,
   ~fetch: 'query => promise<array<'a>>,
+  ~upsert: (string, 'a) => promise<unit>,
   ~key: 'query => string=?,
   unit,
 ) => t<'a, 'query>
