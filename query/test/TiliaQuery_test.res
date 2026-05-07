@@ -8,6 +8,7 @@ let sleep: unit => promise<unit> = async () =>
 
 type item = {id: string, name: string, count: int}
 type itemQuery = {status: string}
+type tagQuery = {tag: string}
 type sortedQuery = {status: string, owner: string}
 type reversedQuery = {owner: string, status: string}
 
@@ -48,8 +49,8 @@ module Sullybase = {
     upsert: (string, 'a) => promise<unit>,
   }
 
-  let make = (_table, id, api) =>
-    TiliaQuery.make(~id, ~fetch=api.fetch, ~upsert=api.upsert, ())
+  let make = (_table, id, api, ~stale=?, ~gc=?, ~now=?, ()) =>
+    TiliaQuery.make(~id, ~fetch=api.fetch, ~upsert=api.upsert, ~stale?, ~gc?, ~now?, ())
 }
 
 describe("TiliaQuery", () => {
@@ -65,7 +66,7 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make("items", item => item.id, api)
+    let items = Sullybase.make("items", item => item.id, api, ())
     let active = items.array({status: "active"})
     let todo1 = derived(() => items.get("todo-1"))
 
@@ -97,7 +98,7 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make("items", item => item.id, api)
+    let items = Sullybase.make("items", item => item.id, api, ())
 
     ignore(items.array({status: "active"}))
     await sleep()
@@ -126,7 +127,7 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make("items", item => item.id, api)
+    let items = Sullybase.make("items", item => item.id, api, ())
 
     expect(items.array({status: "active", owner: "me"})).toEqual(Loading)
     await sleep()
@@ -148,7 +149,7 @@ describe("TiliaQuery", () => {
       },
     }
 
-    let items = Sullybase.make("items", item => item.id, api)
+    let items = Sullybase.make("items", item => item.id, api, ())
     ignore(items.array({status: "active"}))
     await sleep()
 
@@ -162,5 +163,113 @@ describe("TiliaQuery", () => {
 
     await sleep()
     expect(upserted.contents).toEqual([("todo-1", item("todo-1", "Buy bread", 5))])
+  })
+
+  it("should refresh live stale queries in the background", async () => {
+    let count = ref(0)
+    let clock = ref(0.0)
+    let api: Sullybase.api<item, itemQuery> = {
+      fetch: async _q => {
+        count := count.contents + 1
+        let n = count.contents
+        await sleep()
+        [item("todo-1", "Buy milk", n)]
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Sullybase.make(
+      "items",
+      item => item.id,
+      api,
+      ~stale=30.0,
+      ~gc=300.0,
+      ~now=() => clock.contents,
+      (),
+    )
+
+    watch(() => items.array({status: "active"}), _ => ())
+    await sleep()
+
+    Assert.first(items.array({status: "active"})->Assert.array, item("todo-1", "Buy milk", 1))
+
+    clock := 31.0
+    items.tick()
+    await sleep()
+
+    Assert.first(items.array({status: "active"})->Assert.array, item("todo-1", "Buy milk", 2))
+    expect(count.contents).toBe(2)
+  })
+
+  it("should evict idle queries after gc and purge unreferenced cache", async () => {
+    let clock = ref(0.0)
+    let api: Sullybase.api<item, tagQuery> = {
+      fetch: async q => {
+        await sleep()
+        switch q.tag {
+        | "a" => [item("a-1", "A", 1)]
+        | _ => [item("b-1", "B", 1)]
+        }
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Sullybase.make(
+      "items",
+      item => item.id,
+      api,
+      ~stale=30.0,
+      ~gc=300.0,
+      ~now=() => clock.contents,
+      (),
+    )
+
+    ignore(items.array({tag: "a"}))
+    watch(() => items.array({tag: "b"}), _ => ())
+    await sleep()
+
+    expect(items.get("a-1")).toEqual(Loaded(item("a-1", "A", 1)))
+    expect(items.get("b-1")).toEqual(Loaded(item("b-1", "B", 1)))
+
+    items.tick()
+
+    clock := 301.0
+    items.tick()
+
+    expect(items.get("a-1")).toEqual(NotFound)
+    expect(items.get("b-1")).toEqual(Loaded(item("b-1", "B", 1)))
+  })
+
+  it("should keep cache entries shared between queries", async () => {
+    let clock = ref(0.0)
+    let api: Sullybase.api<item, tagQuery> = {
+      fetch: async _q => {
+        await sleep()
+        [item("shared", "S", 1)]
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Sullybase.make(
+      "items",
+      item => item.id,
+      api,
+      ~stale=30.0,
+      ~gc=300.0,
+      ~now=() => clock.contents,
+      (),
+    )
+
+    watch(() => items.array({tag: "a"}), _ => ())
+    ignore(items.array({tag: "b"}))
+    await sleep()
+
+    expect(items.get("shared")).toEqual(Loaded(item("shared", "S", 1)))
+
+    items.tick()
+    clock := 301.0
+    items.tick()
+
+    expect(items.get("shared")).toEqual(Loaded(item("shared", "S", 1)))
   })
 })

@@ -9,6 +9,8 @@ module Dict = {
   @val @scope("Reflect") external get: (t<'a>, string) => nullable<'a> = "get"
   @val @scope("Reflect") external getKnown: (t<'a>, string) => 'a = "get"
   @val @scope("Reflect") external set: (t<'a>, string, 'a) => unit = "set"
+  @val @scope("Reflect") external delete: (t<'a>, string) => unit = "deleteProperty"
+  @val @scope("Object") external keys: t<'a> => array<string> = "keys"
 }
 
 type dict<'a>
@@ -39,32 +41,45 @@ type t<'a, 'query> = {
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
   upsert: (string, 'a) => unit,
+  tick: unit => unit,
+}
+
+type meta<'query> = {
+  filter: 'query,
+  mutable fetched: float,
+  mutable idle: option<float>,
 }
 
 type data<'a, 'query> = {
   id: 'a => string,
   fetch: 'query => promise<array<'a>>,
+  now: unit => float,
   cache: Dict.t<'a>,
   queries: Dict.t<loadable<array<string>>>,
+  meta: Dict.t<meta<'query>>,
+  stale: Dict.t<bool>,
 }
 
-let run = async (data, cacheKey, filter) => {
-  let list = await data.fetch(filter)
-  let ids = list->Array.map(item => {
-    let id = data.id(item)
-    Dict.set(data.cache, id, item)
-    id
-  })
-  Dict.set(data.queries, cacheKey, Loaded(ids))
-}
+let defaultNow = () => Date.now() /. 1000.0
 
-let make = (~id, ~fetch, ~upsert, ~key=Json.sortedStringify, ()) => {
-  open Tilia
+let make = (
+  ~id,
+  ~fetch,
+  ~upsert,
+  ~stale=30.0,
+  ~gc=300.0,
+  ~now=defaultNow,
+  ~key=Json.sortedStringify,
+  (),
+) => {
   let data = {
     id,
     fetch,
-    cache: Dict.make()->tilia,
-    queries: Dict.make()->tilia,
+    now,
+    cache: Dict.make()->Tilia.tilia,
+    queries: Dict.make()->Tilia.tilia,
+    meta: Dict.make(),
+    stale: Dict.make()->Tilia.tilia,
   }
 
   let upsertItem = (id, item) => {
@@ -78,14 +93,35 @@ let make = (~id, ~fetch, ~upsert, ~key=Json.sortedStringify, ()) => {
     | _ => NotFound
     }
 
+  let loader = (cacheKey, filter) => async (_prev, set) =>
+    switch Dict.get(data.stale, cacheKey) {
+    | Undefined => ()
+    | _ => {
+        let list = await data.fetch(filter)
+        let ids = list->Array.map(item => {
+          let id = data.id(item)
+          Dict.set(data.cache, id, item)
+          id
+        })
+        set(Loaded(ids))
+        switch Dict.get(data.meta, cacheKey) {
+        | Value(m) => m.fetched = data.now()
+        | _ => ()
+        }
+        Dict.delete(data.stale, cacheKey)
+      }
+    }
+
   let query = filter => {
     let cacheKey = key(filter)
     switch Dict.get(data.queries, cacheKey) {
-    | Value(query) => query
+    | Value(q) => q
     | _ => {
-        Dict.set(data.queries, cacheKey, Loading)
-        ignore(run(data, cacheKey, filter))
-        Loading
+        Dict.set(data.meta, cacheKey, {filter, fetched: 0.0, idle: None})
+        Dict.set(data.stale, cacheKey, true)
+        let s = Tilia.source(Loading, loader(cacheKey, filter))
+        Dict.set(data.queries, cacheKey, s)
+        Dict.getKnown(data.queries, cacheKey)
       }
     }
   }
@@ -94,7 +130,8 @@ let make = (~id, ~fetch, ~upsert, ~key=Json.sortedStringify, ()) => {
     switch query(filter) {
     | Loading => Loading
     | NotFound => NotFound
-    | Loaded(ids) => Loaded(ids->Array.map(id => computed(() => Dict.getKnown(data.cache, id)))->tilia)
+    | Loaded(ids) =>
+      Loaded(ids->Array.map(id => Tilia.computed(() => Dict.getKnown(data.cache, id)))->Tilia.tilia)
     }
 
   let dict = filter =>
@@ -104,11 +141,58 @@ let make = (~id, ~fetch, ~upsert, ~key=Json.sortedStringify, ()) => {
     | Loaded(ids) =>
       Loaded(
         ids
-        ->Array.map(id => (id, computed(() => Dict.getKnown(data.cache, id))))
+        ->Array.map(id => (id, Tilia.computed(() => Dict.getKnown(data.cache, id))))
         ->Object.fromEntries
         ->Tilia.tilia,
       )
     }
 
-  {get, array, dict, upsert: upsertItem}
+  let tick = () => {
+    let now = data.now()
+    let canopy = Tilia._canopy(data.queries)
+    Set.forEach(canopy.live, k =>
+      switch Dict.get(data.meta, k) {
+      | Value(m) => {
+          m.idle = None
+          if now -. m.fetched >= stale {
+            Dict.set(data.stale, k, true)
+          }
+        }
+      | _ => ()
+      }
+    )
+    let evicted = ref(false)
+    Set.forEach(canopy.idle, k =>
+      switch Dict.get(data.meta, k) {
+      | Value(m) =>
+        switch m.idle {
+        | None => m.idle = Some(now)
+        | Some(t) if now -. t >= gc => {
+            Dict.delete(data.queries, k)
+            Dict.delete(data.meta, k)
+            Dict.delete(data.stale, k)
+            evicted := true
+          }
+        | Some(_) => ()
+        }
+      | _ => ()
+      }
+    )
+    if evicted.contents {
+      let referenced = Set.make()
+      Dict.keys(data.queries)->Array.forEach(k =>
+        switch Dict.getKnown(data.queries, k) {
+        | Loaded(ids) => ids->Array.forEach(id => Set.add(referenced, id))
+        | _ => ()
+        }
+      )
+      Dict.keys(data.cache)->Array.forEach(id =>
+        if !Set.has(referenced, id) {
+          Dict.delete(data.cache, id)
+        }
+      )
+    }
+  }
+
+  {get, array, dict, upsert: upsertItem, tick}
 }
