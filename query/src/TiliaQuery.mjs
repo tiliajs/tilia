@@ -27,11 +27,12 @@ function defaultNow() {
   return Date.now() / 1000.0;
 }
 
-function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, param) {
+function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidateOpt, param) {
   let stale = staleOpt !== undefined ? staleOpt : 30.0;
   let gc = gcOpt !== undefined ? gcOpt : 300.0;
   let now = nowOpt !== undefined ? nowOpt : defaultNow;
   let key = keyOpt !== undefined ? keyOpt : sortedStringify;
+  let invalidate = invalidateOpt !== undefined ? invalidateOpt : (_query, _item) => false;
   let data_cache = Tilia.tilia(make());
   let data_queries = Tilia.tilia(make());
   let data_meta = make();
@@ -39,6 +40,15 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, param) {
   let upsertItem = (id, item) => {
     Reflect.set(data_cache, id, item);
     upsert(id, item);
+    Object.keys(data_meta).forEach(cacheKey => {
+      let m = Reflect.get(data_meta, cacheKey);
+      if ((m == null) || !invalidate(m.filter, item)) {
+        return;
+      } else {
+        Reflect.set(data_stale, cacheKey, true);
+        return;
+      }
+    });
   };
   let get = id => {
     let item = Reflect.get(data_cache, id);

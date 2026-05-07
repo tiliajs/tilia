@@ -30,5 +30,6 @@ let make: (
   ~gc: float=?,
   ~now: unit => float=?,
   ~key: 'query => string=?,
+  ~invalidate: ('query, 'a) => bool=?,
   unit,
 ) => t<'a, 'query>

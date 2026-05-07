@@ -49,8 +49,8 @@ module Sullybase = {
     upsert: (string, 'a) => promise<unit>,
   }
 
-  let make = (_table, id, api, ~stale=?, ~gc=?, ~now=?, ()) =>
-    TiliaQuery.make(~id, ~fetch=api.fetch, ~upsert=api.upsert, ~stale?, ~gc?, ~now?, ())
+  let make = (_table, id, api, ~stale=?, ~gc=?, ~now=?, ~invalidate=?, ()) =>
+    TiliaQuery.make(~id, ~fetch=api.fetch, ~upsert=api.upsert, ~stale?, ~gc?, ~now?, ~invalidate?, ())
 }
 
 describe("TiliaQuery", () => {
@@ -271,5 +271,119 @@ describe("TiliaQuery", () => {
     items.tick()
 
     expect(items.get("shared")).toEqual(Loaded(item("shared", "S", 1)))
+  })
+
+  it("should invalidate matching observed query on upsert", async () => {
+    let count = ref(0)
+    let api: Sullybase.api<item, itemQuery> = {
+      fetch: async _q => {
+        count := count.contents + 1
+        let n = count.contents
+        await sleep()
+        [item("todo-1", "Buy milk", n)]
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Sullybase.make(
+      "items",
+      item => item.id,
+      api,
+      ~invalidate=(query, item) => query.status == "active" && item.count > 0,
+      (),
+    )
+
+    watch(() => items.array({status: "active"}), _ => ())
+    await sleep()
+
+    Assert.first(items.array({status: "active"})->Assert.array, item("todo-1", "Buy milk", 1))
+    expect(count.contents).toBe(1)
+
+    items.upsert("todo-2", item("todo-2", "Buy bread", 2))
+
+    await sleep()
+
+    Assert.first(items.array({status: "active"})->Assert.array, item("todo-1", "Buy milk", 2))
+    expect(count.contents).toBe(2)
+  })
+
+  it("should not invalidate non-matching query on upsert", async () => {
+    let count = ref(0)
+    let api: Sullybase.api<item, itemQuery> = {
+      fetch: async _q => {
+        count := count.contents + 1
+        let n = count.contents
+        await sleep()
+        [item("todo-1", "Buy milk", n)]
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Sullybase.make(
+      "items",
+      item => item.id,
+      api,
+      ~invalidate=(query, _item) => query.status == "done",
+      (),
+    )
+
+    watch(() => items.array({status: "active"}), _ => ())
+    await sleep()
+
+    Assert.first(items.array({status: "active"})->Assert.array, item("todo-1", "Buy milk", 1))
+    expect(count.contents).toBe(1)
+
+    items.upsert("todo-2", item("todo-2", "Buy bread", 2))
+
+    await sleep()
+
+    expect(count.contents).toBe(1)
+  })
+
+  it("should invalidate only matching queries when multiple queries are cached", async () => {
+    let countA = ref(0)
+    let countB = ref(0)
+    let api: Sullybase.api<item, tagQuery> = {
+      fetch: async q => {
+        await sleep()
+        switch q.tag {
+        | "a" => {
+            countA := countA.contents + 1
+            [item("a-1", "A", countA.contents)]
+          }
+        | _ => {
+            countB := countB.contents + 1
+            [item("b-1", "B", countB.contents)]
+          }
+        }
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Sullybase.make(
+      "items",
+      item => item.id,
+      api,
+      ~invalidate=(query, _item) => query.tag == "a",
+      (),
+    )
+
+    watch(() => items.array({tag: "a"}), _ => ())
+    watch(() => items.array({tag: "b"}), _ => ())
+    await sleep()
+
+    Assert.first(items.array({tag: "a"})->Assert.array, item("a-1", "A", 1))
+    Assert.first(items.array({tag: "b"})->Assert.array, item("b-1", "B", 1))
+    expect(countA.contents).toBe(1)
+    expect(countB.contents).toBe(1)
+
+    items.upsert("new-item", item("new-item", "New", 1))
+
+    await sleep()
+
+    Assert.first(items.array({tag: "a"})->Assert.array, item("a-1", "A", 2))
+    Assert.first(items.array({tag: "b"})->Assert.array, item("b-1", "B", 1))
+    expect(countA.contents).toBe(2)
+    expect(countB.contents).toBe(1)
   })
 })

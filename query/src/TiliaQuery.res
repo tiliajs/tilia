@@ -70,6 +70,7 @@ let make = (
   ~gc=300.0,
   ~now=defaultNow,
   ~key=Json.sortedStringify,
+  ~invalidate=(_query, _item) => false,
   (),
 ) => {
   let data = {
@@ -85,6 +86,15 @@ let make = (
   let upsertItem = (id, item) => {
     Dict.set(data.cache, id, item)
     ignore(upsert(id, item))
+    Dict.keys(data.meta)->Array.forEach(cacheKey =>
+      switch Dict.get(data.meta, cacheKey) {
+      | Value(m) =>
+        if invalidate(m.filter, item) {
+          Dict.set(data.stale, cacheKey, true)
+        }
+      | _ => ()
+      }
+    )
   }
 
   let get = id =>

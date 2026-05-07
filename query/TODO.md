@@ -10,10 +10,9 @@
 - Live stale queries refresh in the background without clearing current data.
 - Timing uses seconds: `stale`, `gc`, and `now`.
 - Scheduling is owned by library users; `@tilia/query` exposes `tick()` but does not start timers.
+- `~invalidate` predicate `('query, 'a) => bool` at construction time auto-invalidates cached queries on upsert.
 
 ## Next
-
-- Add an explicit invalidation API for real-time updates, e.g. `invalidate(key)` or `invalidate(filter)`.
 
 ## Later
 
