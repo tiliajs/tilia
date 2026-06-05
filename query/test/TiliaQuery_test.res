@@ -43,20 +43,29 @@ module Assert = {
 }
 
 // Fake Supabase adaptor to show how to adapt @tilia/query to any remote source.
-module Sullybase = {
+module Papabase = {
   type api<'a, 'query> = {
     fetch: 'query => promise<array<'a>>,
     upsert: (string, 'a) => promise<unit>,
   }
 
-  let make = (_table, id, api, ~stale=?, ~gc=?, ~now=?, ()) =>
-    TiliaQuery.make(~id, ~fetch=api.fetch, ~upsert=api.upsert, ~stale?, ~gc?, ~now?, ())
+  let make = (_table, id, api, ~stale=?, ~gc=?, ~now=?, ~invalidates=?) =>
+    TiliaQuery.make(
+      ~id,
+      ~fetch=api.fetch,
+      ~upsert=api.upsert,
+      ~stale?,
+      ~gc?,
+      ~now?,
+      ~invalidates?,
+      (),
+    )
 }
 
 describe("TiliaQuery", () => {
   it("should cache query data", async () => {
     let count = ref(0)
-    let api: Sullybase.api<item, itemQuery> = {
+    let api: Papabase.api<item, itemQuery> = {
       fetch: async query => {
         expect(query.status).toBe("active")
         count := count.contents + 1
@@ -66,7 +75,7 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make("items", item => item.id, api, ())
+    let items = Papabase.make("items", item => item.id, api)
     let active = items.array({status: "active"})
     let todo1 = derived(() => items.get("todo-1"))
 
@@ -89,7 +98,7 @@ describe("TiliaQuery", () => {
 
   it("should update derived query views when cached objects change", async () => {
     let count = ref(0)
-    let api: Sullybase.api<item, itemQuery> = {
+    let api: Papabase.api<item, itemQuery> = {
       fetch: async _key => {
         count := count.contents + 1
         await sleep()
@@ -98,7 +107,7 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make("items", item => item.id, api, ())
+    let items = Papabase.make("items", item => item.id, api)
 
     ignore(items.array({status: "active"}))
     await sleep()
@@ -118,7 +127,7 @@ describe("TiliaQuery", () => {
 
   it("should use sorted JSON keys for structured queries", async () => {
     let count = ref(0)
-    let api: Sullybase.api<item, sortedQuery> = {
+    let api: Papabase.api<item, sortedQuery> = {
       fetch: async _query => {
         count := count.contents + 1
         await sleep()
@@ -127,7 +136,7 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make("items", item => item.id, api, ())
+    let items = Papabase.make("items", item => item.id, api)
 
     expect(items.array({status: "active", owner: "me"})).toEqual(Loading)
     await sleep()
@@ -139,7 +148,7 @@ describe("TiliaQuery", () => {
 
   it("should update local cache and trigger remote upsert", async () => {
     let upserted = ref([])
-    let api: Sullybase.api<item, itemQuery> = {
+    let api: Papabase.api<item, itemQuery> = {
       fetch: async _q => {
         await sleep()
         [item("todo-1", "Buy milk", 1)]
@@ -149,7 +158,7 @@ describe("TiliaQuery", () => {
       },
     }
 
-    let items = Sullybase.make("items", item => item.id, api, ())
+    let items = Papabase.make("items", item => item.id, api)
     ignore(items.array({status: "active"}))
     await sleep()
 
@@ -165,10 +174,96 @@ describe("TiliaQuery", () => {
     expect(upserted.contents).toEqual([("todo-1", item("todo-1", "Buy bread", 5))])
   })
 
+  it("should invalidate matching live queries from local writes", async () => {
+    let activeCount = ref(0)
+    let doneCount = ref(0)
+    let api: Papabase.api<item, itemQuery> = {
+      fetch: async q => {
+        await sleep()
+        switch q.status {
+        | "active" => {
+            activeCount := activeCount.contents + 1
+            [item("todo-1", "active", activeCount.contents)]
+          }
+        | _ => {
+            doneCount := doneCount.contents + 1
+            [item("todo-2", "done", doneCount.contents)]
+          }
+        }
+      },
+      upsert: async (_, _) => (),
+    }
+
+    let items = Papabase.make(
+      "items",
+      item => item.id,
+      api,
+      ~invalidates=(query, item) => query.status == item.name,
+    )
+
+    watch(() => items.array({status: "active"}), _ => ())
+    watch(() => items.array({status: "done"}), _ => ())
+    await sleep()
+
+    let active = items.array({status: "active"})->Assert.array
+    let done = items.array({status: "done"})->Assert.array
+    Assert.first(active, item("todo-1", "active", 1))
+    Assert.first(done, item("todo-2", "done", 1))
+
+    items.upsert("todo-1", item("todo-1", "active", 99))
+
+    Assert.first(active, item("todo-1", "active", 99))
+    await sleep()
+
+    Assert.first(active, item("todo-1", "active", 2))
+    Assert.first(done, item("todo-2", "done", 1))
+    expect(activeCount.contents).toBe(2)
+    expect(doneCount.contents).toBe(1)
+  })
+
+  it("should sync live objects without triggering remote upsert", async () => {
+    let activeCount = ref(0)
+    let upserted = ref([])
+    let api: Papabase.api<item, itemQuery> = {
+      fetch: async _q => {
+        activeCount := activeCount.contents + 1
+        await sleep()
+        [item("todo-1", "active", activeCount.contents)]
+      },
+      upsert: async (id, value) => {
+        upserted := [(id, value), ...upserted.contents]
+      },
+    }
+
+    let items = Papabase.make(
+      "items",
+      item => item.id,
+      api,
+      ~invalidates=(query, item) => query.status == item.name,
+    )
+
+    watch(() => items.array({status: "active"}), _ => ())
+    await sleep()
+
+    let active = items.array({status: "active"})->Assert.array
+    Assert.first(active, item("todo-1", "active", 1))
+
+    items.sync(item("todo-1", "active", 99))
+
+    expect(items.get("todo-1")).toEqual(Loaded(item("todo-1", "active", 99)))
+    Assert.first(active, item("todo-1", "active", 99))
+
+    await sleep()
+
+    Assert.first(active, item("todo-1", "active", 2))
+    expect(upserted.contents).toEqual([])
+    expect(activeCount.contents).toBe(2)
+  })
+
   it("should refresh live stale queries in the background", async () => {
     let count = ref(0)
     let clock = ref(0.0)
-    let api: Sullybase.api<item, itemQuery> = {
+    let api: Papabase.api<item, itemQuery> = {
       fetch: async _q => {
         count := count.contents + 1
         let n = count.contents
@@ -178,14 +273,13 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make(
+    let items = Papabase.make(
       "items",
       item => item.id,
       api,
       ~stale=30.0,
       ~gc=300.0,
       ~now=() => clock.contents,
-      (),
     )
 
     watch(() => items.array({status: "active"}), _ => ())
@@ -203,7 +297,7 @@ describe("TiliaQuery", () => {
 
   it("should evict idle queries after gc and purge unreferenced cache", async () => {
     let clock = ref(0.0)
-    let api: Sullybase.api<item, tagQuery> = {
+    let api: Papabase.api<item, tagQuery> = {
       fetch: async q => {
         await sleep()
         switch q.tag {
@@ -214,14 +308,13 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make(
+    let items = Papabase.make(
       "items",
       item => item.id,
       api,
       ~stale=30.0,
       ~gc=300.0,
       ~now=() => clock.contents,
-      (),
     )
 
     ignore(items.array({tag: "a"}))
@@ -242,7 +335,7 @@ describe("TiliaQuery", () => {
 
   it("should keep cache entries shared between queries", async () => {
     let clock = ref(0.0)
-    let api: Sullybase.api<item, tagQuery> = {
+    let api: Papabase.api<item, tagQuery> = {
       fetch: async _q => {
         await sleep()
         [item("shared", "S", 1)]
@@ -250,14 +343,13 @@ describe("TiliaQuery", () => {
       upsert: async (_, _) => (),
     }
 
-    let items = Sullybase.make(
+    let items = Papabase.make(
       "items",
       item => item.id,
       api,
       ~stale=30.0,
       ~gc=300.0,
       ~now=() => clock.contents,
-      (),
     )
 
     watch(() => items.array({tag: "a"}), _ => ())

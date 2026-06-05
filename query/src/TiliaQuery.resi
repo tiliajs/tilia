@@ -19,6 +19,7 @@ type t<'a, 'query> = {
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
   upsert: (string, 'a) => unit,
+  sync: 'a => unit,
   tick: unit => unit,
 }
 
@@ -30,5 +31,6 @@ let make: (
   ~gc: float=?,
   ~now: unit => float=?,
   ~key: 'query => string=?,
+  ~invalidates: ('query, 'a) => bool=?,
   unit,
 ) => t<'a, 'query>

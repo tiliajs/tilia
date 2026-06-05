@@ -41,6 +41,7 @@ type t<'a, 'query> = {
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
   upsert: (string, 'a) => unit,
+  sync: 'a => unit,
   tick: unit => unit,
 }
 
@@ -70,6 +71,7 @@ let make = (
   ~gc=300.0,
   ~now=defaultNow,
   ~key=Json.sortedStringify,
+  ~invalidates=(_, _) => false,
   (),
 ) => {
   let data = {
@@ -82,8 +84,22 @@ let make = (
     stale: Dict.make()->Tilia.tilia,
   }
 
+  let invalidate = item =>
+    Dict.keys(data.meta)->Array.forEach(cacheKey =>
+      switch Dict.get(data.meta, cacheKey) {
+      | Value(m) if invalidates(m.filter, item) => Dict.set(data.stale, cacheKey, true)
+      | _ => ()
+      }
+    )
+
+  let sync = item => {
+    Dict.set(data.cache, data.id(item), item)
+    invalidate(item)
+  }
+
   let upsertItem = (id, item) => {
     Dict.set(data.cache, id, item)
+    invalidate(item)
     ignore(upsert(id, item))
   }
 
@@ -194,5 +210,5 @@ let make = (
     }
   }
 
-  {get, array, dict, upsert: upsertItem, tick}
+  {get, array, dict, upsert: upsertItem, sync, tick}
 }

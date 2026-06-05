@@ -27,17 +27,34 @@ function defaultNow() {
   return Date.now() / 1000.0;
 }
 
-function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, param) {
+function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesOpt, param) {
   let stale = staleOpt !== undefined ? staleOpt : 30.0;
   let gc = gcOpt !== undefined ? gcOpt : 300.0;
   let now = nowOpt !== undefined ? nowOpt : defaultNow;
   let key = keyOpt !== undefined ? keyOpt : sortedStringify;
+  let invalidates = invalidatesOpt !== undefined ? invalidatesOpt : (param, param$1) => false;
   let data_cache = Tilia.tilia(make());
   let data_queries = Tilia.tilia(make());
   let data_meta = make();
   let data_stale = Tilia.tilia(make());
+  let invalidate = item => {
+    Object.keys(data_meta).forEach(cacheKey => {
+      let m = Reflect.get(data_meta, cacheKey);
+      if ((m == null) || !invalidates(m.filter, item)) {
+        return;
+      } else {
+        Reflect.set(data_stale, cacheKey, true);
+        return;
+      }
+    });
+  };
+  let sync = item => {
+    Reflect.set(data_cache, id(item), item);
+    invalidate(item);
+  };
   let upsertItem = (id, item) => {
     Reflect.set(data_cache, id, item);
+    invalidate(item);
     upsert(id, item);
   };
   let get = id => {
@@ -187,6 +204,7 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, param) {
     array: array,
     dict: dict,
     upsert: upsertItem,
+    sync: sync,
     tick: tick
   };
 }
