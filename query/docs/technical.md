@@ -25,7 +25,7 @@ type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
-  upsert: (string, 'a) => unit,
+  upsert: 'a => option<unit => unit>,
   sync: 'a => unit,
   tick: unit => unit,
 }
@@ -36,8 +36,8 @@ Factory shape:
 ```rescript
 let make: (
   ~id: 'a => string,
-  ~fetch: 'query => promise<array<'a>>,
-  ~upsert: (string, 'a) => promise<unit>,
+  ~fetch: ('query, channel<array<'a>>) => option<unit => unit>,
+  ~upsert: ('a, channel<unit>) => option<unit => unit>,
   ~stale: float=?,
   ~gc: float=?,
   ~now: unit => float=?,
@@ -45,6 +45,18 @@ let make: (
   ~invalidates: ('query, 'a) => bool=?,
   unit,
 ) => t<'a, 'query>
+```
+
+Channel shape:
+
+```rescript
+type channelState = Live | Cancelled
+
+type channel<'a> = {
+  state: unit => channelState,
+  emit: 'a => unit,
+  error: exn => unit,
+}
 ```
 
 ## Internal Model
@@ -59,27 +71,32 @@ Keys are generated from query filters with `Json.sortedStringify` by default, so
 
 ## Data Flow
 
-### 1) Query read (`array` / `dict`)
+### 1) Query read (`array` / `dict`) via channel emit
 
 When first accessed:
 1. build query key
 2. store query metadata
 3. mark query stale
 4. create `Tilia.source(Loading, loader(...))`
-5. return `Loading` until fetch resolves
+5. loader calls `fetch(query, channel)`
+6. producer pushes rows with `channel.emit(rows)`
 
-After fetch:
+After each `emit(rows)`:
 - objects are written to `cache`
 - query result stores ids only
 - loadable state becomes `Loaded(ids)`
 
+If channel state becomes `Cancelled`, `emit/error` are no-op and late emissions are ignored.
+Producers may check `channel.state()` proactively, but this is optional because cancelled channels already no-op.
+
 ### 2) Local write (`upsert`)
 
-`upsert(id, item)`:
+`upsert(item)`:
 1. updates local object cache immediately
 2. runs invalidation predicate against cached query filters
 3. marks matching queries stale
-4. forwards write to remote `upsert`
+4. forwards write to remote `upsert(item, channel)`
+5. returns optional cleanup callback for caller-controlled cancellation
 
 ### 3) Live/inbound update (`sync`)
 
@@ -99,6 +116,7 @@ This is intended for websocket events or external state pushes.
 Then:
 - live stale check: if `now - fetched >= stale`, mark stale
 - idle cleanup: if `now - idle >= gc`, evict query metadata and stale flag
+- cancel cleanup callback for evicted active fetch channel
 - post-eviction object purge: remove objects no longer referenced by remaining queries
 
 ## Usage Pattern

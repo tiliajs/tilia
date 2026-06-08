@@ -3,6 +3,16 @@ type loadable<'a> =
   | Loaded('a)
   | NotFound
 
+type channelState =
+  | Live
+  | Cancelled
+
+type channel<'a> = {
+  state: unit => channelState,
+  emit: 'a => unit,
+  error: exn => unit,
+}
+
 type dict<'a>
 
 module Object: {
@@ -18,15 +28,15 @@ type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
-  upsert: (string, 'a) => unit,
+  upsert: 'a => option<unit => unit>,
   sync: 'a => unit,
   tick: unit => unit,
 }
 
 let make: (
   ~id: 'a => string,
-  ~fetch: 'query => promise<array<'a>>,
-  ~upsert: (string, 'a) => promise<unit>,
+  ~fetch: ('query, channel<array<'a>>) => option<unit => unit>,
+  ~upsert: ('a, channel<unit>) => option<unit => unit>,
   ~stale: float=?,
   ~gc: float=?,
   ~now: unit => float=?,

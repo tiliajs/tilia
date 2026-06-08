@@ -33,32 +33,78 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
   let now = nowOpt !== undefined ? nowOpt : defaultNow;
   let key = keyOpt !== undefined ? keyOpt : sortedStringify;
   let invalidates = invalidatesOpt !== undefined ? invalidatesOpt : (param, param$1) => false;
-  let data_cache = Tilia.tilia(make());
-  let data_queries = Tilia.tilia(make());
-  let data_meta = make();
-  let data_stale = Tilia.tilia(make());
+  let cache = Tilia.tilia(make());
+  let queries = Tilia.tilia(make());
+  let meta = make();
+  let staleKeys = Tilia.tilia(make());
+  let fetchCancels = make();
+  let makeChannel = (emit, error) => {
+    let state = {
+      contents: "Live"
+    };
+    let cancel = () => {
+      let match = state.contents;
+      if (match === "Live") {
+        state.contents = "Cancelled";
+        return;
+      }
+    };
+    let channel_state = () => state.contents;
+    let channel_emit = value => {
+      let match = state.contents;
+      if (match === "Live") {
+        return emit(value);
+      }
+    };
+    let channel_error = e => {
+      let match = state.contents;
+      if (match === "Live") {
+        return error(e);
+      }
+    };
+    let channel = {
+      state: channel_state,
+      emit: channel_emit,
+      error: channel_error
+    };
+    return [
+      channel,
+      cancel
+    ];
+  };
+  let stopFetch = cacheKey => {
+    let cancel = Reflect.get(fetchCancels, cacheKey);
+    if (cancel == null) {
+      return;
+    }
+    cancel();
+    Reflect.deleteProperty(fetchCancels, cacheKey);
+  };
   let invalidate = item => {
-    Object.keys(data_meta).forEach(cacheKey => {
-      let m = Reflect.get(data_meta, cacheKey);
+    Object.keys(meta).forEach(cacheKey => {
+      let m = Reflect.get(meta, cacheKey);
       if ((m == null) || !invalidates(m.filter, item)) {
         return;
       } else {
-        Reflect.set(data_stale, cacheKey, true);
+        Reflect.set(staleKeys, cacheKey, true);
         return;
       }
     });
   };
   let sync = item => {
-    Reflect.set(data_cache, id(item), item);
+    Reflect.set(cache, id(item), item);
     invalidate(item);
   };
-  let upsertItem = (id, item) => {
-    Reflect.set(data_cache, id, item);
+  let upsert$1 = item => {
+    let itemId = id(item);
+    Reflect.set(cache, itemId, item);
+    let match = makeChannel(param => {}, param => {});
+    let cleanup = upsert(item, match[0]);
     invalidate(item);
-    upsert(id, item);
+    return cleanup;
   };
   let get = id => {
-    let item = Reflect.get(data_cache, id);
+    let item = Reflect.get(cache, id);
     if (item == null) {
       return "NotFound";
     } else {
@@ -68,45 +114,66 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
       };
     }
   };
-  let loader = (cacheKey, filter) => (async (_prev, set) => {
-    let match = Reflect.get(data_stale, cacheKey);
+  let loader = (cacheKey, filter) => ((_prev, set) => {
+    let match = Reflect.get(staleKeys, cacheKey);
     if (match === undefined) {
       return;
-    }
-    let list = await fetch(filter);
-    let ids = list.map(item => {
-      let id$1 = id(item);
-      Reflect.set(data_cache, id$1, item);
-      return id$1;
-    });
-    set({
-      TAG: "Loaded",
-      _0: ids
-    });
-    let m = Reflect.get(data_meta, cacheKey);
-    if (m == null) {
-      m === null;
     } else {
-      m.fetched = now();
+      stopFetch(cacheKey);
+      let onEmit = list => {
+        let ids = list.map(item => {
+          let itemId = id(item);
+          Reflect.set(cache, itemId, item);
+          return itemId;
+        });
+        set({
+          TAG: "Loaded",
+          _0: ids
+        });
+        let m = Reflect.get(meta, cacheKey);
+        if (m == null) {
+          m === null;
+        } else {
+          m.fetched = now();
+        }
+        Reflect.deleteProperty(staleKeys, cacheKey);
+      };
+      let onError = _e => {
+        let m = Reflect.get(meta, cacheKey);
+        if (m == null) {
+          m === null;
+        } else {
+          m.fetched = now();
+        }
+        Reflect.deleteProperty(staleKeys, cacheKey);
+      };
+      let match$1 = makeChannel(onEmit, onError);
+      let cancelChannel = match$1[1];
+      let cleanup = fetch(filter, match$1[0]);
+      let cleanup$1 = cleanup !== undefined ? cleanup : () => {};
+      Reflect.set(fetchCancels, cacheKey, () => {
+        cancelChannel();
+        cleanup$1();
+      });
+      return;
     }
-    Reflect.deleteProperty(data_stale, cacheKey);
   });
   let query = filter => {
     let cacheKey = key(filter);
-    let q = Reflect.get(data_queries, cacheKey);
+    let q = Reflect.get(queries, cacheKey);
     if (q !== null && q !== undefined) {
       return q;
     }
     q === null;
-    Reflect.set(data_meta, cacheKey, {
+    Reflect.set(meta, cacheKey, {
       filter: filter,
       fetched: 0.0,
       idle: undefined
     });
-    Reflect.set(data_stale, cacheKey, true);
+    Reflect.set(staleKeys, cacheKey, true);
     let s = Tilia.source("Loading", loader(cacheKey, filter));
-    Reflect.set(data_queries, cacheKey, s);
-    return Reflect.get(data_queries, cacheKey);
+    Reflect.set(queries, cacheKey, s);
+    return Reflect.get(queries, cacheKey);
   };
   let array = filter => {
     let ids = query(filter);
@@ -119,7 +186,7 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
     } else {
       return {
         TAG: "Loaded",
-        _0: Tilia.tilia(ids._0.map(id => Tilia.computed(() => Reflect.get(data_cache, id))))
+        _0: Tilia.tilia(ids._0.map(id => Tilia.computed(() => Reflect.get(cache, id))))
       };
     }
   };
@@ -136,22 +203,22 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
         TAG: "Loaded",
         _0: Tilia.tilia(Object.fromEntries(ids._0.map(id => [
           id,
-          Tilia.computed(() => Reflect.get(data_cache, id))
+          Tilia.computed(() => Reflect.get(cache, id))
         ])))
       };
     }
   };
   let tick = () => {
-    let now$1 = now();
-    let canopy = Tilia._canopy(data_queries);
+    let current = now();
+    let canopy = Tilia._canopy(queries);
     canopy.live.forEach(k => {
-      let m = Reflect.get(data_meta, k);
+      let m = Reflect.get(meta, k);
       if (m == null) {
         return;
       }
       m.idle = undefined;
-      if (now$1 - m.fetched >= stale) {
-        Reflect.set(data_stale, k, true);
+      if (current - m.fetched >= stale) {
+        Reflect.set(staleKeys, k, true);
         return;
       }
     });
@@ -159,23 +226,24 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
       contents: false
     };
     canopy.idle.forEach(k => {
-      let m = Reflect.get(data_meta, k);
+      let m = Reflect.get(meta, k);
       if (m == null) {
         return;
       }
       let t = m.idle;
       if (t !== undefined) {
-        if (now$1 - t >= gc) {
-          Reflect.deleteProperty(data_queries, k);
-          Reflect.deleteProperty(data_meta, k);
-          Reflect.deleteProperty(data_stale, k);
+        if (current - t >= gc) {
+          stopFetch(k);
+          Reflect.deleteProperty(queries, k);
+          Reflect.deleteProperty(meta, k);
+          Reflect.deleteProperty(staleKeys, k);
           evicted.contents = true;
           return;
         } else {
           return;
         }
       } else {
-        m.idle = now$1;
+        m.idle = current;
         return;
       }
     });
@@ -183,8 +251,8 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
       return;
     }
     let referenced = new Set();
-    Object.keys(data_queries).forEach(k => {
-      let ids = Reflect.get(data_queries, k);
+    Object.keys(queries).forEach(k => {
+      let ids = Reflect.get(queries, k);
       if (typeof ids !== "object") {
         return;
       }
@@ -192,9 +260,9 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
         referenced.add(id);
       });
     });
-    Object.keys(data_cache).forEach(id => {
+    Object.keys(cache).forEach(id => {
       if (!referenced.has(id)) {
-        Reflect.deleteProperty(data_cache, id);
+        Reflect.deleteProperty(cache, id);
         return;
       }
     });
@@ -203,7 +271,7 @@ function make$1(id, fetch, upsert, staleOpt, gcOpt, nowOpt, keyOpt, invalidatesO
     get: get,
     array: array,
     dict: dict,
-    upsert: upsertItem,
+    upsert: upsert$1,
     sync: sync,
     tick: tick
   };
