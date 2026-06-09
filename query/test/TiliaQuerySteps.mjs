@@ -30,11 +30,9 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("network is {string}", mode => {
     switch (mode) {
       case "offline" :
-        w.remote.online.contents = false;
-        return;
+        return TiliaQueryTestHelpers.setNetwork(w, false);
       case "online" :
-        w.remote.online.contents = true;
-        return;
+        return TiliaQueryTestHelpers.setNetwork(w, true);
       default:
         return Pervasives.failwith("Unknown network mode");
     }
@@ -42,18 +40,26 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("network becomes {string}", mode => {
     switch (mode) {
       case "offline" :
-        w.remote.online.contents = false;
-        return;
+        return TiliaQueryTestHelpers.setNetwork(w, false);
       case "online" :
-        w.remote.online.contents = true;
-        let queued = w.remote.pendingWrites.contents;
-        w.remote.syncPending();
-        queued.forEach(w.items.sync);
-        return w.items.tick();
+        return TiliaQueryTestHelpers.setNetwork(w, true);
       default:
         return Pervasives.failwith("Unknown network mode");
     }
   });
+  step("remote write delivery is {string}", mode => {
+    switch (mode) {
+      case "live" :
+        return TiliaQueryTestHelpers.pauseWrites(w, false);
+      case "paused" :
+        return TiliaQueryTestHelpers.pauseWrites(w, true);
+      default:
+        return Pervasives.failwith("Unknown write delivery mode");
+    }
+  });
+  step("next upsert for task {string} conflicts with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.queueConflict(w, id, status, count));
+  step("next upsert for task {string} is rejected with {string}", (id, message) => TiliaQueryTestHelpers.queueRejected(w, id, message));
+  step("next upsert for task {string} fails offline", id => TiliaQueryTestHelpers.queueOffline(w, id));
   step("I open {string} tasks", list => {
     switch (list) {
       case "active" :
@@ -75,12 +81,8 @@ VitestBdd.Given("a task world", (param, param$1) => {
         return Pervasives.failwith("Unknown tasks list");
     }
   });
-  step("I edit task {string} to status {string} count {number}", (id, status, count) => w.items.upsert(TiliaQueryTestHelpers.item(id, status, count)));
-  step("I sync pending writes", () => {
-    let queued = w.remote.pendingWrites.contents;
-    w.remote.syncPending();
-    queued.forEach(w.items.sync);
-    w.items.tick();
+  step("I edit task {string} to status {string} count {number}", (id, status, count) => {
+    w.items.upsert(TiliaQueryTestHelpers.item(id, status, count));
   });
   step("I run tick for {string} tasks after {number} seconds", (target, seconds) => {
     w.clock.contents = w.clock.contents + seconds;
@@ -96,6 +98,10 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("I emit from active fetch channel {number} with count {number}", (position, count) => {
     let index = position <= 0 ? 0 : position - 1 | 0;
     TiliaQueryTestHelpers.emitActiveChannel(w, index, count);
+  });
+  step("I emit from held upsert channel {number} with count {number}", (position, count) => {
+    let index = position <= 0 ? 0 : position - 1 | 0;
+    TiliaQueryTestHelpers.emitHeldWrite(w, index, count);
   });
   step("{string} tasks should be", (status, table) => {
     let rows = VitestBdd.toRecords(table);
@@ -117,8 +123,10 @@ VitestBdd.Given("a task world", (param, param$1) => {
     _0: TiliaQueryTestHelpers.item(id, status, count)
   }));
   step("remote task {string} should be status {string} count {number}", (id, status, count) => Vitest.expect(TiliaQueryTestHelpers.remoteTask(w, id)).toEqual(TiliaQueryTestHelpers.item(id, status, count)));
-  step("pending sync writes should be {number}", expected => Vitest.expect(w.remote.pendingWrites.contents.length).toBe(expected));
   step("synced remote writes should be {number}", expected => Vitest.expect(w.remote.syncedWrites.contents.length).toBe(expected));
+  step("remote upsert calls should be {number}", expected => Vitest.expect(w.remote.upsertCalls.contents).toBe(expected));
+  step("rejected remote writes should be {number}", expected => Vitest.expect(w.remote.rejectedWrites.contents).toBe(expected));
+  step("held upsert channels should be {number}", expected => Vitest.expect(TiliaQueryTestHelpers.heldWrites(w)).toBe(expected));
   step("{string} fetch calls should be {number}", (name, expected) => {
     let tmp;
     switch (name) {

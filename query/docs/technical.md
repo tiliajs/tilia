@@ -21,6 +21,26 @@ It does **not** solve:
 From `query/src/TiliaQuery.resi`:
 
 ```rescript
+module Channel = {
+  type state = Live | Cancelled
+  type t<'a, 'issue> = {
+    state: state,
+    emit: 'a => unit,
+    fail: 'issue => unit,
+  }
+}
+
+type upsertIssue<'a> =
+  | Offline
+  | Conflict('a)
+  | Rejected(string)
+
+type remote<'a, 'query> = {
+  online: bool,
+  fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
+  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => option<unit => unit>,
+}
+
 type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
@@ -36,8 +56,7 @@ Factory shape:
 ```rescript
 let make: (
   ~id: 'a => string,
-  ~fetch: ('query, channel<array<'a>>) => option<unit => unit>,
-  ~upsert: ('a, channel<unit>) => option<unit => unit>,
+  ~remote: remote<'a, 'query>,
   ~stale: float=?,
   ~gc: float=?,
   ~now: unit => float=?,
@@ -47,31 +66,20 @@ let make: (
 ) => t<'a, 'query>
 ```
 
-Channel shape:
-
-```rescript
-type channelState = Live | Cancelled
-
-type channel<'a> = {
-  state: unit => channelState,
-  emit: 'a => unit,
-  error: exn => unit,
-}
-```
-
 ## Internal Model
 
-In `query/src/TiliaQuery.res`, runtime state is built around four dictionaries:
+In `query/src/TiliaQuery.res`, runtime state is built around:
 - `cache`: object cache by id
 - `queries`: loadable arrays of ids by query key
 - `meta`: query metadata (filter, fetched timestamp, idle timestamp)
 - `stale`: query keys marked for reload
+- `upsert entries`: pending and in-flight writes keyed by object id
 
 Keys are generated from query filters with `Json.sortedStringify` by default, so equivalent object filters map to the same cache key.
 
 ## Data Flow
 
-### 1) Query read (`array` / `dict`) via channel emit
+### 1) Query read (`array` / `dict`) via channel emit/fail
 
 When first accessed:
 1. build query key
@@ -79,15 +87,17 @@ When first accessed:
 3. mark query stale
 4. create `Tilia.source(Loading, loader(...))`
 5. loader calls `fetch(query, channel)`
-6. producer pushes rows with `channel.emit(rows)`
+6. transport pushes rows with `channel.emit(rows)` or failure with `channel.fail(message)`
 
 After each `emit(rows)`:
 - objects are written to `cache`
 - query result stores ids only
 - loadable state becomes `Loaded(ids)`
 
-If channel state becomes `Cancelled`, `emit/error` are no-op and late emissions are ignored.
-Producers may check `channel.state()` proactively, but this is optional because cancelled channels already no-op.
+On `fail(message)`, query freshness metadata is updated and stale flags are cleared for the current cycle (existing loaded data stays available).
+
+If channel state becomes `Cancelled`, `emit/fail` are no-op and late callbacks are ignored.
+Transport may check `channel.state` proactively, but cancellation safety is enforced inside channel handlers.
 
 ### 2) Local write (`upsert`)
 
@@ -95,8 +105,15 @@ Producers may check `channel.state()` proactively, but this is optional because 
 1. updates local object cache immediately
 2. runs invalidation predicate against cached query filters
 3. marks matching queries stale
-4. forwards write to remote `upsert(item, channel)`
-5. returns optional cleanup callback for caller-controlled cancellation
+4. stores/replaces pending entry by id (latest write wins per id)
+5. if `remote.online`, sends transport write through `remote.upsert(item, channel)`
+6. if offline, entry remains queued for reconnect replay
+
+Write issue handling:
+- `Offline`: drop current entry
+- `Conflict(serverObject)`: resolve into cache, then drop current entry
+- `Rejected(message)`: drop current entry
+- `emit(savedObject)`: resolve into cache and remove entry
 
 ### 3) Live/inbound update (`sync`)
 
@@ -107,7 +124,18 @@ Producers may check `channel.state()` proactively, but this is optional because 
 
 This is intended for websocket events or external state pushes.
 
-### 4) Lifecycle (`tick`)
+### 4) Reconnect ownership
+
+Connectivity ownership lives in the core:
+- `TiliaQuery` watches `remote.online`
+- on `false -> true`, it triggers replay for both:
+  - eligible fetch queries
+  - queued upsert entries
+- on `true -> false`, active upsert channels are cancelled but entries are retained
+
+Replay sends each currently queued and idle upsert entry once; upsert channels are single-response and entries are removed on any response.
+
+### 5) Lifecycle (`tick`)
 
 `tick()` uses `Tilia._canopy(queries)` to split query keys:
 - `live`: watched now
@@ -127,7 +155,7 @@ Recommended structure:
 3. Expose domain-shaped helpers to app code.
 4. Pass `invalidates` that expresses domain match rules between query filters and changed objects.
 
-Tests in `query/test/TiliaQuery_test.res` show this pattern with `Papabase` as an adapter example.
+Tests in `query/test/TiliaQuery.feature` and `query/test/TiliaQueryTestHelpers.res` show this pattern with `Papabase` as an adapter example.
 
 ## Current Shortcomings And Open Problems
 

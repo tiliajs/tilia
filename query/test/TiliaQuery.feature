@@ -1,8 +1,4 @@
-Feature: Task query behavior for online, offline, sync, and invalidation
-
-  # fully offline: reads use local store and writes are queued
-  # optimistic edit: cache updates immediately
-  # reconnect sync: queued writes are sent when we go back online
+Feature: Task query behavior for online, offline, and replay ownership
 
   Background:
     Given a task world
@@ -22,39 +18,80 @@ Feature: Task query behavior for online, offline, sync, and invalidation
     And "active" fetch calls should be 1
     And "offline" fetch calls should be 1
 
-  Scenario: Offline edits are optimistic and queued
-    Given network is "offline"
-    When I open "active" tasks
-    And I edit task "todo-1" to status "active" count 9
-    Then task "todo-1" in cache should be status "active" count 9
-    And pending sync writes should be 1
-    And synced remote writes should be 0
-
-  Scenario: Reconnect sync sends queued offline edits
+  Scenario: Offline edits are optimistic and replay on reconnect
     Given network is "offline"
     When I edit task "todo-1" to status "active" count 9
-    And network becomes "online"
-    And I sync pending writes
-    Then pending sync writes should be 0
+    Then task "todo-1" in cache should be status "active" count 9
+    And remote upsert calls should be 0
+    When network becomes "online"
+    Then remote upsert calls should be 1
     And synced remote writes should be 1
     And remote task "todo-1" should be status "active" count 9
 
-  Scenario: Edit that changes membership is resolved when connection returns
+  Scenario: Replay removes write when remote responds offline
+    Given network is "offline"
+    And next upsert for task "todo-1" fails offline
+    When I edit task "todo-1" to status "active" count 9
+    And I edit task "todo-2" to status "done" count 5
+    And network becomes "online"
+    Then remote upsert calls should be 2
+    And synced remote writes should be 1
+    When network becomes "offline"
+    And network becomes "online"
+    Then remote upsert calls should be 2
+    And synced remote writes should be 1
+    And remote task "todo-1" should be status "active" count 1
+    And remote task "todo-2" should be status "done" count 5
+
+  Scenario: Edit that changes membership is resolved on reconnect
     Given network is "online"
     When I open "active" tasks
     And network becomes "offline"
     And I edit task "todo-1" to status "done" count 2
     And network becomes "online"
     Then no "active" tasks should remain
-    And pending sync writes should be 0
+    And remote upsert calls should be 1
     And synced remote writes should be 1
+
+  Scenario: Latest same-id write owns channel callbacks
+    Given network is "online"
+    And remote write delivery is "paused"
+    When I edit task "todo-1" to status "active" count 2
+    And I edit task "todo-1" to status "active" count 3
+    Then remote upsert calls should be 2
+    And held upsert channels should be 2
+    When I emit from held upsert channel 1 with count 99
+    Then task "todo-1" in cache should be status "active" count 3
+    And held upsert channels should be 1
+    When I emit from held upsert channel 1 with count 3
+    Then task "todo-1" in cache should be status "active" count 3
+    And held upsert channels should be 0
+
+  Scenario: Conflict response resolves and stops
+    Given network is "online"
+    And next upsert for task "todo-1" conflicts with status "active" count 4
+    When I edit task "todo-1" to status "active" count 9
+    Then remote upsert calls should be 1
+    And task "todo-1" in cache should be status "active" count 4
+    And remote task "todo-1" should be status "active" count 4
+
+  Scenario: Rejected write does not block remaining replay
+    Given network is "offline"
+    And next upsert for task "todo-1" is rejected with "forbidden"
+    When I edit task "todo-1" to status "active" count 9
+    And I edit task "todo-2" to status "done" count 6
+    And network becomes "online"
+    Then remote upsert calls should be 2
+    And rejected remote writes should be 1
+    And remote task "todo-1" should be status "active" count 1
+    And remote task "todo-2" should be status "done" count 6
 
   Scenario: Active edit updates active list but not done list
     Given network is "online"
     When I open "active and done" tasks
     And I edit task "todo-1" to status "active" count 8
     And I run tick for "active and done" tasks after 0 seconds
-    Then "active" fetch calls should be 2
+    Then "active" fetch calls should be 3
     And "done" fetch calls should be 1
 
   Scenario: Live fetch channel emissions update active query

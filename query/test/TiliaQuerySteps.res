@@ -24,25 +24,37 @@ given("a task world", ({step}, _) => {
 
   step("network is {string}", mode =>
     switch mode {
-    | "online" => w.remote.online := true
-    | "offline" => w.remote.online := false
+    | "online" => H.setNetwork(w, true)
+    | "offline" => H.setNetwork(w, false)
     | _ => failwith("Unknown network mode")
     }
   )
 
   step("network becomes {string}", mode =>
     switch mode {
-    | "online" => {
-        w.remote.online := true
-        let queued = w.remote.pendingWrites.contents
-        w.remote.syncPending()
-        queued->Array.forEach(w.items.sync)
-        w.items.tick()
-      }
-    | "offline" => w.remote.online := false
+    | "online" => H.setNetwork(w, true)
+    | "offline" => H.setNetwork(w, false)
     | _ => failwith("Unknown network mode")
     }
   )
+
+  step("remote write delivery is {string}", mode =>
+    switch mode {
+    | "paused" => H.pauseWrites(w, true)
+    | "live" => H.pauseWrites(w, false)
+    | _ => failwith("Unknown write delivery mode")
+    }
+  )
+
+  step("next upsert for task {string} conflicts with status {string} count {number}", (id, status, count) =>
+    H.queueConflict(w, id, status, count)
+  )
+
+  step("next upsert for task {string} is rejected with {string}", (id, message) =>
+    H.queueRejected(w, id, message)
+  )
+
+  step("next upsert for task {string} fails offline", id => H.queueOffline(w, id))
 
   step("I open {string} tasks", list =>
     switch list {
@@ -61,14 +73,7 @@ given("a task world", ({step}, _) => {
   )
 
   step("I edit task {string} to status {string} count {number}", (id, status, count) => {
-    w.items.upsert(item(id, status, count))
-  })
-
-  step("I sync pending writes", () => {
-    let queued = w.remote.pendingWrites.contents
-    w.remote.syncPending()
-    queued->Array.forEach(w.items.sync)
-    w.items.tick()
+    ignore(w.items.upsert(item(id, status, count)))
   })
 
   step("I run tick for {string} tasks after {number} seconds", (target, seconds) => {
@@ -83,6 +88,11 @@ given("a task world", ({step}, _) => {
   step("I emit from active fetch channel {number} with count {number}", (position, count) => {
     let index = if position <= 0 {0} else {position - 1}
     H.emitActiveChannel(w, index, count)
+  })
+
+  step("I emit from held upsert channel {number} with count {number}", (position, count) => {
+    let index = if position <= 0 {0} else {position - 1}
+    H.emitHeldWrite(w, index, count)
   })
 
   step("{string} tasks should be", (status, table) => {
@@ -102,12 +112,20 @@ given("a task world", ({step}, _) => {
     expect(H.remoteTask(w, id)).toEqual(item(id, status, count))
   )
 
-  step("pending sync writes should be {number}", expected =>
-    expect(w.remote.pendingWrites.contents->Array.length).toBe(expected)
-  )
-
   step("synced remote writes should be {number}", expected =>
     expect(w.remote.syncedWrites.contents->Array.length).toBe(expected)
+  )
+
+  step("remote upsert calls should be {number}", expected =>
+    expect(w.remote.upsertCalls.contents).toBe(expected)
+  )
+
+  step("rejected remote writes should be {number}", expected =>
+    expect(w.remote.rejectedWrites.contents).toBe(expected)
+  )
+
+  step("held upsert channels should be {number}", expected =>
+    expect(H.heldWrites(w)).toBe(expected)
   )
 
   step("{string} fetch calls should be {number}", (name, expected) =>

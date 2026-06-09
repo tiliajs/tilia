@@ -3,14 +3,27 @@ type loadable<'a> =
   | Loaded('a)
   | NotFound
 
-type channelState =
-  | Live
-  | Cancelled
+module Channel: {
+  type state =
+    | Live
+    | Cancelled
 
-type channel<'a> = {
-  state: unit => channelState,
-  emit: 'a => unit,
-  error: exn => unit,
+  type t<'a, 'issue> = {
+    state: state,
+    emit: 'a => unit,
+    fail: 'issue => unit,
+  }
+}
+
+type upsertIssue<'a> =
+  | Offline
+  | Conflict('a)
+  | Rejected(string)
+
+type remote<'a, 'query> = {
+  online: bool,
+  fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
+  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => option<unit => unit>,
 }
 
 type dict<'a>
@@ -35,8 +48,7 @@ type t<'a, 'query> = {
 
 let make: (
   ~id: 'a => string,
-  ~fetch: ('query, channel<array<'a>>) => option<unit => unit>,
-  ~upsert: ('a, channel<unit>) => option<unit => unit>,
+  ~remote: remote<'a, 'query>,
   ~stale: float=?,
   ~gc: float=?,
   ~now: unit => float=?,
