@@ -24,7 +24,7 @@ This roadmap tracks TiliaQuery in sequential phases so contributors can see what
 
 - [x] Add non-technical product overview in `query/docs/vision.md`.
 - [x] Add implementation guide in `query/docs/technical.md`.
-- [ ] Create package-level `query/README.md` for npm/repo entry-point onboarding.
+- [x] Create package-level `query/README.md` for npm/repo entry-point onboarding.
 - [ ] Ensure one canonical navigation path between root README, query docs, and website docs.
 
 ## Phase 4 - Type Surface And App-Level Validation (Pending)
@@ -46,5 +46,8 @@ This roadmap tracks TiliaQuery in sequential phases so contributors can see what
 
 - [ ] Define a first-class strategy for singleton/detail resources.
 - [ ] Improve invalidation performance for many cached query filters.
-- [ ] Clarify conflict resolution policy between optimistic writes and fetch responses.
+- [x] Clarify conflict resolution policy between optimistic writes and fetch responses (fetch rows skip ids with pending upserts).
 - [ ] Define pagination/windowing strategy beyond full-array query results.
+- [ ] Design `'query` as serializable data (field/range DSL) so local evaluation, remote compilation, coverage checks, and `invalidates` derive from one definition instead of per-adapter parsers.
+- [ ] Add a dedicated fetch signal for delta-sync covered queries instead of overloading `fail(string)`.
+- [ ] Expose pending-writes / rejection observability for sync-status UI.

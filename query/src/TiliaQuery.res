@@ -57,7 +57,7 @@ type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
-  upsert: 'a => option<unit => unit>,
+  upsert: 'a => unit,
   sync: 'a => unit,
   tick: unit => unit,
 }
@@ -65,7 +65,13 @@ type t<'a, 'query> = {
 type remote<'a, 'query> = {
   online: bool,
   fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
-  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => option<unit => unit>,
+  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => unit,
+}
+
+type store<'a, 'query> = {
+  fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
+  save: ('a, bool) => unit,
+  dirty: unit => promise<array<'a>>,
 }
 
 type meta<'query> = {
@@ -94,43 +100,47 @@ let makeChannel = (~emit, ~fail) => {
   (channel, () => setState(Cancelled))
 }
 
-module Fetch = {
-  type t<'a, 'query> = {
-    replay: unit => unit,
-    resolve: ('query, array<'a>) => unit,
-  }
-
-  let make = (~replay, ~resolve) => {replay, resolve}
-}
-
 module Upsert = {
   type entry<'a> = {
     value: 'a,
-    mutable active: bool,
-    released: ref<bool>,
-    canceler: ref<unit => unit>,
-    cleaner: ref<unit => unit>,
-    stopper: unit => unit,
+    // None = queued, Some(f) = in flight, f cancels the channel
+    mutable cancel: option<unit => unit>,
   }
 
   type entries<'a> = Dict.t<entry<'a>>
   type t<'a> = {
-    send: 'a => option<unit => unit>,
+    send: 'a => unit,
     replay: unit => unit,
     cancel: unit => unit,
+    pending: string => bool,
   }
 
-  let make = (~id: 'a => string, ~remote: remote<'a, 'query>, ~resolve: 'a => 'a) => {
+  let make = (
+    ~id: 'a => string,
+    ~remote: remote<'a, 'query>,
+    ~local: store<'a, 'query>,
+    ~resolve: 'a => 'a,
+  ) => {
     let entries: entries<'a> = Dict.make()
 
-    let stop = entry => {
-      entry.stopper()
-      entry.active = false
-    }
+    let pending = itemId =>
+      switch Dict.get(entries, itemId) {
+      | Value(_) => true
+      | _ => false
+      }
+
+    let stop = (entry: entry<'a>) =>
+      switch entry.cancel {
+      | Some(cancel) => {
+          cancel()
+          entry.cancel = None
+        }
+      | None => ()
+      }
 
     let remove = (itemId, entry) =>
       switch Dict.get(entries, itemId) {
-      | Value(current) if current == entry => {
+      | Value(current) if current === entry => {
           stop(current)
           Dict.delete(entries, itemId)
           true
@@ -141,100 +151,67 @@ module Upsert = {
     let cancel = () =>
       Dict.keys(entries)->Array.forEach(itemId =>
         switch Dict.get(entries, itemId) {
-        | Value(entry) if entry.active => stop(entry)
+        | Value(entry) => stop(entry)
         | _ => ()
         }
       )
 
-    let dispatch = (itemId, entry) => {
-      let onEmit = value => {
+    let dispatch = (itemId, entry: entry<'a>) => {
+      let settle = value => {
         if remove(itemId, entry) {
+          local.save(value, false)
           ignore(resolve(value))
         }
       }
-      let onFail = issue => {
-        if remove(itemId, entry) {
-          switch issue {
-          | Conflict(server) => ignore(resolve(server))
-          | Rejected(_) => ()
-          | Offline => ()
+      let onFail = issue =>
+        switch issue {
+        | Offline =>
+          // Keep the entry queued and dirty for the next reconnect.
+          switch Dict.get(entries, itemId) {
+          | Value(current) if current === entry => stop(current)
+          | _ => ()
+          }
+        | Conflict(server) => settle(server)
+        | Rejected(_) =>
+          if remove(itemId, entry) {
+            // Stop retries; a later fetch restores server truth.
+            local.save(entry.value, false)
           }
         }
-      }
-      let (channel, cancelChannel) = makeChannel(~emit=onEmit, ~fail=onFail)
-      entry.active = true
-      entry.canceler := cancelChannel
-      let done = switch remote.upsert(entry.value, channel) {
-      | Some(done) => done
-      | None => () => ()
-      }
-      entry.cleaner := done
-      if entry.released.contents {
-        done()
-      }
-      switch Dict.get(entries, itemId) {
-      | Value(current) if current == entry && current.active => ()
-      | _ => entry.stopper()
-      }
+      let (channel, cancelChannel) = makeChannel(~emit=settle, ~fail=onFail)
+      entry.cancel = Some(cancelChannel)
+      remote.upsert(entry.value, channel)
     }
 
     let replay = () =>
       if remote.online {
         Dict.keys(entries)->Array.forEach(itemId =>
           switch Dict.get(entries, itemId) {
-          | Value(entry) if !entry.active => dispatch(itemId, entry)
+          | Value(entry) =>
+            switch entry.cancel {
+            | None => dispatch(itemId, entry)
+            | Some(_) => ()
+            }
           | _ => ()
           }
         )
       }
 
     let send = value => {
-      let next = resolve(value)
-      let itemId = id(next)
+      let itemId = id(value)
       switch Dict.get(entries, itemId) {
       | Value(entry) => stop(entry)
       | _ => ()
       }
-      let released = ref(false)
-      let canceler = ref(() => ())
-      let cleaner = ref(() => ())
-      let stopper = () =>
-        if !released.contents {
-          released := true
-          canceler.contents()
-          cleaner.contents()
-        }
-      let entry = {
-        value: next,
-        active: false,
-        released,
-        canceler,
-        cleaner,
-        stopper,
-      }
-      Dict.set(entries, itemId, entry)
+      Dict.set(entries, itemId, {value, cancel: None})
+      local.save(value, true)
+      ignore(resolve(value))
       if remote.online {
         replay()
       }
-      Some(() => ignore(remove(itemId, entry)))
     }
 
-    {send, replay, cancel}
-  }
-}
-
-module Sync = {
-  type t<'a> = {
-    replay: unit => unit,
-    resolve: 'a => 'a,
-  }
-
-  let make = (~fetch: Fetch.t<'a, 'query>, ~upsert: Upsert.t<'a>, ~resolve: 'a => 'a) => {
-    let replay = () => {
-      fetch.replay()
-      upsert.replay()
-    }
-    {replay, resolve}
+    {send, replay, cancel, pending}
   }
 }
 
@@ -243,6 +220,7 @@ let defaultNow = () => Date.now() /. 1000.0
 let make = (
   ~id,
   ~remote,
+  ~local=?,
   ~stale=30.0,
   ~gc=300.0,
   ~now=defaultNow,
@@ -250,8 +228,18 @@ let make = (
   ~invalidates=(_, _) => false,
   (),
 ) => {
+  let local: store<_, _> = switch local {
+  | Some(local) => local
+  | None => {
+      fetch: (_, _) => None,
+      save: (_, _) => (),
+      dirty: () => Promise.resolve([]),
+    }
+  }
   let cache: Dict.t<'a> = Dict.make()->Tilia.tilia
   let queries: Dict.t<loadable<array<string>>> = Dict.make()->Tilia.tilia
+  let arrays: Dict.t<loadable<array<'a>>> = Dict.make()->Tilia.tilia
+  let dicts: Dict.t<loadable<dict<'a>>> = Dict.make()->Tilia.tilia
   let meta: Dict.t<meta<'query>> = Dict.make()
   let staleKeys: Dict.t<bool> = Dict.make()->Tilia.tilia
   let fetchCancels: Dict.t<unit => unit> = Dict.make()
@@ -279,37 +267,51 @@ let make = (
     item
   }
 
+  let writes = Upsert.make(~id, ~remote, ~local, ~resolve)
+
   let startFetch = (cacheKey, filter, set) => {
     stopFetch(cacheKey)
-    let onEmit = list => {
+    let fresh = () =>
+      switch Dict.get(meta, cacheKey) {
+      | Value(m) => m.fetched = now()
+      | _ => ()
+      }
+    // Remote rows are authoritative: they refresh freshness and write through
+    // to the local store. Rows with a pending upsert keep their optimistic value.
+    let receive = (authority, list) => {
       let ids = list->Array.map(item => {
         let itemId = id(item)
-        Dict.set(cache, itemId, item)
+        if !writes.pending(itemId) {
+          Dict.set(cache, itemId, item)
+          if authority {
+            local.save(item, false)
+          }
+        }
         itemId
       })
       set(Loaded(ids))
-      switch Dict.get(meta, cacheKey) {
-      | Value(m) => m.fetched = now()
-      | _ => ()
+      if authority {
+        fresh()
       }
-      Dict.delete(staleKeys, cacheKey)
     }
-    let onFail = _message => {
-      switch Dict.get(meta, cacheKey) {
-      | Value(m) => m.fetched = now()
-      | _ => ()
+    let tier = (fetch, authority, fail) => {
+      let (channel, cancelChannel) = makeChannel(~emit=rows => receive(authority, rows), ~fail)
+      let cleanup = switch fetch(filter, channel) {
+      | Some(cleanup) => cleanup
+      | None => () => ()
       }
-      Dict.delete(staleKeys, cacheKey)
+      () => {
+        cancelChannel()
+        cleanup()
+      }
     }
-    let (channel, cancelChannel) = makeChannel(~emit=onEmit, ~fail=onFail)
-    let cleanup = switch remote.fetch(filter, channel) {
-    | Some(cleanup) => cleanup
-    | None => () => ()
-    }
+    let cancelLocal = tier(local.fetch, false, _ => ())
+    let cancelRemote = remote.online ? tier(remote.fetch, true, _ => fresh()) : (() => ())
     Dict.set(fetchCancels, cacheKey, () => {
-      cancelChannel()
-      cleanup()
+      cancelLocal()
+      cancelRemote()
     })
+    Dict.delete(staleKeys, cacheKey)
   }
 
   let loader = (cacheKey, filter) =>
@@ -319,19 +321,12 @@ let make = (
       | _ => startFetch(cacheKey, filter, set)
       }
 
-  let fetch = Fetch.make(
-    ~replay=() => {
-      let canopy = Tilia._canopy(queries)
-      Set.forEach(canopy.live, cacheKey => Dict.set(staleKeys, cacheKey, true))
-    },
-    ~resolve=(_filter, rows) =>
-      rows->Array.forEach(item => {
-        Dict.set(cache, id(item), item)
-      }),
-  )
+  let replay = () => {
+    let canopy = Tilia._canopy(queries)
+    Set.forEach(canopy.live, cacheKey => Dict.set(staleKeys, cacheKey, true))
+    writes.replay()
+  }
 
-  let writes = Upsert.make(~id, ~remote, ~resolve)
-  let syncer = Sync.make(~fetch, ~upsert=writes, ~resolve)
   let online = ref(remote.online)
 
   Tilia.watch(
@@ -340,7 +335,7 @@ let make = (
       let prev = online.contents
       online := live
       if !prev && live {
-        syncer.replay()
+        replay()
       } else if prev && !live {
         writes.cancel()
       }
@@ -367,30 +362,62 @@ let make = (
     }
   }
 
-  let array = filter =>
-    switch query(filter) {
-    | Loading => Loading
-    | NotFound => NotFound
-    | Loaded(ids) =>
-      Loaded(ids->Array.map(id => Tilia.computed(() => Dict.getKnown(cache, id)))->Tilia.tilia)
+  // Views are memoized per query key so repeated reads return the same proxy;
+  // the computed rebuilds only when the query's id list changes.
+  let array = filter => {
+    let cacheKey = key(filter)
+    ignore(query(filter))
+    switch Dict.get(arrays, cacheKey) {
+    | Value(view) => view
+    | _ => {
+        Dict.set(
+          arrays,
+          cacheKey,
+          Tilia.computed(() =>
+            switch Dict.getKnown(queries, cacheKey) {
+            | Loading => Loading
+            | NotFound => NotFound
+            | Loaded(ids) =>
+              Loaded(
+                ids->Array.map(id => Tilia.computed(() => Dict.getKnown(cache, id)))->Tilia.tilia,
+              )
+            }
+          ),
+        )
+        Dict.getKnown(arrays, cacheKey)
+      }
     }
-
-  let dict = filter =>
-    switch query(filter) {
-    | Loading => Loading
-    | NotFound => NotFound
-    | Loaded(ids) =>
-      Loaded(
-        ids
-        ->Array.map(id => (id, Tilia.computed(() => Dict.getKnown(cache, id))))
-        ->Object.fromEntries
-        ->Tilia.tilia,
-      )
-    }
-
-  let sync = item => {
-    ignore(syncer.resolve(item))
   }
+
+  let dict = filter => {
+    let cacheKey = key(filter)
+    ignore(query(filter))
+    switch Dict.get(dicts, cacheKey) {
+    | Value(view) => view
+    | _ => {
+        Dict.set(
+          dicts,
+          cacheKey,
+          Tilia.computed(() =>
+            switch Dict.getKnown(queries, cacheKey) {
+            | Loading => Loading
+            | NotFound => NotFound
+            | Loaded(ids) =>
+              Loaded(
+                ids
+                ->Array.map(id => (id, Tilia.computed(() => Dict.getKnown(cache, id))))
+                ->Object.fromEntries
+                ->Tilia.tilia,
+              )
+            }
+          ),
+        )
+        Dict.getKnown(dicts, cacheKey)
+      }
+    }
+  }
+
+  let sync = item => ignore(resolve(item))
 
   let upsert = item => writes.send(item)
 
@@ -401,7 +428,7 @@ let make = (
       switch Dict.get(meta, k) {
       | Value(m) => {
           m.idle = None
-          if current -. m.fetched >= stale {
+          if remote.online && current -. m.fetched >= stale {
             Dict.set(staleKeys, k, true)
           }
         }
@@ -416,6 +443,8 @@ let make = (
         | None => m.idle = Some(current)
         | Some(t) if current -. t >= gc => {
             stopFetch(k)
+            Dict.delete(arrays, k)
+            Dict.delete(dicts, k)
             Dict.delete(queries, k)
             Dict.delete(meta, k)
             Dict.delete(staleKeys, k)
@@ -441,6 +470,12 @@ let make = (
       )
     }
   }
+
+  // Boot: queue pending writes from the previous session; replay happens
+  // through the normal online flow.
+  local.dirty()
+  ->Promise.thenResolve(rows => rows->Array.forEach(writes.send))
+  ->ignore
 
   {get, array, dict, upsert, sync, tick}
 }

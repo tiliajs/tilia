@@ -60,6 +60,8 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("next upsert for task {string} conflicts with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.queueConflict(w, id, status, count));
   step("next upsert for task {string} is rejected with {string}", (id, message) => TiliaQueryTestHelpers.queueRejected(w, id, message));
   step("next upsert for task {string} fails offline", id => TiliaQueryTestHelpers.queueOffline(w, id));
+  step("local store has task {string} with status {string} count {number} marked {string}", (id, status, count, mark) => TiliaQueryTestHelpers.seedLocal(w, id, status, count, mark === "dirty"));
+  step("the app restarts", () => TiliaQueryTestHelpers.restart(w));
   step("I open {string} tasks", list => {
     switch (list) {
       case "active" :
@@ -81,9 +83,7 @@ VitestBdd.Given("a task world", (param, param$1) => {
         return Pervasives.failwith("Unknown tasks list");
     }
   });
-  step("I edit task {string} to status {string} count {number}", (id, status, count) => {
-    w.items.upsert(TiliaQueryTestHelpers.item(id, status, count));
-  });
+  step("I edit task {string} to status {string} count {number}", (id, status, count) => w.items.upsert(TiliaQueryTestHelpers.item(id, status, count)));
   step("I run tick for {string} tasks after {number} seconds", (target, seconds) => {
     w.clock.contents = w.clock.contents + seconds;
     switch (target) {
@@ -123,6 +123,17 @@ VitestBdd.Given("a task world", (param, param$1) => {
     _0: TiliaQueryTestHelpers.item(id, status, count)
   }));
   step("remote task {string} should be status {string} count {number}", (id, status, count) => Vitest.expect(TiliaQueryTestHelpers.remoteTask(w, id)).toEqual(TiliaQueryTestHelpers.item(id, status, count)));
+  step("local task {string} should be status {string} count {number} and {string}", (id, status, count, mark) => {
+    let row = TiliaQueryTestHelpers.localTask(w, id);
+    Vitest.expect(row.item).toEqual(TiliaQueryTestHelpers.item(id, status, count));
+    Vitest.expect(row.dirty).toBe(mark === "dirty");
+  });
+  step("local fetch calls should be {number}", expected => Vitest.expect(TiliaQueryTestHelpers.localFetchCount(w)).toBe(expected));
+  step("the {string} tasks view should be stable", status => Vitest.expect(w.items.array({
+    status: status
+  })).toBe(w.items.array({
+    status: status
+  })));
   step("synced remote writes should be {number}", expected => Vitest.expect(w.remote.syncedWrites.contents.length).toBe(expected));
   step("remote upsert calls should be {number}", expected => Vitest.expect(w.remote.upsertCalls.contents).toBe(expected));
   step("rejected remote writes should be {number}", expected => Vitest.expect(w.remote.rejectedWrites.contents).toBe(expected));

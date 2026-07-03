@@ -9,17 +9,18 @@ type remoteApi<'a, 'query> = TiliaQuery.remote<'a, 'query>
 type transport<'a, 'query> = {
   online: bool,
   fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
-  upsert: ('a, Channel.t<'a, TiliaQuery.upsertIssue<'a>>) => option<unit => unit>,
+  upsert: ('a, Channel.t<'a, TiliaQuery.upsertIssue<'a>>) => unit,
 }
 external asRemote: transport<'a, 'query> => remoteApi<'a, 'query> = "%identity"
 
 module Papabase = {
   type api<'a, 'query> = remoteApi<'a, 'query>
 
-  let make = (_table, id, remote, ~stale=?, ~gc=?, ~now=?, ~invalidates=?) =>
+  let make = (_table, id, remote, ~local=?, ~stale=?, ~gc=?, ~now=?, ~invalidates=?) =>
     TiliaQuery.make(
       ~id,
       ~remote,
+      ~local?,
       ~stale?,
       ~gc?,
       ~now?,
@@ -63,12 +64,16 @@ type heldWrite = {
 
 type network = {mutable value: bool}
 
+type localRow = {item: item, dirty: bool}
+
 type remote = {
   api: Papabase.api<item, itemQuery>,
+  localApi: TiliaQuery.store<item, itemQuery>,
   network: network,
   activeFetches: ref<int>,
   doneFetches: ref<int>,
   offlineFetches: ref<int>,
+  localFetches: ref<int>,
   upsertCalls: ref<int>,
   syncedWrites: ref<array<item>>,
   rejectedWrites: ref<int>,
@@ -77,6 +82,7 @@ type remote = {
   pausedWrites: ref<bool>,
   outcomes: ref<dict<array<writeOutcome>>>,
   remoteStore: ref<Store.t<item>>,
+  localStore: ref<dict<localRow>>,
 }
 
 module Runtime = {
@@ -110,6 +116,7 @@ let makeRemote = (
   let activeFetches = ref(0)
   let doneFetches = ref(0)
   let offlineFetches = ref(0)
+  let localFetches = ref(0)
   let upsertCalls = ref(0)
   let syncedWrites = ref([])
   let rejectedWrites = ref(0)
@@ -118,6 +125,7 @@ let makeRemote = (
   let pausedWrites = ref(false)
   let outcomes = ref(Dict.make())
   let remoteStore = ref(Dict.make())
+  let localStore: ref<dict<localRow>> = ref(Dict.make())
 
   let fetch = (query: itemQuery, channel: Channel.t<array<item>, string>) => {
     if network.value {
@@ -188,17 +196,37 @@ let makeRemote = (
       } else {
         channel.fail(Offline)
       }
-      None
     },
   })
   let api: Papabase.api<item, itemQuery> = asRemote(transport)
 
+  let localApi: TiliaQuery.store<item, itemQuery> = {
+    fetch: (query, channel) => {
+      localFetches := localFetches.contents + 1
+      let rows =
+        Dict.valuesToArray(localStore.contents)
+        ->Array.filter(row => row.item.name == query.status)
+        ->Array.map(row => row.item)
+      channel.emit(rows)
+      None
+    },
+    save: (item, dirty) => Dict.set(localStore.contents, item.id, {item, dirty}),
+    dirty: () =>
+      Promise.resolve(
+        Dict.valuesToArray(localStore.contents)
+        ->Array.filter(row => row.dirty)
+        ->Array.map(row => row.item),
+      ),
+  }
+
   let remote = {
     api,
+    localApi,
     network,
     activeFetches,
     doneFetches,
     offlineFetches,
+    localFetches,
     upsertCalls,
     syncedWrites,
     rejectedWrites,
@@ -207,6 +235,7 @@ let makeRemote = (
     pausedWrites,
     outcomes,
     remoteStore,
+    localStore,
   }
   remote
 }
@@ -214,27 +243,34 @@ let makeRemote = (
 type world = {
   clock: ref<float>,
   remote: remote,
-  items: TiliaQuery.t<item, itemQuery>,
+  mutable items: TiliaQuery.t<item, itemQuery>,
 }
 
-let makeWorld = () => {
-  Runtime.useFakeTimers()
-  let clock = ref(0.0)
-  let remote = makeRemote()
+let id = (item: item) => item.id
 
-  let id = (item: item) => item.id
-
-  let items = Papabase.make(
+let makeItems = (clock, remote) =>
+  Papabase.make(
     "items",
     id,
     remote.api,
+    ~local=remote.localApi,
     ~stale=30.0,
     ~gc=300.0,
     ~now=() => clock.contents,
     ~invalidates=(query, changed) => query.status == "active" || query.status == changed.name,
   )
 
-  {clock, remote, items}
+let makeWorld = () => {
+  Runtime.useFakeTimers()
+  let clock = ref(0.0)
+  let remote = makeRemote()
+  {clock, remote, items: makeItems(clock, remote)}
+}
+
+let restart = w => {
+  w.items = makeItems(w.clock, w.remote)
+  // Yield so the boot dirty() load settles before the next step runs.
+  Promise.resolve()->Promise.then(() => Promise.resolve())
 }
 
 let seed = (w, items) => {
@@ -242,6 +278,7 @@ let seed = (w, items) => {
   w.remote.activeFetches := 0
   w.remote.doneFetches := 0
   w.remote.offlineFetches := 0
+  w.remote.localFetches := 0
   w.remote.upsertCalls := 0
   w.remote.syncedWrites := []
   w.remote.rejectedWrites := 0
@@ -249,11 +286,23 @@ let seed = (w, items) => {
   w.remote.heldWrites := []
   w.remote.pausedWrites := false
   w.remote.outcomes := Dict.make()
+  w.remote.localStore := Dict.make()
 }
 
 let setNetwork = (w, online) => w.remote.network.value = online
 
 let remoteTask = (w, id) => Store.get(w.remote.remoteStore.contents, id)
+
+let seedLocal = (w, id, status, count, dirty) =>
+  Dict.set(w.remote.localStore.contents, id, {item: item(id, status, count), dirty})
+
+let localTask = (w, id) =>
+  switch Dict.get(w.remote.localStore.contents, id) {
+  | Some(row) => row
+  | None => failwith("Expected task in local store")
+  }
+
+let localFetchCount = w => w.remote.localFetches.contents
 
 let queueConflict = (w, id, status, count) => pushOutcome(w.remote, id, Retry(item(id, status, count)))
 

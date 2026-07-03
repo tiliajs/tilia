@@ -15,8 +15,8 @@ function item(id, name, count) {
   };
 }
 
-function make(_table, id, remote, stale, gc, now, invalidates) {
-  return TiliaQuery.make(id, remote, stale, gc, now, undefined, invalidates, undefined);
+function make(_table, id, remote, local, stale, gc, now, invalidates) {
+  return TiliaQuery.make(id, remote, local, stale, gc, now, undefined, invalidates, undefined);
 }
 
 let Papabase = {
@@ -89,6 +89,9 @@ function makeRemote(onlineOpt, param) {
   let offlineFetches = {
     contents: 0
   };
+  let localFetches = {
+    contents: 0
+  };
   let upsertCalls = {
     contents: 0
   };
@@ -111,6 +114,9 @@ function makeRemote(onlineOpt, param) {
     contents: {}
   };
   let remoteStore = {
+    contents: {}
+  };
+  let localStore = {
     contents: {}
   };
   let fetch = (query, channel) => {
@@ -158,64 +164,80 @@ function makeRemote(onlineOpt, param) {
     outcomes.contents[value.id] = tail;
     return head;
   };
-  let applyOutcome = (channel, outcome) => {
-    if (typeof outcome !== "object") {
-      return channel.fail("Offline");
-    }
-    switch (outcome.TAG) {
-      case "Success" :
-        let saved = outcome._0;
-        remoteStore.contents[saved.id] = saved;
-        syncedWrites.contents = Belt_Array.concatMany([
-          syncedWrites.contents,
-          [saved]
-        ]);
-        return channel.emit(saved);
-      case "Retry" :
-        let server = outcome._0;
-        remoteStore.contents[server.id] = server;
-        return channel.fail({
-          TAG: "Conflict",
-          _0: server
-        });
-      case "Reject" :
-        rejectedWrites.contents = rejectedWrites.contents + 1 | 0;
-        return channel.fail({
-          TAG: "Rejected",
-          _0: outcome._0
-        });
-    }
-  };
   let transport = Tilia.tilia({
     online: Tilia.computed(() => network.value),
     fetch: fetch,
     upsert: (value, channel) => {
       upsertCalls.contents = upsertCalls.contents + 1 | 0;
-      if (network.value) {
-        let outcome = pullOutcome(value);
-        if (pausedWrites.contents) {
-          heldWrites.contents = Belt_Array.concatMany([
-            heldWrites.contents,
-            [{
-                value: value,
-                outcome: outcome,
-                channel: channel
-              }]
-          ]);
-        } else {
-          applyOutcome(channel, outcome);
-        }
+      if (!network.value) {
+        return channel.fail("Offline");
+      }
+      let outcome = pullOutcome(value);
+      if (pausedWrites.contents) {
+        heldWrites.contents = Belt_Array.concatMany([
+          heldWrites.contents,
+          [{
+              value: value,
+              outcome: outcome,
+              channel: channel
+            }]
+        ]);
+        return;
       } else {
-        channel.fail("Offline");
+        if (typeof outcome !== "object") {
+          return channel.fail("Offline");
+        }
+        switch (outcome.TAG) {
+          case "Success" :
+            let saved = outcome._0;
+            remoteStore.contents[saved.id] = saved;
+            syncedWrites.contents = Belt_Array.concatMany([
+              syncedWrites.contents,
+              [saved]
+            ]);
+            return channel.emit(saved);
+          case "Retry" :
+            let server = outcome._0;
+            remoteStore.contents[server.id] = server;
+            return channel.fail({
+              TAG: "Conflict",
+              _0: server
+            });
+          case "Reject" :
+            rejectedWrites.contents = rejectedWrites.contents + 1 | 0;
+            return channel.fail({
+              TAG: "Rejected",
+              _0: outcome._0
+            });
+        }
       }
     }
   });
+  let localApi_fetch = (query, channel) => {
+    localFetches.contents = localFetches.contents + 1 | 0;
+    let rows = Object.values(localStore.contents).filter(row => row.item.name === query.status).map(row => row.item);
+    channel.emit(rows);
+  };
+  let localApi_save = (item, dirty) => {
+    localStore.contents[item.id] = {
+      item: item,
+      dirty: dirty
+    };
+  };
+  let localApi_dirty = () => Promise.resolve(Object.values(localStore.contents).filter(row => row.dirty).map(row => row.item));
+  let localApi = {
+    fetch: localApi_fetch,
+    save: localApi_save,
+    dirty: localApi_dirty
+  };
   return {
     api: transport,
+    localApi: localApi,
     network: network,
     activeFetches: activeFetches,
     doneFetches: doneFetches,
     offlineFetches: offlineFetches,
+    localFetches: localFetches,
     upsertCalls: upsertCalls,
     syncedWrites: syncedWrites,
     rejectedWrites: rejectedWrites,
@@ -223,8 +245,23 @@ function makeRemote(onlineOpt, param) {
     heldWrites: heldWrites,
     pausedWrites: pausedWrites,
     outcomes: outcomes,
-    remoteStore: remoteStore
+    remoteStore: remoteStore,
+    localStore: localStore
   };
+}
+
+function id(item) {
+  return item.id;
+}
+
+function makeItems(clock, remote) {
+  return make("items", id, remote.api, remote.localApi, 30.0, 300.0, () => clock.contents, (query, changed) => {
+    if (query.status === "active") {
+      return true;
+    } else {
+      return query.status === changed.name;
+    }
+  });
 }
 
 function makeWorld() {
@@ -233,19 +270,16 @@ function makeWorld() {
     contents: 0.0
   };
   let remote = makeRemote(undefined, undefined);
-  let id = item => item.id;
-  let items = make("items", id, remote.api, 30.0, 300.0, () => clock.contents, (query, changed) => {
-    if (query.status === "active") {
-      return true;
-    } else {
-      return query.status === changed.name;
-    }
-  });
   return {
     clock: clock,
     remote: remote,
-    items: items
+    items: makeItems(clock, remote)
   };
+}
+
+function restart(w) {
+  w.items = makeItems(w.clock, w.remote);
+  return Promise.resolve().then(() => Promise.resolve());
 }
 
 function seed(w, items) {
@@ -253,6 +287,7 @@ function seed(w, items) {
   w.remote.activeFetches.contents = 0;
   w.remote.doneFetches.contents = 0;
   w.remote.offlineFetches.contents = 0;
+  w.remote.localFetches.contents = 0;
   w.remote.upsertCalls.contents = 0;
   w.remote.syncedWrites.contents = [];
   w.remote.rejectedWrites.contents = 0;
@@ -260,6 +295,7 @@ function seed(w, items) {
   w.remote.heldWrites.contents = [];
   w.remote.pausedWrites.contents = false;
   w.remote.outcomes.contents = {};
+  w.remote.localStore.contents = {};
 }
 
 function setNetwork(w, online) {
@@ -268,6 +304,30 @@ function setNetwork(w, online) {
 
 function remoteTask(w, id) {
   return get(w.remote.remoteStore.contents, id);
+}
+
+function seedLocal(w, id, status, count, dirty) {
+  w.remote.localStore.contents[id] = {
+    item: {
+      id: id,
+      name: status,
+      count: count
+    },
+    dirty: dirty
+  };
+}
+
+function localTask(w, id) {
+  let row = w.remote.localStore.contents[id];
+  if (row !== undefined) {
+    return row;
+  } else {
+    return Pervasives.failwith("Expected task in local store");
+  }
+}
+
+function localFetchCount(w) {
+  return w.remote.localFetches.contents;
 }
 
 function queueConflict(w, id, status, count) {
@@ -342,10 +402,16 @@ export {
   pushOutcome,
   takeHeld,
   makeRemote,
+  id,
+  makeItems,
   makeWorld,
+  restart,
   seed,
   setNetwork,
   remoteTask,
+  seedLocal,
+  localTask,
+  localFetchCount,
   queueConflict,
   queueRejected,
   queueOffline,

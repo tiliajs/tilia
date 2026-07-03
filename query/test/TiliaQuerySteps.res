@@ -56,6 +56,13 @@ given("a task world", ({step}, _) => {
 
   step("next upsert for task {string} fails offline", id => H.queueOffline(w, id))
 
+  step(
+    "local store has task {string} with status {string} count {number} marked {string}",
+    (id, status, count, mark) => H.seedLocal(w, id, status, count, mark == "dirty"),
+  )
+
+  step("the app restarts", () => H.restart(w))
+
   step("I open {string} tasks", list =>
     switch list {
     | "active" => {
@@ -73,7 +80,7 @@ given("a task world", ({step}, _) => {
   )
 
   step("I edit task {string} to status {string} count {number}", (id, status, count) => {
-    ignore(w.items.upsert(item(id, status, count)))
+    w.items.upsert(item(id, status, count))
   })
 
   step("I run tick for {string} tasks after {number} seconds", (target, seconds) => {
@@ -110,6 +117,23 @@ given("a task world", ({step}, _) => {
 
   step("remote task {string} should be status {string} count {number}", (id, status, count) =>
     expect(H.remoteTask(w, id)).toEqual(item(id, status, count))
+  )
+
+  step(
+    "local task {string} should be status {string} count {number} and {string}",
+    (id, status, count, mark) => {
+      let row = H.localTask(w, id)
+      expect(row.item).toEqual(item(id, status, count))
+      expect(row.dirty).toBe(mark == "dirty")
+    },
+  )
+
+  step("local fetch calls should be {number}", expected =>
+    expect(H.localFetchCount(w)).toBe(expected)
+  )
+
+  step("the {string} tasks view should be stable", status =>
+    expect(w.items.array({status: status})).toBe(w.items.array({status: status}))
   )
 
   step("synced remote writes should be {number}", expected =>

@@ -23,7 +23,13 @@ type upsertIssue<'a> =
 type remote<'a, 'query> = {
   online: bool,
   fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
-  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => option<unit => unit>,
+  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => unit,
+}
+
+type store<'a, 'query> = {
+  fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
+  save: ('a, bool) => unit,
+  dirty: unit => promise<array<'a>>,
 }
 
 type dict<'a>
@@ -41,7 +47,7 @@ type t<'a, 'query> = {
   get: string => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
-  upsert: 'a => option<unit => unit>,
+  upsert: 'a => unit,
   sync: 'a => unit,
   tick: unit => unit,
 }
@@ -49,6 +55,7 @@ type t<'a, 'query> = {
 let make: (
   ~id: 'a => string,
   ~remote: remote<'a, 'query>,
+  ~local: store<'a, 'query>=?,
   ~stale: float=?,
   ~gc: float=?,
   ~now: unit => float=?,

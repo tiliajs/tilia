@@ -16,7 +16,6 @@
 
 - Add TypeScript types.
 - Add ReScript and TypeScript tests in test apps (tests/app...).
-- Create library documentation in query/README.md.
 - Add library documentation on docs.md.
 - Document the recommended feature-layer API: wrap `@tilia/query` and expose domain-shaped helpers.
 - Update tilia docs to direct remote data fetching toward `@tilia/query` instead of ad hoc `watch`/`changing` patterns.
