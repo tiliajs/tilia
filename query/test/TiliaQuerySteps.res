@@ -2,7 +2,11 @@ open VitestBdd
 open Tilia
 
 module H = TiliaQueryTestHelpers
-type loadable<'a> = H.loadable<'a> = Loading | Loaded('a) | NotFound
+@tag("state")
+type loadable<'a> = H.loadable<'a> =
+  | @as("loading") Loading
+  | @as("loaded") Loaded({data: 'a})
+  | @as("notFound") NotFound
 let item = H.item
 type taskRow = {id: string, status: string, count: string}
 
@@ -56,10 +60,34 @@ given("a task world", ({step}, _) => {
 
   step("next upsert for task {string} fails offline", id => H.queueOffline(w, id))
 
+  step("next remove for task {string} conflicts with status {string} count {number}", (id, status, count) =>
+    H.queueConflict(w, id, status, count)
+  )
+
+  step("next remove for task {string} is rejected with {string}", (id, message) =>
+    H.queueRejected(w, id, message)
+  )
+
+  step("next fetch for {string} tasks is covered", status => H.queueCoveredFetch(w, status))
+
+  step("next fetch for {string} tasks fails with {string}", (status, message) =>
+    H.queueFailFetch(w, status, message)
+  )
+
+  step("the clock advances {number} seconds", seconds => {
+    w.clock := w.clock.contents +. Float.fromInt(seconds)
+  })
+
   step(
     "local store has task {string} with status {string} count {number} marked {string}",
     (id, status, count, mark) => H.seedLocal(w, id, status, count, mark == "dirty"),
   )
+
+  step("local store has a deleted task {string} with status {string} count {number}", (
+    id,
+    status,
+    count,
+  ) => H.seedLocalTombstone(w, id, status, count))
 
   step("the app restarts", () => H.restart(w))
 
@@ -79,8 +107,24 @@ given("a task world", ({step}, _) => {
     }
   )
 
+  step("I open one {string} task", status => {
+    watch(() => w.items.one({status: status}), _ => ())
+  })
+
+  step("the one {string} task should be {string} with count {number}", (status, id, count) =>
+    expect(w.items.one({status: status})).toEqual(Loaded({data: item(id, status, count)}))
+  )
+
+  step("the one {string} task should be not found", status =>
+    expect(w.items.one({status: status})).toEqual(NotFound)
+  )
+
   step("I edit task {string} to status {string} count {number}", (id, status, count) => {
     w.items.upsert(item(id, status, count))
+  })
+
+  step("I delete task {string} with status {string} count {number}", (id, status, count) => {
+    w.items.remove(item(id, status, count))
   })
 
   step("I run tick for {string} tasks after {number} seconds", (target, seconds) => {
@@ -102,21 +146,48 @@ given("a task world", ({step}, _) => {
     H.emitHeldWrite(w, index, count)
   })
 
+  step("I emit from held remove channel {number}", position => {
+    let index = if position <= 0 {0} else {position - 1}
+    H.emitHeldRemove(w, index)
+  })
+
   step("{string} tasks should be", (status, table) => {
     let rows: array<taskRow> = toRecords(table)
-    expect(w.items.array({status: status})).toEqual(Loaded(rows->Array.map(task)))
+    expect(w.items.array({status: status})).toEqual(Loaded({data: rows->Array.map(task)}))
   })
 
   step("no {string} tasks should remain", status =>
-    expect(w.items.array({status: status})).toEqual(Loaded([]))
+    expect(w.items.array({status: status})).toEqual(Loaded({data: []}))
   )
 
   step("task {string} in cache should be status {string} count {number}", (id, status, count) =>
-    expect(w.items.get(id)).toEqual(Loaded(item(id, status, count)))
+    expect(w.items.get(id)).toEqual(Loaded({data: item(id, status, count)}))
+  )
+
+  step("task {string} in cache should be absent", id =>
+    expect(w.items.get(id)).toEqual(NotFound)
   )
 
   step("remote task {string} should be status {string} count {number}", (id, status, count) =>
     expect(H.remoteTask(w, id)).toEqual(item(id, status, count))
+  )
+
+  step("remote task {string} should be absent", id =>
+    expect(H.remoteRow(w, id)->Option.isNone).toBe(true)
+  )
+
+  step("local task {string} should be absent", id =>
+    expect(H.localRow(w, id)->Option.isNone).toBe(true)
+  )
+
+  step(
+    "local task {string} should be a dirty tombstone with status {string} count {number}",
+    (id, status, count) => {
+      let row = H.localTask(w, id)
+      expect(row.item).toEqual(item(id, status, count))
+      expect(row.dirty).toBe(true)
+      expect(row.deleted).toBe(true)
+    },
   )
 
   step(
@@ -142,6 +213,43 @@ given("a task world", ({step}, _) => {
 
   step("remote upsert calls should be {number}", expected =>
     expect(w.remote.upsertCalls.contents).toBe(expected)
+  )
+
+  step("remote remove calls should be {number}", expected =>
+    expect(w.remote.removeCalls.contents).toBe(expected)
+  )
+
+  step("pending writes should be {number}", expected =>
+    expect(w.items.status.pending).toBe(expected)
+  )
+
+  step("rejected writes on status should be {number}", expected =>
+    expect(w.items.status.rejected->Array.length).toBe(expected)
+  )
+
+  step("rejection {number} message should be {string}", (position, message) => {
+    let index = if position <= 0 {0} else {position - 1}
+    switch w.items.status.rejected[index] {
+    | Some(rejection) => expect(rejection.message).toBe(message)
+    | None => failwith("Expected rejection on status")
+    }
+  })
+
+  step("I dismiss rejections", () => w.items.dismiss())
+
+  step("I dispose the query state", () => w.items.dispose())
+
+  step("I clear the query state", () => w.items.clear())
+
+  step("last fetch error should be {string}", message =>
+    switch w.items.status.error {
+    | Some(error) => expect(error.message).toBe(message)
+    | None => failwith("Expected fetch error on status")
+    }
+  )
+
+  step("last fetch error should be empty", () =>
+    expect(w.items.status.error->Option.isNone).toBe(true)
   )
 
   step("rejected remote writes should be {number}", expected =>

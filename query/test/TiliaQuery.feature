@@ -162,3 +162,134 @@ Feature: Task query behavior for online, offline, and replay ownership
     Given network is "online"
     When I open "active" tasks
     Then the "active" tasks view should be stable
+
+  Scenario: Offline delete is optimistic and replays on reconnect
+    Given network is "online"
+    When I open "active" tasks
+    And network becomes "offline"
+    And I delete task "todo-1" with status "active" count 1
+    Then task "todo-1" in cache should be absent
+    And no "active" tasks should remain
+    And local task "todo-1" should be a dirty tombstone with status "active" count 1
+    And remote remove calls should be 0
+    When network becomes "online"
+    Then remote remove calls should be 1
+    And remote task "todo-1" should be absent
+    And local task "todo-1" should be absent
+
+  Scenario: Restart replays a dirty delete tombstone
+    Given network is "offline"
+    And local store has a deleted task "todo-1" with status "active" count 1
+    And the app restarts
+    When network becomes "online"
+    Then remote remove calls should be 1
+    And remote task "todo-1" should be absent
+    And local task "todo-1" should be absent
+
+  Scenario: Delete conflict resurrects the server row
+    Given network is "online"
+    And next remove for task "todo-1" conflicts with status "active" count 4
+    When I open "active" tasks
+    And I delete task "todo-1" with status "active" count 1
+    Then remote remove calls should be 1
+    And task "todo-1" in cache should be status "active" count 4
+    And local task "todo-1" should be status "active" count 4 and "clean"
+
+  Scenario: Rejected delete restores the row from server
+    Given network is "online"
+    And next remove for task "todo-1" is rejected with "forbidden"
+    When I open "active" tasks
+    And I delete task "todo-1" with status "active" count 1
+    Then remote remove calls should be 1
+    And rejected remote writes should be 1
+    And task "todo-1" in cache should be status "active" count 1
+    And local task "todo-1" should be status "active" count 1 and "clean"
+
+  Scenario: Fetch does not resurrect a pending delete
+    Given network is "online"
+    And remote write delivery is "paused"
+    When I open "active" tasks
+    And I delete task "todo-1" with status "active" count 1
+    Then remote remove calls should be 1
+    And no "active" tasks should remain
+    And task "todo-1" in cache should be absent
+    When I emit from held remove channel 1
+    Then remote task "todo-1" should be absent
+    And local task "todo-1" should be absent
+
+  Scenario: Status tracks pending writes across reconnect
+    Given network is "offline"
+    When I edit task "todo-1" to status "active" count 9
+    And I delete task "todo-2" with status "done" count 1
+    Then pending writes should be 2
+    When network becomes "online"
+    Then pending writes should be 0
+
+  Scenario: Rejected edit is surfaced and server truth restored
+    Given network is "online"
+    And next upsert for task "todo-1" is rejected with "forbidden"
+    When I open "active" tasks
+    And I edit task "todo-1" to status "active" count 9
+    Then rejected writes on status should be 1
+    And rejection 1 message should be "forbidden"
+    And task "todo-1" in cache should be status "active" count 1
+    And local task "todo-1" should be status "active" count 1 and "clean"
+    When I dismiss rejections
+    Then rejected writes on status should be 0
+
+  Scenario: Covered fetch marks the query fresh without rows
+    Given network is "online"
+    And local store has task "todo-1" with status "active" count 4 marked "clean"
+    And the clock advances 100 seconds
+    And next fetch for "active" tasks is covered
+    When I open "active" tasks
+    Then "active" tasks should be
+      | id     | status | count |
+      | todo-1 | active | 4     |
+    And "active" fetch calls should be 1
+    When I run tick for "active" tasks after 10 seconds
+    Then "active" fetch calls should be 1
+
+  Scenario: Remote fetch failure is surfaced and retried when stale
+    Given network is "online"
+    And the clock advances 100 seconds
+    And next fetch for "active" tasks fails with "boom"
+    When I open "active" tasks
+    Then last fetch error should be "boom"
+    And "active" fetch calls should be 1
+    When I run tick for "active" tasks after 10 seconds
+    Then "active" fetch calls should be 2
+    And last fetch error should be empty
+    And "active" tasks should be
+      | id     | status | count |
+      | todo-1 | active | 1     |
+
+  Scenario: Dispose stops reconnect replay
+    Given network is "offline"
+    When I edit task "todo-1" to status "active" count 9
+    And I dispose the query state
+    And network becomes "online"
+    Then remote upsert calls should be 0
+
+  Scenario: Clear empties memory and outbox for user switch
+    Given network is "offline"
+    When I edit task "todo-1" to status "active" count 9
+    Then pending writes should be 1
+    And task "todo-1" in cache should be status "active" count 9
+    When I clear the query state
+    Then task "todo-1" in cache should be absent
+    And pending writes should be 0
+    When network becomes "online"
+    Then remote upsert calls should be 0
+
+  Scenario: Detail view resolves a single row and stays reactive
+    Given network is "online"
+    When I open one "active" task
+    Then the one "active" task should be "todo-1" with count 1
+    When I edit task "todo-1" to status "active" count 7
+    Then the one "active" task should be "todo-1" with count 7
+
+  Scenario: Detail view resolves not found on empty result
+    Given network is "online"
+    When I open one "missing" task
+    Then the one "missing" task should be not found

@@ -5,6 +5,7 @@ import * as Vitest from "vitest";
 import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
 import * as Stdlib_Int from "@rescript/runtime/lib/es6/Stdlib_Int.js";
 import * as VitestBdd from "vitest-bdd";
+import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as TiliaQueryTestHelpers from "./TiliaQueryTestHelpers.mjs";
 
 function parse(value) {
@@ -60,7 +61,15 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("next upsert for task {string} conflicts with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.queueConflict(w, id, status, count));
   step("next upsert for task {string} is rejected with {string}", (id, message) => TiliaQueryTestHelpers.queueRejected(w, id, message));
   step("next upsert for task {string} fails offline", id => TiliaQueryTestHelpers.queueOffline(w, id));
+  step("next remove for task {string} conflicts with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.queueConflict(w, id, status, count));
+  step("next remove for task {string} is rejected with {string}", (id, message) => TiliaQueryTestHelpers.queueRejected(w, id, message));
+  step("next fetch for {string} tasks is covered", status => TiliaQueryTestHelpers.queueCoveredFetch(w, status));
+  step("next fetch for {string} tasks fails with {string}", (status, message) => TiliaQueryTestHelpers.queueFailFetch(w, status, message));
+  step("the clock advances {number} seconds", seconds => {
+    w.clock.contents = w.clock.contents + seconds;
+  });
   step("local store has task {string} with status {string} count {number} marked {string}", (id, status, count, mark) => TiliaQueryTestHelpers.seedLocal(w, id, status, count, mark === "dirty"));
+  step("local store has a deleted task {string} with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.seedLocalTombstone(w, id, status, count));
   step("the app restarts", () => TiliaQueryTestHelpers.restart(w));
   step("I open {string} tasks", list => {
     switch (list) {
@@ -83,7 +92,20 @@ VitestBdd.Given("a task world", (param, param$1) => {
         return Pervasives.failwith("Unknown tasks list");
     }
   });
+  step("I open one {string} task", status => Tilia.watch(() => w.items.one({
+    status: status
+  }), param => {}));
+  step("the one {string} task should be {string} with count {number}", (status, id, count) => Vitest.expect(w.items.one({
+    status: status
+  })).toEqual({
+    state: "loaded",
+    data: TiliaQueryTestHelpers.item(id, status, count)
+  }));
+  step("the one {string} task should be not found", status => Vitest.expect(w.items.one({
+    status: status
+  })).toEqual("notFound"));
   step("I edit task {string} to status {string} count {number}", (id, status, count) => w.items.upsert(TiliaQueryTestHelpers.item(id, status, count)));
+  step("I delete task {string} with status {string} count {number}", (id, status, count) => w.items.remove(TiliaQueryTestHelpers.item(id, status, count)));
   step("I run tick for {string} tasks after {number} seconds", (target, seconds) => {
     w.clock.contents = w.clock.contents + seconds;
     switch (target) {
@@ -103,26 +125,39 @@ VitestBdd.Given("a task world", (param, param$1) => {
     let index = position <= 0 ? 0 : position - 1 | 0;
     TiliaQueryTestHelpers.emitHeldWrite(w, index, count);
   });
+  step("I emit from held remove channel {number}", position => {
+    let index = position <= 0 ? 0 : position - 1 | 0;
+    TiliaQueryTestHelpers.emitHeldRemove(w, index);
+  });
   step("{string} tasks should be", (status, table) => {
     let rows = VitestBdd.toRecords(table);
     Vitest.expect(w.items.array({
       status: status
     })).toEqual({
-      TAG: "Loaded",
-      _0: rows.map(task)
+      state: "loaded",
+      data: rows.map(task)
     });
   });
   step("no {string} tasks should remain", status => Vitest.expect(w.items.array({
     status: status
   })).toEqual({
-    TAG: "Loaded",
-    _0: []
+    state: "loaded",
+    data: []
   }));
   step("task {string} in cache should be status {string} count {number}", (id, status, count) => Vitest.expect(w.items.get(id)).toEqual({
-    TAG: "Loaded",
-    _0: TiliaQueryTestHelpers.item(id, status, count)
+    state: "loaded",
+    data: TiliaQueryTestHelpers.item(id, status, count)
   }));
+  step("task {string} in cache should be absent", id => Vitest.expect(w.items.get(id)).toEqual("notFound"));
   step("remote task {string} should be status {string} count {number}", (id, status, count) => Vitest.expect(TiliaQueryTestHelpers.remoteTask(w, id)).toEqual(TiliaQueryTestHelpers.item(id, status, count)));
+  step("remote task {string} should be absent", id => Vitest.expect(Stdlib_Option.isNone(TiliaQueryTestHelpers.remoteRow(w, id))).toBe(true));
+  step("local task {string} should be absent", id => Vitest.expect(Stdlib_Option.isNone(TiliaQueryTestHelpers.localRow(w, id))).toBe(true));
+  step("local task {string} should be a dirty tombstone with status {string} count {number}", (id, status, count) => {
+    let row = TiliaQueryTestHelpers.localTask(w, id);
+    Vitest.expect(row.item).toEqual(TiliaQueryTestHelpers.item(id, status, count));
+    Vitest.expect(row.dirty).toBe(true);
+    Vitest.expect(row.deleted).toBe(true);
+  });
   step("local task {string} should be status {string} count {number} and {string}", (id, status, count, mark) => {
     let row = TiliaQueryTestHelpers.localTask(w, id);
     Vitest.expect(row.item).toEqual(TiliaQueryTestHelpers.item(id, status, count));
@@ -136,6 +171,30 @@ VitestBdd.Given("a task world", (param, param$1) => {
   })));
   step("synced remote writes should be {number}", expected => Vitest.expect(w.remote.syncedWrites.contents.length).toBe(expected));
   step("remote upsert calls should be {number}", expected => Vitest.expect(w.remote.upsertCalls.contents).toBe(expected));
+  step("remote remove calls should be {number}", expected => Vitest.expect(w.remote.removeCalls.contents).toBe(expected));
+  step("pending writes should be {number}", expected => Vitest.expect(w.items.status.pending).toBe(expected));
+  step("rejected writes on status should be {number}", expected => Vitest.expect(w.items.status.rejected.length).toBe(expected));
+  step("rejection {number} message should be {string}", (position, message) => {
+    let index = position <= 0 ? 0 : position - 1 | 0;
+    let rejection = w.items.status.rejected[index];
+    if (rejection !== undefined) {
+      return Vitest.expect(rejection.message).toBe(message);
+    } else {
+      return Pervasives.failwith("Expected rejection on status");
+    }
+  });
+  step("I dismiss rejections", () => w.items.dismiss());
+  step("I dispose the query state", () => w.items.dispose());
+  step("I clear the query state", () => w.items.clear());
+  step("last fetch error should be {string}", message => {
+    let error = w.items.status.error;
+    if (error !== undefined) {
+      return Vitest.expect(error.message).toBe(message);
+    } else {
+      return Pervasives.failwith("Expected fetch error on status");
+    }
+  });
+  step("last fetch error should be empty", () => Vitest.expect(Stdlib_Option.isNone(w.items.status.error)).toBe(true));
   step("rejected remote writes should be {number}", expected => Vitest.expect(w.remote.rejectedWrites.contents).toBe(expected));
   step("held upsert channels should be {number}", expected => Vitest.expect(TiliaQueryTestHelpers.heldWrites(w)).toBe(expected));
   step("{string} fetch calls should be {number}", (name, expected) => {

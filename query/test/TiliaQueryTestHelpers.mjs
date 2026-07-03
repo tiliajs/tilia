@@ -5,6 +5,7 @@ import * as Vitest from "vitest";
 import * as Belt_Array from "@rescript/runtime/lib/es6/Belt_Array.js";
 import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
 import * as TiliaQuery from "../src/TiliaQuery.mjs";
+import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
 import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js";
 
 function item(id, name, count) {
@@ -16,7 +17,15 @@ function item(id, name, count) {
 }
 
 function make(_table, id, remote, local, stale, gc, now, invalidates) {
-  return TiliaQuery.make(id, remote, local, stale, gc, now, undefined, invalidates, undefined);
+  return TiliaQuery.make({
+    id: id,
+    remote: remote,
+    local: local,
+    stale: stale,
+    gc: gc,
+    now: now,
+    invalidates: invalidates
+  });
 }
 
 let Papabase = {
@@ -95,6 +104,9 @@ function makeRemote(onlineOpt, param) {
   let upsertCalls = {
     contents: 0
   };
+  let removeCalls = {
+    contents: 0
+  };
   let syncedWrites = {
     contents: []
   };
@@ -107,10 +119,16 @@ function makeRemote(onlineOpt, param) {
   let heldWrites = {
     contents: []
   };
+  let heldRemoves = {
+    contents: []
+  };
   let pausedWrites = {
     contents: false
   };
   let outcomes = {
+    contents: {}
+  };
+  let nextFetches = {
     contents: {}
   };
   let remoteStore = {
@@ -130,7 +148,6 @@ function makeRemote(onlineOpt, param) {
           doneFetches.contents = doneFetches.contents + 1 | 0;
           break;
       }
-      let rows = byStatus(remoteStore.contents, query.status);
       let match$1 = query.status;
       if (match$1 === "active") {
         activeChannels.contents = Belt_Array.concatMany([
@@ -138,7 +155,18 @@ function makeRemote(onlineOpt, param) {
           [channel]
         ]);
       }
-      channel.emit(rows);
+      let match$2 = nextFetches.contents[query.status];
+      if (match$2 !== undefined) {
+        if (typeof match$2 !== "object") {
+          Stdlib_Dict.$$delete(nextFetches.contents, query.status);
+          channel.covered();
+        } else {
+          Stdlib_Dict.$$delete(nextFetches.contents, query.status);
+          channel.fail(match$2._0);
+        }
+      } else {
+        channel.emit(byStatus(remoteStore.contents, query.status));
+      }
       return;
     }
     offlineFetches.contents = offlineFetches.contents + 1 | 0;
@@ -170,7 +198,7 @@ function makeRemote(onlineOpt, param) {
     upsert: (value, channel) => {
       upsertCalls.contents = upsertCalls.contents + 1 | 0;
       if (!network.value) {
-        return channel.fail("Offline");
+        return channel.offline();
       }
       let outcome = pullOutcome(value);
       if (pausedWrites.contents) {
@@ -185,7 +213,7 @@ function makeRemote(onlineOpt, param) {
         return;
       } else {
         if (typeof outcome !== "object") {
-          return channel.fail("Offline");
+          return channel.offline();
         }
         switch (outcome.TAG) {
           case "Success" :
@@ -199,35 +227,91 @@ function makeRemote(onlineOpt, param) {
           case "Retry" :
             let server = outcome._0;
             remoteStore.contents[server.id] = server;
-            return channel.fail({
-              TAG: "Conflict",
-              _0: server
-            });
+            return channel.conflict(server);
           case "Reject" :
             rejectedWrites.contents = rejectedWrites.contents + 1 | 0;
-            return channel.fail({
-              TAG: "Rejected",
-              _0: outcome._0
-            });
+            return channel.reject(outcome._0);
+        }
+      }
+    },
+    remove: (value, channel) => {
+      removeCalls.contents = removeCalls.contents + 1 | 0;
+      if (!network.value) {
+        return channel.offline();
+      }
+      let outcome = pullOutcome(value);
+      if (pausedWrites.contents) {
+        heldRemoves.contents = Belt_Array.concatMany([
+          heldRemoves.contents,
+          [{
+              value: value,
+              outcome: outcome,
+              channel: channel
+            }]
+        ]);
+        return;
+      } else {
+        if (typeof outcome !== "object") {
+          return channel.offline();
+        }
+        switch (outcome.TAG) {
+          case "Success" :
+            let value$1 = outcome._0;
+            Stdlib_Dict.$$delete(remoteStore.contents, value$1.id);
+            syncedWrites.contents = Belt_Array.concatMany([
+              syncedWrites.contents,
+              [value$1]
+            ]);
+            return channel.emit(value$1);
+          case "Retry" :
+            let server = outcome._0;
+            remoteStore.contents[server.id] = server;
+            return channel.conflict(server);
+          case "Reject" :
+            rejectedWrites.contents = rejectedWrites.contents + 1 | 0;
+            return channel.reject(outcome._0);
         }
       }
     }
   });
   let localApi_fetch = (query, channel) => {
     localFetches.contents = localFetches.contents + 1 | 0;
-    let rows = Object.values(localStore.contents).filter(row => row.item.name === query.status).map(row => row.item);
+    let rows = Object.values(localStore.contents).filter(row => {
+      if (row.deleted) {
+        return false;
+      } else {
+        return row.item.name === query.status;
+      }
+    }).map(row => row.item);
     channel.emit(rows);
   };
   let localApi_save = (item, dirty) => {
     localStore.contents[item.id] = {
       item: item,
-      dirty: dirty
+      dirty: dirty,
+      deleted: false
     };
   };
-  let localApi_dirty = () => Promise.resolve(Object.values(localStore.contents).filter(row => row.dirty).map(row => row.item));
+  let localApi_remove = (item, dirty) => {
+    if (dirty) {
+      localStore.contents[item.id] = {
+        item: item,
+        dirty: true,
+        deleted: true
+      };
+      return;
+    } else {
+      return Stdlib_Dict.$$delete(localStore.contents, item.id);
+    }
+  };
+  let localApi_dirty = () => Promise.resolve(Object.values(localStore.contents).filter(row => row.dirty).map(row => ({
+    value: row.item,
+    deleted: row.deleted
+  })));
   let localApi = {
     fetch: localApi_fetch,
     save: localApi_save,
+    remove: localApi_remove,
     dirty: localApi_dirty
   };
   return {
@@ -239,12 +323,15 @@ function makeRemote(onlineOpt, param) {
     offlineFetches: offlineFetches,
     localFetches: localFetches,
     upsertCalls: upsertCalls,
+    removeCalls: removeCalls,
     syncedWrites: syncedWrites,
     rejectedWrites: rejectedWrites,
     activeChannels: activeChannels,
     heldWrites: heldWrites,
+    heldRemoves: heldRemoves,
     pausedWrites: pausedWrites,
     outcomes: outcomes,
+    nextFetches: nextFetches,
     remoteStore: remoteStore,
     localStore: localStore
   };
@@ -289,12 +376,15 @@ function seed(w, items) {
   w.remote.offlineFetches.contents = 0;
   w.remote.localFetches.contents = 0;
   w.remote.upsertCalls.contents = 0;
+  w.remote.removeCalls.contents = 0;
   w.remote.syncedWrites.contents = [];
   w.remote.rejectedWrites.contents = 0;
   w.remote.activeChannels.contents = [];
   w.remote.heldWrites.contents = [];
+  w.remote.heldRemoves.contents = [];
   w.remote.pausedWrites.contents = false;
   w.remote.outcomes.contents = {};
+  w.remote.nextFetches.contents = {};
   w.remote.localStore.contents = {};
 }
 
@@ -313,7 +403,20 @@ function seedLocal(w, id, status, count, dirty) {
       name: status,
       count: count
     },
-    dirty: dirty
+    dirty: dirty,
+    deleted: false
+  };
+}
+
+function seedLocalTombstone(w, id, status, count) {
+  w.remote.localStore.contents[id] = {
+    item: {
+      id: id,
+      name: status,
+      count: count
+    },
+    dirty: true,
+    deleted: true
   };
 }
 
@@ -324,6 +427,14 @@ function localTask(w, id) {
   } else {
     return Pervasives.failwith("Expected task in local store");
   }
+}
+
+function localRow(w, id) {
+  return w.remote.localStore.contents[id];
+}
+
+function remoteRow(w, id) {
+  return w.remote.remoteStore.contents[id];
 }
 
 function localFetchCount(w) {
@@ -352,8 +463,42 @@ function queueOffline(w, id) {
   pushOutcome(w.remote, id, "Drop");
 }
 
+function queueCoveredFetch(w, status) {
+  w.remote.nextFetches.contents[status] = "CoveredFetch";
+}
+
+function queueFailFetch(w, status, message) {
+  w.remote.nextFetches.contents[status] = {
+    TAG: "FailFetch",
+    _0: message
+  };
+}
+
 function pauseWrites(w, paused) {
   w.remote.pausedWrites.contents = paused;
+}
+
+function takeHeldRemove(remote, index) {
+  let held = remote.heldRemoves.contents[index];
+  if (held === undefined) {
+    return;
+  }
+  let next = Belt_Array.concatMany([remote.heldRemoves.contents]);
+  next.splice(index, 1);
+  remote.heldRemoves.contents = next;
+  return held;
+}
+
+function emitHeldRemove(w, index) {
+  let held = takeHeldRemove(w.remote, index);
+  if (held !== undefined) {
+    Stdlib_Dict.$$delete(w.remote.remoteStore.contents, held.value.id);
+    w.remote.syncedWrites.contents = Belt_Array.concatMany([
+      w.remote.syncedWrites.contents,
+      [held.value]
+    ]);
+    return held.channel.emit(held.value);
+  }
 }
 
 function emitHeldWrite(w, index, count) {
@@ -410,12 +555,19 @@ export {
   setNetwork,
   remoteTask,
   seedLocal,
+  seedLocalTombstone,
   localTask,
+  localRow,
+  remoteRow,
   localFetchCount,
   queueConflict,
   queueRejected,
   queueOffline,
+  queueCoveredFetch,
+  queueFailFetch,
   pauseWrites,
+  takeHeldRemove,
+  emitHeldRemove,
   emitHeldWrite,
   heldWrites,
   emitActiveChannel,

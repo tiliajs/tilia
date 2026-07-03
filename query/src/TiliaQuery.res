@@ -1,24 +1,31 @@
+@tag("state")
 type loadable<'a> =
-  | Loading
-  | Loaded('a)
-  | NotFound
+  | @as("loading") Loading
+  | @as("loaded") Loaded({data: 'a})
+  | @as("notFound") NotFound
 
 module Channel = {
   type state =
-    | Live
-    | Cancelled
+    | @as("live") Live
+    | @as("cancelled") Cancelled
 
-  type t<'a, 'issue> = {
+  // Read path (local and remote fetch).
+  type fetch<'a> = {
+    state: state,
+    emit: array<'a> => unit,
+    fail: string => unit,
+    covered: unit => unit,
+  }
+
+  // Write path (remote upsert).
+  type write<'a> = {
     state: state,
     emit: 'a => unit,
-    fail: 'issue => unit,
+    offline: unit => unit,
+    conflict: 'a => unit,
+    reject: string => unit,
   }
 }
-
-type upsertIssue<'a> =
-  | Offline
-  | Conflict('a)
-  | Rejected(string)
 
 module Dict = {
   type t<'a>
@@ -53,25 +60,70 @@ function sortedStringify(value) {
 }`)
 }
 
+// An unsynced operation: a put, or a delete when `deleted` is true.
+type write<'a> = {
+  value: 'a,
+  deleted: bool,
+}
+
+// A write permanently refused by the remote.
+type rejection<'a> = {
+  value: 'a,
+  deleted: bool,
+  message: string,
+}
+
+type fetchError = {
+  key: string,
+  message: string,
+}
+
+// Reactive sync state for UI: pending outbox size, refused writes, last
+// remote fetch failure.
+type status<'a> = {
+  mutable pending: int,
+  mutable rejected: array<rejection<'a>>,
+  mutable error: option<fetchError>,
+}
+
 type t<'a, 'query> = {
   get: string => loadable<'a>,
+  one: 'query => loadable<'a>,
   array: 'query => loadable<array<'a>>,
   dict: 'query => loadable<dict<'a>>,
   upsert: 'a => unit,
+  remove: 'a => unit,
   sync: 'a => unit,
   tick: unit => unit,
+  status: status<'a>,
+  dismiss: unit => unit,
+  dispose: unit => unit,
+  clear: unit => unit,
 }
 
 type remote<'a, 'query> = {
   online: bool,
-  fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
-  upsert: ('a, Channel.t<'a, upsertIssue<'a>>) => unit,
+  fetch: ('query, Channel.fetch<'a>) => option<unit => unit>,
+  upsert: ('a, Channel.write<'a>) => unit,
+  remove: ('a, Channel.write<'a>) => unit,
 }
 
 type store<'a, 'query> = {
-  fetch: ('query, Channel.t<array<'a>, string>) => option<unit => unit>,
+  fetch: ('query, Channel.fetch<'a>) => option<unit => unit>,
   save: ('a, bool) => unit,
-  dirty: unit => promise<array<'a>>,
+  remove: ('a, bool) => unit,
+  dirty: unit => promise<array<write<'a>>>,
+}
+
+type config<'a, 'query> = {
+  id: 'a => string,
+  remote: remote<'a, 'query>,
+  local?: store<'a, 'query>,
+  stale?: float,
+  gc?: float,
+  now?: unit => float,
+  key?: 'query => string,
+  invalidates?: ('query, 'a) => bool,
 }
 
 type meta<'query> = {
@@ -80,39 +132,56 @@ type meta<'query> = {
   mutable idle: option<float>,
 }
 
-let emitter = (run: 'value => unit) =>
-  (self: Channel.t<'a, 'issue>) =>
-    (value: 'value) =>
-      switch self.state {
-      | Live => run(value)
-      | Cancelled => ()
-      }
-
-let makeChannel = (~emit, ~fail) => {
-  open Tilia
+let makeFetchChannel = (~emit, ~fail, ~covered): (Channel.fetch<'a>, unit => unit) => {
   open Channel
   let (state, setState) = Tilia.signal(Live)
-  let channel = carve(({derived}) => {
-    state: lift(state),
-    emit: derived(emitter(emit)),
-    fail: derived(emitter(fail)),
+  let guard = (run, value) =>
+    switch state.value {
+    | Live => run(value)
+    | Cancelled => ()
+    }
+  let channel = Tilia.tilia({
+    state: Tilia.lift(state),
+    emit: rows => guard(emit, rows),
+    fail: message => guard(fail, message),
+    covered: () => guard(covered, ()),
   })
   (channel, () => setState(Cancelled))
 }
 
-module Upsert = {
+let makeWriteChannel = (~emit, ~offline, ~conflict, ~reject): (Channel.write<'a>, unit => unit) => {
+  open Channel
+  let (state, setState) = Tilia.signal(Live)
+  let guard = (run, value) =>
+    switch state.value {
+    | Live => run(value)
+    | Cancelled => ()
+    }
+  let channel = Tilia.tilia({
+    state: Tilia.lift(state),
+    emit: value => guard(emit, value),
+    offline: () => guard(offline, ()),
+    conflict: server => guard(conflict, server),
+    reject: message => guard(reject, message),
+  })
+  (channel, () => setState(Cancelled))
+}
+
+module Outbox = {
   type entry<'a> = {
-    value: 'a,
+    write: write<'a>,
     // None = queued, Some(f) = in flight, f cancels the channel
     mutable cancel: option<unit => unit>,
   }
 
   type entries<'a> = Dict.t<entry<'a>>
   type t<'a> = {
-    send: 'a => unit,
+    send: write<'a> => unit,
     replay: unit => unit,
     cancel: unit => unit,
+    clear: unit => unit,
     pending: string => bool,
+    deleting: string => bool,
   }
 
   let make = (
@@ -120,12 +189,23 @@ module Upsert = {
     ~remote: remote<'a, 'query>,
     ~local: store<'a, 'query>,
     ~resolve: 'a => 'a,
+    ~evict: 'a => 'a,
+    ~invalidate: 'a => unit,
+    ~status: status<'a>,
   ) => {
     let entries: entries<'a> = Dict.make()
+
+    let track = () => status.pending = Dict.keys(entries)->Array.length
 
     let pending = itemId =>
       switch Dict.get(entries, itemId) {
       | Value(_) => true
+      | _ => false
+      }
+
+    let deleting = itemId =>
+      switch Dict.get(entries, itemId) {
+      | Value(entry) => entry.write.deleted
       | _ => false
       }
 
@@ -143,6 +223,7 @@ module Upsert = {
       | Value(current) if current === entry => {
           stop(current)
           Dict.delete(entries, itemId)
+          track()
           true
         }
       | _ => false
@@ -156,31 +237,64 @@ module Upsert = {
         }
       )
 
+    let clear = () => {
+      cancel()
+      Dict.keys(entries)->Array.forEach(itemId => Dict.delete(entries, itemId))
+      track()
+    }
+
     let dispatch = (itemId, entry: entry<'a>) => {
-      let settle = value => {
-        if remove(itemId, entry) {
-          local.save(value, false)
-          ignore(resolve(value))
+      let value = entry.write.value
+      // Keep the entry queued and dirty for the next reconnect.
+      let offline = () =>
+        switch Dict.get(entries, itemId) {
+        | Value(current) if current === entry => stop(current)
+        | _ => ()
         }
-      }
-      let onFail = issue =>
-        switch issue {
-        | Offline =>
-          // Keep the entry queued and dirty for the next reconnect.
-          switch Dict.get(entries, itemId) {
-          | Value(current) if current === entry => stop(current)
-          | _ => ()
-          }
-        | Conflict(server) => settle(server)
-        | Rejected(_) =>
+      if entry.write.deleted {
+        let settle = _confirmed =>
           if remove(itemId, entry) {
-            // Stop retries; a later fetch restores server truth.
-            local.save(entry.value, false)
+            local.remove(value, false)
+            ignore(evict(value))
           }
-        }
-      let (channel, cancelChannel) = makeChannel(~emit=settle, ~fail=onFail)
-      entry.cancel = Some(cancelChannel)
-      remote.upsert(entry.value, channel)
+        // Server resurrects the row on conflict.
+        let conflict = server =>
+          if remove(itemId, entry) {
+            local.save(server, false)
+            ignore(resolve(server))
+          }
+        let reject = message =>
+          if remove(itemId, entry) {
+            // Drop the tombstone; the stale refetch restores server truth.
+            local.remove(value, false)
+            status.rejected = [...status.rejected, {value, deleted: true, message}]
+            invalidate(value)
+          }
+        let (channel, cancelChannel) = makeWriteChannel(~emit=settle, ~offline, ~conflict, ~reject)
+        entry.cancel = Some(cancelChannel)
+        remote.remove(value, channel)
+      } else {
+        let settle = saved =>
+          if remove(itemId, entry) {
+            local.save(saved, false)
+            ignore(resolve(saved))
+          }
+        let reject = message =>
+          if remove(itemId, entry) {
+            // Stop retries; the stale refetch restores server truth.
+            local.save(value, false)
+            status.rejected = [...status.rejected, {value, deleted: false, message}]
+            invalidate(value)
+          }
+        let (channel, cancelChannel) = makeWriteChannel(
+          ~emit=settle,
+          ~offline,
+          ~conflict=settle,
+          ~reject,
+        )
+        entry.cancel = Some(cancelChannel)
+        remote.upsert(value, channel)
+      }
     }
 
     let replay = () =>
@@ -197,47 +311,51 @@ module Upsert = {
         )
       }
 
-    let send = value => {
-      let itemId = id(value)
+    let send = (w: write<'a>) => {
+      let itemId = id(w.value)
       switch Dict.get(entries, itemId) {
       | Value(entry) => stop(entry)
       | _ => ()
       }
-      Dict.set(entries, itemId, {value, cancel: None})
-      local.save(value, true)
-      ignore(resolve(value))
+      Dict.set(entries, itemId, {write: w, cancel: None})
+      track()
+      if w.deleted {
+        local.remove(w.value, true)
+        ignore(evict(w.value))
+      } else {
+        local.save(w.value, true)
+        ignore(resolve(w.value))
+      }
       if remote.online {
         replay()
       }
     }
 
-    {send, replay, cancel, pending}
+    {send, replay, cancel, clear, pending, deleting}
   }
 }
 
 let defaultNow = () => Date.now() /. 1000.0
 
-let make = (
-  ~id,
-  ~remote,
-  ~local=?,
-  ~stale=30.0,
-  ~gc=300.0,
-  ~now=defaultNow,
-  ~key=Json.sortedStringify,
-  ~invalidates=(_, _) => false,
-  (),
-) => {
-  let local: store<_, _> = switch local {
+let make = (config: config<'a, 'query>) => {
+  let {id, remote} = config
+  let local: store<_, _> = switch config.local {
   | Some(local) => local
   | None => {
       fetch: (_, _) => None,
       save: (_, _) => (),
+      remove: (_, _) => (),
       dirty: () => Promise.resolve([]),
     }
   }
+  let stale = config.stale->Option.getOr(30.0)
+  let gc = config.gc->Option.getOr(300.0)
+  let now = config.now->Option.getOr(defaultNow)
+  let key = config.key->Option.getOr(Json.sortedStringify)
+  let invalidates = config.invalidates->Option.getOr((_, _) => false)
   let cache: Dict.t<'a> = Dict.make()->Tilia.tilia
   let queries: Dict.t<loadable<array<string>>> = Dict.make()->Tilia.tilia
+  let ones: Dict.t<loadable<'a>> = Dict.make()->Tilia.tilia
   let arrays: Dict.t<loadable<array<'a>>> = Dict.make()->Tilia.tilia
   let dicts: Dict.t<loadable<dict<'a>>> = Dict.make()->Tilia.tilia
   let meta: Dict.t<meta<'query>> = Dict.make()
@@ -267,35 +385,54 @@ let make = (
     item
   }
 
-  let writes = Upsert.make(~id, ~remote, ~local, ~resolve)
+  let evict = item => {
+    Dict.delete(cache, id(item))
+    invalidate(item)
+    item
+  }
+
+  let status: status<'a> = Tilia.tilia({pending: 0, rejected: [], error: None})
+
+  let writes = Outbox.make(~id, ~remote, ~local, ~resolve, ~evict, ~invalidate, ~status)
 
   let startFetch = (cacheKey, filter, set) => {
     stopFetch(cacheKey)
-    let fresh = () =>
+    let fresh = () => {
+      status.error = None
       switch Dict.get(meta, cacheKey) {
       | Value(m) => m.fetched = now()
       | _ => ()
       }
+    }
     // Remote rows are authoritative: they refresh freshness and write through
-    // to the local store. Rows with a pending upsert keep their optimistic value.
+    // to the local store. Rows with a pending upsert keep their optimistic value;
+    // rows with a pending delete are dropped so a fetch cannot resurrect them.
     let receive = (authority, list) => {
-      let ids = list->Array.map(item => {
+      let ids = list->Array.filterMap(item => {
         let itemId = id(item)
-        if !writes.pending(itemId) {
-          Dict.set(cache, itemId, item)
-          if authority {
-            local.save(item, false)
+        if writes.deleting(itemId) {
+          None
+        } else {
+          if !writes.pending(itemId) {
+            Dict.set(cache, itemId, item)
+            if authority {
+              local.save(item, false)
+            }
           }
+          Some(itemId)
         }
-        itemId
       })
-      set(Loaded(ids))
+      set(Loaded({data: ids}))
       if authority {
         fresh()
       }
     }
     let tier = (fetch, authority, fail) => {
-      let (channel, cancelChannel) = makeChannel(~emit=rows => receive(authority, rows), ~fail)
+      let (channel, cancelChannel) = makeFetchChannel(
+        ~emit=rows => receive(authority, rows),
+        ~fail,
+        ~covered=() => fresh(),
+      )
       let cleanup = switch fetch(filter, channel) {
       | Some(cleanup) => cleanup
       | None => () => ()
@@ -306,7 +443,11 @@ let make = (
       }
     }
     let cancelLocal = tier(local.fetch, false, _ => ())
-    let cancelRemote = remote.online ? tier(remote.fetch, true, _ => fresh()) : (() => ())
+    // A remote failure leaves freshness untouched (retried on the next stale
+    // window) and is surfaced on status.
+    let cancelRemote = remote.online
+      ? tier(remote.fetch, true, message => status.error = Some({key: cacheKey, message}))
+      : () => ()
     Dict.set(fetchCancels, cacheKey, () => {
       cancelLocal()
       cancelRemote()
@@ -327,24 +468,32 @@ let make = (
     writes.replay()
   }
 
+  // Connectivity watcher, hand-rolled on the observer API so dispose() can
+  // stop it (Tilia.watch returns no handle).
   let online = ref(remote.online)
+  let disposed = ref(false)
+  let watcher: ref<option<Tilia.observer>> = ref(None)
 
-  Tilia.watch(
-    () => remote.online,
-    live => {
+  let rec connectivity = () =>
+    if !disposed.contents {
+      let o = Tilia._observe(connectivity)
+      let live = remote.online
+      Tilia._done(o)
+      watcher := Some(o)
       let prev = online.contents
       online := live
       if !prev && live {
-        replay()
+        Tilia.batch(replay)
       } else if prev && !live {
-        writes.cancel()
+        Tilia.batch(writes.cancel)
       }
-    },
-  )
+      Tilia._ready(o, false)
+    }
+  connectivity()
 
   let get = id =>
     switch Dict.get(cache, id) {
-    | Value(item) => Loaded(item)
+    | Value(item) => Loaded({data: item})
     | _ => NotFound
     }
 
@@ -358,6 +507,34 @@ let make = (
         let s = Tilia.source(Loading, loader(cacheKey, filter))
         Dict.set(queries, cacheKey, s)
         Dict.getKnown(queries, cacheKey)
+      }
+    }
+  }
+
+  // Detail view: same two-tier fetch as any query, resolving the first row.
+  // NotFound when the query answered with an empty result.
+  let one = filter => {
+    let cacheKey = key(filter)
+    ignore(query(filter))
+    switch Dict.get(ones, cacheKey) {
+    | Value(view) => view
+    | _ => {
+        Dict.set(
+          ones,
+          cacheKey,
+          Tilia.computed(() =>
+            switch Dict.getKnown(queries, cacheKey) {
+            | Loading => Loading
+            | NotFound => NotFound
+            | Loaded({data: ids}) =>
+              switch ids[0] {
+              | Some(id) => Loaded({data: Dict.getKnown(cache, id)})
+              | None => NotFound
+              }
+            }
+          ),
+        )
+        Dict.getKnown(ones, cacheKey)
       }
     }
   }
@@ -377,10 +554,12 @@ let make = (
             switch Dict.getKnown(queries, cacheKey) {
             | Loading => Loading
             | NotFound => NotFound
-            | Loaded(ids) =>
-              Loaded(
-                ids->Array.map(id => Tilia.computed(() => Dict.getKnown(cache, id)))->Tilia.tilia,
-              )
+            | Loaded({data: ids}) =>
+              Loaded({
+                data: ids
+                ->Array.map(id => Tilia.computed(() => Dict.getKnown(cache, id)))
+                ->Tilia.tilia,
+              })
             }
           ),
         )
@@ -402,13 +581,13 @@ let make = (
             switch Dict.getKnown(queries, cacheKey) {
             | Loading => Loading
             | NotFound => NotFound
-            | Loaded(ids) =>
-              Loaded(
-                ids
+            | Loaded({data: ids}) =>
+              Loaded({
+                data: ids
                 ->Array.map(id => (id, Tilia.computed(() => Dict.getKnown(cache, id))))
                 ->Object.fromEntries
                 ->Tilia.tilia,
-              )
+              })
             }
           ),
         )
@@ -419,7 +598,9 @@ let make = (
 
   let sync = item => ignore(resolve(item))
 
-  let upsert = item => writes.send(item)
+  let upsert = item => writes.send({value: item, deleted: false})
+
+  let remove = item => writes.send({value: item, deleted: true})
 
   let tick = () => {
     let current = now()
@@ -443,6 +624,7 @@ let make = (
         | None => m.idle = Some(current)
         | Some(t) if current -. t >= gc => {
             stopFetch(k)
+            Dict.delete(ones, k)
             Dict.delete(arrays, k)
             Dict.delete(dicts, k)
             Dict.delete(queries, k)
@@ -459,7 +641,7 @@ let make = (
       let referenced = Set.make()
       Dict.keys(queries)->Array.forEach(k =>
         switch Dict.getKnown(queries, k) {
-        | Loaded(ids) => ids->Array.forEach(id => Set.add(referenced, id))
+        | Loaded({data: ids}) => ids->Array.forEach(id => Set.add(referenced, id))
         | _ => ()
         }
       )
@@ -471,11 +653,46 @@ let make = (
     }
   }
 
+  let dismiss = () => status.rejected = []
+
+  // Stop the connectivity watcher and cancel every open channel; the instance
+  // stays readable but inert.
+  let dispose = () =>
+    if !disposed.contents {
+      disposed := true
+      switch watcher.contents {
+      | Some(o) => Tilia._clear(o)
+      | None => ()
+      }
+      Dict.keys(fetchCancels)->Array.forEach(stopFetch)
+      writes.cancel()
+    }
+
+  // Empty memory state and the outbox (logout / user switch). The local
+  // database is not touched: wiping it is the adapter's job.
+  let clear = () => {
+    writes.clear()
+    Dict.keys(fetchCancels)->Array.forEach(stopFetch)
+    Dict.keys(queries)->Array.forEach(k => Dict.delete(queries, k))
+    Dict.keys(ones)->Array.forEach(k => Dict.delete(ones, k))
+    Dict.keys(arrays)->Array.forEach(k => Dict.delete(arrays, k))
+    Dict.keys(dicts)->Array.forEach(k => Dict.delete(dicts, k))
+    Dict.keys(meta)->Array.forEach(k => Dict.delete(meta, k))
+    Dict.keys(staleKeys)->Array.forEach(k => Dict.delete(staleKeys, k))
+    Dict.keys(cache)->Array.forEach(k => Dict.delete(cache, k))
+    status.rejected = []
+    status.error = None
+  }
+
   // Boot: queue pending writes from the previous session; replay happens
   // through the normal online flow.
   local.dirty()
-  ->Promise.thenResolve(rows => rows->Array.forEach(writes.send))
+  ->Promise.thenResolve(rows =>
+    if !disposed.contents {
+      rows->Array.forEach(writes.send)
+    }
+  )
   ->ignore
 
-  {get, array, dict, upsert, sync, tick}
+  {get, one, array, dict, upsert, remove, sync, tick, status, dismiss, dispose, clear}
 }

@@ -18,36 +18,43 @@ This roadmap tracks TiliaQuery in sequential phases so contributors can see what
 - [x] Add object-driven invalidation predicate `('query, 'a) => bool`.
 - [x] Invalidate matching queries from `upsert` writes.
 - [x] Add `sync` for inbound/live updates without remote upsert.
-- [x] Cover this behavior with focused tests in `query/test/TiliaQuery_test.res`.
+- [x] Cover this behavior with focused tests in `query/test/TiliaQuery.feature`.
 
-## Phase 3 - Documentation Baseline (In Progress)
+## Phase 3 - Institutional Contract (Completed)
+
+- [x] TypeScript-clean boundary: named channel callbacks (`emit`/`offline`/`conflict`/`reject`, `fail`/`covered`), flag records (`{value, deleted}`), single config object for `make`, `@tag`-based loadable representation.
+- [x] Delete support: `remove(item)` through the durable outbox with local tombstones, reconnect and restart replay, conflict resurrection, rejection convergence.
+- [x] Write-failure visibility: reactive `status` (`pending`, `rejected`, `error`) and `dismiss()`.
+- [x] Rejected writes mark matching queries stale so server truth converges.
+- [x] Split delta-sync `covered()` from transport `fail(message)`; failures leave freshness untouched and retry on the next stale window.
+- [x] Lifecycle teardown: `dispose()` (stoppable connectivity watcher) and `clear()` for logout / user switch.
+- [x] Detail/singleton reads: `one(query)` resolves a single row through the normal two-tier flow.
+
+## Phase 4 - Documentation Baseline (In Progress)
 
 - [x] Add non-technical product overview in `query/docs/vision.md`.
 - [x] Add implementation guide in `query/docs/technical.md`.
-- [x] Create package-level `query/README.md` for npm/repo entry-point onboarding.
+- [x] Create package-level `query/README.md` for npm/repo entry-point onboarding with REST and Dexie adapter recipes.
+- [x] Add complete TypeScript type declarations (`src/index.d.ts`).
+- [x] Create `query/llms.txt` for AI coding assistants.
 - [ ] Ensure one canonical navigation path between root README, query docs, and website docs.
-
-## Phase 4 - Type Surface And App-Level Validation (Pending)
-
-- [ ] Add complete TypeScript type documentation and examples.
-- [ ] Add ReScript app-level integration tests in `tests/app...`.
-- [ ] Add TypeScript app-level integration tests in `tests/app...`.
-- [ ] Validate documented usage pattern in at least one real feature module.
 
 ## Phase 5 - Adoption And Ecosystem Docs (Pending)
 
+- [ ] Publish `0.1.0` to npm.
+- [ ] Add ReScript app-level integration tests in `tests/app...`.
+- [ ] Add TypeScript app-level integration tests in `tests/app...`.
+- [ ] Validate documented usage pattern in at least one real feature module.
 - [ ] Add TiliaQuery section to `website/src/pages/docs.md`.
 - [ ] Document recommended feature-wrapper API (domain-shaped helpers over raw query object).
 - [ ] Update broader Tilia docs to direct remote fetching toward TiliaQuery over ad hoc patterns.
-- [ ] Create `query/llms.txt` linking to ReScript and TypeScript LLM guidance.
 - [ ] Publish a short migration note for teams currently using custom `watch` / `changing` flows.
 
 ## Cross-Cutting Technical Gaps (Track While Building)
 
-- [ ] Define a first-class strategy for singleton/detail resources.
 - [ ] Improve invalidation performance for many cached query filters.
-- [x] Clarify conflict resolution policy between optimistic writes and fetch responses (fetch rows skip ids with pending upserts).
+- [x] Clarify conflict resolution policy between optimistic writes and fetch responses (fetch rows skip ids with pending puts; pending deletes are filtered out of results).
 - [ ] Define pagination/windowing strategy beyond full-array query results.
 - [ ] Design `'query` as serializable data (field/range DSL) so local evaluation, remote compilation, coverage checks, and `invalidates` derive from one definition instead of per-adapter parsers.
-- [ ] Add a dedicated fetch signal for delta-sync covered queries instead of overloading `fail(string)`.
-- [ ] Expose pending-writes / rejection observability for sync-status UI.
+- [x] Add a dedicated fetch signal for delta-sync covered queries (`covered()`) instead of overloading `fail(string)`.
+- [x] Expose pending-writes / rejection observability for sync-status UI.
