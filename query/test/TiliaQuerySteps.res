@@ -21,6 +21,9 @@ let task = (row: taskRow) => item(row.id, row.status, parse(row.count))
 given("a task world", ({step}, _) => {
   let w = H.makeWorld()
   let remembered: dict<loadable<array<H.item>>> = Dict.make()
+  let switchable = ref(None)
+  let has = (keys: array<string>, key) => keys->Array.some(v => v == key)
+  let queryKey = status => "{\"status\":\"" ++ status ++ "\"}"
 
   step("tasks are", table => {
     let rows: array<taskRow> = toRecords(table)
@@ -110,6 +113,29 @@ given("a task world", ({step}, _) => {
 
   step("I open one {string} task", status => {
     watch(() => w.items.one({status: status}), _ => ())
+  })
+
+  step("I observe tasks through switchable filter starting at {string}", status => {
+    let (state, _) = signal(status)
+    switchable := Some(state)
+    watch(() => w.items.array({status: state.value}), _ => ())
+  })
+
+  step("I switch observed filter to {string}", status =>
+    switch switchable.contents {
+    | Some(state) => state.value = status
+    | None => failwith("No switchable observer")
+    }
+  )
+
+  step("query key for {string} should be live", status => {
+    let canopy = w.items.canopy()
+    expect(has(canopy.live, queryKey(status))).toBe(true)
+  })
+
+  step("query key for {string} should be idle", status => {
+    let canopy = w.items.canopy()
+    expect(has(canopy.live, queryKey(status))).toBe(false)
   })
 
   step("the one {string} task should be {string} with count {number}", (status, id, count) =>

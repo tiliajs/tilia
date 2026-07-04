@@ -80,9 +80,8 @@ export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
         </div>
       </div>
 
-      <CanopyView pane={pane} />
-
       {claims.editing ? <Editor claims={claims} /> : <List claims={claims} />}
+      <CanopyView pane={pane} />
     </section>
   );
 });
@@ -110,34 +109,42 @@ function CanopyView({ pane }: { pane: Pane }) {
   const live = [...canopy.live].sort();
   const idle = [...canopy.idle].sort();
   return (
-    <div className="border-b border-line bg-shade/35 px-4 py-2">
+    <div className="border-t border-line bg-shade/70 px-4 py-2">
       <div className="mb-1 text-[11px] font-semibold text-muted">Client query canopy</div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-medium text-ink">Live {live.length}</span>
-        {live.length === 0 ? (
-          <span className="text-[11px] text-faint">none</span>
-        ) : (
-          live.map((key) => (
-            <span key={`live:${key}`} className="rounded-md border border-line bg-card px-1.5 py-0.5 text-[11px]">
-              {keyText(key)}
+      <div className="grid grid-cols-[52px_minmax(0,1fr)] items-start gap-x-2">
+        <span className="pt-0.5 text-[11px] font-medium tabular-nums text-ink">Live {live.length}</span>
+        <div className="flex min-h-5 flex-wrap items-center gap-1.5">
+          {live.length === 0 ? (
+            <span className="rounded-md border border-line/80 bg-shade px-1.5 py-0.5 text-[11px] text-faint">
+              none
             </span>
-          ))
-        )}
+          ) : (
+            live.map((key) => (
+              <span key={`live:${key}`} className="rounded-md border border-line bg-card px-1.5 py-0.5 text-[11px]">
+                {keyText(key)}
+              </span>
+            ))
+          )}
+        </div>
       </div>
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] font-medium text-muted">Idle {idle.length}</span>
-        {idle.length === 0 ? (
-          <span className="text-[11px] text-faint">none</span>
-        ) : (
-          idle.map((key) => (
-            <span
-              key={`idle:${key}`}
-              className="rounded-md border border-line/80 bg-shade px-1.5 py-0.5 text-[11px] text-muted"
-            >
-              {keyText(key)}
+      <div className="mt-1.5 grid grid-cols-[52px_minmax(0,1fr)] items-start gap-x-2">
+        <span className="pt-0.5 text-[11px] font-medium tabular-nums text-muted">Idle {idle.length}</span>
+        <div className="flex min-h-5 flex-wrap items-center gap-1.5">
+          {idle.length === 0 ? (
+            <span className="rounded-md border border-line/80 bg-shade px-1.5 py-0.5 text-[11px] text-faint">
+              none
             </span>
-          ))
-        )}
+          ) : (
+            idle.map((key) => (
+              <span
+                key={`idle:${key}`}
+                className="rounded-md border border-line/80 bg-shade px-1.5 py-0.5 text-[11px] text-muted"
+              >
+                {keyText(key)}
+              </span>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,0 +1,1 @@
+Not sure about **changing** API. With tilia/query, do we still need this ?

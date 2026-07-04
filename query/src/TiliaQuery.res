@@ -88,6 +88,11 @@ type canopy = {
   idle: array<string>,
 }
 
+type surface = {
+  live: Set.t<string>,
+  idle: Set.t<string>,
+}
+
 // Reactive sync state for UI: pending outbox size, refused writes, last
 // remote fetch failure.
 type status<'a> = {
@@ -391,7 +396,8 @@ let make = (config: config<'a, 'query>) => {
 
   // A rejected write leaves server truth unknown (the object may belong to
   // lists it optimistically left), so every query refetches to converge.
-  let converge = () => Dict.keys(meta)->Array.forEach(cacheKey => Dict.set(staleKeys, cacheKey, true))
+  let converge = () =>
+    Dict.keys(meta)->Array.forEach(cacheKey => Dict.set(staleKeys, cacheKey, true))
 
   // Sorted insertion position: first cached row that sorts after the item.
   let position = (ids: array<string>, item) =>
@@ -407,7 +413,8 @@ let make = (config: config<'a, 'query>) => {
     }
 
   let same = (a, b) =>
-    Array.length(a) == Array.length(b) && a->Array.everyWithIndex((v, i) => b->Array.getUnsafe(i) === v)
+    Array.length(a) == Array.length(b) &&
+      a->Array.everyWithIndex((v, i) => b->Array.getUnsafe(i) === v)
 
   // Commit a next id-list only when membership changed. The list is stored
   // both in query metadata (raw) and in the reactive query state.
@@ -433,24 +440,24 @@ let make = (config: config<'a, 'query>) => {
           | Value(m) =>
             switch m.ids {
             | Some(ids) => {
-              let index = ids->Array.indexOf(itemId)
-              if matches(m.filter, item) {
-                if index < 0 {
-                  let next = [...ids]
-                  let at = position(ids, item)
-                  if at < 0 {
-                    next->Array.push(itemId)
-                  } else {
-                    ignore(insertAt(next, at, 0, itemId))
+                let index = ids->Array.indexOf(itemId)
+                if matches(m.filter, item) {
+                  if index < 0 {
+                    let next = [...ids]
+                    let at = position(ids, item)
+                    if at < 0 {
+                      next->Array.push(itemId)
+                    } else {
+                      ignore(insertAt(next, at, 0, itemId))
+                    }
+                    commit(cacheKey, m, next)
                   }
+                } else if index >= 0 {
+                  let next = [...ids]
+                  ignore(removeAt(next, index, 1))
                   commit(cacheKey, m, next)
                 }
-              } else if index >= 0 {
-                let next = [...ids]
-                ignore(removeAt(next, index, 1))
-                commit(cacheKey, m, next)
               }
-            }
             | None => ()
             }
           | _ => ()
@@ -466,13 +473,13 @@ let make = (config: config<'a, 'query>) => {
       | Value(m) =>
         switch m.ids {
         | Some(ids) => {
-          let index = ids->Array.indexOf(itemId)
-          if index >= 0 {
-            let next = [...ids]
-            ignore(removeAt(next, index, 1))
-            commit(cacheKey, m, next)
+            let index = ids->Array.indexOf(itemId)
+            if index >= 0 {
+              let next = [...ids]
+              ignore(removeAt(next, index, 1))
+              commit(cacheKey, m, next)
+            }
           }
-        }
         | None => ()
         }
       | _ => ()
@@ -578,14 +585,34 @@ let make = (config: config<'a, 'query>) => {
       | _ => startFetch(cacheKey, filter, set)
       }
 
+  // Public query liveness is defined by exposed views (one/array/dict), not by
+  // internal query cache observers.
+  let liveness: unit => surface = () => {
+    let live = Set.make()
+    let add = branch => {
+      let canopy = Tilia._canopy(branch)
+      Set.forEach(canopy.live, key => Set.add(live, key))
+    }
+    add(ones)
+    add(arrays)
+    add(dicts)
+    let idle = Set.make()
+    Dict.keys(meta)->Array.forEach(key => {
+      if !Set.has(live, key) {
+        Set.add(idle, key)
+      }
+    })
+    {live, idle}
+  }
+
   let replay = () => {
-    let canopy = Tilia._canopy(queries)
+    let canopy = liveness()
     Set.forEach(canopy.live, cacheKey => Dict.set(staleKeys, cacheKey, true))
     writes.replay()
   }
 
   let disconnect = () => {
-    let canopy = Tilia._canopy(queries)
+    let canopy = liveness()
     Set.forEach(canopy.live, stopFetch)
     writes.cancel()
   }
@@ -621,7 +648,7 @@ let make = (config: config<'a, 'query>) => {
 
   let query = filter => {
     let cacheKey = key(filter)
-    switch Dict.get(queries, cacheKey) {
+    let q = switch Dict.get(queries, cacheKey) {
     | Value(q) => q
     | _ => {
         Dict.set(meta, cacheKey, {filter, fetched: 0.0, idle: None, ids: None})
@@ -631,6 +658,7 @@ let make = (config: config<'a, 'query>) => {
         Dict.getKnown(queries, cacheKey)
       }
     }
+    (cacheKey, q)
   }
 
   // Detail view: same two-tier fetch as any query, resolving the first row.
@@ -664,8 +692,7 @@ let make = (config: config<'a, 'query>) => {
   // Views are memoized per query key so repeated reads return the same proxy;
   // the computed rebuilds only when the query's id list changes.
   let array = filter => {
-    let cacheKey = key(filter)
-    ignore(query(filter))
+    let (cacheKey, _) = query(filter)
     switch Dict.get(arrays, cacheKey) {
     | Value(view) => view
     | _ => {
@@ -691,8 +718,7 @@ let make = (config: config<'a, 'query>) => {
   }
 
   let dict = filter => {
-    let cacheKey = key(filter)
-    ignore(query(filter))
+    let (cacheKey, _) = query(filter)
     switch Dict.get(dicts, cacheKey) {
     | Value(view) => view
     | _ => {
@@ -726,7 +752,7 @@ let make = (config: config<'a, 'query>) => {
 
   let tick = () => {
     let current = now()
-    let canopy = Tilia._canopy(queries)
+    let canopy = liveness()
     Set.forEach(canopy.live, k =>
       switch Dict.get(meta, k) {
       | Value(m) => {
@@ -775,8 +801,8 @@ let make = (config: config<'a, 'query>) => {
     }
   }
 
-  let canopy = () => {
-    let c = Tilia._canopy(queries)
+  let canopy: unit => canopy = () => {
+    let c = liveness()
     {live: fromSet(c.live), idle: fromSet(c.idle)}
   }
 

@@ -201,6 +201,15 @@ Feature: Task query behavior for online, offline, and replay ownership
     When I open "active" tasks
     Then the "active" tasks view should be stable
 
+  Scenario: Switching observed filter releases previous query key
+    Given network is "online"
+    When I observe tasks through switchable filter starting at "active"
+    Then query key for "active" should be live
+    And query key for "done" should be idle
+    When I switch observed filter to "done"
+    Then query key for "active" should be idle
+    And query key for "done" should be live
+
   Scenario: Offline delete is optimistic and replays on reconnect
     Given network is "online"
     When I open "active" tasks

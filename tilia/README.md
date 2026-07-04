@@ -21,6 +21,9 @@ For more information, check out the [**DDD section**](https://tiliajs.com/docs#d
 
 Check the [**website**](https://tiliajs.com) for full documentation and more examples for both TypeScript and ReScript.
 
+For core runtime behavior decisions (including computed pruning), see
+[`TRADE_OFFS.md`](./TRADE_OFFS.md).
+
 ## Note on exceptions
 
 If a computed or observe callback throws an exception, the exception is caught,

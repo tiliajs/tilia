@@ -468,15 +468,38 @@ function make$2(config) {
       return;
     }
   });
+  let liveness = () => {
+    let live = new Set();
+    let add = branch => {
+      let canopy = Tilia._canopy(branch);
+      canopy.live.forEach(key => {
+        live.add(key);
+      });
+    };
+    add(ones);
+    add(arrays);
+    add(dicts);
+    let idle = new Set();
+    Object.keys(meta).forEach(key => {
+      if (!live.has(key)) {
+        idle.add(key);
+        return;
+      }
+    });
+    return {
+      live: live,
+      idle: idle
+    };
+  };
   let replay = () => {
-    let canopy = Tilia._canopy(queries);
+    let canopy = liveness();
     canopy.live.forEach(cacheKey => {
       Reflect.set(staleKeys, cacheKey, true);
     });
     writes.replay();
   };
   let disconnect = () => {
-    let canopy = Tilia._canopy(queries);
+    let canopy = liveness();
     canopy.live.forEach(stopFetch);
     writes.cancel();
   };
@@ -521,20 +544,29 @@ function make$2(config) {
   let query = filter => {
     let cacheKey = key(filter);
     let q = Reflect.get(queries, cacheKey);
-    if (q !== null && q !== undefined) {
-      return q;
+    let q$1;
+    let exit = 0;
+    if (q == null) {
+      exit = 1;
+    } else {
+      q$1 = q;
     }
-    q === null;
-    Reflect.set(meta, cacheKey, {
-      filter: filter,
-      fetched: 0.0,
-      idle: undefined,
-      ids: undefined
-    });
-    Reflect.set(staleKeys, cacheKey, true);
-    let s = Tilia.source("loading", loader(cacheKey, filter));
-    Reflect.set(queries, cacheKey, s);
-    return Reflect.get(queries, cacheKey);
+    if (exit === 1) {
+      Reflect.set(meta, cacheKey, {
+        filter: filter,
+        fetched: 0.0,
+        idle: undefined,
+        ids: undefined
+      });
+      Reflect.set(staleKeys, cacheKey, true);
+      let s = Tilia.source("loading", loader(cacheKey, filter));
+      Reflect.set(queries, cacheKey, s);
+      q$1 = Reflect.get(queries, cacheKey);
+    }
+    return [
+      cacheKey,
+      q$1
+    ];
   };
   let one = filter => {
     let cacheKey = key(filter);
@@ -566,8 +598,8 @@ function make$2(config) {
     return Reflect.get(ones, cacheKey);
   };
   let array = filter => {
-    let cacheKey = key(filter);
-    query(filter);
+    let match = query(filter);
+    let cacheKey = match[0];
     let view = Reflect.get(arrays, cacheKey);
     if (view !== null && view !== undefined) {
       return view;
@@ -591,8 +623,8 @@ function make$2(config) {
     return Reflect.get(arrays, cacheKey);
   };
   let dict = filter => {
-    let cacheKey = key(filter);
-    query(filter);
+    let match = query(filter);
+    let cacheKey = match[0];
     let view = Reflect.get(dicts, cacheKey);
     if (view !== null && view !== undefined) {
       return view;
@@ -631,7 +663,7 @@ function make$2(config) {
   });
   let tick = () => {
     let current = now();
-    let canopy = Tilia._canopy(queries);
+    let canopy = liveness();
     canopy.live.forEach(k => {
       let m = Reflect.get(meta, k);
       if (m == null) {
@@ -692,7 +724,7 @@ function make$2(config) {
     });
   };
   let canopy = () => {
-    let c = Tilia._canopy(queries);
+    let c = liveness();
     return {
       live: Array.from(c.live),
       idle: Array.from(c.idle)

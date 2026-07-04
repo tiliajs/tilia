@@ -25,6 +25,11 @@ VitestBdd.Given("a task world", (param, param$1) => {
   let step = param.step;
   let w = TiliaQueryTestHelpers.makeWorld();
   let remembered = {};
+  let switchable = {
+    contents: undefined
+  };
+  let has = (keys, key) => keys.some(v => v === key);
+  let queryKey = status => "{\"status\":\"" + status + "\"}";
   step("tasks are", table => {
     let rows = VitestBdd.toRecords(table);
     TiliaQueryTestHelpers.seed(w, rows.map(task));
@@ -96,6 +101,31 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("I open one {string} task", status => Tilia.watch(() => w.items.one({
     status: status
   }), param => {}));
+  step("I observe tasks through switchable filter starting at {string}", status => {
+    let match = Tilia.signal(status);
+    let state = match[0];
+    switchable.contents = state;
+    Tilia.watch(() => w.items.array({
+      status: state.value
+    }), param => {});
+  });
+  step("I switch observed filter to {string}", status => {
+    let state = switchable.contents;
+    if (state !== undefined) {
+      state.value = status;
+      return;
+    } else {
+      return Pervasives.failwith("No switchable observer");
+    }
+  });
+  step("query key for {string} should be live", status => {
+    let canopy = w.items.canopy();
+    Vitest.expect(has(canopy.live, queryKey(status))).toBe(true);
+  });
+  step("query key for {string} should be idle", status => {
+    let canopy = w.items.canopy();
+    Vitest.expect(has(canopy.live, queryKey(status))).toBe(false);
+  });
   step("the one {string} task should be {string} with count {number}", (status, id, count) => Vitest.expect(w.items.one({
     status: status
   })).toEqual({

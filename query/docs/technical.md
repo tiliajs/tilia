@@ -247,6 +247,15 @@ Replay sends each queued entry once per reconnect; an entry that gets
 - `live`: watched now
 - `idle`: not currently watched
 
+Trade-off note:
+- this liveness split is observer-graph based, not API-surface based
+- with non-pruned computed defaults, memoized branch-switch selectors can keep
+  previous dependencies observed longer than expected
+- this is an intentional core trade-off in Tilia (see `tilia/TRADE_OFFS.md`):
+  default behavior avoids global always-prune churn/risk; subsystems that need
+  strict branch release should compute liveness from exposed view roots (there
+  is currently no public API to force computed pruning)
+
 Then:
 - live stale check: only while `remote.online`, if `now - fetched >= stale`, mark stale (an offline app does not re-read local every tick; reconnect replay refreshes instead)
 - idle cleanup: if `now - idle >= gc`, evict query metadata, stale flag, and memoized views (`ones`, `arrays`, `dicts`)
