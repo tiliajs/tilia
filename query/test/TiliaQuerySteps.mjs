@@ -24,6 +24,7 @@ function task(row) {
 VitestBdd.Given("a task world", (param, param$1) => {
   let step = param.step;
   let w = TiliaQueryTestHelpers.makeWorld();
+  let remembered = {};
   step("tasks are", table => {
     let rows = VitestBdd.toRecords(table);
     TiliaQueryTestHelpers.seed(w, rows.map(task));
@@ -169,6 +170,21 @@ VitestBdd.Given("a task world", (param, param$1) => {
   })).toBe(w.items.array({
     status: status
   })));
+  step("I remember the {string} tasks view", status => {
+    remembered[status] = w.items.array({
+      status: status
+    });
+  });
+  step("the {string} tasks view should be unchanged", status => {
+    let view = remembered[status];
+    if (view !== undefined) {
+      return Vitest.expect(w.items.array({
+        status: status
+      })).toBe(view);
+    } else {
+      return Pervasives.failwith("No remembered view");
+    }
+  });
   step("synced remote writes should be {number}", expected => Vitest.expect(w.remote.syncedWrites.contents.length).toBe(expected));
   step("remote upsert calls should be {number}", expected => Vitest.expect(w.remote.upsertCalls.contents).toBe(expected));
   step("remote remove calls should be {number}", expected => Vitest.expect(w.remote.removeCalls.contents).toBe(expected));

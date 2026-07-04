@@ -38,7 +38,6 @@ export function ServerPane({ world }: { world: World }) {
             key={`${claim.id}:${server.touches[claim.id]?.seq ?? 0}`}
             claim={claim}
             touch={server.touches[claim.id]}
-            editor={server.edits[claim.id]}
           />
         ))}
       </div>
@@ -94,7 +93,7 @@ function Subs({ subs }: { subs: Sub[] }) {
   );
 }
 
-function Card({ claim, touch, editor }: { claim: Claim; touch: Touch | undefined; editor: string | undefined }) {
+function Card({ claim, touch }: { claim: Claim; touch: Touch | undefined }) {
   const tone = touch ? tones[touch.by] : undefined;
   return (
     <div
@@ -104,11 +103,11 @@ function Card({ claim, touch, editor }: { claim: Claim; touch: Touch | undefined
     >
       <div className="flex items-center gap-2">
         <span className="font-mono text-[11px] text-muted">{claim.id}</span>
-        {editor && (
+        {touch?.kind === "write" && (
           <span
-            title={`Last write: ${editor[0].toUpperCase()}${editor.slice(1)}`}
-            className="h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: tones[editor]?.strong }}
+            title={`Write by ${touch.by[0].toUpperCase()}${touch.by.slice(1)}`}
+            className="dot-write h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: tone?.strong }}
           />
         )}
         <span className="ml-auto font-mono text-[10px] text-faint">v{claim.version}</span>

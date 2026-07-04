@@ -75,3 +75,23 @@ body {
 .touch-read {
   animation: pulse-read 0.9s ease-out both;
 }
+
+/* Writer dot: flashes once on write, then fades off gently. */
+@keyframes dot-flash {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.dot-write {
+  animation: dot-flash 1.8s ease-out both;
+}

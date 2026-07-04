@@ -93,7 +93,7 @@ Feature: Task query behavior for online, offline, and replay ownership
     When I open "active" tasks
     And I edit task "todo-1" to status "active" count 9
     Then task "todo-1" in cache should be status "active" count 9
-    And "active" fetch calls should be 2
+    And "active" fetch calls should be 1
     When I emit from held upsert channel 1 with count 9
     Then task "todo-1" in cache should be status "active" count 9
     And local task "todo-1" should be status "active" count 9 and "clean"
@@ -133,13 +133,51 @@ Feature: Task query behavior for online, offline, and replay ownership
     And remote task "todo-2" should be status "done" count 6
     And local task "todo-1" should be status "active" count 9 and "clean"
 
-  Scenario: Active edit updates active list but not done list
+  Scenario: Edit updates the list without any fetch
+    Given network is "online"
+    When I open "active" tasks
+    And I edit task "todo-1" to status "active" count 8
+    Then "active" tasks should be
+      | id     | status | count |
+      | todo-1 | active | 8     |
+    And "active" fetch calls should be 1
+    And local fetch calls should be 1
+
+  Scenario: Edit that changes membership moves the task between lists without fetch
     Given network is "online"
     When I open "active and done" tasks
-    And I edit task "todo-1" to status "active" count 8
-    And I run tick for "active and done" tasks after 0 seconds
-    Then "active" fetch calls should be 3
+    And I edit task "todo-1" to status "done" count 2
+    Then no "active" tasks should remain
+    And "done" tasks should be
+      | id     | status | count |
+      | todo-1 | done   | 2     |
+      | todo-2 | done   | 1     |
+    And "active" fetch calls should be 1
     And "done" fetch calls should be 1
+
+  Scenario: Lists stay sorted as membership changes
+    Given network is "online"
+    And tasks are
+      | id     | status | count |
+      | todo-1 | active | 1     |
+      | todo-3 | active | 3     |
+      | todo-2 | done   | 2     |
+    When I open "active" tasks
+    And I edit task "todo-2" to status "active" count 2
+    Then "active" tasks should be
+      | id     | status | count |
+      | todo-1 | active | 1     |
+      | todo-2 | active | 2     |
+      | todo-3 | active | 3     |
+    And "active" fetch calls should be 1
+
+  Scenario: Stale refetch with unchanged rows keeps the view identity
+    Given network is "online"
+    When I open "active" tasks
+    And I remember the "active" tasks view
+    And I run tick for "active" tasks after 31 seconds
+    Then "active" fetch calls should be 2
+    And the "active" tasks view should be unchanged
 
   Scenario: Live fetch channel emissions update active query
     Given network is "online"

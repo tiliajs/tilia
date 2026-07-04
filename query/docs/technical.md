@@ -12,7 +12,8 @@ It solves:
 - write-failure visibility (pending count, rejections, fetch errors)
 - stale refresh behavior
 - idle-query garbage collection
-- object-driven invalidation from writes and live updates
+- object-driven membership from writes and live updates: changed objects move between query results in place, without refetching
+- sorted, stable query results (views only change when membership changes)
 - lifecycle teardown (`dispose`, `clear`)
 
 It does **not** solve:
@@ -86,7 +87,8 @@ type config<'a, 'query> = {
   gc?: float,
   now?: unit => float,
   key?: 'query => string,
-  invalidates?: ('query, 'a) => bool,
+  matches?: ('query, 'a) => bool,
+  sort?: ('a, 'a) => float,
 }
 
 type t<'a, 'query> = {
@@ -152,10 +154,12 @@ When first accessed:
 A query opened offline resolves from the local store instead of hanging in `Loading`.
 
 After each `emit(rows)`:
+- rows are ordered with `sort` when configured, so both tiers produce the same order
 - objects are written to `cache`, **except** ids with a pending put (the optimistic value wins until the write settles)
 - ids with a pending **delete** are filtered out of the result, so a racing fetch cannot resurrect a deleted row
 - remote rows are additionally written through to `local.save(row, false)` (same pending exceptions)
 - query result stores ids only; loadable state becomes `Loaded({data: ids})`
+- an id-list identical to the current one is dropped: the loadable and the memoized views keep their identity, so watchers do not re-render on no-op refetches
 - remote emits refresh `fetched`; local emits do not
 
 Remote fetch outcomes:
@@ -184,7 +188,7 @@ converge to remote truth.
    - put: `local.save(item, true)` (dirty row)
    - delete: `local.remove(item, true)` (dirty tombstone)
 3. apply optimistically to memory: put fills `cache`, delete evicts the id
-4. run the invalidation predicate so matching query id-lists refetch from the local tier (which reflects the optimistic state)
+4. update query membership in place through `matches`: the id enters results whose filter matches the new value (at its `sort` position) and leaves results that contain it but no longer match; deletes leave every result containing the id. No stale marking and no fetch — the changed object is already known
 5. if `remote.online`, dispatch through `remote.upsert` / `remote.remove`; if offline, the entry stays queued for reconnect — no timer, no retry loop
 
 `remote.upsert` / `remote.remove` are push-and-forget: they return nothing and
@@ -199,7 +203,7 @@ Write settlement (dirty lifecycle):
 | --- | --- | --- |
 | `emit(saved)` | removed; `local.save(saved, false)`; resolved into cache | removed; `local.remove(value, false)` purges row + tombstone |
 | `conflict(server)` | removed; server wins: resolved into cache, saved clean | removed; server resurrects the row: resolved into cache, saved clean |
-| `reject(message)` | removed; saved clean (stops boot retries); rejection recorded on `status.rejected`; matching queries marked stale so the refetch restores server truth | removed; tombstone cleared; same rejection + stale convergence |
+| `reject(message)` | removed; saved clean (stops boot retries); rejection recorded on `status.rejected`; every query marked stale so the refetch restores server truth (the object may belong to lists it optimistically left) | removed; tombstone cleared; same rejection + stale convergence |
 | `offline()` | kept queued; row stays dirty | kept queued; tombstone stays dirty |
 
 `status.pending` always equals the outbox size; UI can show "N changes waiting
@@ -210,7 +214,7 @@ to sync". `status.rejected` accumulates refusals until the app calls
 
 At `make`, the core loads `local.dirty()` (async) and feeds each `{value,
 deleted}` record through the normal `send` flow: optimistic cache state (puts
-fill the cache, tombstones keep the id out), invalidation, and
+fill the cache, tombstones keep the id out), membership updates, and
 replay-when-online all apply. Closing the app with unsynced writes and
 reopening it resumes the sync where it left off.
 
@@ -218,7 +222,7 @@ reopening it resumes the sync where it left off.
 
 `sync(item)`:
 1. writes item to the memory cache using `id(item)`
-2. runs the same invalidation logic
+2. runs the same membership updates through `matches`
 3. does **not** call the remote and does **not** touch the local store
 
 This is intended for websocket events, delta-sync engines, or external state
@@ -266,7 +270,7 @@ Recommended structure:
 1. Build one query adapter per feature/domain.
 2. Keep transport in service modules.
 3. Expose domain-shaped helpers to app code.
-4. Pass `invalidates` that expresses domain match rules between query filters and changed objects.
+4. Pass `matches` that expresses domain membership rules between query filters and objects, and `sort` for stable result order.
 5. Surface `status` in a global sync indicator (pending count, rejection toasts).
 
 Tests in `query/test/TiliaQuery.feature` and `query/test/TiliaQueryTestHelpers.res` show this pattern with `Papabase` as an adapter example.
@@ -309,15 +313,15 @@ the contracts as-is:
 
 ## Current Shortcomings And Open Problems
 
-- **Invalidation cost:** invalidation scans all stored query metadata; this is simple but can become expensive with many active filters.
+- **Membership cost:** every write scans all stored query metadata; this is simple but can become expensive with many active filters.
 - **Pagination/windowing:** current docs and API focus on full query-result arrays, not advanced page/window cache strategies.
 - **Cross-query consistency rules:** complex relationships (derived aggregates, graph-like joins) still rely on feature-layer logic.
-- **Query DSL:** `'query` is opaque; a serializable field/range DSL would let local evaluation, remote compilation, coverage checks, and `invalidates` derive from one definition instead of per-adapter parsers.
+- **Query DSL:** `'query` is opaque; a serializable field/range DSL would let local evaluation, remote compilation, coverage checks, and `matches` derive from one definition instead of per-adapter parsers.
 
 ## What This Should Enable
 
 A contributor should be able to:
-- understand where to add behavior (`make`, loader, outbox, invalidation, `tick`)
+- understand where to add behavior (`make`, loader, outbox, membership, `tick`)
 - reason about freshness, GC, and teardown behavior
 - add feature adapters safely
 - identify which gaps are accepted for now versus next-step roadmap work

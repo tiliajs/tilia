@@ -23,7 +23,8 @@ on reconnect — including after an app restart.
 - reactive sync status: pending writes count, rejected writes, last fetch error
 - stale refresh in the background without clearing current data
 - idle-query garbage collection driven by real reactivity (who is watching what)
-- object-driven invalidation: a changed object marks matching queries stale
+- object-driven membership: a changed object enters and leaves query results in place, without refetching
+- sorted, stable query results: views only change when membership changes
 - lifecycle control: `dispose()` and `clear()` for logout / user switch
 
 ## What it does not do
@@ -62,7 +63,10 @@ const todos = make<Todo, TodoQuery>({
   id: (todo) => todo.id,
   remote, // remote adapter (see below)
   local, // local store adapter (optional)
-  invalidates: (query, todo) => query.done === todo.done,
+  // Membership: writes move objects between query results without refetching.
+  matches: (query, todo) => query.done === todo.done,
+  // Order: id-lists stay sorted and stable across refetches.
+  sort: (a, b) => a.title.localeCompare(b.title),
 });
 
 // Read (reactive, safe to call in render / observe / watch)
@@ -80,7 +84,7 @@ todos.upsert({ id: "t1", title: "Ship it", done: false });
 // Delete: optimistic, tombstoned locally, pushed when online
 todos.remove({ id: "t1", title: "Ship it", done: false });
 
-// Inbound updates (websocket / delta sync): cache + invalidation, no remote push
+// Inbound updates (websocket / delta sync): cache + membership, no remote push
 todos.sync(changedTodo);
 
 // Sync status for the UI (reactive tilia object)
@@ -233,15 +237,17 @@ local reads converge naturally.
 ## Write lifecycle
 
 `upsert(item)` updates the cache immediately, saves the row dirty in the local
-store (even offline — this is what makes writes durable), invalidates matching
-queries, and pushes to the remote when online. `remove(item)` follows the same
-path with a delete tombstone. Latest write wins per id.
+store (even offline — this is what makes writes durable), updates query
+membership through `matches` (the id enters matching results and leaves
+results that no longer match — no refetch), and pushes to the remote when
+online. `remove(item)` follows the same path with a delete tombstone. Latest
+write wins per id.
 
 | Remote response | Put entry | Delete entry |
 | --- | --- | --- |
 | `emit(saved)` | removed, saved clean | removed, row + tombstone purged |
 | `conflict(server)` | removed, server value wins, saved clean | removed, server row resurrected, saved clean |
-| `reject(message)` | removed, surfaced on `status.rejected`, matching queries refetch server truth | same, tombstone cleared |
+| `reject(message)` | removed, surfaced on `status.rejected`, queries refetch server truth | same, tombstone cleared |
 | `offline()` | kept for next reconnect, stays dirty | kept, tombstone stays dirty |
 
 At startup, `make` loads `local.dirty()` and queues each entry through the

@@ -66,6 +66,32 @@ Feature: Field claims adjusting
     Then "Ben" is refused with "estimate above authority limit"
     And the office shows claim "CLM-1045" with estimate 4200
 
+  Scenario: A write updates lists without asking the office
+    When "Ana" opens the "new" claims
+    Then the office has answered 1 read
+    When "Ana" takes claim "CLM-1041"
+    Then "Ana" sees claims "CLM-1042"
+    And the office has answered 1 read
+
+  Scenario: A live write pushes updates without any refetch
+    Given the office switches to live updates
+    When "Ana" opens the "new" claims
+    And "Ben" opens the "new" claims
+    Then the office has answered 2 reads
+    When "Ana" takes claim "CLM-1041"
+    Then "Ana" sees claims "CLM-1042"
+    And "Ben" sees claims "CLM-1042"
+    And the office has answered 2 reads
+
+  Scenario: Lists stay sorted as claims move between them
+    When "Ana" opens the "assigned" claims
+    Then "Ana" sees claims in order "CLM-1043, CLM-1045"
+    When "Ana" opens the "new" claims
+    And "Ana" takes claim "CLM-1041"
+    And "Ana" opens the "assigned" claims
+    Then "Ana" sees claims in order "CLM-1041, CLM-1043, CLM-1045"
+    And the office has answered 2 reads
+
   Scenario: Live updates reach a colleague without polling
     Given the office switches to live updates
     When "Ana" opens the "new" claims

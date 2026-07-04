@@ -21,7 +21,7 @@ external asRemote: transport<'a, 'query> => remoteApi<'a, 'query> = "%identity"
 module Papabase = {
   type api<'a, 'query> = remoteApi<'a, 'query>
 
-  let make = (_table, id, remote, ~local=?, ~stale=?, ~gc=?, ~now=?, ~invalidates=?) =>
+  let make = (_table, id, remote, ~local=?, ~stale=?, ~gc=?, ~now=?, ~matches=?, ~sort=?) =>
     TiliaQuery.make({
       id,
       remote,
@@ -29,7 +29,8 @@ module Papabase = {
       stale: ?stale,
       gc: ?gc,
       now: ?now,
-      invalidates: ?invalidates,
+      matches: ?matches,
+      sort: ?sort,
     })
 }
 
@@ -320,7 +321,8 @@ let makeItems = (clock, remote) =>
     ~stale=30.0,
     ~gc=300.0,
     ~now=() => clock.contents,
-    ~invalidates=(query, changed) => query.status == "active" || query.status == changed.name,
+    ~matches=(query, changed) => changed.name == query.status,
+    ~sort=(a, b) => String.localeCompare(a.id, b.id),
   )
 
 let makeWorld = () => {

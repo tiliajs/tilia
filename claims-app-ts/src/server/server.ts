@@ -25,8 +25,8 @@ export type Server = {
   latency: number;
   live: boolean;
   touches: Record<string, Touch>;
-  // Last writer per claim id: persists after the blink animation fades.
-  edits: Record<string, string>;
+  // Reads answered (fetches and subscriptions): writes should not add any.
+  fetches: number;
   subs: Sub[];
   fetch(by: string, query: ClaimQuery, reply: (rows: Claim[]) => void): void;
   subscribe(by: string, query: ClaimQuery, push: (rows: Claim[]) => void): () => void;
@@ -77,11 +77,12 @@ export function makeServer(seed: Claim[]): Server {
     latency: 800,
     live: false,
     touches: {},
-    edits: {},
+    fetches: 0,
     subs: [],
 
     fetch(by, query, reply) {
       later(() => {
+        server.fetches += 1;
         const found = matching(query);
         for (const claim of found) touch(claim.id, by, "read");
         reply(clone(found));
@@ -94,6 +95,7 @@ export function makeServer(seed: Claim[]): Server {
       let dead = false;
       later(() => {
         if (dead) return;
+        server.fetches += 1;
         const found = matching(query);
         for (const claim of found) touch(claim.id, by, "read");
         server.subs.push({ id, client: by, query, push, sig: sig(found), seq: 1 });
@@ -119,7 +121,6 @@ export function makeServer(seed: Claim[]): Server {
           const saved = { ...clone(claim), version: claim.version + 1 };
           server.rows[claim.id] = saved;
           touch(claim.id, by, "write");
-          server.edits[claim.id] = by;
           reply({ kind: "saved", claim: clone(saved) });
           broadcast();
         }
@@ -134,7 +135,6 @@ export function makeServer(seed: Claim[]): Server {
         } else {
           delete server.rows[claim.id];
           delete server.touches[claim.id];
-          delete server.edits[claim.id];
           reply({ kind: "saved", claim: clone(claim) });
           broadcast();
         }

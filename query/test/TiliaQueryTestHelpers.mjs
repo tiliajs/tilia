@@ -16,7 +16,7 @@ function item(id, name, count) {
   };
 }
 
-function make(_table, id, remote, local, stale, gc, now, invalidates) {
+function make(_table, id, remote, local, stale, gc, now, matches, sort) {
   return TiliaQuery.make({
     id: id,
     remote: remote,
@@ -24,7 +24,8 @@ function make(_table, id, remote, local, stale, gc, now, invalidates) {
     stale: stale,
     gc: gc,
     now: now,
-    invalidates: invalidates
+    matches: matches,
+    sort: sort
   });
 }
 
@@ -342,13 +343,7 @@ function id(item) {
 }
 
 function makeItems(clock, remote) {
-  return make("items", id, remote.api, remote.localApi, 30.0, 300.0, () => clock.contents, (query, changed) => {
-    if (query.status === "active") {
-      return true;
-    } else {
-      return query.status === changed.name;
-    }
-  });
+  return make("items", id, remote.api, remote.localApi, 30.0, 300.0, () => clock.contents, (query, changed) => changed.name === query.status, (a, b) => a.id.localeCompare(b.id));
 }
 
 function makeWorld() {

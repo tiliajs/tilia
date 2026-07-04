@@ -8,7 +8,10 @@
 Key facts for code generation:
 
 - Create an instance with `make(config)` where config is a single options
-  object: `{id, remote, local?, stale?, gc?, now?, key?, invalidates?}`.
+  object: `{id, remote, local?, stale?, gc?, now?, key?, matches?, sort?}`.
+- `matches(query, value)` is the membership predicate: writes and `sync`
+  update query id-lists in place (no refetch). `sort(a, b)` keeps id-lists
+  sorted and stable, so views only change when membership changes.
 - Reads: `one(query)`, `array(query)`, `dict(query)` return a loadable:
   the string "loading", the string "notFound", or `{state: "loaded", data}`.
   Array queries never resolve to "notFound"; empty results are loaded.

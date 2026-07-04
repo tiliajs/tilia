@@ -27,6 +27,9 @@ module Channel = {
   }
 }
 
+@send external insertAt: (array<'a>, int, int, 'a) => array<'a> = "splice"
+@send external removeAt: (array<'a>, int, int) => array<'a> = "splice"
+
 module Dict = {
   type t<'a>
   let make: unit => t<'a> = %raw(`() => ({})`)
@@ -123,13 +126,17 @@ type config<'a, 'query> = {
   gc?: float,
   now?: unit => float,
   key?: 'query => string,
-  invalidates?: ('query, 'a) => bool,
+  matches?: ('query, 'a) => bool,
+  sort?: ('a, 'a) => float,
 }
 
 type meta<'query> = {
   filter: 'query,
   mutable fetched: float,
   mutable idle: option<float>,
+  // Raw id list of the last emitted result: same target as the loadable's
+  // data array, safe to read from tracked scopes (fetch channel callbacks).
+  mutable ids: option<array<string>>,
 }
 
 let makeFetchChannel = (~emit, ~fail, ~covered): (Channel.fetch<'a>, unit => unit) => {
@@ -190,7 +197,7 @@ module Outbox = {
     ~local: store<'a, 'query>,
     ~resolve: 'a => 'a,
     ~evict: 'a => 'a,
-    ~invalidate: 'a => unit,
+    ~stale: unit => unit,
     ~status: status<'a>,
   ) => {
     let entries: entries<'a> = Dict.make()
@@ -265,10 +272,12 @@ module Outbox = {
           }
         let reject = message =>
           if remove(itemId, entry) {
-            // Drop the tombstone; the stale refetch restores server truth.
-            local.remove(value, false)
+            // Delete rejected: keep the row clean locally and in cache, then
+            // refetch to converge if the server row changed meanwhile.
+            local.save(value, false)
+            ignore(resolve(value))
             status.rejected = [...status.rejected, {value, deleted: true, message}]
-            invalidate(value)
+            stale()
           }
         let (channel, cancelChannel) = makeWriteChannel(~emit=settle, ~offline, ~conflict, ~reject)
         entry.cancel = Some(cancelChannel)
@@ -284,7 +293,7 @@ module Outbox = {
             // Stop retries; the stale refetch restores server truth.
             local.save(value, false)
             status.rejected = [...status.rejected, {value, deleted: false, message}]
-            invalidate(value)
+            stale()
           }
         let (channel, cancelChannel) = makeWriteChannel(
           ~emit=settle,
@@ -352,7 +361,8 @@ let make = (config: config<'a, 'query>) => {
   let gc = config.gc->Option.getOr(300.0)
   let now = config.now->Option.getOr(defaultNow)
   let key = config.key->Option.getOr(Json.sortedStringify)
-  let invalidates = config.invalidates->Option.getOr((_, _) => false)
+  let matches = config.matches
+  let sort = config.sort
   let cache: Dict.t<'a> = Dict.make()->Tilia.tilia
   let queries: Dict.t<loadable<array<string>>> = Dict.make()->Tilia.tilia
   let ones: Dict.t<loadable<'a>> = Dict.make()->Tilia.tilia
@@ -371,29 +381,111 @@ let make = (config: config<'a, 'query>) => {
     | _ => ()
     }
 
-  let invalidate = item =>
+  // A rejected write leaves server truth unknown (the object may belong to
+  // lists it optimistically left), so every query refetches to converge.
+  let converge = () => Dict.keys(meta)->Array.forEach(cacheKey => Dict.set(staleKeys, cacheKey, true))
+
+  // Sorted insertion position: first cached row that sorts after the item.
+  let position = (ids: array<string>, item) =>
+    switch sort {
+    | Some(cmp) =>
+      ids->Array.findIndex(otherId =>
+        switch Dict.get(cache, otherId) {
+        | Value(other) => cmp(other, item) > 0.0
+        | _ => false
+        }
+      )
+    | None => -1
+    }
+
+  let same = (a, b) =>
+    Array.length(a) == Array.length(b) && a->Array.everyWithIndex((v, i) => b->Array.getUnsafe(i) === v)
+
+  // Commit a next id-list only when membership changed. The list is stored
+  // both in query metadata (raw) and in the reactive query state.
+  let commit = (cacheKey, m, ids) =>
+    switch m.ids {
+    | Some(prev) if same(prev, ids) => ()
+    | _ => {
+        m.ids = Some(ids)
+        Dict.set(queries, cacheKey, Loaded({data: ids}))
+      }
+    }
+
+  // The changed object is known, so query id-lists are updated in place
+  // (no stale marking, no fetch): the id enters lists whose filter matches
+  // and leaves lists that contain it but no longer match.
+  let apply = item =>
+    switch matches {
+    | None => ()
+    | Some(matches) => {
+        let itemId = id(item)
+        Dict.keys(meta)->Array.forEach(cacheKey =>
+          switch Dict.get(meta, cacheKey) {
+          | Value(m) =>
+            switch m.ids {
+            | Some(ids) => {
+              let index = ids->Array.indexOf(itemId)
+              if matches(m.filter, item) {
+                if index < 0 {
+                  let next = [...ids]
+                  let at = position(ids, item)
+                  if at < 0 {
+                    next->Array.push(itemId)
+                  } else {
+                    ignore(insertAt(next, at, 0, itemId))
+                  }
+                  commit(cacheKey, m, next)
+                }
+              } else if index >= 0 {
+                let next = [...ids]
+                ignore(removeAt(next, index, 1))
+                commit(cacheKey, m, next)
+              }
+            }
+            | None => ()
+            }
+          | _ => ()
+          }
+        )
+      }
+    }
+
+  // A deleted object leaves every list that contains it.
+  let drop = itemId =>
     Dict.keys(meta)->Array.forEach(cacheKey =>
       switch Dict.get(meta, cacheKey) {
-      | Value(m) if invalidates(m.filter, item) => Dict.set(staleKeys, cacheKey, true)
+      | Value(m) =>
+        switch m.ids {
+        | Some(ids) => {
+          let index = ids->Array.indexOf(itemId)
+          if index >= 0 {
+            let next = [...ids]
+            ignore(removeAt(next, index, 1))
+            commit(cacheKey, m, next)
+          }
+        }
+        | None => ()
+        }
       | _ => ()
       }
     )
 
   let resolve = item => {
     Dict.set(cache, id(item), item)
-    invalidate(item)
+    apply(item)
     item
   }
 
   let evict = item => {
     Dict.delete(cache, id(item))
-    invalidate(item)
+    drop(id(item))
     item
   }
 
   let status: status<'a> = Tilia.tilia({pending: 0, rejected: [], error: None})
 
-  let writes = Outbox.make(~id, ~remote, ~local, ~resolve, ~evict, ~invalidate, ~status)
+  let writes = Outbox.make(~id, ~remote, ~local, ~resolve, ~evict, ~stale=converge, ~status)
 
   let startFetch = (cacheKey, filter, set) => {
     stopFetch(cacheKey)
@@ -408,7 +500,11 @@ let make = (config: config<'a, 'query>) => {
     // to the local store. Rows with a pending upsert keep their optimistic value;
     // rows with a pending delete are dropped so a fetch cannot resurrect them.
     let receive = (authority, list) => {
-      let ids = list->Array.filterMap(item => {
+      let rows = switch sort {
+      | Some(cmp) => list->Array.toSorted(cmp)
+      | None => list
+      }
+      let ids = rows->Array.filterMap(item => {
         let itemId = id(item)
         if writes.deleting(itemId) {
           None
@@ -422,7 +518,19 @@ let make = (config: config<'a, 'query>) => {
           Some(itemId)
         }
       })
-      set(Loaded({data: ids}))
+      // An unchanged id-list keeps the current loadable and views untouched.
+      // `meta.ids` shares its target with the loadable's data array (in-place
+      // membership edits stay in sync), and is safe to read here: this can run
+      // inside the loader's tracked scope, where reading `queries` would
+      // subscribe the loader to its own result.
+      switch Dict.get(meta, cacheKey) {
+      | Value({ids: Some(prev)}) if same(prev, ids) => ()
+      | Value(m) => {
+          m.ids = Some(ids)
+          set(Loaded({data: ids}))
+        }
+      | _ => set(Loaded({data: ids}))
+      }
       if authority {
         fresh()
       }
@@ -502,7 +610,7 @@ let make = (config: config<'a, 'query>) => {
     switch Dict.get(queries, cacheKey) {
     | Value(q) => q
     | _ => {
-        Dict.set(meta, cacheKey, {filter, fetched: 0.0, idle: None})
+        Dict.set(meta, cacheKey, {filter, fetched: 0.0, idle: None, ids: None})
         Dict.set(staleKeys, cacheKey, true)
         let s = Tilia.source(Loading, loader(cacheKey, filter))
         Dict.set(queries, cacheKey, s)
@@ -661,7 +769,9 @@ let make = (config: config<'a, 'query>) => {
     if !disposed.contents {
       disposed := true
       switch watcher.contents {
-      | Some(o) => Tilia._clear(o)
+      // `_done` detaches the manual observer without pruning computed trees.
+      // This avoids dispose-time crashes when dependencies were rebuilt.
+      | Some(o) => Tilia._done(o)
       | None => ()
       }
       Dict.keys(fetchCancels)->Array.forEach(stopFetch)

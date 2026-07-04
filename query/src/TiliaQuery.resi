@@ -75,7 +75,8 @@ type config<'a, 'query> = {
   gc?: float,
   now?: unit => float,
   key?: 'query => string,
-  invalidates?: ('query, 'a) => bool,
+  matches?: ('query, 'a) => bool,
+  sort?: ('a, 'a) => float,
 }
 
 type dict<'a>

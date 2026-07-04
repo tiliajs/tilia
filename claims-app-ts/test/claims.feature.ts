@@ -134,6 +134,19 @@ Given(
       expect(ids).toBe(expected);
     });
 
+    Then("{string} sees claims in order {string}", (name: string, expected: string) => {
+      const ids = rows(pane(name))
+        .map((c) => c.id)
+        .join(", ");
+      expect(ids).toBe(expected);
+    });
+
+    const reads = (expected: number) => {
+      expect(world.server.fetches).toBe(expected);
+    };
+    Then("the office has answered {number} read", reads);
+    Then("the office has answered {number} reads", reads);
+
     Then("{string} sees claim {string} as {string}", (name: string, id: string, status: string) => {
       expect(claim(pane(name), id).status).toBe(status);
     });

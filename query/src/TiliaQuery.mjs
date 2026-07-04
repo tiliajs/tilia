@@ -74,7 +74,7 @@ function makeWriteChannel(emit, offline, conflict, reject) {
   ];
 }
 
-function make$1(id, remote, local, resolve, evict, invalidate, status) {
+function make$1(id, remote, local, resolve, evict, stale, status) {
   let entries = make();
   let track = () => {
     status.pending = Object.keys(entries).length;
@@ -164,7 +164,8 @@ function make$1(id, remote, local, resolve, evict, invalidate, status) {
             };
             let reject = message => {
               if (remove(itemId, entry)) {
-                local.remove(value, false);
+                local.save(value, false);
+                resolve(value);
                 status.rejected = Belt_Array.concatMany([
                   status.rejected,
                   [{
@@ -173,7 +174,7 @@ function make$1(id, remote, local, resolve, evict, invalidate, status) {
                       message: message
                     }]
                 ]);
-                return invalidate(value);
+                return stale();
               }
             };
             let match$1 = makeWriteChannel(settle, offline, conflict, reject);
@@ -198,7 +199,7 @@ function make$1(id, remote, local, resolve, evict, invalidate, status) {
                     message: message
                   }]
               ]);
-              return invalidate(value);
+              return stale();
             }
           };
           let match$2 = makeWriteChannel(settle$1, offline, settle$1, reject$1);
@@ -261,7 +262,8 @@ function make$2(config) {
   let gc = Stdlib_Option.getOr(config.gc, 300.0);
   let now = Stdlib_Option.getOr(config.now, defaultNow);
   let key = Stdlib_Option.getOr(config.key, sortedStringify);
-  let invalidates = Stdlib_Option.getOr(config.invalidates, (param, param$1) => false);
+  let matches = config.matches;
+  let sort = config.sort;
   let cache = Tilia.tilia(make());
   let queries = Tilia.tilia(make());
   let ones = Tilia.tilia(make());
@@ -278,25 +280,106 @@ function make$2(config) {
     cancel();
     Reflect.deleteProperty(fetchCancels, cacheKey);
   };
-  let invalidate = item => {
+  let converge = () => {
+    Object.keys(meta).forEach(cacheKey => {
+      Reflect.set(staleKeys, cacheKey, true);
+    });
+  };
+  let position = (ids, item) => {
+    if (sort !== undefined) {
+      return ids.findIndex(otherId => {
+        let other = Reflect.get(cache, otherId);
+        if (other == null) {
+          return false;
+        } else {
+          return sort(other, item) > 0.0;
+        }
+      });
+    } else {
+      return -1;
+    }
+  };
+  let same = (a, b) => {
+    if (a.length === b.length) {
+      return a.every((v, i) => b[i] === v);
+    } else {
+      return false;
+    }
+  };
+  let commit = (cacheKey, m, ids) => {
+    let prev = m.ids;
+    if (prev !== undefined && same(prev, ids)) {
+      return;
+    }
+    m.ids = ids;
+    Reflect.set(queries, cacheKey, {
+      state: "loaded",
+      data: ids
+    });
+  };
+  let apply = item => {
+    if (matches === undefined) {
+      return;
+    }
+    let itemId = id(item);
     Object.keys(meta).forEach(cacheKey => {
       let m = Reflect.get(meta, cacheKey);
-      if ((m == null) || !invalidates(m.filter, item)) {
-        return;
-      } else {
-        Reflect.set(staleKeys, cacheKey, true);
+      if (m == null) {
         return;
       }
+      let ids = m.ids;
+      if (ids === undefined) {
+        return;
+      }
+      let index = ids.indexOf(itemId);
+      if (matches(m.filter, item)) {
+        if (index >= 0) {
+          return;
+        }
+        let next = Belt_Array.concatMany([ids]);
+        let at = position(ids, item);
+        if (at < 0) {
+          next.push(itemId);
+        } else {
+          next.splice(at, 0, itemId);
+        }
+        return commit(cacheKey, m, next);
+      }
+      if (index < 0) {
+        return;
+      }
+      let next$1 = Belt_Array.concatMany([ids]);
+      next$1.splice(index, 1);
+      commit(cacheKey, m, next$1);
+    });
+  };
+  let drop = itemId => {
+    Object.keys(meta).forEach(cacheKey => {
+      let m = Reflect.get(meta, cacheKey);
+      if (m == null) {
+        return;
+      }
+      let ids = m.ids;
+      if (ids === undefined) {
+        return;
+      }
+      let index = ids.indexOf(itemId);
+      if (index < 0) {
+        return;
+      }
+      let next = Belt_Array.concatMany([ids]);
+      next.splice(index, 1);
+      commit(cacheKey, m, next);
     });
   };
   let resolve = item => {
     Reflect.set(cache, id(item), item);
-    invalidate(item);
+    apply(item);
     return item;
   };
   let evict = item => {
     Reflect.deleteProperty(cache, id(item));
-    invalidate(item);
+    drop(id(item));
     return item;
   };
   let status = Tilia.tilia({
@@ -304,7 +387,7 @@ function make$2(config) {
     rejected: [],
     error: undefined
   });
-  let writes = make$1(id, remote, local$1, resolve, evict, invalidate, status);
+  let writes = make$1(id, remote, local$1, resolve, evict, converge, status);
   let loader = (cacheKey, filter) => ((_prev, set) => {
     let match = Reflect.get(staleKeys, cacheKey);
     if (match === undefined) {
@@ -323,7 +406,8 @@ function make$2(config) {
       };
       let tier = (fetch, authority, fail) => {
         let match = makeFetchChannel(rows => {
-          let ids = Stdlib_Array.filterMap(rows, item => {
+          let rows$1 = sort !== undefined ? rows.toSorted(sort) : rows;
+          let ids = Stdlib_Array.filterMap(rows$1, item => {
             let itemId = id(item);
             if (writes.deleting(itemId)) {
               return;
@@ -337,10 +421,26 @@ function make$2(config) {
               return itemId;
             }
           });
-          set({
-            state: "loaded",
-            data: ids
-          });
+          let m = Reflect.get(meta, cacheKey);
+          if (m == null) {
+            set({
+              state: "loaded",
+              data: ids
+            });
+          } else {
+            let prev = m.ids;
+            let exit = 0;
+            if (!(prev !== undefined && same(prev, ids))) {
+              exit = 1;
+            }
+            if (exit === 1) {
+              m.ids = ids;
+              set({
+                state: "loaded",
+                data: ids
+              });
+            }
+          }
           if (authority) {
             return fresh();
           }
@@ -423,7 +523,8 @@ function make$2(config) {
     Reflect.set(meta, cacheKey, {
       filter: filter,
       fetched: 0.0,
-      idle: undefined
+      idle: undefined,
+      ids: undefined
     });
     Reflect.set(staleKeys, cacheKey, true);
     let s = Tilia.source("loading", loader(cacheKey, filter));
@@ -595,7 +696,7 @@ function make$2(config) {
     disposed.contents = true;
     let o = watcher.contents;
     if (o !== undefined) {
-      Tilia._clear(Primitive_option.valFromOption(o));
+      Tilia._done(Primitive_option.valFromOption(o));
     }
     Object.keys(fetchCancels).forEach(stopFetch);
     writes.cancel();

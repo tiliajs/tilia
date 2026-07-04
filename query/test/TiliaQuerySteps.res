@@ -20,6 +20,7 @@ let task = (row: taskRow) => item(row.id, row.status, parse(row.count))
 
 given("a task world", ({step}, _) => {
   let w = H.makeWorld()
+  let remembered: dict<loadable<array<H.item>>> = Dict.make()
 
   step("tasks are", table => {
     let rows: array<taskRow> = toRecords(table)
@@ -205,6 +206,17 @@ given("a task world", ({step}, _) => {
 
   step("the {string} tasks view should be stable", status =>
     expect(w.items.array({status: status})).toBe(w.items.array({status: status}))
+  )
+
+  step("I remember the {string} tasks view", status =>
+    Dict.set(remembered, status, w.items.array({status: status}))
+  )
+
+  step("the {string} tasks view should be unchanged", status =>
+    switch Dict.get(remembered, status) {
+    | Some(view) => expect(w.items.array({status: status})).toBe(view)
+    | None => failwith("No remembered view")
+    }
   )
 
   step("synced remote writes should be {number}", expected =>

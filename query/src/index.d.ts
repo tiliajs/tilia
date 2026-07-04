@@ -104,8 +104,14 @@ export interface Config<T, Q> {
   now?: () => number;
   /** Query cache key. Default: sorted JSON stringification. */
   key?: (query: Q) => string;
-  /** Marks queries stale when a changed object matches their filter. */
-  invalidates?: (query: Q, value: T) => boolean;
+  /**
+   * Membership predicate: does this object belong to this query's result?
+   * With it, writes update query id-lists in place (enter matching lists,
+   * leave lists that contain the id but no longer match) without any fetch.
+   */
+  matches?: (query: Q, value: T) => boolean;
+  /** Result order. With it, id-lists stay sorted and stable across refetches. */
+  sort?: (a: T, b: T) => number;
 }
 
 export interface Query<T, Q> {
@@ -121,7 +127,7 @@ export interface Query<T, Q> {
   upsert(value: T): void;
   /** Optimistic delete: tombstoned locally, pushed when online. */
   remove(value: T): void;
-  /** Inbound update (websocket / delta sync): cache + invalidation only. */
+  /** Inbound update (websocket / delta sync): cache + membership only. */
   sync(value: T): void;
   /** Stale refresh + garbage collection; call it from your own scheduler. */
   tick(): void;
