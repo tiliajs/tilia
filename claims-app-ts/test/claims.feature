@@ -99,15 +99,55 @@ Feature: Field claims adjusting
     And "Ana" takes claim "CLM-1041"
     Then "Ben" sees claims "CLM-1042"
 
+  Scenario: Live touch metadata keeps writer and reader distinct
+    Given the office switches to live updates
+    When "Ana" opens the "new" claims
+    And "Ben" opens the "new" claims
+    And "Ana" takes claim "CLM-1041"
+    Then the office marks claim "CLM-1041" write by "Ana" and read by "Ben"
+
   Scenario: Live updates skip an offline adjuster until reconnect
     Given the office switches to live updates
     When "Ana" opens the "new" claims
     And "Ben" opens the "new" claims
+    Then the office has 2 live subscriptions
     And "Ben" goes offline
+    Then the office has 1 live subscription
     And "Ana" takes claim "CLM-1041"
     Then "Ben" sees claims "CLM-1041, CLM-1042"
     When "Ben" comes back online
+    Then the office has 2 live subscriptions
     Then "Ben" sees claims "CLM-1042"
+
+  Scenario: Polling truth refresh runs only for observed queries
+    Given the office sets polling truth refresh to 0.05 seconds
+    When 0.08 seconds pass
+    And the scheduler ticks
+    Then the office has answered 0 reads
+    When "Ana" opens the "new" claims
+    Then the office has answered 1 read
+    When 0.08 seconds pass
+    And the scheduler ticks
+    Then the office has answered 2 reads
+
+  Scenario: Live truth refresh still runs for observed queries
+    Given the office switches to live updates
+    And the office sets live truth refresh to 0.05 seconds
+    When "Ana" opens the "new" claims
+    Then the office has answered 1 read
+    When 0.08 seconds pass
+    And the scheduler ticks
+    Then the office has answered 2 reads
+
+  Scenario: Office query settings can be changed
+    Given the office sets polling truth refresh to 0.05 seconds
+    And the office sets live truth refresh to 0.25 seconds
+    And the office sets query expiration to 45 seconds
+    And the office sets network latency to 150 milliseconds
+    Then polling truth refresh is 0.05 seconds
+    And live truth refresh is 0.25 seconds
+    And query expiration is 45 seconds
+    And network latency is 150 milliseconds
 
   Scenario: A claim removed offline disappears at the office on reconnect
     When "Ana" opens the "new" claims

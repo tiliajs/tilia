@@ -5,14 +5,19 @@ export type Repo = {
   claims: Query<Claim, ClaimQuery>;
 };
 
-export function makeRepo(remote: Remote<Claim, ClaimQuery>, local: Store<Claim, ClaimQuery>): Repo {
+export function makeRepo(
+  remote: Remote<Claim, ClaimQuery>,
+  local: Store<Claim, ClaimQuery>,
+  stale: number = 30,
+  gc: number = 120
+): Repo {
   return {
     claims: make({
       id: (claim) => claim.id,
       remote,
       local,
-      stale: 15,
-      gc: 120,
+      stale,
+      gc,
       // A changed claim enters and leaves query lists in place: writes never
       // trigger a fetch.
       matches: match,

@@ -45,6 +45,11 @@ type fetchError = {
   message: string,
 }
 
+type canopy = {
+  live: array<string>,
+  idle: array<string>,
+}
+
 // Reactive sync state for UI: pending outbox size, refused writes, last
 // remote fetch failure.
 type status<'a> = {
@@ -99,6 +104,7 @@ type t<'a, 'query> = {
   remove: 'a => unit,
   sync: 'a => unit,
   tick: unit => unit,
+  canopy: unit => canopy,
   status: status<'a>,
   dismiss: unit => unit,
   dispose: unit => unit,

@@ -1,15 +1,39 @@
 import { useTilia } from "@tilia/react";
-import { Database } from "lucide-react";
-import type { CSSProperties } from "react";
+import { Database, Settings2 } from "lucide-react";
+import { useState, type CSSProperties } from "react";
 import type { Claim, ClaimQuery } from "../app/claim";
 import type { Sub, Touch } from "../server/server";
-import type { World } from "../world";
-import { money, StatusBadge, tones } from "./kit";
+import type { Settings, World } from "../world";
+import { Button, Field, money, StatusBadge, tones } from "./kit";
+
+const view = (value: number) =>
+  Number.isInteger(value) ? value.toString() : value.toFixed(2).replace(/\.?0+$/, "");
+
+const copy = (settings: Settings): Settings => ({
+  latency: settings.latency,
+  refresh: settings.refresh,
+  liveRefresh: settings.liveRefresh,
+  gc: settings.gc,
+});
+
+const summary = (settings: Settings) =>
+  `latency ${view(settings.latency)} ms | refresh ${view(settings.refresh)} s | live ${view(settings.liveRefresh)} s | gc ${view(settings.gc)} s`;
 
 export function ServerPane({ world }: { world: World }) {
   useTilia();
   const server = world.server;
   const claims = Object.values(server.rows).sort((a, b) => a.id.localeCompare(b.id));
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState<Settings>(() => copy(world.settings));
+  const openSettings = () => {
+    setDraft(copy(world.settings));
+    setOpen((current) => !current);
+  };
+  const closeSettings = () => setOpen(false);
+  const applySettings = () => {
+    world.configure(draft);
+    closeSettings();
+  };
   return (
     <section className="flex h-[38%] min-h-0 flex-col border-t border-line bg-shade/50">
       <header className="flex items-center gap-2 border-b border-line px-4 py-2">
@@ -18,18 +42,27 @@ export function ServerPane({ world }: { world: World }) {
         <span className="text-[12px] text-muted">{claims.length} claims on file</span>
         <Mode live={server.live} change={world.setLive} />
         {server.live && <Subs subs={server.subs} />}
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[12px] text-muted">Latency</span>
-          <input
-            type="range"
-            min={0}
-            max={3000}
-            step={100}
-            value={server.latency}
-            onChange={(e) => (server.latency = Number(e.target.value))}
-            className="w-36 accent-ink"
-          />
-          <span className="w-16 text-right font-mono text-[12px] text-muted">{server.latency} ms</span>
+        <div className="relative ml-auto">
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 border-0 bg-transparent px-0 py-1 text-[12px] text-muted transition-colors duration-150 hover:text-ink"
+            onClick={openSettings}
+            title="Open simulation settings"
+          >
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-md border border-line bg-card">
+              <Settings2 size={13} strokeWidth={2.1} />
+            </span>
+            <span className="font-mono text-ink">{summary(world.settings)}</span>
+          </button>
+          {open && (
+            <SettingsPopup
+              draft={draft}
+              setDraft={setDraft}
+              close={closeSettings}
+              apply={applySettings}
+              live={server.live}
+            />
+          )}
         </div>
       </header>
       <div className="grid min-h-0 flex-1 auto-rows-min grid-cols-4 gap-2.5 overflow-y-auto p-3">
@@ -42,6 +75,108 @@ export function ServerPane({ world }: { world: World }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function SettingsPopup({
+  draft,
+  setDraft,
+  close,
+  apply,
+  live,
+}: {
+  draft: Settings;
+  setDraft: (next: (current: Settings) => Settings) => void;
+  close: () => void;
+  apply: () => void;
+  live: boolean;
+}) {
+  const change = (key: keyof Settings, value: number) => {
+    setDraft((current) => ({ ...current, [key]: value }));
+  };
+  return (
+    <div className="absolute right-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[70vh] w-[31rem] overflow-y-auto rounded-md border border-line bg-card p-4 shadow-xl">
+      <div className="mb-3">
+        <div className="text-[13px] font-semibold text-ink">Simulation settings</div>
+        <p className="mt-1 text-[12px] leading-relaxed text-muted">
+          These values tune how fast server truth is refreshed for visible lists and when unused queries are removed.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        <section className="rounded-md border border-line/70 bg-shade/40 p-3">
+          <div className="mb-1 text-[12px] font-semibold text-ink">Network</div>
+          <Field label={`Network latency per server call (${view(draft.latency)} ms)`}>
+            <input
+              className="settings-slider"
+              type="range"
+              min={0}
+              max={3000}
+              step={50}
+              value={draft.latency}
+              onChange={(e) => change("latency", Number(e.target.value))}
+            />
+          </Field>
+        </section>
+
+        <section className="rounded-md border border-line/70 bg-shade/40 p-3">
+          <div className="mb-1 text-[12px] font-semibold text-ink">Truth refresh (visible queries only)</div>
+          <div className="space-y-2">
+            <Field label={`Polling mode refresh (${view(draft.refresh)} s)`}>
+              <input
+                className="settings-slider"
+                type="range"
+                min={1}
+                max={300}
+                step={1}
+                value={draft.refresh}
+                onChange={(e) => change("refresh", Number(e.target.value))}
+              />
+            </Field>
+            <Field label={`Live mode fallback refresh (${view(draft.liveRefresh)} s)`}>
+              <input
+                className="settings-slider"
+                type="range"
+                min={1}
+                max={300}
+                step={1}
+                value={draft.liveRefresh}
+                onChange={(e) => change("liveRefresh", Number(e.target.value))}
+              />
+            </Field>
+          </div>
+          <p className="mt-2 text-[11px] text-muted">
+            Active mode: <span className="font-medium text-ink">{live ? "live updates" : "polling"}</span>.
+            Refresh runs only while a query is observed.
+          </p>
+        </section>
+
+        <section className="rounded-md border border-line/70 bg-shade/40 p-3">
+          <div className="mb-1 text-[12px] font-semibold text-ink">Cleanup</div>
+          <Field label={`Expire unobserved queries after (${view(draft.gc)} s)`}>
+            <input
+              className="settings-slider"
+              type="range"
+              min={10}
+              max={600}
+              step={5}
+              value={draft.gc}
+              onChange={(e) => change("gc", Number(e.target.value))}
+            />
+          </Field>
+          <p className="mt-2 text-[11px] text-muted">Expired queries are removed from cache and live pub/sub.</p>
+        </section>
+      </div>
+
+      <div className="mt-4 flex justify-end gap-2">
+        <Button kind="quiet" onClick={close}>
+          Cancel
+        </Button>
+        <Button kind="primary" onClick={apply}>
+          Apply settings
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -94,42 +229,51 @@ function Subs({ subs }: { subs: Sub[] }) {
 }
 
 function Card({ claim, touch }: { claim: Claim; touch: Touch | undefined }) {
-  const tone = touch ? tones[touch.by] : undefined;
+  const read = touch?.read;
+  const write = touch?.write;
+  const readTone = read ? tones[read.by] : undefined;
+  const writeTone = write ? tones[write.by] : undefined;
+  const readLive = !!(touch && read && touch.seq === read.seq);
+  const writeLive = !!(touch && write && touch.seq === write.seq);
   return (
     <div
-      className={`rounded-md border border-line bg-card p-2.5
-        ${touch ? (touch.kind === "write" ? "touch-write" : "touch-read") : ""}`}
-      style={tone ? ({ "--tone": tone.strong, "--tone-soft": tone.soft } as CSSProperties) : undefined}
+      className={`rounded-md border border-line bg-card ${readLive ? "touch-read" : ""}`}
+      style={readTone ? ({ "--tone": readTone.strong, "--tone-soft": readTone.soft } as CSSProperties) : undefined}
     >
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-[11px] text-muted">{claim.id}</span>
-        {touch?.kind === "write" && (
-          <span
-            title={`Write by ${touch.by[0].toUpperCase()}${touch.by.slice(1)}`}
-            className="dot-write h-1.5 w-1.5 rounded-full"
-            style={{ backgroundColor: tone?.strong }}
-          />
-        )}
-        <span className="ml-auto font-mono text-[10px] text-faint">v{claim.version}</span>
-      </div>
-      <div className="mt-0.5 truncate text-[12px] font-medium">{claim.claimant || "—"}</div>
-      <div className="truncate text-[11px] text-muted">
-        {claim.peril}
-        {claim.city ? ` · ${claim.city}` : ""}
-      </div>
-      <div className="mt-1.5 flex items-center gap-1.5">
-        <StatusBadge status={claim.status} />
-        {claim.adjuster && (
-          <span
-            className="text-[11px] font-medium"
-            style={{ color: tones[claim.adjuster.toLowerCase()]?.strong }}
-          >
-            {claim.adjuster}
-          </span>
-        )}
-        {claim.estimate > 0 && (
-          <span className="ml-auto font-mono text-[11px] text-muted">{money(claim.estimate)}</span>
-        )}
+      <div
+        className={`rounded-[inherit] p-2.5 ${writeLive ? "touch-write" : ""}`}
+        style={writeTone ? ({ "--tone": writeTone.strong, "--tone-soft": writeTone.soft } as CSSProperties) : undefined}
+      >
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-[11px] text-muted">{claim.id}</span>
+          {writeLive && write && (
+            <span
+              title={`Write by ${write.by[0].toUpperCase()}${write.by.slice(1)}`}
+              className="dot-write h-1.5 w-1.5 rounded-full"
+              style={{ backgroundColor: writeTone?.strong }}
+            />
+          )}
+          <span className="ml-auto font-mono text-[10px] text-faint">v{claim.version}</span>
+        </div>
+        <div className="mt-0.5 truncate text-[12px] font-medium">{claim.claimant || "—"}</div>
+        <div className="truncate text-[11px] text-muted">
+          {claim.peril}
+          {claim.city ? ` · ${claim.city}` : ""}
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5">
+          <StatusBadge status={claim.status} />
+          {claim.adjuster && (
+            <span
+              className="text-[11px] font-medium"
+              style={{ color: tones[claim.adjuster.toLowerCase()]?.strong }}
+            >
+              {claim.adjuster}
+            </span>
+          )}
+          {claim.estimate > 0 && (
+            <span className="ml-auto font-mono text-[11px] text-muted">{money(claim.estimate)}</span>
+          )}
+        </div>
       </div>
     </div>
   );

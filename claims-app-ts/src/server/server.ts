@@ -7,7 +7,8 @@ export type Outcome =
   | { kind: "rejected"; message: string };
 
 // Last operation per claim id, drives the server pane animations.
-export type Touch = { by: string; kind: "read" | "write"; seq: number };
+export type TouchMark = { by: string; seq: number };
+export type Touch = { seq: number; write?: TouchMark; read?: TouchMark };
 
 // A registered live query: `sig` fingerprints the last pushed result so a
 // write only pushes to clients whose result actually changed.
@@ -51,16 +52,27 @@ export function makeServer(seed: Claim[]): Server {
   // value changes. `later` moves all server work out of the tracked scope.
   const later = (fn: () => void) => queueMicrotask(() => setTimeout(fn, server.latency));
 
-  const touch = (id: string, by: string, kind: "read" | "write") => {
+  const touchWrite = (id: string, by: string) => {
     seq += 1;
-    server.touches[id] = { by, kind, seq };
+    const mark = { by, seq };
+    const current = server.touches[id];
+    server.touches[id] = { ...(current ?? { seq: 0 }), seq, write: mark };
+    return seq;
+  };
+
+  const touchRead = (id: string, by: string, pairedSeq?: number) => {
+    const next = pairedSeq ?? (seq += 1);
+    const mark = { by, seq: next };
+    const current = server.touches[id];
+    server.touches[id] = { ...(current ?? { seq: 0 }), seq: next, read: mark };
   };
 
   const matching = (query: ClaimQuery) => Object.values(server.rows).filter((claim) => match(query, claim));
 
   // After an accepted write, push the new result to every subscription whose
   // result set changed (content, membership, or both).
-  const broadcast = () => {
+  const broadcast = (written?: { id: string; by: string; seq: number }) => {
+    let reader: string | undefined;
     for (const sub of server.subs) {
       const found = matching(sub.query);
       const s = sig(found);
@@ -68,8 +80,10 @@ export function makeServer(seed: Claim[]): Server {
         sub.sig = s;
         sub.seq += 1;
         sub.push(clone(found));
+        if (written && (sub.client !== written.by || !reader)) reader = sub.client;
       }
     }
+    if (written && reader) touchRead(written.id, reader, written.seq);
   };
 
   const server: Server = tilia({
@@ -84,7 +98,7 @@ export function makeServer(seed: Claim[]): Server {
       later(() => {
         server.fetches += 1;
         const found = matching(query);
-        for (const claim of found) touch(claim.id, by, "read");
+        for (const claim of found) touchRead(claim.id, by);
         reply(clone(found));
       });
     },
@@ -97,7 +111,7 @@ export function makeServer(seed: Claim[]): Server {
         if (dead) return;
         server.fetches += 1;
         const found = matching(query);
-        for (const claim of found) touch(claim.id, by, "read");
+        for (const claim of found) touchRead(claim.id, by);
         server.subs.push({ id, client: by, query, push, sig: sig(found), seq: 1 });
         push(clone(found));
       });
@@ -120,9 +134,9 @@ export function makeServer(seed: Claim[]): Server {
         } else {
           const saved = { ...clone(claim), version: claim.version + 1 };
           server.rows[claim.id] = saved;
-          touch(claim.id, by, "write");
+          const written = { id: claim.id, by, seq: touchWrite(claim.id, by) };
           reply({ kind: "saved", claim: clone(saved) });
-          broadcast();
+          broadcast(written);
         }
       });
     },

@@ -56,6 +56,11 @@ export interface FetchError {
   readonly message: string;
 }
 
+export interface Canopy {
+  live: string[];
+  idle: string[];
+}
+
 /** Reactive sync state for UI (a tilia object: watch it from render code). */
 export interface Status<T> {
   /** Number of writes waiting to sync. */
@@ -131,6 +136,8 @@ export interface Query<T, Q> {
   sync(value: T): void;
   /** Stale refresh + garbage collection; call it from your own scheduler. */
   tick(): void;
+  /** Debug helper: observed query keys split by canopy state. */
+  canopy(): Canopy;
   status: Status<T>;
   /** Clear the rejected writes list. */
   dismiss(): void;

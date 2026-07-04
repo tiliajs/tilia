@@ -475,6 +475,11 @@ function make$2(config) {
     });
     writes.replay();
   };
+  let disconnect = () => {
+    let canopy = Tilia._canopy(queries);
+    canopy.live.forEach(stopFetch);
+    writes.cancel();
+  };
   let online = {
     contents: remote.online
   };
@@ -497,7 +502,7 @@ function make$2(config) {
     if (!prev && live) {
       Tilia.batch(replay);
     } else if (prev && !live) {
-      Tilia.batch(writes.cancel);
+      Tilia.batch(disconnect);
     }
     Tilia._ready(o, false);
   };
@@ -686,6 +691,13 @@ function make$2(config) {
       }
     });
   };
+  let canopy = () => {
+    let c = Tilia._canopy(queries);
+    return {
+      live: Array.from(c.live),
+      idle: Array.from(c.idle)
+    };
+  };
   let dismiss = () => {
     status.rejected = [];
   };
@@ -743,6 +755,7 @@ function make$2(config) {
     remove: remove,
     sync: sync,
     tick: tick,
+    canopy: canopy,
     status: status,
     dismiss: dismiss,
     dispose: dispose,

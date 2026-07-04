@@ -95,3 +95,47 @@ body {
 .dot-write {
   animation: dot-flash 1.8s ease-out both;
 }
+
+.settings-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  background: transparent;
+}
+
+.settings-slider:focus {
+  outline: none;
+}
+
+.settings-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+.settings-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card);
+  background: var(--color-faint);
+}
+
+.settings-slider::-moz-range-track {
+  height: 3px;
+  border: none;
+  border-radius: 999px;
+  background: var(--color-line);
+}
+
+.settings-slider::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  border: 1px solid var(--color-card);
+  background: var(--color-faint);
+}

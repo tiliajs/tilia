@@ -14,10 +14,24 @@ export type Pane = {
   reload(): void;
 };
 
+export type Settings = {
+  latency: number;
+  refresh: number;
+  liveRefresh: number;
+  gc: number;
+};
+
 export type World = {
   server: Server;
+  settings: Settings;
   panes: Pane[];
   setLive(on: boolean): void;
+  configure(next: Partial<Settings>): void;
+};
+
+const clean = (value: number, fallback: number, min: number, max: number) => {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
 };
 
 // The whole demo: one simulated server, two logged-in adjusters. Each pane
@@ -25,37 +39,63 @@ export type World = {
 // while both survive, demonstrating boot replay of the outbox.
 export function makeWorld(claims: Claim[] = seed()): World {
   const server = makeServer(claims);
+  const settings: Settings = tilia({
+    latency: 800,
+    refresh: 30,
+    liveRefresh: 60,
+    gc: 120,
+  });
+  server.latency = settings.latency;
   const world: World = tilia({
     server,
-    panes: [pane(server, { id: "ana", name: "Ana" }), pane(server, { id: "ben", name: "Ben" })],
-    // Switching transport reconnects every online client: the network blip
-    // marks live queries stale, so they re-run against the new mode
-    // (one-shot fetches become subscriptions and vice versa).
+    settings,
+    panes: [pane(server, settings, { id: "ana", name: "Ana" }), pane(server, settings, { id: "ben", name: "Ben" })],
+    // Switching transport rebuilds each app against the active refresh policy.
     setLive(on: boolean) {
+      if (server.live === on) return;
       server.live = on;
-      for (const p of world.panes) {
-        if (p.network.online) {
-          p.network.online = false;
-          p.network.online = true;
-        }
+      for (const p of world.panes) p.reload();
+    },
+    configure(next) {
+      const latency = clean(next.latency ?? settings.latency, settings.latency, 0, 10000);
+      const refresh = clean(next.refresh ?? settings.refresh, settings.refresh, 0.01, 3600);
+      const liveRefresh = clean(next.liveRefresh ?? settings.liveRefresh, settings.liveRefresh, 0.01, 3600);
+      const gc = clean(next.gc ?? settings.gc, settings.gc, 0.01, 3600);
+      const queryChanged = refresh !== settings.refresh || liveRefresh !== settings.liveRefresh || gc !== settings.gc;
+      settings.latency = latency;
+      settings.refresh = refresh;
+      settings.liveRefresh = liveRefresh;
+      settings.gc = gc;
+      server.latency = latency;
+      if (queryChanged) {
+        for (const p of world.panes) p.reload();
       }
     },
   });
   return world;
 }
 
-function pane(server: Server, user: User): Pane {
+function pane(server: Server, settings: Settings, user: User): Pane {
   const network: Network = tilia({ online: true });
   const local = makeLocal();
-  const boot = () => createApp({ user, remote: makeRemote(server, user.id, network), local });
+  const boot = () =>
+    createApp({
+      user,
+      remote: makeRemote(server, user.id, network),
+      local,
+      stale: server.live ? settings.liveRefresh : settings.refresh,
+      gc: settings.gc,
+    });
   const p: Pane = tilia({
     user,
     network,
     local,
     app: boot(),
     reload() {
+      const tab = p.app.claims.tab;
       p.app.dispose();
       p.app = boot();
+      p.app.claims.filter(tab);
     },
   });
   return p;

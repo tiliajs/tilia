@@ -1,15 +1,15 @@
-import { useTilia } from "@tilia/react";
+import { leaf, useTilia } from "@tilia/react";
 import { CloudUpload, Plus, RotateCcw, Trash2, TriangleAlert, WifiOff } from "lucide-react";
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { statuses, type Claim, type Status } from "../app/claim";
 import type { ClaimsFeature, Tab } from "../app/features/claims/type";
 import type { Pane } from "../world";
 import { Button, Field, inputStyle, money, StatusBadge, Switch, tones } from "./kit";
 
 const tabs: Tab[] = ["mine", "all", ...statuses];
+type Canopy = { live: string[]; idle: string[] };
 
-export function UserPane({ pane }: { pane: Pane }) {
-  useTilia();
+export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
   const tone = tones[pane.user.id];
   const claims = pane.app.claims;
   const online = pane.network.online;
@@ -80,13 +80,70 @@ export function UserPane({ pane }: { pane: Pane }) {
         </div>
       </div>
 
+      <CanopyView pane={pane} />
+
       {claims.editing ? <Editor claims={claims} /> : <List claims={claims} />}
     </section>
   );
+});
+
+const keyText = (key: string): string => {
+  if (key === "{}") return "all claims";
+  try {
+    const query = JSON.parse(key) as { status?: string; adjuster?: string };
+    const parts: string[] = [];
+    if (query.adjuster) parts.push(`adjuster = ${query.adjuster}`);
+    if (query.status) parts.push(`status = ${query.status}`);
+    return parts.length > 0 ? parts.join(", ") : key;
+  } catch {
+    return key;
+  }
+};
+
+function CanopyView({ pane }: { pane: Pane }) {
+  const [, refresh] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => refresh((current) => current + 1), 500);
+    return () => clearInterval(timer);
+  }, []);
+  const canopy: Canopy = pane.app.canopy();
+  const live = [...canopy.live].sort();
+  const idle = [...canopy.idle].sort();
+  return (
+    <div className="border-b border-line bg-shade/35 px-4 py-2">
+      <div className="mb-1 text-[11px] font-semibold text-muted">Client query canopy</div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-medium text-ink">Live {live.length}</span>
+        {live.length === 0 ? (
+          <span className="text-[11px] text-faint">none</span>
+        ) : (
+          live.map((key) => (
+            <span key={`live:${key}`} className="rounded-md border border-line bg-card px-1.5 py-0.5 text-[11px]">
+              {keyText(key)}
+            </span>
+          ))
+        )}
+      </div>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] font-medium text-muted">Idle {idle.length}</span>
+        {idle.length === 0 ? (
+          <span className="text-[11px] text-faint">none</span>
+        ) : (
+          idle.map((key) => (
+            <span
+              key={`idle:${key}`}
+              className="rounded-md border border-line/80 bg-shade px-1.5 py-0.5 text-[11px] text-muted"
+            >
+              {keyText(key)}
+            </span>
+          ))
+        )}
+      </div>
+    </div>
+  );
 }
 
-function List({ claims }: { claims: ClaimsFeature }) {
-  useTilia();
+const List = leaf(function List({ claims }: { claims: ClaimsFeature }) {
   const list = claims.list;
   if (list === "loading" || list === "notFound") {
     return (
@@ -107,16 +164,17 @@ function List({ claims }: { claims: ClaimsFeature }) {
       ))}
     </ul>
   );
-}
+});
 
 function Row({ claim, claims }: { claim: Claim; claims: ClaimsFeature }) {
   return (
     <li
-      className="group flex cursor-pointer items-center gap-3 border-b border-line px-4 py-2.5
+      className="group grid cursor-pointer items-center gap-x-3 border-b border-line px-4 py-2.5
+        grid-cols-[5rem_minmax(0,1fr)_7.5rem_5.5rem_8.75rem]
         transition-colors duration-150 hover:bg-shade/70"
       onClick={() => claims.edit(claim)}
     >
-      <div className="w-20 shrink-0 font-mono text-[12px] text-muted">{claim.id}</div>
+      <div className="font-mono text-[12px] text-muted">{claim.id}</div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-[13px] font-medium">{claim.claimant || "—"}</div>
         <div className="truncate text-[12px] text-muted">
@@ -124,14 +182,14 @@ function Row({ claim, claims }: { claim: Claim; claims: ClaimsFeature }) {
           {claim.city ? ` · ${claim.city}` : ""}
         </div>
       </div>
-      <div className="w-24 shrink-0 text-right font-mono text-[12px] text-muted">
+      <div className="justify-self-end text-right font-mono text-[12px] text-muted">
         {claim.estimate > 0 ? money(claim.estimate) : ""}
       </div>
-      <div className="flex w-18 shrink-0 justify-end">
+      <div className="flex justify-end">
         <StatusBadge status={claim.status} />
       </div>
       <div
-        className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
+        className="flex justify-self-end items-center gap-1 opacity-0 transition-opacity duration-150 group-hover:opacity-100"
         onClick={(e) => e.stopPropagation()}
       >
         <Action claim={claim} claims={claims} />

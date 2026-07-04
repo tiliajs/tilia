@@ -7,6 +7,7 @@ import { makeWorld, type Pane, type World } from "../src/world";
 
 // Server latency is 1ms in tests; flush lets in-flight round trips settle.
 const flush = () => new Promise((resolve) => setTimeout(resolve, 20));
+const wait = (seconds: number) => new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
 Given(
   "a claims office with adjusters {string} and {string}",
@@ -53,7 +54,7 @@ Given(
         })
       );
       world = makeWorld(claims);
-      world.server.latency = 1;
+      world.configure({ latency: 1 });
       for (const p of world.panes) panes[p.user.name] = p;
       pane(first);
       pane(second);
@@ -62,6 +63,26 @@ Given(
 
     When("the office switches to live updates", async () => {
       world.setLive(true);
+      await flush();
+    });
+
+    And("the office sets polling truth refresh to {number} seconds", async (seconds: number) => {
+      world.configure({ refresh: seconds });
+      await flush();
+    });
+
+    And("the office sets live truth refresh to {number} seconds", async (seconds: number) => {
+      world.configure({ liveRefresh: seconds });
+      await flush();
+    });
+
+    And("the office sets query expiration to {number} seconds", async (seconds: number) => {
+      world.configure({ gc: seconds });
+      await flush();
+    });
+
+    And("the office sets network latency to {number} milliseconds", async (milliseconds: number) => {
+      world.configure({ latency: milliseconds });
       await flush();
     });
 
@@ -126,6 +147,15 @@ Given(
       await flush();
     });
 
+    When("{number} seconds pass", async (seconds: number) => {
+      await wait(seconds);
+    });
+
+    When("the scheduler ticks", async () => {
+      for (const p of world.panes) p.app.tick();
+      await flush();
+    });
+
     Then("{string} sees claims {string}", (name: string, expected: string) => {
       const ids = rows(pane(name))
         .map((c) => c.id)
@@ -146,6 +176,12 @@ Given(
     };
     Then("the office has answered {number} read", reads);
     Then("the office has answered {number} reads", reads);
+
+    const subs = (expected: number) => {
+      expect(world.server.subs.length).toBe(expected);
+    };
+    Then("the office has {number} live subscription", subs);
+    Then("the office has {number} live subscriptions", subs);
 
     Then("{string} sees claim {string} as {string}", (name: string, id: string, status: string) => {
       expect(claim(pane(name), id).status).toBe(status);
@@ -188,12 +224,41 @@ Given(
       expect(office(id).estimate).toBe(estimate);
     });
 
+    Then(
+      "the office marks claim {string} write by {string} and read by {string}",
+      (id: string, writer: string, reader: string) => {
+        const touch = world.server.touches[id];
+        expect(touch).toBeDefined();
+        expect(touch.write?.by).toBe(pane(writer).user.id);
+        expect(touch.read?.by).toBe(pane(reader).user.id);
+        expect(touch.write?.seq).toBe(touch.seq);
+        expect(touch.read?.seq).toBe(touch.seq);
+      }
+    );
+
     Then("the office still shows claim {string}", (id: string) => {
       expect(world.server.rows[id]).toBeDefined();
     });
 
     Then("the office no longer shows claim {string}", (id: string) => {
       expect(world.server.rows[id]).toBeUndefined();
+    });
+
+    Then("polling truth refresh is {number} seconds", (seconds: number) => {
+      expect(world.settings.refresh).toBe(seconds);
+    });
+
+    Then("live truth refresh is {number} seconds", (seconds: number) => {
+      expect(world.settings.liveRefresh).toBe(seconds);
+    });
+
+    Then("query expiration is {number} seconds", (seconds: number) => {
+      expect(world.settings.gc).toBe(seconds);
+    });
+
+    Then("network latency is {number} milliseconds", (milliseconds: number) => {
+      expect(world.settings.latency).toBe(milliseconds);
+      expect(world.server.latency).toBe(milliseconds);
     });
   }
 );

@@ -9,6 +9,7 @@ export type App = {
   user: User;
   claims: ClaimsFeature;
   tick(): void;
+  canopy(): { live: string[]; idle: string[] };
   dispose(): void;
 };
 
@@ -16,14 +17,17 @@ export type Deps = {
   user: User;
   remote: Remote<Claim, ClaimQuery>;
   local: Store<Claim, ClaimQuery>;
+  stale: number;
+  gc: number;
 };
 
-export function createApp({ user, remote, local }: Deps): App {
-  const repo = makeRepo(remote, local);
+export function createApp({ user, remote, local, stale, gc }: Deps): App {
+  const repo = makeRepo(remote, local, stale, gc);
   return {
     user,
     claims: claimsBranch(repo, user),
     tick: () => repo.claims.tick(),
+    canopy: () => repo.claims.canopy(),
     dispose: () => repo.claims.dispose(),
   };
 }

@@ -47,6 +47,8 @@ module Object = {
   @val @scope("Object") external fromEntries: array<(string, 'a)> => dict<'a> = "fromEntries"
 }
 
+@val @scope("Array") external fromSet: Set.t<'a> => array<'a> = "from"
+
 module Json = {
   let sortedStringify: 'a => string = %raw(`
 function sortedStringify(value) {
@@ -81,6 +83,11 @@ type fetchError = {
   message: string,
 }
 
+type canopy = {
+  live: array<string>,
+  idle: array<string>,
+}
+
 // Reactive sync state for UI: pending outbox size, refused writes, last
 // remote fetch failure.
 type status<'a> = {
@@ -98,6 +105,7 @@ type t<'a, 'query> = {
   remove: 'a => unit,
   sync: 'a => unit,
   tick: unit => unit,
+  canopy: unit => canopy,
   status: status<'a>,
   dismiss: unit => unit,
   dispose: unit => unit,
@@ -576,6 +584,12 @@ let make = (config: config<'a, 'query>) => {
     writes.replay()
   }
 
+  let disconnect = () => {
+    let canopy = Tilia._canopy(queries)
+    Set.forEach(canopy.live, stopFetch)
+    writes.cancel()
+  }
+
   // Connectivity watcher, hand-rolled on the observer API so dispose() can
   // stop it (Tilia.watch returns no handle).
   let online = ref(remote.online)
@@ -593,7 +607,7 @@ let make = (config: config<'a, 'query>) => {
       if !prev && live {
         Tilia.batch(replay)
       } else if prev && !live {
-        Tilia.batch(writes.cancel)
+        Tilia.batch(disconnect)
       }
       Tilia._ready(o, false)
     }
@@ -761,6 +775,11 @@ let make = (config: config<'a, 'query>) => {
     }
   }
 
+  let canopy = () => {
+    let c = Tilia._canopy(queries)
+    {live: fromSet(c.live), idle: fromSet(c.idle)}
+  }
+
   let dismiss = () => status.rejected = []
 
   // Stop the connectivity watcher and cancel every open channel; the instance
@@ -804,5 +823,5 @@ let make = (config: config<'a, 'query>) => {
   )
   ->ignore
 
-  {get, one, array, dict, upsert, remove, sync, tick, status, dismiss, dispose, clear}
+  {get, one, array, dict, upsert, remove, sync, tick, canopy, status, dismiss, dispose, clear}
 }
