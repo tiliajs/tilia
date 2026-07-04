@@ -1,0 +1,34 @@
+{
+  "name": "claims-app-ts",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@tilia/query": "workspace:^",
+    "@tilia/react": "workspace:^",
+    "lucide-react": "^0.509.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "tilia": "workspace:^"
+  },
+  "devDependencies": {
+    "@fontsource/ibm-plex-mono": "^5.2.5",
+    "@fontsource/ibm-plex-sans": "^5.2.5",
+    "@tailwindcss/vite": "^4.1.10",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "tailwindcss": "^4.1.10",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3",
+    "vitest-bdd": "^1.0.1"
+  }
+}

@@ -2,6 +2,7 @@ packages:
   - tilia
   - query
   - react
+  - claims-app-ts
   - todo-app-ts
   - website
   - performance
