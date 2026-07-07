@@ -1610,6 +1610,28 @@ describe("Tilia", () => {
     expect(q.value).toBe(7)
   })
 
+  it("Should not retrigger watch when mutating captured value", () => {
+    let calls = ref(0)
+    let (p, setP) = signal(0)
+    watch(
+      () => p.value,
+      v => {
+        calls := calls.contents + 1
+        if v < 10 {
+          setP(v + 10)
+        }
+      },
+    )
+    expect(calls.contents).toBe(0)
+    expect(p.value).toBe(0)
+    setP(1)
+    expect(calls.contents).toBe(1)
+    expect(p.value).toBe(11)
+    setP(2)
+    expect(calls.contents).toBe(2)
+    expect(p.value).toBe(12)
+  })
+
   it("Should batch changes in watch effect", () => {
     let (count, setCount) = signal(0)
     let (p, setP) = signal(1)
