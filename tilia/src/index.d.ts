@@ -30,7 +30,9 @@ export type Tilia = {
    * dependencies change. It receives a setter and returns the initial value.
    */
   store: <T>(fn: (set: Setter<T>) => T) => T;
-  /** Track key-level writes on a tilia-proxied dict. Returns `{ changes, mute }`. */
+  /**
+   * @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow.
+   */
   changing: <T>(accessor: () => Record<string, T>, guard?: () => boolean) => Changing<T>;
   /** @internal */
   _observe(callback: () => void): Observer;
@@ -79,10 +81,12 @@ export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 /** Lift a signal into a computed value that tracks its inner `value` field. */
 export function lift<T>(s: Signal<T>): T;
+/** @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow. */
 export interface Changes<T> {
   upsert: T[];
   remove: string[];
 }
+/** @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow. */
 export interface Changing<T> {
   /** Capture function for `watch`. Drains accumulated changes into `{ upsert, remove }`. */
   changes: () => Changes<T>;
@@ -91,6 +95,8 @@ export interface Changing<T> {
 }
 
 /**
+ * @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow.
+ *
  * Track key-level writes on a tilia-proxied dict. Takes an accessor so the
  * tracker follows source swaps. Returns `{ changes, mute }`.
  * `changes` drains accumulated changes: `upsert` contains objects captured at

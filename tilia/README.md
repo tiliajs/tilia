@@ -31,7 +31,7 @@ logged to `console.error` and re-thrown at the end of the next flush. This is
 done to avoid breaking the application in case of a bug in the callback but
 still bubbling the error to the user.
 
-## API for versin **3.x** (in case the website is not available)
+## API (in case the website is not available)
 
 (TypeScript version below)
 

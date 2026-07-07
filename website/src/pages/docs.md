@@ -1031,7 +1031,7 @@ type Todo = {
   setTitle: (title: string) => void;
 };
 
-const (title, setTitle) = signal("");
+const [title, setTitle] = signal("");
 
 const todo = tilia({
   title: lift(title),
@@ -1046,10 +1046,10 @@ let lift = s => computed(() => s.value)
 // Usage
 type todo = {
   title: string,
-  setTitle: title => unit,
+  setTitle: string => unit,
 }
 
-let [title, setTitle] = signal("")
+let (title, setTitle) = signal("")
 
 let todo = tilia({
   title: lift(title),
