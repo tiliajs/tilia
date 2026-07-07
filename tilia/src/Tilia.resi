@@ -268,11 +268,17 @@ let store: (('a => unit) => 'a) => 'a
  * @param accessor Function returning the tilia-proxied dict to track.
  * @param ~guard Optional reactive guard function.
  */
-@deprecated("Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow.")
+@deprecated(
+  "Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow."
+)
 type changes<'a> = {upsert: array<'a>, remove: array<string>}
-@deprecated("Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow.")
+@deprecated(
+  "Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow."
+)
 type changing<'a> = {changes: unit => changes<'a>, mute: (unit => unit) => unit}
-@deprecated("Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow.")
+@deprecated(
+  "Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow."
+)
 let changing: (unit => dict<'a>, ~guard: unit => bool=?) => changing<'a>
 
 /** ---------- Internal types and functions for library developers ---------- */
@@ -303,6 +309,9 @@ let _clear: observer => unit
  */
 let _meta: 'a => nullable<'b>
 
+/** 
+ * Internal: Type used by _canopy.
+ */
 type canopy = {
   live: Set.t<string>,
   idle: Set.t<string>,
