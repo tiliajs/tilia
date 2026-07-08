@@ -30,10 +30,10 @@ let make: tilia => tilia_react
 
 ```ts
 import type { Tilia } from "tilia";
-export interface TiliaReact {
+export type TiliaReact = {
   useTilia: () => void;
   useComputed: <T>(fn: () => T) => signal<A>;
-}
+};
 
 export function useTilia(): void;
 export function useComputed<T>(fn: () => T): signal<T>;

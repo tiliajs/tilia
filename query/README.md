@@ -122,20 +122,20 @@ becomes inert once cancelled — late callbacks are ignored by the core. All
 outcomes are named callbacks: adapters never build tagged values.
 
 ```typescript
-interface FetchChannel<T> {
+type FetchChannel<T> = {
   readonly state: "live" | "cancelled";
   emit(rows: T[]): void; // push rows
   fail(message: string): void; // transport error: retried on next stale window
   covered(): void; // delta-sync engine owns this query: mark fresh
-}
+};
 
-interface WriteChannel<T> {
+type WriteChannel<T> = {
   readonly state: "live" | "cancelled";
   emit(saved: T): void; // saved: settle clean
   offline(): void; // transient: keep queued and dirty for next reconnect
   conflict(server: T): void; // server wins: server value replaces the write
   reject(message: string): void; // permanent: drop write, surface on status
-}
+};
 ```
 
 ### Remote (REST CRUD example)

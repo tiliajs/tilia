@@ -15,7 +15,7 @@ export type ChannelState = "live" | "cancelled";
  * several times (cached rows now, fresh rows later, live updates forever) and
  * becomes inert once cancelled: late callbacks are ignored by the core.
  */
-export interface FetchChannel<T> {
+export type FetchChannel<T> = {
   readonly state: ChannelState;
   /** Push rows for the query. */
   emit(rows: T[]): void;
@@ -23,10 +23,10 @@ export interface FetchChannel<T> {
   fail(message: string): void;
   /** A delta-sync engine owns this query: mark fresh, keep current data. */
   covered(): void;
-}
+};
 
 /** Write-path channel handed to remote `upsert` and `remove`. */
-export interface WriteChannel<T> {
+export type WriteChannel<T> = {
   readonly state: ChannelState;
   /** Saved: settle the write clean. */
   emit(saved: T): void;
@@ -36,58 +36,58 @@ export interface WriteChannel<T> {
   conflict(server: T): void;
   /** Permanent refusal: drop the write, surface it on status. */
   reject(message: string): void;
-}
+};
 
 /** An unsynced operation: a put, or a delete when `deleted` is true. */
-export interface Write<T> {
+export type Write<T> = {
   value: T;
   deleted: boolean;
-}
+};
 
 /** A write permanently refused by the remote. */
-export interface Rejection<T> {
+export type Rejection<T> = {
   readonly value: T;
   readonly deleted: boolean;
   readonly message: string;
-}
+};
 
-export interface FetchError {
+export type FetchError = {
   readonly key: string;
   readonly message: string;
-}
+};
 
-export interface Canopy {
+export type Canopy = {
   live: string[];
   idle: string[];
-}
+};
 
 /** Reactive sync state for UI (a tilia object: watch it from render code). */
-export interface Status<T> {
+export type Status<T> = {
   /** Number of writes waiting to sync. */
   readonly pending: number;
   /** Writes refused by the remote, until `dismiss()`. */
   readonly rejected: readonly Rejection<T>[];
   /** Last remote fetch failure, cleared on the next successful fetch. */
   readonly error: FetchError | undefined;
-}
+};
 
 /**
  * Remote adapter. Must be a tilia object (or contain a computed `online`):
  * the core watches `online` reactively to drive reconnect replay.
  */
-export interface Remote<T, Q> {
+export type Remote<T, Q> = {
   readonly online: boolean;
   /** May return a cleanup for live subscriptions. */
   fetch(query: Q, channel: FetchChannel<T>): void | (() => void);
   upsert(value: T, channel: WriteChannel<T>): void;
   remove(value: T, channel: WriteChannel<T>): void;
-}
+};
 
 /**
  * Local store adapter (optional). Answers every query offline and holds the
  * durable write outbox (dirty rows and delete tombstones).
  */
-export interface Store<T, Q> {
+export type Store<T, Q> = {
   fetch(query: Q, channel: FetchChannel<T>): void | (() => void);
   /** Upsert a row; dirty=true marks it unsynced. */
   save(value: T, dirty: boolean): void;
@@ -95,9 +95,9 @@ export interface Store<T, Q> {
   remove(value: T, dirty: boolean): void;
   /** Unsynced writes from the previous session, replayed at boot. */
   dirty(): Promise<Write<T>[]>;
-}
+};
 
-export interface Config<T, Q> {
+export type Config<T, Q> = {
   id(value: T): string;
   remote: Remote<T, Q>;
   local?: Store<T, Q>;
@@ -117,9 +117,9 @@ export interface Config<T, Q> {
   matches?: (query: Q, value: T) => boolean;
   /** Result order. With it, id-lists stay sorted and stable across refetches. */
   sort?: (a: T, b: T) => number;
-}
+};
 
-export interface Query<T, Q> {
+export type Collection<T, Q> = {
   /** Cached object by id (no fetch). */
   get(id: string): Loadable<T>;
   /** Detail view: two-tier fetch resolving the first row. */
@@ -145,6 +145,6 @@ export interface Query<T, Q> {
   dispose(): void;
   /** Empty memory state and outbox (logout). Local database is not touched. */
   clear(): void;
-}
+};
 
-export function make<T, Q>(config: Config<T, Q>): Query<T, Q>;
+export function make<T, Q>(config: Config<T, Q>): Collection<T, Q>;

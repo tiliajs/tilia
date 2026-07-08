@@ -82,17 +82,17 @@ export function derived<T>(fn: () => T): Signal<T>;
 /** Lift a signal into a computed value that tracks its inner `value` field. */
 export function lift<T>(s: Signal<T>): T;
 /** @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow. */
-export interface Changes<T> {
+export type Changes<T> = {
   upsert: T[];
   remove: string[];
-}
+};
 /** @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow. */
-export interface Changing<T> {
+export type Changing<T> = {
   /** Capture function for `watch`. Drains accumulated changes into `{ upsert, remove }`. */
   changes: () => Changes<T>;
   /** Run a callback with tracking temporarily removed. Includes `batch`. */
   mute: (fn: () => void) => void;
-}
+};
 
 /**
  * @deprecated Deprecated: prefer explicit mutate actions in carved features and use `tilia/query` for outbound/inbound data flow.

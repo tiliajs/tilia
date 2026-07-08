@@ -371,11 +371,11 @@ export function readonly<T>(data: T): Readonly<T>;
 export function signal<T>(value: T): [Signal<T>, Setter<T>];
 export function derived<T>(fn: () => T): Signal<T>;
 export function lift<T>(s: Signal<T>): T;
-export interface Changes<T> { upsert: T[]; remove: string[] }
-export interface Changing<T> {
+export type Changes<T> = { upsert: T[]; remove: string[] };
+export type Changing<T> = {
   changes: () => Changes<T>;
   mute: (fn: () => void) => void;
-}
+};
 export function changing<T>(accessor: () => Record<string, T>, guard?: () => boolean): Changing<T>;
 
 // Internal
