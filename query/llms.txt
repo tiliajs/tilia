@@ -23,7 +23,8 @@ Key facts for code generation:
   channels have `emit(saved)`, `offline()`, `conflict(server)`,
   `reject(message)`.
 - The `remote` adapter must be a tilia object with a reactive `online`
-  boolean; the core watches it to replay the outbox on reconnect.
+  boolean; the core watches it to replay the outbox on reconnect. `make`
+  throws if `remote` is not a tilia proxy.
 - The optional `local` store answers every query offline and persists the
   outbox: `save(item, dirty)`, `remove(item, dirty)` (dirty=true writes a
   delete tombstone), `dirty()` returns `{value, deleted}` records.

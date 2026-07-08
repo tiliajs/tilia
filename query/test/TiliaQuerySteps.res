@@ -298,6 +298,18 @@ given("a task world", ({step}, _) => {
     expect(H.heldWrites(w)).toBe(expected)
   )
 
+  step("making a query with a plain remote should fail", () => {
+    let plain: H.transport<H.item, H.itemQuery> = {
+      online: true,
+      fetch: (_, _) => None,
+      upsert: (_, _) => (),
+      remove: (_, _) => (),
+    }
+    expect(() =>
+      ignore(TiliaQuery.make({id: H.id, remote: H.asRemote(plain)}))
+    ).toThrow(~message="make: remote is not a tilia proxy (reconnect could never replay writes)")
+  })
+
   step("{string} fetch calls should be {number}", (name, expected) =>
     expect(
       switch name {

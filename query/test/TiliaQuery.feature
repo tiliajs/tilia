@@ -340,3 +340,6 @@ Feature: Task query behavior for online, offline, and replay ownership
     Given network is "online"
     When I open one "missing" task
     Then the one "missing" task should be not found
+
+  Scenario: A plain remote is refused at construction
+    Then making a query with a plain remote should fail

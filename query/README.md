@@ -141,8 +141,8 @@ type WriteChannel<T> = {
 ### Remote (REST CRUD example)
 
 `remote` must be a tilia object so the core can watch `online` reactively
-(reconnect triggers query refresh and outbox replay). `fetch` may return a
-cleanup for live subscriptions. `upsert` and `remove` are push-and-forget:
+(reconnect triggers query refresh and outbox replay); `make` throws if it is
+not. `fetch` may return a cleanup for live subscriptions. `upsert` and `remove` are push-and-forget:
 respond through the channel.
 
 ```typescript

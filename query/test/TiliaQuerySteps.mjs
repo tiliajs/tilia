@@ -4,6 +4,7 @@ import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Vitest from "vitest";
 import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
 import * as Stdlib_Int from "@rescript/runtime/lib/es6/Stdlib_Int.js";
+import * as TiliaQuery from "../src/TiliaQuery.mjs";
 import * as VitestBdd from "vitest-bdd";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as TiliaQueryTestHelpers from "./TiliaQueryTestHelpers.mjs";
@@ -243,6 +244,23 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("last fetch error should be empty", () => Vitest.expect(Stdlib_Option.isNone(w.items.status.error)).toBe(true));
   step("rejected remote writes should be {number}", expected => Vitest.expect(w.remote.rejectedWrites.contents).toBe(expected));
   step("held upsert channels should be {number}", expected => Vitest.expect(TiliaQueryTestHelpers.heldWrites(w)).toBe(expected));
+  step("making a query with a plain remote should fail", () => {
+    let plain_fetch = (param, param$1) => {};
+    let plain_upsert = (param, param$1) => {};
+    let plain_remove = (param, param$1) => {};
+    let plain = {
+      online: true,
+      fetch: plain_fetch,
+      upsert: plain_upsert,
+      remove: plain_remove
+    };
+    Vitest.expect(() => {
+      TiliaQuery.make({
+        id: TiliaQueryTestHelpers.id,
+        remote: plain
+      });
+    }).toThrow("make: remote is not a tilia proxy (reconnect could never replay writes)");
+  });
   step("{string} fetch calls should be {number}", (name, expected) => {
     let tmp;
     switch (name) {

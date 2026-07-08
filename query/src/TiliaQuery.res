@@ -27,6 +27,10 @@ module Channel = {
   }
 }
 
+let raise: string => 'a = %raw(`function (message) {
+  throw new Error(message)
+}`)
+
 @send external insertAt: (array<'a>, int, int, 'a) => array<'a> = "splice"
 @send external removeAt: (array<'a>, int, int) => array<'a> = "splice"
 
@@ -361,6 +365,12 @@ let defaultNow = () => Date.now() /. 1000.0
 
 let make = (config: config<'a, 'query>) => {
   let {id, remote} = config
+  // A plain record would type-check but 'online' could never be observed:
+  // offline writes would sit in the outbox forever without replaying.
+  switch Tilia._meta(remote) {
+  | Value(_) => ()
+  | _ => raise("make: remote is not a tilia proxy (reconnect could never replay writes)")
+  }
   let local: store<_, _> = switch config.local {
   | Some(local) => local
   | None => {

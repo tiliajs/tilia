@@ -8,6 +8,10 @@ import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js
 
 let Channel = {};
 
+let raise = (function (message) {
+  throw new Error(message)
+});
+
 let make = (() => ({}));
 
 let $$Object = {};
@@ -251,6 +255,10 @@ function defaultNow() {
 function make$2(config) {
   let remote = config.remote;
   let id = config.id;
+  let match = Tilia._meta(remote);
+  if (match == null) {
+    raise("make: remote is not a tilia proxy (reconnect could never replay writes)");
+  }
   let local = config.local;
   let local$1 = local !== undefined ? local : ({
       fetch: (param, param$1) => {},
