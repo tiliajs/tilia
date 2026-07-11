@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="tilia — domain-driven state management for TypeScript and ReScript. Reactive state in the domain's shape: plain objects and pure functions, observed directly by views.">
+<title>tilia — Domain-Driven State Management</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232e7d3a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z'/%3E%3Cpath d='M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1' stroke-width='1.1'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="wordmark" href="./index.html" aria-label="tilia — home">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z"/>
+        <path d="M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1" stroke-width="1.1"/>
+      </svg>
+      tilia
+    </a>
+    <nav class="nav" aria-label="Site">
+      <a href="./index.html" aria-current="page">Home</a>
+      <a href="./docs.html">Docs</a>
+      <a href="./api.html">API</a>
+      <a href="https://github.com/tiliajs/tilia">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">TypeScript &amp; ReScript<span class="sep">·</span>Open source<span class="sep">·</span>MIT</p>
+        <h1 id="hero-title">Domain-Driven State&nbsp;Management</h1>
+        <p class="lead">A state management library for TypeScript and ReScript supporting Domain-Driven Design. Plain objects, pure functions, views that observe them directly — no stores, no dispatch, no boilerplate.</p>
+        <div class="cta-row">
+          <a class="btn solid" href="#">Get Started</a>
+          <a class="btn" href="https://github.com/tiliajs/tilia">GitHub</a>
+        </div>
+        <p class="defcard">
+          <span class="term">tilia</span> <span class="ipa">/ti·li·a/</span> <span class="gram">n., Latin</span> —
+          the linden. The carver's wood: even-grained, cuts clean, holds detail.
+        </p>
+      </div>
+
+      <div class="code-slot">
+        <!-- signature linden leaf — stylized pointed oval, pinnate veins;
+             sits behind the code card, only tip and lower veins emerge -->
+        <svg class="leaf-mark" viewBox="0 0 300 420" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <path d="M70 50C58 32 50 18 46 6"/>
+          <path d="M70 50C175 85 255 235 240 380C130 330 55 190 70 50Z"/>
+          <path d="M70 50C125 160 190 280 240 380"/>
+          <path d="M108 128C140 128 172 142 196 166M140 194C168 196 196 212 216 236M172 258C194 262 214 278 228 300M202 318C216 322 228 334 236 350"/>
+          <path d="M108 128C102 160 104 194 114 226M140 194C136 224 142 256 154 284M172 258C170 286 178 312 190 334M202 318C202 338 210 356 220 370"/>
+        </svg>
+        <figure class="codefig" data-lang="ts" id="hero-code">
+        <figcaption class="codebar">
+          <span class="k figlabel">Reactive state</span>
+          <div class="langswitch" role="group" aria-label="Example language">
+            <button type="button" data-lang="ts" aria-pressed="true">ts</button>
+            <button type="button" data-lang="res" aria-pressed="false">res</button>
+          </div>
+        </figcaption>
+        <pre class="code code-ts"><code><span class="tk">const</span> sky = <span class="tf">tilia</span>({
+  color: <span class="ts">'pink'</span>
+})
+
+<span class="tf">observe</span>(() =&gt; {
+  console.<span class="tf">log</span>(sky.color)
+})
+
+<span class="tc">// React integration</span>
+<span class="tk">function</span> <span class="tf">Sky</span>() {
+  <span class="tf">useTilia</span>()
+  <span class="tk">return</span> &lt;div&gt;{sky.color}&lt;/div&gt;
+}</code></pre>
+        <pre class="code code-res"><code><span class="tk">let</span> sky = <span class="tf">tilia</span>({
+  color: <span class="ts">"pink"</span>
+})
+
+<span class="tf">observe</span>(() =&gt; {
+  Console.<span class="tf">log</span>(sky.color)
+})
+
+<span class="tc">// React integration</span>
+<span class="tk">let</span> <span class="tf">make</span> = () =&gt; {
+  <span class="tf">useTilia</span>()
+  &lt;div&gt; {React.<span class="tf">string</span>(sky.color)} &lt;/div&gt;
+}</code></pre>
+        <div class="codefoot"><code><span class="ps1">$</span> npm install tilia</code></div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="why-title">
+    <div class="wrap">
+      <header class="sec-head">
+        <h2 id="why-title">Why tilia</h2>
+        <p class="sec-lead">State management usually asks the domain to bend to the framework. tilia bends the other way.</p>
+      </header>
+
+      <div class="props">
+        <article class="prop">
+          <p class="pid">1.1</p>
+          <div class="glyph" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <path d="M7 12.5 16 5.5l9.5 4.5-1.5 13.5L9 25.5Z"/>
+              <circle cx="7" cy="12.5" r="1.7" fill="currentColor" stroke="none"/>
+              <circle cx="16" cy="5.5" r="1.7" fill="currentColor" stroke="none"/>
+              <circle cx="25.5" cy="10" r="1.7" fill="currentColor" stroke="none"/>
+              <circle cx="24" cy="23.5" r="1.7" fill="currentColor" stroke="none"/>
+              <circle cx="9" cy="25.5" r="1.7" fill="currentColor" stroke="none"/>
+            </svg>
+          </div>
+          <h3>The domain is the API</h3>
+          <p>State is plain objects and pure functions, in the shape your domain already has. No stores, no actions, no dispatch.</p>
+        </article>
+
+        <article class="prop">
+          <p class="pid">1.2</p>
+          <div class="glyph" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+              <circle cx="8" cy="16" r="3.5"/>
+              <path d="M11.5 14.5 20 9M11.5 16H20M11.5 17.5 20 23"/>
+              <rect x="20.5" y="6" width="7" height="5"/>
+              <rect x="20.5" y="13.5" width="7" height="5"/>
+              <rect x="20.5" y="21" width="7" height="5"/>
+            </svg>
+          </div>
+          <h3>Views follow the model</h3>
+          <p>Components re-render exactly when a value they read changes — no selectors, no memo rituals, no stale props.</p>
+        </article>
+
+        <article class="prop">
+          <p class="pid">1.3</p>
+          <div class="glyph" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M10 8 4.5 16 10 24M22 8l5.5 8L22 24"/>
+              <path d="M13 16.5l2.8 3L19.5 12"/>
+            </svg>
+          </div>
+          <h3>Typed at every edge</h3>
+          <p>Written in ReScript, published with first-class TypeScript types. Your state's shape is checked everywhere it is touched.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="The épure method">
+    <div class="wrap">
+      <aside class="bridge">
+        <span class="reg tl" aria-hidden="true"></span>
+        <span class="reg br" aria-hidden="true"></span>
+        <span class="k">Sheet A-01 · Foundation</span>
+        <p>tilia is the foundation sheet of <strong>épure</strong> — a method for AI-assisted development in organizations that cannot afford surprises. Software, drawn before it is built.</p>
+        <a class="bridge-link" href="https://epuremethod.com">Read the method <span class="arrow">↗</span></a>
+      </aside>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="fcell"><span class="lbl">Package</span><span class="val"><a href="https://www.npmjs.com/package/tilia">tilia on npm</a></span></div>
+    <div class="fcell"><span class="lbl">Source</span><span class="val"><a href="https://github.com/tiliajs/tilia">github.com/tiliajs/tilia</a></span></div>
+    <div class="fcell"><span class="lbl">License</span><span class="val">MIT</span></div>
+    <div class="fcell"><span class="lbl">Method</span><span class="val"><a href="https://epuremethod.com">épure</a></span></div>
+    <div class="fcell"><span class="lbl">Site</span><span class="val">tiliajs.com</span></div>
+  </div>
+</footer>
+
+<script>
+  // ts | res toggle on the hero code figure
+  (function () {
+    var fig = document.getElementById('hero-code');
+    fig.querySelectorAll('.langswitch button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        fig.setAttribute('data-lang', btn.dataset.lang);
+        fig.querySelectorAll('.langswitch button').forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

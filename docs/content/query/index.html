@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="@tilia/query — remote data that feels local. Query state on top of tilia: instant cached reads, background refresh, quiet sync, and a durable write outbox.">
+<title>@tilia/query — Remote Data That Feels Local</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232e7d3a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z'/%3E%3Cpath d='M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1' stroke-width='1.1'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body class="query">
+
+<header class="top">
+  <div class="wrap">
+    <a class="wordmark" href="./index.html" aria-label="tilia — home">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z"/>
+        <path d="M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1" stroke-width="1.1"/>
+      </svg>
+      tilia
+    </a>
+    <nav class="nav" aria-label="Site">
+      <a href="./index.html">Home</a>
+      <a href="./docs.html">Docs</a>
+      <a href="./api.html">API</a>
+      <a href="https://github.com/tiliajs/tilia">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">@tilia/query<span class="sep">·</span>On top of tilia<span class="sep">·</span>MIT</p>
+        <h1 id="hero-title">Remote Data That Feels&nbsp;Local</h1>
+        <p class="lead">A query-state layer on top of tilia. Reads answer instantly from the cache and refresh in the background; writes apply on the spot and sync quietly. No spinners, no loading walls — and offline comes free.</p>
+        <div class="cta-row">
+          <a class="btn solid" href="#">Get Started</a>
+          <a class="btn" href="https://github.com/tiliajs/tilia">GitHub</a>
+        </div>
+        <p class="defcard">
+          <span class="term">sève</span> <span class="ipa">/sɛv/</span> <span class="gram">n., f.</span> —
+          the sap. Moves between root and crown; held through winter, flowing again at thaw.
+        </p>
+      </div>
+
+      <div class="code-slot">
+        <!-- the linden leaf again, veins lit: the wood recedes,
+             the transport network is the subject -->
+        <svg class="leaf-mark sap" viewBox="0 0 300 420" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <g class="wood">
+            <path d="M70 50C58 32 50 18 46 6"/>
+            <path d="M70 50C175 85 255 235 240 380C130 330 55 190 70 50Z"/>
+          </g>
+          <g class="veins">
+            <path d="M70 50C125 160 190 280 240 380"/>
+            <path d="M108 128C140 128 172 142 196 166M140 194C168 196 196 212 216 236M172 258C194 262 214 278 228 300M202 318C216 322 228 334 236 350"/>
+            <path d="M108 128C102 160 104 194 114 226M140 194C136 224 142 256 154 284M172 258C170 286 178 312 190 334M202 318C202 338 210 356 220 370"/>
+          </g>
+        </svg>
+        <figure class="codefig" data-lang="ts" id="hero-code">
+          <figcaption class="codebar">
+            <span class="k figlabel">Query state</span>
+            <div class="langswitch" role="group" aria-label="Example language">
+              <button type="button" data-lang="ts" aria-pressed="true">ts</button>
+              <button type="button" data-lang="res" aria-pressed="false">res</button>
+            </div>
+          </figcaption>
+          <pre class="code code-ts"><code><span class="tk">const</span> claims = <span class="tf">make</span>({
+  id: (claim) =&gt; claim.id,
+  local,   <span class="tc">// cache tier — answers first</span>
+  remote,  <span class="tc">// authoritative — refreshes behind</span>
+  matches: (q, claim) =&gt; claim.status === q.status
+})
+
+<span class="tc">// live, cached, no spinner</span>
+<span class="tk">const</span> opened = claims.<span class="tf">array</span>({ status: <span class="ts">'open'</span> })
+
+<span class="tc">// applies now, syncs quietly</span>
+claims.<span class="tf">upsert</span>({ ...claim, status: <span class="ts">'closed'</span> })</code></pre>
+          <pre class="code code-res"><code><span class="tk">let</span> claims = TiliaQuery.<span class="tf">make</span>({
+  id: claim =&gt; claim.id,
+  local,
+  remote,
+  matches: (q, claim) =&gt; claim.status == q.status,
+})
+
+<span class="tc">// live, cached, no spinner</span>
+<span class="tk">let</span> opened = claims.<span class="tf">array</span>({status: <span class="ts">"open"</span>})
+
+<span class="tc">// applies now, syncs quietly</span>
+claims.<span class="tf">upsert</span>({...claim, status: <span class="ts">"closed"</span>})</code></pre>
+          <div class="codefoot"><code><span class="ps1">$</span> npm install @tilia/query</code></div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="why-title">
+    <div class="wrap">
+      <header class="sec-head">
+        <h2 id="why-title">Why @tilia/query</h2>
+        <p class="sec-lead">Every feature ends up reinventing the same remote-data flow: load, cache, refresh, merge, survive offline. @tilia/query makes it one flow.</p>
+      </header>
+
+      <div class="props">
+        <article class="prop">
+          <p class="pid">1.1</p>
+          <div class="glyph" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 16A10 10 0 0 1 23 9"/>
+              <path d="M23 9l-4.6-.4M23 9l-1-4.5"/>
+              <path d="M26 16A10 10 0 0 1 9 23"/>
+              <path d="M9 23l4.6.4M9 23l1 4.5"/>
+            </svg>
+          </div>
+          <h3>One lifecycle for remote data</h3>
+          <p>Load, cache, background refresh, live merge — every collection moves through the same shared flow, so feature code stays domain code.</p>
+        </article>
+
+        <article class="prop">
+          <p class="pid">1.2</p>
+          <div class="glyph" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 15v11h14V15"/>
+              <circle cx="12.5" cy="21.5" r="1.3" fill="currentColor" stroke="none"/>
+              <circle cx="16" cy="21.5" r="1.3" fill="currentColor" stroke="none"/>
+              <circle cx="19.5" cy="21.5" r="1.3" fill="currentColor" stroke="none"/>
+              <path d="M16 17V5M12 8.5 16 4.5l4 4"/>
+            </svg>
+          </div>
+          <h3>Held through winter</h3>
+          <p>Writes apply instantly and persist to a durable outbox. Close the app offline, reopen it next week — the sync resumes where it left off.</p>
+        </article>
+
+        <article class="prop">
+          <p class="pid">1.3</p>
+          <div class="glyph" aria-hidden="true">
+            <svg width="30" height="30" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="7" width="15" height="18"/>
+              <path d="M8.5 12h8M8.5 16h8M8.5 20h5"/>
+              <path d="M23.5 14.5h5M23.5 18.5h5"/>
+            </svg>
+          </div>
+          <h3>Views keep their identity</h3>
+          <p>Results are memoized id lists: a refetch that changes nothing re-renders nothing, and changed objects move between queries in place — no refetch.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="The épure method">
+    <div class="wrap">
+      <aside class="bridge">
+        <span class="reg tl" aria-hidden="true"></span>
+        <span class="reg br" aria-hidden="true"></span>
+        <span class="k">Sheet A-02 · Data</span>
+        <p>@tilia/query is the data sheet of <strong>épure</strong> — a method for AI-assisted development in organizations that cannot afford surprises. Software, drawn before it is built.</p>
+        <a class="bridge-link" href="https://epuremethod.com">Read the method <span class="arrow">↗</span></a>
+      </aside>
+    </div>
+  </section>
+
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="fcell"><span class="lbl">Package</span><span class="val"><a href="https://www.npmjs.com/package/@tilia/query">@tilia/query on npm</a></span></div>
+    <div class="fcell"><span class="lbl">Source</span><span class="val"><a href="https://github.com/tiliajs/tilia">github.com/tiliajs/tilia</a></span></div>
+    <div class="fcell"><span class="lbl">License</span><span class="val">MIT</span></div>
+    <div class="fcell"><span class="lbl">Method</span><span class="val"><a href="https://epuremethod.com">épure</a></span></div>
+    <div class="fcell"><span class="lbl">Site</span><span class="val">tiliajs.com</span></div>
+  </div>
+</footer>
+
+<script>
+  // ts | res toggle on the hero code figure
+  (function () {
+    var fig = document.getElementById('hero-code');
+    fig.querySelectorAll('.langswitch button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        fig.setAttribute('data-lang', btn.dataset.lang);
+        fig.querySelectorAll('.langswitch button').forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+      });
+    });
+  })();
+</script>
+
+</body>
+</html>

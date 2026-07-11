@@ -1,0 +1,39 @@
+base: ../tilia/config.yaml
+var:
+  project: query
+
+pages:
+  api:
+    input:
+      markdownDir: api
+    assets:
+      copy:
+        - from: index.html
+          to: ../../dist/{{project}}/index.html
+        - from: ../../assets/style.css
+          to: ../../dist/{{project}}/style.css
+        - from: ../../assets/fonts
+          to: ../../dist/{{project}}/fonts
+          recursive: true
+
+  guide:
+    input:
+      markdownDir: guide
+    assets:
+      copy:
+        - from: index.html
+          to: ../../dist/{{project}}/index.html
+        - from: ../../assets/style.css
+          to: ../../dist/{{project}}/style.css
+        - from: ../../assets/fonts
+          to: ../../dist/{{project}}/fonts
+          recursive: true
+    templates:
+      pageMain: |-
+        <div class="docs-head">
+          <div class="wrap">
+            <p class="eyebrow">Docs<span class="sep">·</span>@tilia/query<span class="sep">·</span>Guided tour</p>
+            <h1>The Guide</h1>
+            <p class="standfirst">A reading path through @tilia/query, in order: remote data that reads like local state, then queries and views, the two-tier read, writing while offline, conflicts, and the adapter boundary. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
+          </div>
+        </div>
