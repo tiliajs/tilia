@@ -164,7 +164,7 @@ let makeRemote = (
           Dict.delete(nextFetches.contents, query.status)
           channel.fail(message)
         }
-      | None => channel.emit(Store.byStatus(remoteStore.contents, query.status))
+      | None => channel.set(Store.byStatus(remoteStore.contents, query.status))
       }
       None
     } else {
@@ -194,7 +194,7 @@ let makeRemote = (
     | Success(saved) => {
         Dict.set(remoteStore.contents, saved.id, saved)
         syncedWrites := [...syncedWrites.contents, saved]
-        channel.emit(saved)
+        channel.saved(saved)
       }
     | Retry(server) => {
         Dict.set(remoteStore.contents, server.id, server)
@@ -203,7 +203,7 @@ let makeRemote = (
     | Drop => channel.offline()
     | Reject(message) => {
         rejectedWrites := rejectedWrites.contents + 1
-        channel.reject(message)
+        channel.rejected(message)
       }
     }
 
@@ -212,7 +212,7 @@ let makeRemote = (
     | Success(value) => {
         Dict.delete(remoteStore.contents, value.id)
         syncedWrites := [...syncedWrites.contents, value]
-        channel.emit(value)
+        channel.saved(value)
       }
     | Retry(server) => {
         Dict.set(remoteStore.contents, server.id, server)
@@ -221,7 +221,7 @@ let makeRemote = (
     | Drop => channel.offline()
     | Reject(message) => {
         rejectedWrites := rejectedWrites.contents + 1
-        channel.reject(message)
+        channel.rejected(message)
       }
     }
 
@@ -264,7 +264,7 @@ let makeRemote = (
         Dict.valuesToArray(localStore.contents)
         ->Array.filter(row => !row.deleted && row.item.name == query.status)
         ->Array.map(row => row.item)
-      channel.emit(rows)
+      channel.set(rows)
       None
     },
     save: (item, dirty) => Dict.set(localStore.contents, item.id, {item, dirty, deleted: false}),
@@ -418,31 +418,31 @@ let takeHeldRemove = (remote, index) =>
   | None => None
   }
 
-let emitHeldRemove = (w, index) =>
+let settleHeldRemove = (w, index) =>
   switch takeHeldRemove(w.remote, index) {
   | Some(held) => {
       Dict.delete(w.remote.remoteStore.contents, held.value.id)
       w.remote.syncedWrites := [...w.remote.syncedWrites.contents, held.value]
-      held.channel.emit(held.value)
+      held.channel.saved(held.value)
     }
   | None => ()
   }
 
-let emitHeldWrite = (w, index, count) =>
+let settleHeldWrite = (w, index, count) =>
   switch takeHeld(w.remote, index) {
   | Some(held) => {
       let value = item(held.value.id, held.value.name, count)
       Dict.set(w.remote.remoteStore.contents, value.id, value)
       w.remote.syncedWrites := [...w.remote.syncedWrites.contents, value]
-      held.channel.emit(value)
+      held.channel.saved(value)
     }
   | None => ()
   }
 
 let heldWrites = w => w.remote.heldWrites.contents->Array.length
 
-let emitActiveChannel = (w, index, count) =>
+let setActiveChannel = (w, index, count) =>
   switch w.remote.activeChannels.contents[index] {
-  | Some(channel) => channel.emit([item("todo-1", "active", count)])
+  | Some(channel) => channel.set([item("todo-1", "active", count)])
   | None => ()
   }

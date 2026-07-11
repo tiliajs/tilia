@@ -9,7 +9,7 @@ Key facts for code generation:
 
 - Create an instance with `make(config)` where config is a single options
   object: `{id, remote, local?, stale?, gc?, now?, key?, matches?, sort?}`.
-- `matches(query, value)` is the membership predicate: writes and `sync`
+- `matches(query, value)` is the membership predicate: writes and `changed`
   update query id-lists in place (no refetch). `sort(a, b)` keeps id-lists
   sorted and stable, so views only change when membership changes.
 - Reads: `one(query)`, `array(query)`, `dict(query)` return a loadable:
@@ -19,9 +19,9 @@ Key facts for code generation:
   are pushed to the remote when online and replayed on reconnect and after
   restart.
 - Adapters respond through named channel callbacks, never tagged values:
-  fetch channels have `emit(rows)`, `fail(message)`, `covered()`; write
-  channels have `emit(saved)`, `offline()`, `conflict(server)`,
-  `reject(message)`.
+  fetch channels have `set(rows)` (replaces the result), `fail(message)`,
+  `covered()`; write channels have `saved(value)`, `offline()`,
+  `conflict(server)`, `rejected(message)`.
 - The `remote` adapter must be a tilia object with a reactive `online`
   boolean; the core watches it to replay the outbox on reconnect. `make`
   throws if `remote` is not a tilia proxy.
@@ -32,9 +32,10 @@ Key facts for code generation:
   `removeQuery(key)` persist `{key, ids, fetched}` per query. Remote results
   reconcile against the persisted record: rows that left a result are pruned
   unless another query or the outbox retains them.
-- Inbound live changes: `sync(item)` (update) and `syncRemove(item)` (delete)
-  update memory, membership, and the local store; a pending optimistic write
-  for the same id always wins.
+- Inbound live events take batches: `changed(items)` (updates) and
+  `removed(items)` (deletes) update memory, membership, and the local store
+  in one reactive transaction; a pending optimistic write for the same id
+  always wins.
 - `status` is a reactive object: `pending` (outbox size), `rejected`
   (refused writes, cleared with `dismiss()`), `error` (last fetch failure).
 - The library never starts timers: call `tick()` from your own scheduler for

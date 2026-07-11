@@ -1,4 +1,4 @@
-import type { Remote, Store, Write, WriteChannel } from "@tilia/query";
+import type { QueryRecord, Remote, Store, Write, WriteChannel } from "@tilia/query";
 import { computed, tilia } from "tilia";
 import type { Outcome, Server } from "../server/server";
 import { clone, match, type Claim, type ClaimQuery } from "./claim";
@@ -8,13 +8,13 @@ export type Network = { online: boolean };
 function settle(channel: WriteChannel<Claim>, outcome: Outcome) {
   switch (outcome.kind) {
     case "saved":
-      channel.emit(outcome.claim);
+      channel.saved(outcome.claim);
       break;
     case "conflict":
       channel.conflict(outcome.claim);
       break;
     case "rejected":
-      channel.reject(outcome.message);
+      channel.rejected(outcome.message);
       break;
   }
 }
@@ -31,10 +31,10 @@ export function makeRemote(server: Server, user: string, network: Network): Remo
         // returned cleanup unsubscribes on query GC or refetch.
         return server.subscribe(user, query, (rows) => {
           // A dropped connection silences the socket; reconnect re-subscribes.
-          if (network.online) channel.emit(rows);
+          if (network.online) channel.set(rows);
         });
       }
-      server.fetch(user, query, (rows) => channel.emit(rows));
+      server.fetch(user, query, (rows) => channel.set(rows));
     },
     upsert(claim, channel) {
       server.upsert(user, claim, (outcome) => settle(channel, outcome));
@@ -54,13 +54,14 @@ export type Local = Store<Claim, ClaimQuery> & { rows: Map<string, Row> };
 // demonstrates boot replay of the outbox.
 export function makeLocal(): Local {
   const rows = new Map<string, Row>();
+  const records = new Map<string, QueryRecord>();
   return {
     rows,
     fetch(query, channel) {
       const found = [...rows.values()]
         .filter((row) => !row.deleted && match(query, row.value))
         .map((row) => clone(row.value));
-      channel.emit(found);
+      channel.set(found);
     },
     save(claim, dirty) {
       rows.set(claim.id, { value: clone(claim), dirty, deleted: false });
@@ -75,5 +76,12 @@ export function makeLocal(): Local {
           .filter((row) => row.dirty)
           .map((row): Write<Claim> => ({ value: clone(row.value), deleted: row.deleted }))
       ),
+    queries: () => Promise.resolve([...records.values()]),
+    saveQuery(record) {
+      records.set(record.key, record);
+    },
+    removeQuery(key) {
+      records.delete(key);
+    },
   };
 }

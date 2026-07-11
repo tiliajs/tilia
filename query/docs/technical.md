@@ -42,7 +42,7 @@ module Channel = {
   // read path (local and remote fetch)
   type fetch<'a> = {
     state: state,
-    emit: array<'a> => unit,   // rows
+    set: array<'a> => unit,    // replace the result (complete rows, not a delta)
     fail: string => unit,      // transport error: freshness untouched
     covered: unit => unit,     // delta-sync engine owns this query: mark fresh
   }
@@ -50,10 +50,10 @@ module Channel = {
   // write path (remote upsert and remove)
   type write<'a> = {
     state: state,
-    emit: 'a => unit,          // saved: settle clean
+    saved: 'a => unit,         // saved: settle clean
     offline: unit => unit,     // transient: keep queued for next reconnect
     conflict: 'a => unit,      // server wins
-    reject: string => unit,    // permanent refusal: drop, surface on status
+    rejected: string => unit,  // permanent refusal: drop, surface on status
   }
 }
 
@@ -107,8 +107,8 @@ type t<'a, 'query> = {
   dict: 'query => loadable<dict<'a>>,
   upsert: 'a => unit,
   remove: 'a => unit,
-  sync: 'a => unit,
-  syncRemove: 'a => unit,
+  changed: array<'a> => unit,
+  removed: array<'a> => unit,
   tick: unit => unit,
   status: status<'a>,
   dismiss: unit => unit,
@@ -162,29 +162,29 @@ When first accessed:
 3. mark query stale
 4. create `Tilia.source(Loading, loader(...))`
 5. loader runs `startFetch`, which always calls `local.fetch(query, channel)` and, only when `remote.online`, also calls `remote.fetch(query, channel)`
-6. each tier pushes rows with `channel.emit(rows)`; the remote tier may also `fail(message)` or `covered()`
+6. each tier answers with `channel.set(rows)`; the remote tier may also `fail(message)` or `covered()`
 
 A query opened offline resolves from the local store instead of hanging in `Loading`.
 
-After each `emit(rows)`:
+After each `set(rows)`:
 - rows are ordered with `sort` when configured, so both tiers produce the same order
 - objects are written to `cache`, **except** ids with a pending put (the optimistic value wins until the write settles)
 - ids with a pending **delete** are filtered out of the result, so a racing fetch cannot resurrect a deleted row
 - remote rows are additionally written through to `local.save(row, false)` (same pending exceptions)
 - query result stores ids only; loadable state becomes `Loaded({data: ids})`
 - an id-list identical to the current one is dropped: the loadable and the memoized views keep their identity, so watchers do not re-render on no-op refetches
-- remote emits refresh `fetched`; local emits do not
-- remote emits also **reconcile**: ids in the query's persisted record that are
-  absent from the new result are purged from the local store and evicted from
-  memory — unless the outbox owns them, another persisted record still
-  references them, or they are not in the memory cache (a later emit
+- a remote `set` refreshes `fetched`; a local `set` does not
+- a remote `set` also **reconciles**: ids in the query's persisted record that
+  are absent from the new result are purged from the local store and evicted
+  from memory — unless the outbox owns them, another persisted record still
+  references them, or they are not in the memory cache (a later set
   converges those). The new id-list is then persisted via `local.saveQuery`.
   This is what keeps server-side deletes from reappearing as ghost rows on
   the next offline start, and what bounds the local store to the union of
   known query results plus unsynced writes.
 
 Remote fetch outcomes:
-- `emit(rows)` — rows land, freshness refreshed, `status.error` cleared
+- `set(rows)` — rows land, freshness refreshed, `status.error` cleared
 - `covered()` — no rows; the query is marked fresh (a delta-sync engine keeps the local store complete, see below)
 - `fail(message)` — freshness is **not** touched, so the next `tick` past the stale window retries; `{key, message}` is recorded on `status.error`
 
@@ -194,8 +194,8 @@ If channel state becomes `Cancelled`, all callbacks are no-ops and late response
 Transport may check `channel.state` proactively, but cancellation safety is enforced inside channel handlers.
 
 **Ordering assumption (adapter requirement):** remote is authoritative because
-its emit is expected to land after local. A one-shot `local.fetch` that
-resolves *after* the remote emit can transiently overwrite fresher remote rows
+its `set` is expected to land after local's. A one-shot `local.fetch` that
+resolves *after* the remote `set` can transiently overwrite fresher remote rows
 in the cache. IndexedDB is virtually always faster than the network, but if
 your local tier cannot guarantee this, use a live query (Dexie `liveQuery`):
 remote rows are written through to the local store, so live local reads
@@ -222,9 +222,9 @@ Write settlement (dirty lifecycle):
 
 | Response | Put entry | Delete entry |
 | --- | --- | --- |
-| `emit(saved)` | removed; `local.save(saved, false)`; resolved into cache | removed; `local.remove(value, false)` purges row + tombstone |
+| `saved(value)` | removed; `local.save(value, false)`; resolved into cache | removed; `local.remove(value, false)` purges row + tombstone |
 | `conflict(server)` | removed; server wins: resolved into cache, saved clean | removed; server resurrects the row: resolved into cache, saved clean |
-| `reject(message)` | removed; saved clean (stops boot retries); rejection recorded on `status.rejected`; every query marked stale so the refetch restores server truth (the object may belong to lists it optimistically left) | removed; tombstone cleared; same rejection + stale convergence |
+| `rejected(message)` | removed; saved clean (stops boot retries); rejection recorded on `status.rejected`; every query marked stale so the refetch restores server truth (the object may belong to lists it optimistically left) | removed; tombstone cleared; same rejection + stale convergence |
 | `offline()` | kept queued; row stays dirty | kept queued; tombstone stays dirty |
 
 `status.pending` always equals the outbox size; UI can show "N changes waiting
@@ -244,24 +244,26 @@ retention and reconciliation survive restarts: overlap refcounts are correct
 from the first fetch, and a query re-opened offline serves its full persisted
 row set through `local.fetch`.
 
-### 3) Live/inbound update (`sync` / `syncRemove`)
+### 3) Live/inbound events (`changed` / `removed`)
 
-`sync(item)`:
-1. writes item to the memory cache using `id(item)`
+`changed(items)`, for each item:
+1. writes the item to the memory cache using `id(item)`
 2. runs the same membership updates through `matches`
 3. saves the item clean to the local store, so the update survives a restart
 4. does **not** call the remote
 
-`syncRemove(item)` is the inbound delete: it evicts the id from memory and
-every query id-list, purges the clean local row, and drops the id from every
-persisted query record.
+`removed(items)` is the inbound delete: for each item it evicts the id from
+memory and every query id-list, purges the clean local row, and drops the id
+from every persisted query record.
 
-Both are no-ops for an id with a pending outbox entry: the local optimistic
-write wins until it settles (the conflict/reject paths converge afterwards).
+Both take a batch and apply it as a single reactive transaction
+(`Tilia.batch`), so watchers see one notification per batch, not one per item.
+An id with a pending outbox entry is skipped: the local optimistic write wins
+until it settles (the conflict/rejected paths converge afterwards).
 
 This is intended for websocket events, delta-sync engines, or external state
 pushes. A delta engine that writes the local database itself can still call
-`sync(item)` per change — the extra clean save is idempotent.
+`changed(items)` — the extra clean save is idempotent.
 
 ### 4) Reconnect ownership
 
@@ -361,7 +363,7 @@ TiliaQuery) that pulls access-scoped changes since a cursor and keeps the
 local store complete; local queries become authoritative and the per-query
 remote fetch is the fallback for heavy or uncovered datasets. This maps onto
 the contracts as-is:
-- inbound deltas: the engine calls `sync(item)` / `syncRemove(item)` per change (the core persists them clean; an engine that also writes the database itself is harmless — the save is idempotent)
+- inbound deltas: the engine calls `changed(items)` / `removed(items)` (the core persists them clean; an engine that also writes the database itself is harmless — the save is idempotent)
 - covered queries: the remote adapter answers `channel.covered()` without fetching — the core marks the query fresh and keeps current data (this replaced the old `channel.fail("covered")` convention; `fail` is now strictly a transport error). Covered queries are **never reconciled or pruned**: no registry record is written for them, so the engine keeps sole ownership of their rows
 - uncovered/partial queries: normal `remote.fetch` fallback with write-through and reconciliation; the adapter records new coverage
 - outbound: the dirty outbox plus `remote.upsert` / `remote.remove` is the delta push side
@@ -375,7 +377,7 @@ cover all queries on a table or none.
 ## Current Shortcomings And Open Problems
 
 - **Membership cost:** every write scans all stored query metadata; this is simple but can become expensive with many active filters.
-- **Reconciliation needs the row in memory:** pruning calls `local.remove(item, false)` with the cached value, so a row absent from the memory cache is skipped and only pruned by a later emit that sees it. An id-based `store` removal would close this, at the cost of contract churn.
+- **Reconciliation needs the row in memory:** pruning calls `local.remove(item, false)` with the cached value, so a row absent from the memory cache is skipped and only pruned by a later set that sees it. An id-based `store` removal would close this, at the cost of contract churn.
 - **Retention vs covered overlap:** see the delta-sync caveat above — refcounting only sees registry records, not delta-engine coverage.
 - **Pagination/windowing:** current docs and API focus on full query-result arrays, not advanced page/window cache strategies.
 - **Cross-query consistency rules:** complex relationships (derived aggregates, graph-like joins) still rely on feature-layer logic.

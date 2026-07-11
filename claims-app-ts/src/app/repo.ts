@@ -1,8 +1,8 @@
-import { make, type Query, type Remote, type Store } from "@tilia/query";
+import { make, type Collection, type Remote, type Store } from "@tilia/query";
 import { match, type Claim, type ClaimQuery } from "./claim";
 
 export type Repo = {
-  claims: Query<Claim, ClaimQuery>;
+  claims: Collection<Claim, ClaimQuery>;
 };
 
 export function makeRepo(

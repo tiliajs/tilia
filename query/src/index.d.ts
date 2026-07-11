@@ -11,14 +11,15 @@ export type Loadable<T> = "loading" | "notFound" | { state: "loaded"; data: T };
 export type ChannelState = "live" | "cancelled";
 
 /**
- * Read-path channel handed to `fetch` (local and remote). A channel can emit
- * several times (cached rows now, fresh rows later, live updates forever) and
- * becomes inert once cancelled: late callbacks are ignored by the core.
+ * Read-path channel handed to `fetch` (local and remote). A channel can set
+ * the result several times (cached rows now, fresh rows later, live updates
+ * forever) and becomes inert once cancelled: late callbacks are ignored by
+ * the core.
  */
 export type FetchChannel<T> = {
   readonly state: ChannelState;
-  /** Push rows for the query. */
-  emit(rows: T[]): void;
+  /** Replace the query's result with these rows (complete result, not a delta). */
+  set(rows: T[]): void;
   /** Transport error: freshness untouched, retried on the next stale window. */
   fail(message: string): void;
   /** A delta-sync engine owns this query: mark fresh, keep current data. */
@@ -28,14 +29,14 @@ export type FetchChannel<T> = {
 /** Write-path channel handed to remote `upsert` and `remove`. */
 export type WriteChannel<T> = {
   readonly state: ChannelState;
-  /** Saved: settle the write clean. */
-  emit(saved: T): void;
+  /** The write was saved: settle it clean with the canonical value. */
+  saved(value: T): void;
   /** Transient failure: keep the write queued and dirty for next reconnect. */
   offline(): void;
   /** Server wins: resolve the server value into cache, save clean. */
   conflict(server: T): void;
   /** Permanent refusal: drop the write, surface it on status. */
-  reject(message: string): void;
+  rejected(message: string): void;
 };
 
 /** An unsynced operation: a put, or a delete when `deleted` is true. */
@@ -149,12 +150,14 @@ export type Collection<T, Q> = {
   upsert(value: T): void;
   /** Optimistic delete: tombstoned locally, pushed when online. */
   remove(value: T): void;
-  /** Inbound update (websocket / delta sync): cache, membership, and a clean
-   * local save. A pending optimistic write for the same id wins. */
-  sync(value: T): void;
-  /** Inbound delete: evict, purge the clean local row, drop the id from
-   * persisted query records. A pending optimistic write wins. */
-  syncRemove(value: T): void;
+  /** Inbound updates (websocket / delta sync): cache, membership, and a clean
+   * local save. A pending optimistic write for the same id wins. The batch is
+   * applied as one reactive transaction. */
+  changed(items: T[]): void;
+  /** Inbound deletes: evict, purge the clean local rows, drop the ids from
+   * persisted query records. A pending optimistic write wins. The batch is
+   * applied as one reactive transaction. */
+  removed(items: T[]): void;
   /** Stale refresh + garbage collection; call it from your own scheduler. */
   tick(): void;
   /** Debug helper: observed query keys split by canopy state. */

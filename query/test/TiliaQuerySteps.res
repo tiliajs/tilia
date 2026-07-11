@@ -101,13 +101,13 @@ given("a task world", ({step}, _) => {
     id,
     status,
     count,
-  ) => w.items.sync(item(id, status, count)))
+  ) => w.items.changed([item(id, status, count)]))
 
   step("I receive a live delete for task {string} with status {string} count {number}", (
     id,
     status,
     count,
-  ) => w.items.syncRemove(item(id, status, count)))
+  ) => w.items.removed([item(id, status, count)]))
 
   step("local store has a persisted query for {string} with id {string}", (status, id) =>
     H.seedQueryRecord(w, queryKey(status), [id])
@@ -192,19 +192,19 @@ given("a task world", ({step}, _) => {
     }
   })
 
-  step("I emit from active fetch channel {number} with count {number}", (position, count) => {
+  step("active fetch channel {number} sets rows with count {number}", (position, count) => {
     let index = if position <= 0 {0} else {position - 1}
-    H.emitActiveChannel(w, index, count)
+    H.setActiveChannel(w, index, count)
   })
 
-  step("I emit from held upsert channel {number} with count {number}", (position, count) => {
+  step("held upsert channel {number} reports saved with count {number}", (position, count) => {
     let index = if position <= 0 {0} else {position - 1}
-    H.emitHeldWrite(w, index, count)
+    H.settleHeldWrite(w, index, count)
   })
 
-  step("I emit from held remove channel {number}", position => {
+  step("held remove channel {number} reports saved", position => {
     let index = if position <= 0 {0} else {position - 1}
-    H.emitHeldRemove(w, index)
+    H.settleHeldRemove(w, index)
   })
 
   step("{string} tasks should be", (status, table) => {

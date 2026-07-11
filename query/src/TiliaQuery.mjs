@@ -33,7 +33,7 @@ let Json = {
   sortedStringify: sortedStringify
 };
 
-function makeFetchChannel(emit, fail, covered) {
+function makeFetchChannel(set, fail, covered) {
   let match = Tilia.signal("live");
   let setState = match[1];
   let state = match[0];
@@ -45,7 +45,7 @@ function makeFetchChannel(emit, fail, covered) {
   };
   let channel = Tilia.tilia({
     state: Tilia.lift(state),
-    emit: rows => guard(emit, rows),
+    set: rows => guard(set, rows),
     fail: message => guard(fail, message),
     covered: () => guard(covered, undefined)
   });
@@ -55,7 +55,7 @@ function makeFetchChannel(emit, fail, covered) {
   ];
 }
 
-function makeWriteChannel(emit, offline, conflict, reject) {
+function makeWriteChannel(saved, offline, conflict, rejected) {
   let match = Tilia.signal("live");
   let setState = match[1];
   let state = match[0];
@@ -67,10 +67,10 @@ function makeWriteChannel(emit, offline, conflict, reject) {
   };
   let channel = Tilia.tilia({
     state: Tilia.lift(state),
-    emit: value => guard(emit, value),
+    saved: value => guard(saved, value),
     offline: () => guard(offline, undefined),
     conflict: server => guard(conflict, server),
-    reject: message => guard(reject, message)
+    rejected: message => guard(rejected, message)
   });
   return [
     channel,
@@ -166,7 +166,7 @@ function make$1(id, remote, local, resolve, evict, stale, status) {
                 return;
               }
             };
-            let reject = message => {
+            let rejected = message => {
               if (remove(itemId, entry)) {
                 local.save(value, false);
                 resolve(value);
@@ -181,7 +181,7 @@ function make$1(id, remote, local, resolve, evict, stale, status) {
                 return stale();
               }
             };
-            let match$1 = makeWriteChannel(settle, offline, conflict, reject);
+            let match$1 = makeWriteChannel(settle, offline, conflict, rejected);
             entry.cancel = match$1[1];
             return remote.remove(value, match$1[0]);
           }
@@ -192,7 +192,7 @@ function make$1(id, remote, local, resolve, evict, stale, status) {
               return;
             }
           };
-          let reject$1 = message => {
+          let rejected$1 = message => {
             if (remove(itemId, entry)) {
               local.save(value, false);
               status.rejected = Belt_Array.concatMany([
@@ -206,7 +206,7 @@ function make$1(id, remote, local, resolve, evict, stale, status) {
               return stale();
             }
           };
-          let match$2 = makeWriteChannel(settle$1, offline, settle$1, reject$1);
+          let match$2 = makeWriteChannel(settle$1, offline, settle$1, rejected$1);
           entry.cancel = match$2[1];
           return remote.upsert(value, match$2[0]);
         }
@@ -700,13 +700,16 @@ function make$2(config) {
     }));
     return Reflect.get(dicts, cacheKey);
   };
-  let sync = item => {
+  let changedOne = item => {
     if (!writes.pending(id(item))) {
       resolve(item);
       return local$1.save(item, false);
     }
   };
-  let syncRemove = item => {
+  let changed = items => Tilia.batch(() => {
+    items.forEach(changedOne);
+  });
+  let removedOne = item => {
     let itemId = id(item);
     if (!writes.pending(itemId)) {
       evict(item);
@@ -735,6 +738,9 @@ function make$2(config) {
       return;
     }
   };
+  let removed = items => Tilia.batch(() => {
+    items.forEach(removedOne);
+  });
   let upsert = item => writes.send({
     value: item,
     deleted: false
@@ -893,8 +899,8 @@ function make$2(config) {
     dict: dict,
     upsert: upsert,
     remove: remove,
-    sync: sync,
-    syncRemove: syncRemove,
+    changed: changed,
+    removed: removed,
     tick: tick,
     canopy: canopy,
     status: status,

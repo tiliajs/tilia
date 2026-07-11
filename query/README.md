@@ -23,7 +23,7 @@ on reconnect — including after an app restart.
 - bounded local retention: the store keeps exactly the rows of known query
   results (plus unsynced writes) — server truth prunes rows that left a
   result, and idle-query GC releases rows nothing references anymore
-- inbound live updates (`sync` / `syncRemove`) are persisted, so pushed
+- inbound live updates (`changed` / `removed`) are persisted, so pushed
   changes survive an offline restart
 - reactive sync status: pending writes count, rejected writes, last fetch error
 - stale refresh in the background without clearing current data
@@ -46,8 +46,8 @@ flowchart LR
   app[App / UI] --> core[TiliaQuery core]
   core -->|"fetch always"| localStore["local store: fetch / save / remove / dirty"]
   core -->|"fetch + upsert + remove when online"| remoteStore["remote: fetch / upsert / remove / online"]
-  localStore -->|"emit rows (works offline)"| core
-  remoteStore -->|"emit rows -> cache + write-through"| core
+  localStore -->|"set rows (works offline)"| core
+  remoteStore -->|"set rows -> cache + write-through"| core
 ```
 
 Every query runs against the local store first (instant, works offline). When
@@ -96,11 +96,12 @@ todos.upsert({ id: "t1", title: "Ship it", done: false });
 todos.remove({ id: "t1", title: "Ship it", done: false });
 
 // Inbound updates (websocket / delta sync): cache + membership + a clean
-// local save, no remote push. A pending optimistic write for the id wins.
-todos.sync(changedTodo);
+// local save, no remote push. A pending optimistic write for an id wins.
+// The batch is applied as one reactive transaction.
+todos.changed([changedTodo]);
 
-// Inbound deletes: evict everywhere, purge the clean local row
-todos.syncRemove(deletedTodo);
+// Inbound deletes: evict everywhere, purge the clean local rows
+todos.removed([deletedTodo]);
 
 // Sync status for the UI (reactive tilia object)
 todos.status.pending; // writes waiting to sync
@@ -131,25 +132,25 @@ Note: array queries never resolve to `notFound` — an empty result is
 
 ## The adapter contracts
 
-Both read paths speak through the same fetch channel. A channel can emit
-several times (cached rows now, fresh rows later, live updates forever) and
-becomes inert once cancelled — late callbacks are ignored by the core. All
+Both read paths speak through the same fetch channel. A channel can set the
+result several times (cached rows now, fresh rows later, live updates forever)
+and becomes inert once cancelled — late callbacks are ignored by the core. All
 outcomes are named callbacks: adapters never build tagged values.
 
 ```typescript
 type FetchChannel<T> = {
   readonly state: "live" | "cancelled";
-  emit(rows: T[]): void; // push rows
+  set(rows: T[]): void; // replace the result (complete rows, not a delta)
   fail(message: string): void; // transport error: retried on next stale window
   covered(): void; // delta-sync engine owns this query: mark fresh
 };
 
 type WriteChannel<T> = {
   readonly state: "live" | "cancelled";
-  emit(saved: T): void; // saved: settle clean
+  saved(value: T): void; // saved: settle clean with the canonical value
   offline(): void; // transient: keep queued and dirty for next reconnect
   conflict(server: T): void; // server wins: server value replaces the write
-  reject(message: string): void; // permanent: drop write, surface on status
+  rejected(message: string): void; // permanent: drop write, surface on status
 };
 ```
 
@@ -170,7 +171,7 @@ window.addEventListener("offline", () => (network.online = false));
 // Maps an HTTP error to the right channel callback.
 function settle<T>(channel: WriteChannel<T>, res: Response) {
   if (res.status === 409) res.json().then((server) => channel.conflict(server));
-  else if (res.status >= 400 && res.status < 500) channel.reject(res.statusText);
+  else if (res.status >= 400 && res.status < 500) channel.rejected(res.statusText);
   else channel.offline(); // 5xx / network: retry on next reconnect
 }
 
@@ -180,19 +181,19 @@ const remote = tilia({
     fetch(`/api/todos?${new URLSearchParams(filter as any)}`)
       .then((res) => res.json())
       .then(
-        (rows) => channel.emit(rows),
+        (rows) => channel.set(rows),
         (e) => channel.fail(String(e))
       );
   },
   upsert(todo: Todo, channel: WriteChannel<Todo>) {
     fetch(`/api/todos/${todo.id}`, { method: "PUT", body: JSON.stringify(todo) }).then(
-      (res) => (res.ok ? res.json().then((saved) => channel.emit(saved)) : settle(channel, res)),
+      (res) => (res.ok ? res.json().then((saved) => channel.saved(saved)) : settle(channel, res)),
       () => channel.offline()
     );
   },
   remove(todo: Todo, channel: WriteChannel<Todo>) {
     fetch(`/api/todos/${todo.id}`, { method: "DELETE" }).then(
-      (res) => (res.ok ? channel.emit(todo) : settle(channel, res)),
+      (res) => (res.ok ? channel.saved(todo) : settle(channel, res)),
       () => channel.offline()
     );
   },
@@ -218,7 +219,7 @@ const local: Store<Todo, TodoQuery> = {
       .equals(filter.done ? 1 : 0)
       .and((row) => !row.deleted)
       .toArray()
-      .then((rows) => channel.emit(rows.map(strip)));
+      .then((rows) => channel.set(rows.map(strip)));
   },
   save(todo, dirty) {
     db.todos.put({ ...todo, dirty: dirty ? 1 : 0, deleted: 0 });
@@ -254,7 +255,7 @@ Without `local`, the core is purely in-memory and queries wait for the remote.
 
 **Ordering assumption**: a one-shot `local.fetch` should resolve before the
 remote answer (IndexedDB is almost always faster than the network). If your
-local fetch can emit after the remote emit, use a live query (Dexie
+local fetch can set the result after the remote set, use a live query (Dexie
 `liveQuery`) — remote rows are written through to the local store, so live
 local reads converge naturally.
 
@@ -269,9 +270,9 @@ write wins per id.
 
 | Remote response | Put entry | Delete entry |
 | --- | --- | --- |
-| `emit(saved)` | removed, saved clean | removed, row + tombstone purged |
+| `saved(value)` | removed, saved clean | removed, row + tombstone purged |
 | `conflict(server)` | removed, server value wins, saved clean | removed, server row resurrected, saved clean |
-| `reject(message)` | removed, surfaced on `status.rejected`, queries refetch server truth | same, tombstone cleared |
+| `rejected(message)` | removed, surfaced on `status.rejected`, queries refetch server truth | same, tombstone cleared |
 | `offline()` | kept for next reconnect, stays dirty | kept, tombstone stays dirty |
 
 At startup, `make` loads `local.dirty()` and queues each entry through the

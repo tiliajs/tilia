@@ -12,7 +12,7 @@ module Channel: {
   // Read path (local and remote fetch).
   type fetch<'a> = {
     state: state,
-    emit: array<'a> => unit,
+    set: array<'a> => unit,
     fail: string => unit,
     covered: unit => unit,
   }
@@ -20,10 +20,10 @@ module Channel: {
   // Write path (remote upsert).
   type write<'a> = {
     state: state,
-    emit: 'a => unit,
+    saved: 'a => unit,
     offline: unit => unit,
     conflict: 'a => unit,
-    reject: string => unit,
+    rejected: string => unit,
   }
 }
 
@@ -114,8 +114,8 @@ type t<'a, 'query> = {
   dict: 'query => loadable<dict<'a>>,
   upsert: 'a => unit,
   remove: 'a => unit,
-  sync: 'a => unit,
-  syncRemove: 'a => unit,
+  changed: array<'a> => unit,
+  removed: array<'a> => unit,
   tick: unit => unit,
   canopy: unit => canopy,
   status: status<'a>,

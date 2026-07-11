@@ -169,7 +169,7 @@ function makeRemote(onlineOpt, param) {
           channel.fail(match$2._0);
         }
       } else {
-        channel.emit(byStatus(remoteStore.contents, query.status));
+        channel.set(byStatus(remoteStore.contents, query.status));
       }
       return;
     }
@@ -227,14 +227,14 @@ function makeRemote(onlineOpt, param) {
               syncedWrites.contents,
               [saved]
             ]);
-            return channel.emit(saved);
+            return channel.saved(saved);
           case "Retry" :
             let server = outcome._0;
             remoteStore.contents[server.id] = server;
             return channel.conflict(server);
           case "Reject" :
             rejectedWrites.contents = rejectedWrites.contents + 1 | 0;
-            return channel.reject(outcome._0);
+            return channel.rejected(outcome._0);
         }
       }
     },
@@ -266,14 +266,14 @@ function makeRemote(onlineOpt, param) {
               syncedWrites.contents,
               [value$1]
             ]);
-            return channel.emit(value$1);
+            return channel.saved(value$1);
           case "Retry" :
             let server = outcome._0;
             remoteStore.contents[server.id] = server;
             return channel.conflict(server);
           case "Reject" :
             rejectedWrites.contents = rejectedWrites.contents + 1 | 0;
-            return channel.reject(outcome._0);
+            return channel.rejected(outcome._0);
         }
       }
     }
@@ -287,7 +287,7 @@ function makeRemote(onlineOpt, param) {
         return row.item.name === query.status;
       }
     }).map(row => row.item);
-    channel.emit(rows);
+    channel.set(rows);
   };
   let localApi_save = (item, dirty) => {
     localStore.contents[item.id] = {
@@ -513,7 +513,7 @@ function takeHeldRemove(remote, index) {
   return held;
 }
 
-function emitHeldRemove(w, index) {
+function settleHeldRemove(w, index) {
   let held = takeHeldRemove(w.remote, index);
   if (held !== undefined) {
     Stdlib_Dict.$$delete(w.remote.remoteStore.contents, held.value.id);
@@ -521,11 +521,11 @@ function emitHeldRemove(w, index) {
       w.remote.syncedWrites.contents,
       [held.value]
     ]);
-    return held.channel.emit(held.value);
+    return held.channel.saved(held.value);
   }
 }
 
-function emitHeldWrite(w, index, count) {
+function settleHeldWrite(w, index, count) {
   let held = takeHeld(w.remote, index);
   if (held === undefined) {
     return;
@@ -542,17 +542,17 @@ function emitHeldWrite(w, index, count) {
     w.remote.syncedWrites.contents,
     [value]
   ]);
-  held.channel.emit(value);
+  held.channel.saved(value);
 }
 
 function heldWrites(w) {
   return w.remote.heldWrites.contents.length;
 }
 
-function emitActiveChannel(w, index, count) {
+function setActiveChannel(w, index, count) {
   let channel = w.remote.activeChannels.contents[index];
   if (channel !== undefined) {
-    return channel.emit([{
+    return channel.set([{
         id: "todo-1",
         name: "active",
         count: count
@@ -594,9 +594,9 @@ export {
   queueFailFetch,
   pauseWrites,
   takeHeldRemove,
-  emitHeldRemove,
-  emitHeldWrite,
+  settleHeldRemove,
+  settleHeldWrite,
   heldWrites,
-  emitActiveChannel,
+  setActiveChannel,
 }
 /* Tilia Not a pure module */

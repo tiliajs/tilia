@@ -12,7 +12,7 @@ module Channel = {
   // Read path (local and remote fetch).
   type fetch<'a> = {
     state: state,
-    emit: array<'a> => unit,
+    set: array<'a> => unit,
     fail: string => unit,
     covered: unit => unit,
   }
@@ -20,10 +20,10 @@ module Channel = {
   // Write path (remote upsert).
   type write<'a> = {
     state: state,
-    emit: 'a => unit,
+    saved: 'a => unit,
     offline: unit => unit,
     conflict: 'a => unit,
-    reject: string => unit,
+    rejected: string => unit,
   }
 }
 
@@ -121,8 +121,8 @@ type t<'a, 'query> = {
   dict: 'query => loadable<dict<'a>>,
   upsert: 'a => unit,
   remove: 'a => unit,
-  sync: 'a => unit,
-  syncRemove: 'a => unit,
+  changed: array<'a> => unit,
+  removed: array<'a> => unit,
   tick: unit => unit,
   canopy: unit => canopy,
   status: status<'a>,
@@ -164,12 +164,12 @@ type meta<'query> = {
   filter: 'query,
   mutable fetched: float,
   mutable idle: option<float>,
-  // Raw id list of the last emitted result: same target as the loadable's
+  // Raw id list of the last set result: same target as the loadable's
   // data array, safe to read from tracked scopes (fetch channel callbacks).
   mutable ids: option<array<string>>,
 }
 
-let makeFetchChannel = (~emit, ~fail, ~covered): (Channel.fetch<'a>, unit => unit) => {
+let makeFetchChannel = (~set, ~fail, ~covered): (Channel.fetch<'a>, unit => unit) => {
   open Channel
   let (state, setState) = Tilia.signal(Live)
   let guard = (run, value) =>
@@ -179,29 +179,32 @@ let makeFetchChannel = (~emit, ~fail, ~covered): (Channel.fetch<'a>, unit => uni
     }
   let channel = Tilia.tilia({
     state: Tilia.lift(state),
-    emit: rows => guard(emit, rows),
+    set: rows => guard(set, rows),
     fail: message => guard(fail, message),
     covered: () => guard(covered, ()),
   })
   (channel, () => setState(Cancelled))
 }
 
-let makeWriteChannel = (~emit, ~offline, ~conflict, ~reject): (Channel.write<'a>, unit => unit) => {
-  open Channel
-  let (state, setState) = Tilia.signal(Live)
+// No `open Channel` here: it would shadow the `rejected` label of `status`.
+let makeWriteChannel = (~saved, ~offline, ~conflict, ~rejected): (
+  Channel.write<'a>,
+  unit => unit,
+) => {
+  let (state, setState) = Tilia.signal(Channel.Live)
   let guard = (run, value) =>
     switch state.value {
-    | Live => run(value)
-    | Cancelled => ()
+    | Channel.Live => run(value)
+    | Channel.Cancelled => ()
     }
-  let channel = Tilia.tilia({
-    state: Tilia.lift(state),
-    emit: value => guard(emit, value),
+  let channel: Channel.write<'a> = Tilia.tilia({
+    Channel.state: Tilia.lift(state),
+    saved: value => guard(saved, value),
     offline: () => guard(offline, ()),
     conflict: server => guard(conflict, server),
-    reject: message => guard(reject, message),
+    rejected: message => guard(rejected, message),
   })
-  (channel, () => setState(Cancelled))
+  (channel, () => setState(Channel.Cancelled))
 }
 
 module Outbox = {
@@ -300,7 +303,7 @@ module Outbox = {
             local.save(server, false)
             ignore(resolve(server))
           }
-        let reject = message =>
+        let rejected = message =>
           if remove(itemId, entry) {
             // Delete rejected: keep the row clean locally and in cache, then
             // refetch to converge if the server row changed meanwhile.
@@ -309,7 +312,12 @@ module Outbox = {
             status.rejected = [...status.rejected, {value, deleted: true, message}]
             stale()
           }
-        let (channel, cancelChannel) = makeWriteChannel(~emit=settle, ~offline, ~conflict, ~reject)
+        let (channel, cancelChannel) = makeWriteChannel(
+          ~saved=settle,
+          ~offline,
+          ~conflict,
+          ~rejected,
+        )
         entry.cancel = Some(cancelChannel)
         remote.remove(value, channel)
       } else {
@@ -318,7 +326,7 @@ module Outbox = {
             local.save(saved, false)
             ignore(resolve(saved))
           }
-        let reject = message =>
+        let rejected = message =>
           if remove(itemId, entry) {
             // Stop retries; the stale refetch restores server truth.
             local.save(value, false)
@@ -326,10 +334,10 @@ module Outbox = {
             stale()
           }
         let (channel, cancelChannel) = makeWriteChannel(
-          ~emit=settle,
+          ~saved=settle,
           ~offline,
           ~conflict=settle,
-          ~reject,
+          ~rejected,
         )
         entry.cancel = Some(cancelChannel)
         remote.upsert(value, channel)
@@ -544,7 +552,7 @@ let make = (config: config<'a, 'query>) => {
   // Server truth for this key: local rows that left the result set are
   // purged unless the outbox owns them or another persisted query still
   // references them. Rows not in the memory cache are left alone (a later
-  // authoritative emit converges them).
+  // authoritative set converges them).
   let reconcile = (cacheKey, ids) => {
     switch Dict.get(registry, cacheKey) {
     | Value(record) =>
@@ -621,7 +629,7 @@ let make = (config: config<'a, 'query>) => {
     }
     let tier = (fetch, authority, fail) => {
       let (channel, cancelChannel) = makeFetchChannel(
-        ~emit=rows => receive(authority, rows),
+        ~set=rows => receive(authority, rows),
         ~fail,
         ~covered=() => fresh(),
       )
@@ -816,15 +824,17 @@ let make = (config: config<'a, 'query>) => {
   // Inbound update: memory, membership, and a clean local save so the row
   // survives a restart. An id with a pending outbox entry is left untouched:
   // the optimistic value wins until the write settles.
-  let sync = item =>
+  let changedOne = item =>
     if !writes.pending(id(item)) {
       ignore(resolve(item))
       local.save(item, false)
     }
 
+  let changed = items => Tilia.batch(() => items->Array.forEach(changedOne))
+
   // Inbound delete: evict, purge the clean local row, and drop the id from
-  // every persisted query record. Same outbox guard as `sync`.
-  let syncRemove = item => {
+  // every persisted query record. Same outbox guard as `changed`.
+  let removedOne = item => {
     let itemId = id(item)
     if !writes.pending(itemId) {
       ignore(evict(item))
@@ -846,6 +856,8 @@ let make = (config: config<'a, 'query>) => {
       )
     }
   }
+
+  let removed = items => Tilia.batch(() => items->Array.forEach(removedOne))
 
   let upsert = item => writes.send({value: item, deleted: false})
 
@@ -984,8 +996,8 @@ let make = (config: config<'a, 'query>) => {
     dict,
     upsert,
     remove,
-    sync,
-    syncRemove,
+    changed,
+    removed,
     tick,
     canopy,
     status,

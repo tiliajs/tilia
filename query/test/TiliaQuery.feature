@@ -94,7 +94,7 @@ Feature: Task query behavior for online, offline, and replay ownership
     And I edit task "todo-1" to status "active" count 9
     Then task "todo-1" in cache should be status "active" count 9
     And "active" fetch calls should be 1
-    When I emit from held upsert channel 1 with count 9
+    When held upsert channel 1 reports saved with count 9
     Then task "todo-1" in cache should be status "active" count 9
     And local task "todo-1" should be status "active" count 9 and "clean"
 
@@ -105,10 +105,10 @@ Feature: Task query behavior for online, offline, and replay ownership
     And I edit task "todo-1" to status "active" count 3
     Then remote upsert calls should be 2
     And held upsert channels should be 2
-    When I emit from held upsert channel 1 with count 99
+    When held upsert channel 1 reports saved with count 99
     Then task "todo-1" in cache should be status "active" count 3
     And held upsert channels should be 1
-    When I emit from held upsert channel 1 with count 3
+    When held upsert channel 1 reports saved with count 3
     Then task "todo-1" in cache should be status "active" count 3
     And held upsert channels should be 0
 
@@ -179,19 +179,19 @@ Feature: Task query behavior for online, offline, and replay ownership
     Then "active" fetch calls should be 2
     And the "active" tasks view should be unchanged
 
-  Scenario: Live fetch channel emissions update active query
+  Scenario: Set on a live fetch channel updates the active query
     Given network is "online"
     When I open "active" tasks
-    And I emit from active fetch channel 1 with count 7
+    And active fetch channel 1 sets rows with count 7
     Then "active" tasks should be
       | id     | status | count |
       | todo-1 | active | 7     |
 
-  Scenario: Cancelled fetch channel emissions are ignored
+  Scenario: Set on a cancelled fetch channel is ignored
     Given network is "online"
     When I open "active" tasks
     And I run tick for "active" tasks after 31 seconds
-    And I emit from active fetch channel 1 with count 99
+    And active fetch channel 1 sets rows with count 99
     Then "active" tasks should be
       | id     | status | count |
       | todo-1 | active | 1     |
@@ -260,7 +260,7 @@ Feature: Task query behavior for online, offline, and replay ownership
     Then remote remove calls should be 1
     And no "active" tasks should remain
     And task "todo-1" in cache should be absent
-    When I emit from held remove channel 1
+    When held remove channel 1 reports saved
     Then remote task "todo-1" should be absent
     And local task "todo-1" should be absent
 

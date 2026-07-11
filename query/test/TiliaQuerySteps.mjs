@@ -79,8 +79,8 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("local store has a deleted task {string} with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.seedLocalTombstone(w, id, status, count));
   step("the app restarts", () => TiliaQueryTestHelpers.restart(w));
   step("task {string} is deleted on the server", id => TiliaQueryTestHelpers.deleteOnServer(w, id));
-  step("I receive a live update for task {string} with status {string} count {number}", (id, status, count) => w.items.sync(TiliaQueryTestHelpers.item(id, status, count)));
-  step("I receive a live delete for task {string} with status {string} count {number}", (id, status, count) => w.items.syncRemove(TiliaQueryTestHelpers.item(id, status, count)));
+  step("I receive a live update for task {string} with status {string} count {number}", (id, status, count) => w.items.changed([TiliaQueryTestHelpers.item(id, status, count)]));
+  step("I receive a live delete for task {string} with status {string} count {number}", (id, status, count) => w.items.removed([TiliaQueryTestHelpers.item(id, status, count)]));
   step("local store has a persisted query for {string} with id {string}", (status, id) => TiliaQueryTestHelpers.seedQueryRecord(w, queryKey(status), [id]));
   step("persisted query for {string} should be absent", status => Vitest.expect(Stdlib_Option.isNone(TiliaQueryTestHelpers.queryRecord(w, queryKey(status)))).toBe(true));
   step("persisted query for {string} should be exactly {string}", (status, ids) => {
@@ -162,17 +162,17 @@ VitestBdd.Given("a task world", (param, param$1) => {
         return Pervasives.failwith("Unknown tick target");
     }
   });
-  step("I emit from active fetch channel {number} with count {number}", (position, count) => {
+  step("active fetch channel {number} sets rows with count {number}", (position, count) => {
     let index = position <= 0 ? 0 : position - 1 | 0;
-    TiliaQueryTestHelpers.emitActiveChannel(w, index, count);
+    TiliaQueryTestHelpers.setActiveChannel(w, index, count);
   });
-  step("I emit from held upsert channel {number} with count {number}", (position, count) => {
+  step("held upsert channel {number} reports saved with count {number}", (position, count) => {
     let index = position <= 0 ? 0 : position - 1 | 0;
-    TiliaQueryTestHelpers.emitHeldWrite(w, index, count);
+    TiliaQueryTestHelpers.settleHeldWrite(w, index, count);
   });
-  step("I emit from held remove channel {number}", position => {
+  step("held remove channel {number} reports saved", position => {
     let index = position <= 0 ? 0 : position - 1 | 0;
-    TiliaQueryTestHelpers.emitHeldRemove(w, index);
+    TiliaQueryTestHelpers.settleHeldRemove(w, index);
   });
   step("{string} tasks should be", (status, table) => {
     let rows = VitestBdd.toRecords(table);
