@@ -87,6 +87,15 @@ type fetchError = {
   message: string,
 }
 
+// A persisted query result: the ids the remote last returned for a key.
+// The union of these records (plus dirty rows) is what the local store
+// must retain to serve every known query on an offline start.
+type queryRecord = {
+  key: string,
+  ids: array<string>,
+  fetched: float,
+}
+
 type canopy = {
   live: array<string>,
   idle: array<string>,
@@ -113,6 +122,7 @@ type t<'a, 'query> = {
   upsert: 'a => unit,
   remove: 'a => unit,
   sync: 'a => unit,
+  syncRemove: 'a => unit,
   tick: unit => unit,
   canopy: unit => canopy,
   status: status<'a>,
@@ -133,6 +143,9 @@ type store<'a, 'query> = {
   save: ('a, bool) => unit,
   remove: ('a, bool) => unit,
   dirty: unit => promise<array<write<'a>>>,
+  queries: unit => promise<array<queryRecord>>,
+  saveQuery: queryRecord => unit,
+  removeQuery: string => unit,
 }
 
 type config<'a, 'query> = {
@@ -378,6 +391,9 @@ let make = (config: config<'a, 'query>) => {
       save: (_, _) => (),
       remove: (_, _) => (),
       dirty: () => Promise.resolve([]),
+      queries: () => Promise.resolve([]),
+      saveQuery: _ => (),
+      removeQuery: _ => (),
     }
   }
   let stale = config.stale->Option.getOr(30.0)
@@ -394,6 +410,19 @@ let make = (config: config<'a, 'query>) => {
   let meta: Dict.t<meta<'query>> = Dict.make()
   let staleKeys: Dict.t<bool> = Dict.make()->Tilia.tilia
   let fetchCancels: Dict.t<unit => unit> = Dict.make()
+  // In-memory mirror of the persisted query registry (local.saveQuery /
+  // removeQuery). Retention truth: a clean local row is kept as long as at
+  // least one record references it.
+  let registry: Dict.t<queryRecord> = Dict.make()
+
+  let retainedElsewhere = (itemId, cacheKey) =>
+    Dict.keys(registry)->Array.some(k =>
+      k != cacheKey &&
+      switch Dict.get(registry, k) {
+      | Value(record) => record.ids->Array.includes(itemId)
+      | _ => false
+      }
+    )
 
   let stopFetch = cacheKey =>
     switch Dict.get(fetchCancels, cacheKey) {
@@ -512,6 +541,35 @@ let make = (config: config<'a, 'query>) => {
 
   let writes = Outbox.make(~id, ~remote, ~local, ~resolve, ~evict, ~stale=converge, ~status)
 
+  // Server truth for this key: local rows that left the result set are
+  // purged unless the outbox owns them or another persisted query still
+  // references them. Rows not in the memory cache are left alone (a later
+  // authoritative emit converges them).
+  let reconcile = (cacheKey, ids) => {
+    switch Dict.get(registry, cacheKey) {
+    | Value(record) =>
+      record.ids->Array.forEach(oldId =>
+        if (
+          !(ids->Array.includes(oldId)) &&
+          !writes.pending(oldId) &&
+          !retainedElsewhere(oldId, cacheKey)
+        ) {
+          switch Dict.get(cache, oldId) {
+          | Value(item) => {
+              local.remove(item, false)
+              ignore(evict(item))
+            }
+          | _ => ()
+          }
+        }
+      )
+    | _ => ()
+    }
+    let record = {key: cacheKey, ids, fetched: now()}
+    Dict.set(registry, cacheKey, record)
+    local.saveQuery(record)
+  }
+
   let startFetch = (cacheKey, filter, set) => {
     stopFetch(cacheKey)
     let fresh = () => {
@@ -557,6 +615,7 @@ let make = (config: config<'a, 'query>) => {
       | _ => set(Loaded({data: ids}))
       }
       if authority {
+        reconcile(cacheKey, ids)
         fresh()
       }
     }
@@ -754,7 +813,39 @@ let make = (config: config<'a, 'query>) => {
     }
   }
 
-  let sync = item => ignore(resolve(item))
+  // Inbound update: memory, membership, and a clean local save so the row
+  // survives a restart. An id with a pending outbox entry is left untouched:
+  // the optimistic value wins until the write settles.
+  let sync = item =>
+    if !writes.pending(id(item)) {
+      ignore(resolve(item))
+      local.save(item, false)
+    }
+
+  // Inbound delete: evict, purge the clean local row, and drop the id from
+  // every persisted query record. Same outbox guard as `sync`.
+  let syncRemove = item => {
+    let itemId = id(item)
+    if !writes.pending(itemId) {
+      ignore(evict(item))
+      local.remove(item, false)
+      Dict.keys(registry)->Array.forEach(k =>
+        switch Dict.get(registry, k) {
+        | Value(record) => {
+            let index = record.ids->Array.indexOf(itemId)
+            if index >= 0 {
+              let next = [...record.ids]
+              ignore(removeAt(next, index, 1))
+              let record = {key: record.key, ids: next, fetched: record.fetched}
+              Dict.set(registry, k, record)
+              local.saveQuery(record)
+            }
+          }
+        | _ => ()
+        }
+      )
+    }
+  }
 
   let upsert = item => writes.send({value: item, deleted: false})
 
@@ -788,6 +879,23 @@ let make = (config: config<'a, 'query>) => {
             Dict.delete(queries, k)
             Dict.delete(meta, k)
             Dict.delete(staleKeys, k)
+            // Retention follows the query: release its persisted record and
+            // purge local rows no other record retains (outbox rows excluded).
+            switch Dict.get(registry, k) {
+            | Value(record) => {
+                Dict.delete(registry, k)
+                local.removeQuery(k)
+                record.ids->Array.forEach(itemId =>
+                  if !writes.pending(itemId) && !retainedElsewhere(itemId, k) {
+                    switch Dict.get(cache, itemId) {
+                    | Value(item) => local.remove(item, false)
+                    | _ => ()
+                    }
+                  }
+                )
+              }
+            | _ => ()
+            }
             evicted := true
           }
         | Some(_) => ()
@@ -845,6 +953,7 @@ let make = (config: config<'a, 'query>) => {
     Dict.keys(meta)->Array.forEach(k => Dict.delete(meta, k))
     Dict.keys(staleKeys)->Array.forEach(k => Dict.delete(staleKeys, k))
     Dict.keys(cache)->Array.forEach(k => Dict.delete(cache, k))
+    Dict.keys(registry)->Array.forEach(k => Dict.delete(registry, k))
     status.rejected = []
     status.error = None
   }
@@ -859,5 +968,29 @@ let make = (config: config<'a, 'query>) => {
   )
   ->ignore
 
-  {get, one, array, dict, upsert, remove, sync, tick, canopy, status, dismiss, dispose, clear}
+  // Boot: restore the query registry so retention survives restarts.
+  local.queries()
+  ->Promise.thenResolve(records =>
+    if !disposed.contents {
+      records->Array.forEach(record => Dict.set(registry, record.key, record))
+    }
+  )
+  ->ignore
+
+  {
+    get,
+    one,
+    array,
+    dict,
+    upsert,
+    remove,
+    sync,
+    syncRemove,
+    tick,
+    canopy,
+    status,
+    dismiss,
+    dispose,
+    clear,
+  }
 }

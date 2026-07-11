@@ -95,6 +95,7 @@ type remote = {
   nextFetches: ref<dict<fetchOutcome>>,
   remoteStore: ref<Store.t<item>>,
   localStore: ref<dict<localRow>>,
+  queryStore: ref<dict<TiliaQuery.queryRecord>>,
 }
 
 module Runtime = {
@@ -141,6 +142,7 @@ let makeRemote = (
   let nextFetches: ref<dict<fetchOutcome>> = ref(Dict.make())
   let remoteStore = ref(Dict.make())
   let localStore: ref<dict<localRow>> = ref(Dict.make())
+  let queryStore: ref<dict<TiliaQuery.queryRecord>> = ref(Dict.make())
 
   let fetch = (query: itemQuery, channel: Channel.fetch<item>) => {
     if network.value {
@@ -278,6 +280,9 @@ let makeRemote = (
         ->Array.filter(row => row.dirty)
         ->Array.map((row): TiliaQuery.write<item> => {value: row.item, deleted: row.deleted}),
       ),
+    queries: () => Promise.resolve(Dict.valuesToArray(queryStore.contents)),
+    saveQuery: record => Dict.set(queryStore.contents, record.key, record),
+    removeQuery: key => Dict.delete(queryStore.contents, key),
   }
 
   let remote = {
@@ -300,6 +305,7 @@ let makeRemote = (
     nextFetches,
     remoteStore,
     localStore,
+    queryStore,
   }
   remote
 }
@@ -355,6 +361,7 @@ let seed = (w, items) => {
   w.remote.outcomes := Dict.make()
   w.remote.nextFetches := Dict.make()
   w.remote.localStore := Dict.make()
+  w.remote.queryStore := Dict.make()
 }
 
 let setNetwork = (w, online) => w.remote.network.value = online
@@ -376,6 +383,13 @@ let localTask = (w, id) =>
 let localRow = (w, id) => Dict.get(w.remote.localStore.contents, id)
 
 let remoteRow = (w, id) => Dict.get(w.remote.remoteStore.contents, id)
+
+let deleteOnServer = (w, id) => Dict.delete(w.remote.remoteStore.contents, id)
+
+let seedQueryRecord = (w, key, ids) =>
+  Dict.set(w.remote.queryStore.contents, key, ({key, ids, fetched: 0.0}: TiliaQuery.queryRecord))
+
+let queryRecord = (w, key) => Dict.get(w.remote.queryStore.contents, key)
 
 let localFetchCount = w => w.remote.localFetches.contents
 

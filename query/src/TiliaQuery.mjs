@@ -264,7 +264,10 @@ function make$2(config) {
       fetch: (param, param$1) => {},
       save: (param, param$1) => {},
       remove: (param, param$1) => {},
-      dirty: () => Promise.resolve([])
+      dirty: () => Promise.resolve([]),
+      queries: () => Promise.resolve([]),
+      saveQuery: param => {},
+      removeQuery: param => {}
     });
   let stale = Stdlib_Option.getOr(config.stale, 30.0);
   let gc = Stdlib_Option.getOr(config.gc, 300.0);
@@ -280,6 +283,18 @@ function make$2(config) {
   let meta = make();
   let staleKeys = Tilia.tilia(make());
   let fetchCancels = make();
+  let registry = make();
+  let retainedElsewhere = (itemId, cacheKey) => Object.keys(registry).some(k => {
+    if (k === cacheKey) {
+      return false;
+    }
+    let record = Reflect.get(registry, k);
+    if (record == null) {
+      return false;
+    } else {
+      return record.ids.includes(itemId);
+    }
+  });
   let stopFetch = cacheKey => {
     let cancel = Reflect.get(fetchCancels, cacheKey);
     if (cancel == null) {
@@ -396,6 +411,32 @@ function make$2(config) {
     error: undefined
   });
   let writes = make$1(id, remote, local$1, resolve, evict, converge, status);
+  let reconcile = (cacheKey, ids) => {
+    let record = Reflect.get(registry, cacheKey);
+    if (record == null) {
+      record === null;
+    } else {
+      record.ids.forEach(oldId => {
+        if (ids.includes(oldId) || writes.pending(oldId) || retainedElsewhere(oldId, cacheKey)) {
+          return;
+        }
+        let item = Reflect.get(cache, oldId);
+        if (item == null) {
+          return;
+        }
+        local$1.remove(item, false);
+        evict(item);
+      });
+    }
+    let record_fetched = now();
+    let record$1 = {
+      key: cacheKey,
+      ids: ids,
+      fetched: record_fetched
+    };
+    Reflect.set(registry, cacheKey, record$1);
+    local$1.saveQuery(record$1);
+  };
   let loader = (cacheKey, filter) => ((_prev, set) => {
     let match = Reflect.get(staleKeys, cacheKey);
     if (match === undefined) {
@@ -450,6 +491,7 @@ function make$2(config) {
             }
           }
           if (authority) {
+            reconcile(cacheKey, ids);
             return fresh();
           }
         }, fail, () => fresh());
@@ -659,7 +701,39 @@ function make$2(config) {
     return Reflect.get(dicts, cacheKey);
   };
   let sync = item => {
-    resolve(item);
+    if (!writes.pending(id(item))) {
+      resolve(item);
+      return local$1.save(item, false);
+    }
+  };
+  let syncRemove = item => {
+    let itemId = id(item);
+    if (!writes.pending(itemId)) {
+      evict(item);
+      local$1.remove(item, false);
+      Object.keys(registry).forEach(k => {
+        let record = Reflect.get(registry, k);
+        if (record == null) {
+          return;
+        }
+        let index = record.ids.indexOf(itemId);
+        if (index < 0) {
+          return;
+        }
+        let next = Belt_Array.concatMany([record.ids]);
+        next.splice(index, 1);
+        let record_key = record.key;
+        let record_fetched = record.fetched;
+        let record$1 = {
+          key: record_key,
+          ids: next,
+          fetched: record_fetched
+        };
+        Reflect.set(registry, k, record$1);
+        local$1.saveQuery(record$1);
+      });
+      return;
+    }
   };
   let upsert = item => writes.send({
     value: item,
@@ -692,24 +766,39 @@ function make$2(config) {
         return;
       }
       let t = m.idle;
-      if (t !== undefined) {
-        if (current - t >= gc) {
-          stopFetch(k);
-          Reflect.deleteProperty(ones, k);
-          Reflect.deleteProperty(arrays, k);
-          Reflect.deleteProperty(dicts, k);
-          Reflect.deleteProperty(queries, k);
-          Reflect.deleteProperty(meta, k);
-          Reflect.deleteProperty(staleKeys, k);
-          evicted.contents = true;
-          return;
-        } else {
-          return;
-        }
-      } else {
+      if (t === undefined) {
         m.idle = current;
         return;
       }
+      if (current - t < gc) {
+        return;
+      }
+      stopFetch(k);
+      Reflect.deleteProperty(ones, k);
+      Reflect.deleteProperty(arrays, k);
+      Reflect.deleteProperty(dicts, k);
+      Reflect.deleteProperty(queries, k);
+      Reflect.deleteProperty(meta, k);
+      Reflect.deleteProperty(staleKeys, k);
+      let record = Reflect.get(registry, k);
+      if (record == null) {
+        record === null;
+      } else {
+        Reflect.deleteProperty(registry, k);
+        local$1.removeQuery(k);
+        record.ids.forEach(itemId => {
+          if (writes.pending(itemId) || retainedElsewhere(itemId, k)) {
+            return;
+          }
+          let item = Reflect.get(cache, itemId);
+          if (item == null) {
+            return;
+          } else {
+            return local$1.remove(item, false);
+          }
+        });
+      }
+      evicted.contents = true;
     });
     if (!evicted.contents) {
       return;
@@ -777,12 +866,23 @@ function make$2(config) {
     Object.keys(cache).forEach(k => {
       Reflect.deleteProperty(cache, k);
     });
+    Object.keys(registry).forEach(k => {
+      Reflect.deleteProperty(registry, k);
+    });
     status.rejected = [];
     status.error = undefined;
   };
   local$1.dirty().then(rows => {
     if (!disposed.contents) {
       rows.forEach(writes.send);
+      return;
+    }
+  });
+  local$1.queries().then(records => {
+    if (!disposed.contents) {
+      records.forEach(record => {
+        Reflect.set(registry, record.key, record);
+      });
       return;
     }
   });
@@ -794,6 +894,7 @@ function make$2(config) {
     upsert: upsert,
     remove: remove,
     sync: sync,
+    syncRemove: syncRemove,
     tick: tick,
     canopy: canopy,
     status: status,

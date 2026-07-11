@@ -341,5 +341,102 @@ Feature: Task query behavior for online, offline, and replay ownership
     When I open one "missing" task
     Then the one "missing" task should be not found
 
+  Scenario: Server delete is pruned locally and stays gone offline
+    Given network is "online"
+    When I open "active" tasks
+    Then local task "todo-1" should be status "active" count 1 and "clean"
+    And persisted query for "active" should be exactly "todo-1"
+    When task "todo-1" is deleted on the server
+    And I run tick for "active" tasks after 31 seconds
+    Then task "todo-1" in cache should be absent
+    And local task "todo-1" should be absent
+    And persisted query for "active" should be exactly ""
+    When the app restarts
+    And network becomes "offline"
+    And I open "active" tasks
+    Then no "active" tasks should remain
+
+  Scenario: A row retained by another persisted query is not pruned
+    Given network is "online"
+    And local store has a persisted query for "other" with id "todo-1"
+    And the app restarts
+    When I open "active" tasks
+    And task "todo-1" is deleted on the server
+    And I run tick for "active" tasks after 31 seconds
+    Then local task "todo-1" should be status "active" count 1 and "clean"
+    And persisted query for "active" should be exactly ""
+
+  Scenario: Live update is persisted and survives an offline restart
+    Given network is "online"
+    When I open "active" tasks
+    And I receive a live update for task "todo-9" with status "active" count 3
+    Then "active" tasks should be
+      | id     | status | count |
+      | todo-1 | active | 1     |
+      | todo-9 | active | 3     |
+    And local task "todo-9" should be status "active" count 3 and "clean"
+    When the app restarts
+    And network becomes "offline"
+    And I open "active" tasks
+    Then "active" tasks should be
+      | id     | status | count |
+      | todo-1 | active | 1     |
+      | todo-9 | active | 3     |
+
+  Scenario: Live update does not clobber a pending edit
+    Given network is "offline"
+    When I edit task "todo-1" to status "active" count 9
+    And I receive a live update for task "todo-1" with status "active" count 2
+    Then task "todo-1" in cache should be status "active" count 9
+    And local task "todo-1" should be status "active" count 9 and "dirty"
+
+  Scenario: Live delete removes the row everywhere
+    Given network is "online"
+    When I open "active" tasks
+    And I receive a live delete for task "todo-1" with status "active" count 1
+    Then task "todo-1" in cache should be absent
+    And no "active" tasks should remain
+    And local task "todo-1" should be absent
+    And persisted query for "active" should be exactly ""
+
+  Scenario: Live delete does not clobber a pending edit
+    Given network is "offline"
+    When I edit task "todo-1" to status "active" count 9
+    And I receive a live delete for task "todo-1" with status "active" count 1
+    Then task "todo-1" in cache should be status "active" count 9
+    And local task "todo-1" should be status "active" count 9 and "dirty"
+
+  Scenario: Idle query GC releases its persisted rows
+    Given network is "online"
+    When I observe tasks through switchable filter starting at "active"
+    Then local task "todo-1" should be status "active" count 1 and "clean"
+    When I switch observed filter to "done"
+    And I run tick for "active and done" tasks after 1 seconds
+    And I run tick for "active and done" tasks after 301 seconds
+    Then persisted query for "active" should be absent
+    And local task "todo-1" should be absent
+    And local task "todo-2" should be status "done" count 1 and "clean"
+
+  Scenario: A dirty row survives reconciliation and GC
+    Given network is "offline"
+    When I observe tasks through switchable filter starting at "active"
+    And I edit task "todo-1" to status "active" count 9
+    And remote write delivery is "paused"
+    And network becomes "online"
+    Then task "todo-1" in cache should be status "active" count 9
+    When I switch observed filter to "done"
+    And I run tick for "active and done" tasks after 1 seconds
+    And I run tick for "active and done" tasks after 301 seconds
+    Then persisted query for "active" should be absent
+    And local task "todo-1" should be status "active" count 9 and "dirty"
+
+  Scenario: Covered query leaves the local store untouched
+    Given network is "online"
+    And local store has task "todo-1" with status "active" count 4 marked "clean"
+    And next fetch for "active" tasks is covered
+    When I open "active" tasks
+    Then local task "todo-1" should be status "active" count 4 and "clean"
+    And persisted query for "active" should be absent
+
   Scenario: A plain remote is refused at construction
     Then making a query with a plain remote should fail

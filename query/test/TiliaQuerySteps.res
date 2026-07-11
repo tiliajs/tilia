@@ -95,6 +95,35 @@ given("a task world", ({step}, _) => {
 
   step("the app restarts", () => H.restart(w))
 
+  step("task {string} is deleted on the server", id => H.deleteOnServer(w, id))
+
+  step("I receive a live update for task {string} with status {string} count {number}", (
+    id,
+    status,
+    count,
+  ) => w.items.sync(item(id, status, count)))
+
+  step("I receive a live delete for task {string} with status {string} count {number}", (
+    id,
+    status,
+    count,
+  ) => w.items.syncRemove(item(id, status, count)))
+
+  step("local store has a persisted query for {string} with id {string}", (status, id) =>
+    H.seedQueryRecord(w, queryKey(status), [id])
+  )
+
+  step("persisted query for {string} should be absent", status =>
+    expect(H.queryRecord(w, queryKey(status))->Option.isNone).toBe(true)
+  )
+
+  step("persisted query for {string} should be exactly {string}", (status, ids) =>
+    switch H.queryRecord(w, queryKey(status)) {
+    | Some(record) => expect(record.ids).toEqual(ids == "" ? [] : String.split(ids, ", "))
+    | None => failwith("Expected persisted query record")
+    }
+  )
+
   step("I open {string} tasks", list =>
     switch list {
     | "active" => {

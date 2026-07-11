@@ -9,6 +9,9 @@ It solves:
 - query-level loading state (lists via `array`/`dict`, detail views via `one`)
 - offline-first reads through an optional local store tier
 - a durable write outbox: puts and deletes replayed across sessions
+- bounded local retention: the local store holds the union of persisted
+  query results plus unsynced writes; server truth prunes rows that left a
+  result (no ghost rows after an offline restart)
 - write-failure visibility (pending count, rejections, fetch errors)
 - stale refresh behavior
 - idle-query garbage collection
@@ -59,6 +62,9 @@ type write<'a> = {value: 'a, deleted: bool}
 
 type rejection<'a> = {value: 'a, deleted: bool, message: string}
 type fetchError = {key: string, message: string}
+
+// A persisted query result: the ids the remote last returned for a key.
+type queryRecord = {key: string, ids: array<string>, fetched: float}
 type status<'a> = {
   mutable pending: int,
   mutable rejected: array<rejection<'a>>,
@@ -77,6 +83,9 @@ type store<'a, 'query> = {
   save: ('a, bool) => unit,          // put; bool = dirty
   remove: ('a, bool) => unit,        // dirty: tombstone; clean: purge
   dirty: unit => promise<array<write<'a>>>,
+  queries: unit => promise<array<queryRecord>>, // persisted registry, loaded at boot
+  saveQuery: queryRecord => unit,    // upsert by record.key
+  removeQuery: string => unit,
 }
 
 type config<'a, 'query> = {
@@ -99,6 +108,7 @@ type t<'a, 'query> = {
   upsert: 'a => unit,
   remove: 'a => unit,
   sync: 'a => unit,
+  syncRemove: 'a => unit,
   tick: unit => unit,
   status: status<'a>,
   dismiss: unit => unit,
@@ -133,6 +143,9 @@ In `query/src/TiliaQuery.res`, runtime state is built around:
 - `queries`: loadable arrays of ids by query key
 - `ones` / `arrays` / `dicts`: memoized views per query key (computed; same proxy until the id list changes)
 - `meta`: query metadata (filter, fetched timestamp, idle timestamp)
+- `registry`: in-memory mirror of the persisted query registry (`queryRecord`
+  by key); retention truth — a clean local row is kept while at least one
+  record references it
 - `staleKeys`: query keys marked for reload
 - `Outbox.entries`: pending and in-flight writes keyed by object id (`{write: {value, deleted}, cancel}`)
 - `status`: reactive tilia object (`pending`, `rejected`, `error`)
@@ -161,6 +174,14 @@ After each `emit(rows)`:
 - query result stores ids only; loadable state becomes `Loaded({data: ids})`
 - an id-list identical to the current one is dropped: the loadable and the memoized views keep their identity, so watchers do not re-render on no-op refetches
 - remote emits refresh `fetched`; local emits do not
+- remote emits also **reconcile**: ids in the query's persisted record that are
+  absent from the new result are purged from the local store and evicted from
+  memory — unless the outbox owns them, another persisted record still
+  references them, or they are not in the memory cache (a later emit
+  converges those). The new id-list is then persisted via `local.saveQuery`.
+  This is what keeps server-side deletes from reappearing as ghost rows on
+  the next offline start, and what bounds the local store to the union of
+  known query results plus unsynced writes.
 
 Remote fetch outcomes:
 - `emit(rows)` — rows land, freshness refreshed, `status.error` cleared
@@ -218,17 +239,29 @@ fill the cache, tombstones keep the id out), membership updates, and
 replay-when-online all apply. Closing the app with unsynced writes and
 reopening it resumes the sync where it left off.
 
-### 3) Live/inbound update (`sync`)
+The core also loads `local.queries()` into the in-memory registry, so
+retention and reconciliation survive restarts: overlap refcounts are correct
+from the first fetch, and a query re-opened offline serves its full persisted
+row set through `local.fetch`.
+
+### 3) Live/inbound update (`sync` / `syncRemove`)
 
 `sync(item)`:
 1. writes item to the memory cache using `id(item)`
 2. runs the same membership updates through `matches`
-3. does **not** call the remote and does **not** touch the local store
+3. saves the item clean to the local store, so the update survives a restart
+4. does **not** call the remote
+
+`syncRemove(item)` is the inbound delete: it evicts the id from memory and
+every query id-list, purges the clean local row, and drops the id from every
+persisted query record.
+
+Both are no-ops for an id with a pending outbox entry: the local optimistic
+write wins until it settles (the conflict/reject paths converge afterwards).
 
 This is intended for websocket events, delta-sync engines, or external state
-pushes. A delta engine writes its changes to the local database itself, then
-calls `sync(item)` per change; `local.save` is reserved for the core's own
-write-through and outbox.
+pushes. A delta engine that writes the local database itself can still call
+`sync(item)` per change — the extra clean save is idempotent.
 
 ### 4) Reconnect ownership
 
@@ -259,6 +292,9 @@ Trade-off note:
 Then:
 - live stale check: only while `remote.online`, if `now - fetched >= stale`, mark stale (an offline app does not re-read local every tick; reconnect replay refreshes instead)
 - idle cleanup: if `now - idle >= gc`, evict query metadata, stale flag, and memoized views (`ones`, `arrays`, `dicts`)
+- retention release: the evicted query's persisted record is dropped
+  (`local.removeQuery`) and local rows no remaining record references are
+  purged — outbox entries always survive
 - cancel cleanup callback for evicted active fetch channels
 - post-eviction object purge: remove objects no longer referenced by remaining queries
 
@@ -299,9 +335,19 @@ and `deleted: 0|1` columns on the collection table:
 - `save(item, true)` — upsert row with `dirty: 1, deleted: 0`
 - `remove(item, true)` — upsert row with `dirty: 1, deleted: 1` (tombstone; row content kept for replay)
 - `save(item, false)` — upsert row clean
-- `remove(item, false)` — physically delete the row
+- `remove(item, false)` — physically delete the row (write confirmation or retention pruning)
 - `dirty()` — rows with `dirty == 1`, mapped to `{value: row, deleted: row.deleted == 1}`
 - `fetch` — must exclude `deleted == 1` rows
+
+plus a small `queries` table keyed by the query cache key for the persisted
+registry:
+
+- `saveQuery(record)` — upsert `{key, ids, fetched}` by `key`
+- `removeQuery(key)` — delete the record
+- `queries()` — all records, loaded once at boot
+
+A store with no interest in retention can implement the three as no-ops; the
+core then behaves as a pure write-through cache (rows are never pruned).
 
 The local store doubles as the optimistic read source, so the main table must
 already reflect unsynced edits; flags keep that single-table property. A
@@ -315,14 +361,22 @@ TiliaQuery) that pulls access-scoped changes since a cursor and keeps the
 local store complete; local queries become authoritative and the per-query
 remote fetch is the fallback for heavy or uncovered datasets. This maps onto
 the contracts as-is:
-- inbound deltas: the engine writes the local database, then calls `sync(item)` per change
-- covered queries: the remote adapter answers `channel.covered()` without fetching — the core marks the query fresh and keeps current data (this replaced the old `channel.fail("covered")` convention; `fail` is now strictly a transport error)
-- uncovered/partial queries: normal `remote.fetch` fallback with write-through; the adapter records new coverage
+- inbound deltas: the engine calls `sync(item)` / `syncRemove(item)` per change (the core persists them clean; an engine that also writes the database itself is harmless — the save is idempotent)
+- covered queries: the remote adapter answers `channel.covered()` without fetching — the core marks the query fresh and keeps current data (this replaced the old `channel.fail("covered")` convention; `fail` is now strictly a transport error). Covered queries are **never reconciled or pruned**: no registry record is written for them, so the engine keeps sole ownership of their rows
+- uncovered/partial queries: normal `remote.fetch` fallback with write-through and reconciliation; the adapter records new coverage
 - outbound: the dirty outbox plus `remote.upsert` / `remote.remove` is the delta push side
+
+Caveat for mixed setups: retention pruning is driven by registry records, so
+an uncovered query being GC'd can purge a row that a *covered* query's
+dataset also contains (covered queries have no record to refcount against).
+The engine converges the row back on its next delta, but if this matters,
+cover all queries on a table or none.
 
 ## Current Shortcomings And Open Problems
 
 - **Membership cost:** every write scans all stored query metadata; this is simple but can become expensive with many active filters.
+- **Reconciliation needs the row in memory:** pruning calls `local.remove(item, false)` with the cached value, so a row absent from the memory cache is skipped and only pruned by a later emit that sees it. An id-based `store` removal would close this, at the cost of contract churn.
+- **Retention vs covered overlap:** see the delta-sync caveat above — refcounting only sees registry records, not delta-engine coverage.
 - **Pagination/windowing:** current docs and API focus on full query-result arrays, not advanced page/window cache strategies.
 - **Cross-query consistency rules:** complex relationships (derived aggregates, graph-like joins) still rely on feature-layer logic.
 - **Query DSL:** `'query` is opaque; a serializable field/range DSL would let local evaluation, remote compilation, coverage checks, and `matches` derive from one definition instead of per-adapter parsers.

@@ -30,6 +30,14 @@ This roadmap tracks TiliaQuery in sequential phases so contributors can see what
 - [x] Lifecycle teardown: `dispose()` (stoppable connectivity watcher) and `clear()` for logout / user switch.
 - [x] Detail/singleton reads: `one(query)` resolves a single row through the normal two-tier flow.
 
+## Phase 3b - Offline Retention (Completed)
+
+- [x] Persisted query registry: `store.queries()` / `saveQuery` / `removeQuery` with `{key, ids, fetched}` records, loaded at boot.
+- [x] Remote-emit reconciliation: rows that left a query result are pruned from the local store unless the outbox or another persisted query retains them (no ghost rows after offline restart).
+- [x] `sync(item)` persists clean; new `syncRemove(item)` for inbound deletes; both are no-ops for ids with a pending optimistic write.
+- [x] Retention GC: idle-query eviction drops the persisted record and purges rows no remaining record references.
+- [x] Feature coverage: ghost-row pruning, overlap refcounting, live update/delete persistence and outbox precedence, GC release, covered-query neutrality.
+
 ## Phase 4 - Documentation Baseline (In Progress)
 
 - [x] Add non-technical product overview in `query/docs/vision.md`.

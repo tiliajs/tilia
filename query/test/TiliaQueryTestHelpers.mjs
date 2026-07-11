@@ -138,6 +138,9 @@ function makeRemote(onlineOpt, param) {
   let localStore = {
     contents: {}
   };
+  let queryStore = {
+    contents: {}
+  };
   let fetch = (query, channel) => {
     if (network.value) {
       let match = query.status;
@@ -309,11 +312,19 @@ function makeRemote(onlineOpt, param) {
     value: row.item,
     deleted: row.deleted
   })));
+  let localApi_queries = () => Promise.resolve(Object.values(queryStore.contents));
+  let localApi_saveQuery = record => {
+    queryStore.contents[record.key] = record;
+  };
+  let localApi_removeQuery = key => Stdlib_Dict.$$delete(queryStore.contents, key);
   let localApi = {
     fetch: localApi_fetch,
     save: localApi_save,
     remove: localApi_remove,
-    dirty: localApi_dirty
+    dirty: localApi_dirty,
+    queries: localApi_queries,
+    saveQuery: localApi_saveQuery,
+    removeQuery: localApi_removeQuery
   };
   return {
     api: transport,
@@ -334,7 +345,8 @@ function makeRemote(onlineOpt, param) {
     outcomes: outcomes,
     nextFetches: nextFetches,
     remoteStore: remoteStore,
-    localStore: localStore
+    localStore: localStore,
+    queryStore: queryStore
   };
 }
 
@@ -381,6 +393,7 @@ function seed(w, items) {
   w.remote.outcomes.contents = {};
   w.remote.nextFetches.contents = {};
   w.remote.localStore.contents = {};
+  w.remote.queryStore.contents = {};
 }
 
 function setNetwork(w, online) {
@@ -430,6 +443,22 @@ function localRow(w, id) {
 
 function remoteRow(w, id) {
   return w.remote.remoteStore.contents[id];
+}
+
+function deleteOnServer(w, id) {
+  Stdlib_Dict.$$delete(w.remote.remoteStore.contents, id);
+}
+
+function seedQueryRecord(w, key, ids) {
+  w.remote.queryStore.contents[key] = {
+    key: key,
+    ids: ids,
+    fetched: 0.0
+  };
+}
+
+function queryRecord(w, key) {
+  return w.remote.queryStore.contents[key];
 }
 
 function localFetchCount(w) {
@@ -554,6 +583,9 @@ export {
   localTask,
   localRow,
   remoteRow,
+  deleteOnServer,
+  seedQueryRecord,
+  queryRecord,
   localFetchCount,
   queueConflict,
   queueRejected,

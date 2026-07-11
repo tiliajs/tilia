@@ -20,6 +20,11 @@ on reconnect — including after an app restart.
 - offline-first reads: local store answers immediately, remote refreshes when online
 - optimistic writes **and deletes** with a durable dirty outbox and automatic replay on reconnect
 - boot replay: unsynced writes from a previous session resume syncing
+- bounded local retention: the store keeps exactly the rows of known query
+  results (plus unsynced writes) — server truth prunes rows that left a
+  result, and idle-query GC releases rows nothing references anymore
+- inbound live updates (`sync` / `syncRemove`) are persisted, so pushed
+  changes survive an offline restart
 - reactive sync status: pending writes count, rejected writes, last fetch error
 - stale refresh in the background without clearing current data
 - idle-query garbage collection driven by real reactivity (who is watching what)
@@ -50,6 +55,12 @@ online, the same query also runs against the remote; remote rows are written
 through to the local store and refresh the query's freshness. Rows with a
 pending write keep their optimistic value until the write settles; rows with a
 pending delete are dropped so a fetch cannot resurrect them.
+
+The remote answer is also the retention truth: each query's id-list is
+persisted (`saveQuery`), rows that dropped out of the result are purged from
+the local store unless another query's persisted list or the outbox still
+needs them, and rows deleted on the server stay gone across an offline
+restart instead of reappearing as ghosts.
 
 ## Quick start (TypeScript)
 
@@ -84,8 +95,12 @@ todos.upsert({ id: "t1", title: "Ship it", done: false });
 // Delete: optimistic, tombstoned locally, pushed when online
 todos.remove({ id: "t1", title: "Ship it", done: false });
 
-// Inbound updates (websocket / delta sync): cache + membership, no remote push
+// Inbound updates (websocket / delta sync): cache + membership + a clean
+// local save, no remote push. A pending optimistic write for the id wins.
 todos.sync(changedTodo);
+
+// Inbound deletes: evict everywhere, purge the clean local row
+todos.syncRemove(deletedTodo);
 
 // Sync status for the UI (reactive tilia object)
 todos.status.pending; // writes waiting to sync
@@ -186,13 +201,15 @@ const remote = tilia({
 
 ### Local store (Dexie example)
 
-The local store doubles as the optimistic read source and the durable outbox.
-The recommended storage is in-row flags: indexed `dirty` and `deleted` columns
-on the collection table. `fetch` must exclude tombstones (`deleted`), and
-`dirty()` returns the outbox as `{ value, deleted }` records.
+The local store doubles as the optimistic read source, the durable outbox,
+and the query registry that bounds retention. The recommended storage is
+in-row flags — indexed `dirty` and `deleted` columns on the collection table —
+plus one small `queries` table for persisted id-lists. `fetch` must exclude
+tombstones (`deleted`), and `dirty()` returns the outbox as `{ value, deleted }`
+records.
 
 ```typescript
-// db.version(1).stores({ todos: "id, done, dirty" });
+// db.version(1).stores({ todos: "id, done, dirty", todoQueries: "key" });
 
 const local: Store<Todo, TodoQuery> = {
   fetch(filter, channel) {
@@ -208,7 +225,7 @@ const local: Store<Todo, TodoQuery> = {
   },
   remove(todo, dirty) {
     if (dirty) db.todos.put({ ...todo, dirty: 1, deleted: 1 }); // tombstone
-    else db.todos.delete(todo.id); // confirmed: purge row + tombstone
+    else db.todos.delete(todo.id); // confirmed or pruned: purge row + tombstone
   },
   dirty: () =>
     db.todos
@@ -216,6 +233,13 @@ const local: Store<Todo, TodoQuery> = {
       .equals(1)
       .toArray()
       .then((rows) => rows.map((row) => ({ value: strip(row), deleted: !!row.deleted }))),
+  queries: () => db.todoQueries.toArray(),
+  saveQuery(record) {
+    db.todoQueries.put(record);
+  },
+  removeQuery(key) {
+    db.todoQueries.delete(key);
+  },
 };
 
 // Remove the storage flags before rows enter the cache.
@@ -259,7 +283,9 @@ The library never starts timers. Call `tick()` whenever you like (e.g. every
 few seconds, on focus, on navigation):
 
 - watched queries older than `stale` seconds refresh in the background (only while online)
-- queries nobody watches for `gc` seconds are evicted, along with objects no other query references
+- queries nobody watches for `gc` seconds are evicted, along with objects no
+  other query references; their persisted id-list is dropped and local rows no
+  remaining query retains are purged (unsynced writes always survive)
 
 ## Going further
 

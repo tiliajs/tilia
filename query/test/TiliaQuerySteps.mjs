@@ -78,6 +78,19 @@ VitestBdd.Given("a task world", (param, param$1) => {
   step("local store has task {string} with status {string} count {number} marked {string}", (id, status, count, mark) => TiliaQueryTestHelpers.seedLocal(w, id, status, count, mark === "dirty"));
   step("local store has a deleted task {string} with status {string} count {number}", (id, status, count) => TiliaQueryTestHelpers.seedLocalTombstone(w, id, status, count));
   step("the app restarts", () => TiliaQueryTestHelpers.restart(w));
+  step("task {string} is deleted on the server", id => TiliaQueryTestHelpers.deleteOnServer(w, id));
+  step("I receive a live update for task {string} with status {string} count {number}", (id, status, count) => w.items.sync(TiliaQueryTestHelpers.item(id, status, count)));
+  step("I receive a live delete for task {string} with status {string} count {number}", (id, status, count) => w.items.syncRemove(TiliaQueryTestHelpers.item(id, status, count)));
+  step("local store has a persisted query for {string} with id {string}", (status, id) => TiliaQueryTestHelpers.seedQueryRecord(w, queryKey(status), [id]));
+  step("persisted query for {string} should be absent", status => Vitest.expect(Stdlib_Option.isNone(TiliaQueryTestHelpers.queryRecord(w, queryKey(status)))).toBe(true));
+  step("persisted query for {string} should be exactly {string}", (status, ids) => {
+    let record = TiliaQueryTestHelpers.queryRecord(w, queryKey(status));
+    if (record !== undefined) {
+      return Vitest.expect(record.ids).toEqual(ids === "" ? [] : ids.split(", "));
+    } else {
+      return Pervasives.failwith("Expected persisted query record");
+    }
+  });
   step("I open {string} tasks", list => {
     switch (list) {
       case "active" :

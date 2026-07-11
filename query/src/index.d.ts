@@ -56,6 +56,17 @@ export type FetchError = {
   readonly message: string;
 };
 
+/**
+ * A persisted query result: the ids the remote last returned for a key.
+ * The union of these records (plus dirty rows) is what the local store
+ * must retain to serve every known query on an offline start.
+ */
+export type QueryRecord = {
+  key: string;
+  ids: string[];
+  fetched: number;
+};
+
 export type Canopy = {
   live: string[];
   idle: string[];
@@ -95,6 +106,12 @@ export type Store<T, Q> = {
   remove(value: T, dirty: boolean): void;
   /** Unsynced writes from the previous session, replayed at boot. */
   dirty(): Promise<Write<T>[]>;
+  /** Persisted query registry from the previous session, loaded at boot. */
+  queries(): Promise<QueryRecord[]>;
+  /** Persist a query's id-list (upsert by `record.key`). */
+  saveQuery(record: QueryRecord): void;
+  /** Drop a query's persisted record. */
+  removeQuery(key: string): void;
 };
 
 export type Config<T, Q> = {
@@ -132,8 +149,12 @@ export type Collection<T, Q> = {
   upsert(value: T): void;
   /** Optimistic delete: tombstoned locally, pushed when online. */
   remove(value: T): void;
-  /** Inbound update (websocket / delta sync): cache + membership only. */
+  /** Inbound update (websocket / delta sync): cache, membership, and a clean
+   * local save. A pending optimistic write for the same id wins. */
   sync(value: T): void;
+  /** Inbound delete: evict, purge the clean local row, drop the id from
+   * persisted query records. A pending optimistic write wins. */
+  syncRemove(value: T): void;
   /** Stale refresh + garbage collection; call it from your own scheduler. */
   tick(): void;
   /** Debug helper: observed query keys split by canopy state. */

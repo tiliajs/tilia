@@ -45,6 +45,15 @@ type fetchError = {
   message: string,
 }
 
+// A persisted query result: the ids the remote last returned for a key.
+// The union of these records (plus dirty rows) is what the local store
+// must retain to serve every known query on an offline start.
+type queryRecord = {
+  key: string,
+  ids: array<string>,
+  fetched: float,
+}
+
 type canopy = {
   live: array<string>,
   idle: array<string>,
@@ -70,6 +79,9 @@ type store<'a, 'query> = {
   save: ('a, bool) => unit,
   remove: ('a, bool) => unit,
   dirty: unit => promise<array<write<'a>>>,
+  queries: unit => promise<array<queryRecord>>,
+  saveQuery: queryRecord => unit,
+  removeQuery: string => unit,
 }
 
 type config<'a, 'query> = {
@@ -103,6 +115,7 @@ type t<'a, 'query> = {
   upsert: 'a => unit,
   remove: 'a => unit,
   sync: 'a => unit,
+  syncRemove: 'a => unit,
   tick: unit => unit,
   canopy: unit => canopy,
   status: status<'a>,
