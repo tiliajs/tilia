@@ -185,26 +185,6 @@ type receive<'a> = {
   removed: array<string> => unit,
 }
 
-type config<'a, 'query> = {
-  /** Extract the unique id of a value. */
-  id: 'a => string,
-  /**
-   * Does a value belong to a query's result set? Drives optimistic
-   * updates: local upserts/removes appear in cached query results
-   * immediately, and membership moves between lists.
-   */
-  matches: ('query, 'a) => bool,
-  remote: remote<'a, 'query>,
-  local?: local<'a, 'query>,
-  expiry?: expiry,
-  /** Injectable clock (ms). Defaults to `Date.now`. For tests. */
-  now?: unit => float,
-  /** Stable cache key for a query. Defaults to `sortedStringify`. */
-  key?: 'query => string,
-  /** Result ordering (JS comparator). Also decides which item `one` picks. */
-  sort?: ('a, 'a) => float,
-}
-
 /** Debug view: which query keys are observed (live) vs cached (idle). */
 type canopy = {
   live: array<string>,
@@ -260,4 +240,33 @@ type t<'a, 'query> = {
  */
 let sortedStringify: 'a => string
 
-let make: config<'a, 'query> => t<'a, 'query>
+type config<'a, 'query> = {
+  /** Extract the unique id of a value. */
+  id: 'a => string,
+  /**
+   * Does a value belong to a query's result set? Drives optimistic
+   * updates: local upserts/removes appear in cached query results
+   * immediately, and membership moves between lists.
+   */
+  matches: ('query, 'a) => bool,
+  remote: remote<'a, 'query>,
+  local?: local<'a, 'query>,
+  expiry?: expiry,
+  /** Injectable clock (ms). Defaults to `Date.now`. For tests. */
+  now?: unit => float,
+  /** Stable cache key for a query. Defaults to `sortedStringify`. */
+  key?: 'query => string,
+  /** Result ordering. Also decides which item `one` picks. Default: no sorting. */
+  sort?: array<'a> => array<'a>,
+}
+
+let make: (
+  ~id: 'a => string,
+  ~matches: ('query, 'a) => bool,
+  ~remote: remote<'a, 'query>,
+  ~local: local<'a, 'query>=?,
+  ~expiry: expiry=?,
+  ~now: unit => float=?,
+  ~key: 'query => string=?,
+  ~sort: array<'a> => array<'a>=?,
+) => t<'a, 'query>
