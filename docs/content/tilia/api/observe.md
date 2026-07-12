@@ -7,8 +7,8 @@ since: "1.0"
 sort: 30
 summary: Run a tracked callback immediately and on dependency changes.
 signature:
-  ts: "function observe(fn: () => void): void"
-  res: "let observe: (unit => unit) => unit"
+  ts: "function observe(fn: () => void): () => void"
+  res: "let observe: (unit => unit) => unit => unit"
 tags: []
 ---
 
@@ -16,7 +16,7 @@ tags: []
 
 Writes performed inside `fn` are deferred while `fn` is running. If `fn` writes to keys it also tracks, it is scheduled to run again after the current run finishes. This makes `observe` suitable for state-machine style transitions.
 
-`observe` has no return value. For two-phase capture/effect behavior, use [watch](api.html#watch). For pull reactivity, use [computed](api.html#computed). See guide chapters [A living object](docs.html#a-living-object) and [Time and consistency](docs.html#time-and-consistency).
+`observe` returns a function that cancels the observation: once called, the callback never runs again. Ignore it for observers that should live as long as the context. For two-phase capture/effect behavior, use [watch](api.html#watch). For pull reactivity, use [computed](api.html#computed). See guide chapters [A living object](docs.html#a-living-object) and [Time and consistency](docs.html#time-and-consistency).
 
 ```typescript
 import { observe, tilia } from "tilia";
@@ -26,9 +26,14 @@ const alice = tilia({
   username: "alice",
 });
 
-observe(() => {
+const stop = observe(() => {
   alice.username = alice.name.toLowerCase();
 });
+
+alice.name = "Alba"; // ✨ username follows
+
+stop();
+alice.name = "Ada"; // 💤 username no longer follows
 ```
 
 ```rescript
@@ -39,7 +44,12 @@ let alice = tilia({
   username: "alice",
 })
 
-observe(() => {
+let stop = observe(() => {
   alice.username = alice.name->String.toLowerCase
 })
+
+alice.name = "Alba" // ✨ username follows
+
+stop()
+alice.name = "Ada" // 💤 username no longer follows
 ```

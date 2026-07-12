@@ -108,6 +108,8 @@ alice.score = alice.score + 10 // does not — score is not captured 💤
 
 The rule that matters: a `watch` never re-triggers itself from its own writes, in either phase. The effect's writes still notify *other* observers — deferred, as one batch. (That is the simplified statement; the precise mechanics live with the [`watch` API entry](api.html#watch).)
 
+Both `observe` and `watch` return a stop function. Most reactions live as long as the app and the return value can be ignored; for the ones that should not, call it and neither phase ever runs again.
+
 ### Why not just mutate in computed?
 
 Because a `computed` that reads and writes the same value invalidates itself: read, write, invalidate, recalculate — an infinite loop. A `computed` must stay a pure derivation. When a value change should *cause a mutation* — appending to Alice's review history, say — that is a cause-and-effect pair, and `watch` is its home:

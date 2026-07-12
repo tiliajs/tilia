@@ -10,11 +10,9 @@ let reraise = (function (e) {
   throw e
 });
 
-let callCb = (function(cb, k, v) { cb(k, v) });
-
 function cleanTrace(stack) {
   if (typeof stack !== "string") return stack;
-  
+
   const cleaned = ["Exception thrown in computed or observe"];
   let collapsing = false;
 
@@ -314,14 +312,6 @@ function set(node, isArray, _fromComputed, target, _key, _value) {
       _fromComputed = true;
       continue;
     }
-    if (!fromComputed) {
-      let cbs = node.changes;
-      if (cbs == null) {
-        cbs === null;
-      } else {
-        cbs.forEach(cb => callCb(cb, key, value));
-      }
-    }
     notify(node.root, node.observed, key$1);
     if (!hadKey) {
       notify(node.root, node.observed, indexKey);
@@ -436,12 +426,14 @@ function proxify(root, _target) {
       _target = m.target;
       continue;
     }
+    let node_observed = new Map();
+    let node_proxied = new Map();
+    let node_computes = new Map();
     let node = {
       root: root,
-      observed: new Map(),
-      proxied: new Map(),
-      computes: new Map(),
-      changes: undefined
+      observed: node_observed,
+      proxied: node_proxied,
+      computes: node_computes
     };
     let meta = ((node.target = target, node));
     let isArray = Array.isArray(target);
@@ -449,21 +441,15 @@ function proxify(root, _target) {
       set: (extra, extra$1, extra$2) => set(node, isArray, false, extra, extra$1, extra$2),
       deleteProperty: (extra, extra$1) => {
         let res = Reflect.deleteProperty(extra, extra$1);
-        node.proxied.delete(extra$1);
-        let clear = node.computes.get(extra$1);
+        node_proxied.delete(extra$1);
+        let clear = node_computes.get(extra$1);
         if (clear == null) {
           clear === null;
         } else {
-          node.computes.delete(extra$1);
+          node_computes.delete(extra$1);
           clear(false);
         }
-        let cbs = node.changes;
-        if (cbs == null) {
-          cbs === null;
-        } else {
-          cbs.forEach(cb => callCb(cb, extra$1, undefined));
-        }
-        notify(node.root, node.observed, extra$1);
+        notify(root, node_observed, extra$1);
         return res;
       },
       get: (extra, extra$1) => {
@@ -478,20 +464,20 @@ function proxify(root, _target) {
         if (!(value === undefined || own)) {
           return value;
         }
-        let o = node.root.observer;
+        let o = root.observer;
         if (o == null) {
           o === null;
         } else if (isArray && extra$1 === "length") {
-          let w = observeKey(node.observed, indexKey, node.computes);
+          let w = observeKey(node_observed, indexKey, node_computes);
           o.observing.push(w);
         } else {
-          let w$1 = observeKey(node.observed, extra$1, node.computes);
+          let w$1 = observeKey(node_observed, extra$1, node_computes);
           o.observing.push(w$1);
         }
         if (!(proxiable(value) && !readonly(extra, extra$1))) {
           return value;
         }
-        let m = node.proxied.get(extra$1);
+        let m = node_proxied.get(extra$1);
         if (m !== null && m !== undefined) {
           return m.proxy;
         }
@@ -549,14 +535,13 @@ function proxify(root, _target) {
         if (!proxiable(v)) {
           return v;
         }
-        let m$1 = proxify(node.root, v);
-        node.proxied.set(extra$1, m$1);
+        let m$1 = proxify(root, v);
+        node_proxied.set(extra$1, m$1);
         return m$1.proxy;
       },
       ownKeys: extra => {
-        let root = node.root;
-        let observed = node.observed;
-        let computes = node.computes;
+        let observed = node_observed;
+        let computes = node_computes;
         let keys = Reflect.ownKeys(extra);
         let o = root.observer;
         if (o == null) {
@@ -616,6 +601,9 @@ function makeCarve(root) {
 
 function makeObserve(root) {
   return callback => {
+    let clear = {
+      contents: () => {}
+    };
     let notify = () => {
       let observer_observing = [];
       let observer = {
@@ -625,6 +613,7 @@ function makeObserve(root) {
       };
       root.observer = observer;
       let o = observer;
+      clear.contents = () => _clear(o);
       try {
         callback();
         return _ready(o, true);
@@ -634,13 +623,18 @@ function makeObserve(root) {
       }
     };
     notify();
+    return () => clear.contents();
   };
 }
 
 function makeWatch(root, observe_) {
   return (callback, effect) => {
+    let clear = {
+      contents: () => {}
+    };
     let notify = () => {
       let o = observe_(notify);
+      clear.contents = () => _clear(o);
       let v = callback();
       o.root.observer = undefined;
       if (root.lock) {
@@ -653,8 +647,10 @@ function makeWatch(root, observe_) {
       _ready(o, false);
     };
     let o = observe_(notify);
+    clear.contents = () => _clear(o);
     callback();
     _ready(o, false);
+    return () => clear.contents();
   };
 }
 
@@ -860,115 +856,6 @@ function _canopy(proxy) {
   };
 }
 
-function changing(accessor, guard) {
-  let empty_upsert = [];
-  let empty_remove = [];
-  let empty = {
-    upsert: empty_upsert,
-    remove: empty_remove
-  };
-  let m = Reflect.get(accessor(), metaKey);
-  let meta;
-  meta = (m == null) ? raise("changing: argument is not a tilia proxy") : m;
-  let root = meta.root;
-  let pending = new Map();
-  let counter = proxify(root, {
-    changed: 0
-  }).proxy;
-  let currentMeta = {
-    contents: meta
-  };
-  let register = (m, cb) => {
-    let cbs = m.changes;
-    let cbs$1;
-    let exit = 0;
-    if (cbs == null) {
-      exit = 1;
-    } else {
-      cbs$1 = cbs;
-    }
-    if (exit === 1) {
-      let cbs$2 = new Set();
-      m.changes = cbs$2;
-      cbs$1 = cbs$2;
-    }
-    cbs$1.add(cb);
-    return cbs$1;
-  };
-  let drain = () => {
-    let upsert = [];
-    let remove = [];
-    pending.forEach((v, k) => {
-      if (v == null) {
-        remove.push(k);
-      } else {
-        upsert.push(v);
-      }
-      pending.delete(k);
-    });
-    return {
-      upsert: upsert,
-      remove: remove
-    };
-  };
-  let cb = (key, value) => {
-    pending.set(key, value);
-    counter.changed = counter.changed + 1 | 0;
-  };
-  let currentCbs = {
-    contents: register(meta, cb)
-  };
-  let reregister = () => {
-    let m = Reflect.get(accessor(), metaKey);
-    if ((m == null) || m === currentMeta.contents) {
-      return;
-    } else {
-      currentCbs.contents.delete(cb);
-      currentCbs.contents = register(m, cb);
-      currentMeta.contents = m;
-      return;
-    }
-  };
-  let capture = guard !== undefined ? () => {
-      reregister();
-      if (guard()) {
-        Reflect.get(counter, "changed");
-        if (pending.size > 0) {
-          return drain();
-        } else {
-          return empty;
-        }
-      } else {
-        return empty;
-      }
-    } : () => {
-      reregister();
-      Reflect.get(counter, "changed");
-      if (pending.size > 0) {
-        return drain();
-      } else {
-        return empty;
-      }
-    };
-  let mute = fn => {
-    reregister();
-    currentCbs.contents.delete(cb);
-    if (root.lock) {
-      fn();
-    } else {
-      root.lock = true;
-      fn();
-      root.lock = false;
-      flush(root);
-    }
-    currentCbs.contents.add(cb);
-  };
-  return {
-    changes: capture,
-    mute: mute
-  };
-}
-
 let tilia = _ctx.tilia;
 
 let carve = _ctx.carve;
@@ -1007,7 +894,6 @@ export {
   lift,
   source,
   store,
-  changing,
   _observe,
   _done,
   _ready,

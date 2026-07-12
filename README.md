@@ -14,6 +14,9 @@ Simple documentation on the [README](./tilia/README.md).
 
 ### Changelog
 
+- 2026-07-12 **6.0.0** (beta)
+  - `watch` and `observe` now return a function to stop observing.
+  - remove `changing`.
 - 2026-05-06
   - Add `_canopy` for library developers to inspect which keys have observers.
   - Fix observer cleanup through computed, source and store dependencies.

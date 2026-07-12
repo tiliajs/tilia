@@ -34,10 +34,12 @@ type tilia = {
    * default context.
    * 
    * This uses a PUSH model: changes "push" the callback to run.
-   * 
+   *
    * For a PULL model (run only when a value is read), see `computed`.
+   *
+   * @return A function to stop observing.
    */
-  observe: (unit => unit) => unit,
+  observe: (unit => unit) => unit => unit,
   /** 
    * React to value changes.
   * 
@@ -47,8 +49,9 @@ type tilia = {
   * 
   * @param f The capture function.
   * @param m The effect function.
+  * @return A function to stop watching.
   */
-  watch: 'a. (unit => 'a, 'a => unit) => unit,
+  watch: 'a. (unit => 'a, 'a => unit) => unit => unit,
   /** 
    * Run a series of operations in a batch, blocking notifications until the
    * batch is complete.
@@ -139,8 +142,9 @@ let carve: (deriver<'a> => 'a) => 'a
  * (run only when a value is read), see `computed`.
  * 
  * @param f The callback to run on changes.
+ * @return A function to stop observing.
  */
-let observe: (unit => unit) => unit
+let observe: (unit => unit) => unit => unit
 
 /** 
  * React to changes of captured values.
@@ -155,8 +159,9 @@ let observe: (unit => unit) => unit
  * 
  * @param f1 The function that captures values to observe.
  * @param f2 The function called when the captured values change.
+ * @return A function to stop watching.
  */
-let watch: (unit => 'a, 'a => unit) => unit
+let watch: (unit => 'a, 'a => unit) => unit => unit
 
 /** 
  * Run a series of operations in a batch, blocking notifications until the batch
@@ -244,42 +249,6 @@ let source: ('a, ('a, 'a => unit) => 'ignored) => 'a
  * @param f The setup function, receives a setter and returns the current value.
  */
 let store: (('a => unit) => 'a) => 'a
-
-/**
- * Track key-level writes on a tilia-proxied dict.
- *
- * Deprecated: prefer explicit mutate actions in carved features and use
- * `tilia/query` for outbound/inbound data flow.
- *
- * Takes an accessor `() => dict<'a>` so the tracker can follow source swaps.
- *
- * Returns `{ changes, mute }`:
- * - `changes`: capture function for `watch`. Drains accumulated changes into
- *   `{ upsert, remove }`. `upsert` contains objects captured at write time.
- *   `remove` contains keys of deleted entries. Last write wins per key.
- * - `mute`: run a callback with this tracker's dirty tracking temporarily
- *   removed. Writes inside `mute` are still reactive but not tracked.
- *   Includes `batch` internally for atomicity.
- *
- * When a `guard` is provided and returns false, changes accumulate silently
- * without triggering the watcher. When the guard becomes true, the
- * effect fires with all accumulated changes.
- *
- * @param accessor Function returning the tilia-proxied dict to track.
- * @param ~guard Optional reactive guard function.
- */
-@deprecated(
-  "Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow."
-)
-type changes<'a> = {upsert: array<'a>, remove: array<string>}
-@deprecated(
-  "Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow."
-)
-type changing<'a> = {changes: unit => changes<'a>, mute: (unit => unit) => unit}
-@deprecated(
-  "Deprecated: prefer explicit mutate actions in carved features and use tilia/query for outbound/inbound data flow."
-)
-let changing: (unit => dict<'a>, ~guard: unit => bool=?) => changing<'a>
 
 /** ---------- Internal types and functions for library developers ---------- */
 /** 

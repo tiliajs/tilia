@@ -1,6 +1,9 @@
 open VitestBdd
 open Tilia
 
+let observe = fn => observe(fn)->ignore
+let watch = (fn, effect) => watch(fn, effect)->ignore
+
 %%raw(`function throwString(e) { throw new Error(e) }`)
 
 external throw: 'a => 'b = "throwString"
@@ -179,7 +182,7 @@ describe("Tilia", () => {
     open String
     let p = {name: "John", username: "jo"}
     let p = tilia(p)
-    observe(
+    let clear = Tilia.observe(
       () => {
         p.username = p.name->toLowerCase->slice(~start=0, ~end=2)
       },
@@ -195,6 +198,11 @@ describe("Tilia", () => {
     // Update with another name
     p.name = "Mary"
     // Observing callback called
+    expect(p.username).toBe("ma")
+
+    clear()
+    p.name = "John"
+    // Observing callback not called
     expect(p.username).toBe("ma")
   })
 
@@ -372,7 +380,7 @@ describe("Tilia", () => {
         expect(p1.address.city).toBe(p1.address.city)
         m.called = true
       },
-    )
+    )->ignore
     m.called = false
     expect(m.called).toBe(false)
 
@@ -1355,7 +1363,7 @@ describe("Tilia", () => {
         expect(p.name).toBe(p.name)
         m.called = true
       },
-    )
+    )->ignore
     m.called = false
 
     r.batch(
@@ -1594,7 +1602,7 @@ describe("Tilia", () => {
     let m = {called: false}
     let (p, setP) = signal(1)
     let (q, setQ) = signal(2)
-    watch(
+    let clear = Tilia.watch(
       () => p.value,
       v => {
         m.called = true
@@ -1608,6 +1616,24 @@ describe("Tilia", () => {
     setP(4)
     expect(m.called).toBe(true)
     expect(q.value).toBe(7)
+
+    m.called = false
+    clear()
+    setP(5)
+    expect(m.called).toBe(false)
+  })
+
+  it("Should clear watch before the first change", () => {
+    let calls = ref(0)
+    let (p, setP) = signal(1)
+    let clear = Tilia.watch(
+      () => p.value,
+      _ => calls := calls.contents + 1,
+    )
+
+    clear()
+    setP(2)
+    expect(calls.contents).toBe(0)
   })
 
   it("Should not retrigger watch when mutating captured value", () => {
@@ -1862,239 +1888,6 @@ describe("Tilia", () => {
     ).toThrow(
       ~message="Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan",
     )
-  })
-
-  // ================ CHANGING ================
-
-  let none: changes<item> = {upsert: [], remove: []}
-  let row = (name, quantity) => {name, quantity}
-
-  it("Should track row updates with changing", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-    Dict.set(rows, "todo-2", row("Walk dog", 1))
-
-    let result = ref(none)
-    let {changes} = changing(() => rows)
-    watch(changes, e => result := e)
-    expect(result.contents).toEqual(none)
-
-    Dict.set(rows, "todo-1", row("Buy milk", 3))
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
-
-    result := none
-    Dict.set(rows, "todo-2", row("Walk dog", 2))
-    expect(result.contents).toEqual({upsert: [row("Walk dog", 2)], remove: []})
-  })
-
-  it("Should drain all changes in batch with changing", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-    Dict.set(rows, "todo-2", row("Walk dog", 1))
-
-    let result = ref(none)
-    let {changes} = changing(() => rows)
-    watch(changes, e => result := e)
-
-    batch(
-      () => {
-        Dict.set(rows, "todo-1", row("Buy milk", 3))
-        Dict.set(rows, "todo-2", row("Walk dog", 2))
-      },
-    )
-    expect(result.contents).toEqual({
-      upsert: [row("Buy milk", 3), row("Walk dog", 2)],
-      remove: [],
-    })
-  })
-
-  it("Should accumulate with guard in changing", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-    Dict.set(rows, "todo-2", row("Walk dog", 1))
-
-    let (online, setOnline) = signal(false)
-    let result = ref(none)
-    let {changes} = changing(() => rows, ~guard=() => online.value)
-    watch(changes, e => result := e)
-
-    Dict.set(rows, "todo-1", row("Buy milk", 3))
-    Dict.set(rows, "todo-2", row("Walk dog", 2))
-    expect(result.contents).toEqual(none)
-
-    setOnline(true)
-    expect(result.contents).toEqual({
-      upsert: [row("Buy milk", 3), row("Walk dog", 2)],
-      remove: [],
-    })
-  })
-
-  it("Should not track muted writes", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-
-    let result = ref(none)
-    let {changes, mute} = changing(() => rows)
-    watch(changes, e => result := e)
-
-    Dict.set(rows, "todo-1", row("Buy milk", 3))
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
-
-    result := none
-    mute(() => Dict.set(rows, "todo-2", row("Walk dog", 1)))
-    expect(result.contents).toEqual(none)
-  })
-
-  it("Should preserve reactivity during mute", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-
-    let quantity = ref(0)
-    observe(
-      () => {
-        quantity :=
-          switch Dict.get(rows, "todo-1") {
-          | Some(r) => r.quantity
-          | None => 0
-          }
-      },
-    )
-    expect(quantity.contents).toEqual(1)
-
-    let {mute} = changing(() => rows)
-
-    Dict.set(rows, "todo-1", row("Buy milk", 5))
-    expect(quantity.contents).toEqual(5)
-
-    mute(() => Dict.set(rows, "todo-1", row("Buy milk", 10)))
-    expect(quantity.contents).toEqual(10)
-  })
-
-  it("Should only track non-muted writes in mixed scenario", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-
-    let result = ref(none)
-    let {changes, mute} = changing(() => rows)
-    watch(changes, e => result := e)
-
-    Dict.set(rows, "todo-1", row("Buy milk", 3))
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
-
-    result := none
-    mute(() => Dict.set(rows, "todo-2", row("Walk dog", 1)))
-    Dict.set(rows, "todo-1", row("Buy milk", 5))
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 5)], remove: []})
-  })
-
-  it("Should track deletion in remove", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-    Dict.set(rows, "todo-2", row("Walk dog", 1))
-
-    let result = ref(none)
-    let {changes} = changing(() => rows)
-    watch(changes, e => result := e)
-
-    Dict.delete(rows, "todo-1")
-    expect(result.contents).toEqual({upsert: [], remove: ["todo-1"]})
-  })
-
-  it("Should keep latest value on multiple writes to same key", () => {
-    let table: dict<item> = Dict.make()
-    let rows = tilia(table)
-    Dict.set(rows, "todo-1", row("Buy milk", 1))
-
-    let result = ref(none)
-    let {changes} = changing(() => rows)
-    watch(changes, e => result := e)
-
-    batch(
-      () => {
-        Dict.set(rows, "todo-1", row("Buy milk", 3))
-        Dict.set(rows, "todo-1", row("Buy milk", 5))
-      },
-    )
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 5)], remove: []})
-  })
-
-  it("Should re-register on data swap and keep accumulated changes", () => {
-    let page1: dict<item> = Dict.make()
-    Dict.set(page1, "todo-1", row("Buy milk", 1))
-    Dict.set(page1, "todo-2", row("Walk dog", 1))
-    let page2: dict<item> = Dict.make()
-    Dict.set(page2, "todo-3", row("Clean house", 1))
-
-    let repo = tilia({data: page1})
-
-    let result = ref(none)
-    let {changes} = changing(() => repo.data)
-    watch(changes, e => result := e)
-
-    Dict.set(repo.data, "todo-1", row("Buy milk", 3))
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
-
-    result := none
-    repo.data = page2
-
-    Dict.set(repo.data, "todo-3", row("Clean house", 2))
-    expect(result.contents).toEqual({upsert: [row("Clean house", 2)], remove: []})
-  })
-
-  it("Should accumulate across data swap while offline", () => {
-    let page1: dict<item> = Dict.make()
-    Dict.set(page1, "todo-1", row("Buy milk", 1))
-    let page2: dict<item> = Dict.make()
-    Dict.set(page2, "todo-2", row("Walk dog", 1))
-
-    let repo = tilia({data: page1})
-    let (online, setOnline) = signal(false)
-
-    let result = ref(none)
-    let {changes} = changing(() => repo.data, ~guard=() => online.value)
-    watch(changes, e => result := e)
-
-    Dict.set(repo.data, "todo-1", row("Buy milk", 3))
-    expect(result.contents).toEqual(none)
-
-    repo.data = page2
-    Dict.set(repo.data, "todo-2", row("Walk dog", 2))
-    expect(result.contents).toEqual(none)
-
-    setOnline(true)
-    expect(result.contents).toEqual({
-      upsert: [row("Buy milk", 3), row("Walk dog", 2)],
-      remove: [],
-    })
-  })
-
-  it("Should use sentinel object as loading state with changing", () => {
-    let loading = tilia(Dict.make())
-
-    let repo = tilia({data: loading})
-
-    let result = ref(none)
-    let {changes} = changing(() => repo.data)
-    watch(changes, e => result := e)
-
-    expect(repo.data === loading).toBe(true)
-    expect(result.contents).toEqual(none)
-
-    let page = Dict.make()
-    Dict.set(page, "todo-1", row("Buy milk", 1))
-    repo.data = page
-
-    expect(repo.data === loading).toBe(false)
-
-    Dict.set(repo.data, "todo-1", row("Buy milk", 3))
-    expect(result.contents).toEqual({upsert: [row("Buy milk", 3)], remove: []})
   })
 
   // === Observer back-propagation (domino effect) tests ===

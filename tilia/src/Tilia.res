@@ -16,15 +16,10 @@ let reraise: 'a => 'b = %raw(`function (e) {
   throw e
 }`)
 
-/** Opaque handle for a [changing] subscriber stored in [meta.changes]. */
-type changeCb
-external makeCb: ((string, 'v) => unit) => changeCb = "%identity"
-let callCb: (changeCb, string, 'a) => unit = %raw(`function(cb, k, v) { cb(k, v) }`)
-
 %%raw(`
 function cleanTrace(stack) {
   if (typeof stack !== "string") return stack;
-  
+
   const cleaned = ["Exception thrown in computed or observe"];
   let collapsing = false;
 
@@ -120,8 +115,6 @@ module Dict = {
   @send external get: (t<'a>, string) => nullable<'a> = "get"
   @send external set: (t<'a>, string, 'b) => unit = "set"
   @send external delete: (t<'a>, string) => unit = "delete"
-  @get external size: t<'a> => int = "size"
-  @send external forEach: (t<'a>, ('a, string) => unit) => unit = "forEach"
 }
 
 type dict<'a> = Dict.t<'a>
@@ -205,8 +198,6 @@ type rec meta<'a> = {
   proxied: dict<meta<'a>>,
   /** Per-key clear callbacks for installed computed values. */
   computes: dict<bool => unit>,
-  /** Optional listeners for [changes]; each cb receives (key, value) from proxy handler. */
-  mutable changes: nullable<Set.t<changeCb>>,
   /** The Proxy wrapping [target]. */
   mutable proxy: 'a,
 }
@@ -221,8 +212,6 @@ type node<'c> = {
   proxied: dict<meta<'c>>,
   /** See [meta.computes]. */
   computes: dict<bool => unit>,
-  /** See [meta.changes]. */
-  mutable changes: nullable<Set.t<changeCb>>,
 }
 
 type signal<'a> = {mutable value: 'a}
@@ -244,8 +233,8 @@ type deriver<'p> = {
 type tilia = {
   tilia: 'a. 'a => 'a,
   carve: 'a. (deriver<'a> => 'a) => 'a,
-  observe: (unit => unit) => unit,
-  watch: 'a. (unit => 'a, 'a => unit) => unit,
+  observe: (unit => unit) => unit => unit,
+  watch: 'a. (unit => 'a, 'a => unit) => unit => unit,
   batch: (unit => unit) => unit,
   signal: 'a. 'a => (signal<'a>, setter<'a>),
   derived: 'a. (unit => 'a) => signal<'a>,
@@ -496,7 +485,6 @@ let rec set = (
     switch Reflect.set(target, key, value) {
     | false => false
     | true =>
-      let writeKey = key
       let key = if isArray && key === "length" {
         indexKey
       } else {
@@ -518,12 +506,6 @@ let rec set = (
       }
       switch Typeof.dynamic(value) {
       | Undefined | Null => {
-          if !fromComputed {
-            switch node.changes {
-            | Value(cbs) => Set.forEach(cbs, cb => callCb(cb, writeKey, value))
-            | _ => ()
-            }
-          }
           notify(node.root, node.observed, key)
           if !hadKey {
             // new key: trigger index
@@ -664,10 +646,6 @@ let deleteProperty = (node: node<'c>, target: 'a, key: string) => {
     }
   | _ => ()
   }
-  switch node.changes {
-  | Value(cbs) => Set.forEach(cbs, cb => callCb(cb, key, %raw(`undefined`)))
-  | _ => ()
-  }
   notify(node.root, node.observed, key)
   res
 }
@@ -735,7 +713,6 @@ and proxify = (root: root, target: 'a): meta<'a> => {
       observed: Dict.make(),
       proxied: Dict.make(),
       computes: Dict.make(),
-      changes: Undefined,
     }
     let meta: meta<'a> = %raw(`(node.target = target, node)`)
     let isArray = Typeof.array(target)
@@ -796,8 +773,10 @@ let makeCarve = (root: root) =>
 
 let makeObserve = (root: root) =>
   (callback: unit => unit) => {
+    let clear = ref(() => ())
     let rec notify = () => {
       let o = _observe(root, notify)
+      clear := (() => _clear(o))
       try {
         callback()
         _ready(o, true)
@@ -809,12 +788,15 @@ let makeObserve = (root: root) =>
       }
     }
     notify()
+    () => clear.contents()
   }
 
 let makeWatch = (root, observe_) =>
   (callback: unit => 'a, effect: 'a => unit) => {
+    let clear = ref(() => ())
     let rec notify = () => {
       let o = observe_(notify)
+      clear := (() => _clear(o))
       let v = callback()
       _done(o)
       if root.lock {
@@ -828,8 +810,10 @@ let makeWatch = (root, observe_) =>
     }
     // First registration: effect not called
     let o = observe_(notify)
+    clear := (() => _clear(o))
     ignore(callback())
     _ready(o, false)
+    () => clear.contents()
   }
 
 let makeBatch = (root: root) =>
@@ -932,9 +916,9 @@ external connector: (
   // carve
   (deriver<'c> => 'c) => 'c,
   // observe
-  (unit => unit) => unit,
+  (unit => unit) => unit => unit,
   // watch
-  (unit => 'w, 'w => unit) => unit,
+  (unit => 'w, 'w => unit) => unit => unit,
   // batch
   (unit => unit) => unit,
   // extra
@@ -1042,108 +1026,6 @@ let _canopy = proxy => {
   })
   {live, idle}
 }
-
-type changes<'a> = {upsert: array<'a>, remove: array<string>}
-type changing<'a> = {changes: unit => changes<'a>, mute: (unit => unit) => unit}
-
-type changeCounter = {mutable changed: int}
-
-let _changing = (accessor: unit => 'a, guard: option<unit => bool>): changing<'a> => {
-  let empty: changes<'a> = {upsert: [], remove: []}
-  let meta = switch _meta(accessor()) {
-  | Value(m) => m
-  | _ => raise("changing: argument is not a tilia proxy")
-  }
-  let root = meta.root
-  let pending: dict<nullable<'a>> = Dict.make()
-  let counter = proxify(root, {changed: 0}).proxy
-  let currentMeta = ref(meta)
-
-  let register = (m: meta<'a>, cb) => {
-    let cbs = switch m.changes {
-    | Value(cbs) => cbs
-    | _ => {
-        let cbs = Set.make()
-        m.changes = Value(cbs)
-        cbs
-      }
-    }
-    Set.add(cbs, cb)
-    cbs
-  }
-
-  let drain = () => {
-    let upsert = []
-    let remove = []
-    Dict.forEach(pending, (v, k) => {
-      switch v {
-      | Value(x) => Array.push(upsert, x)
-      | _ => Array.push(remove, k)
-      }
-      Dict.delete(pending, k)
-    })
-    {upsert, remove}
-  }
-
-  let cb = makeCb((key, value) => {
-    Dict.set(pending, key, value)
-    counter.changed = counter.changed + 1
-  })
-
-  let currentCbs = ref(register(meta, cb))
-
-  let reregister = () => {
-    switch _meta(accessor()) {
-    | Value(m) if m !== currentMeta.contents => {
-        ignore(Set.delete(currentCbs.contents, cb))
-        currentCbs := register(m, cb)
-        currentMeta := m
-      }
-    | _ => ()
-    }
-  }
-
-  // Subscribe the current observer to [counter.changed] through the proxy.
-  let read = () => ignore((Reflect.get(counter, "changed"): int))
-
-  let capture = switch guard {
-  | Some(g) =>
-    () => {
-      reregister()
-      if !g() {
-        empty
-      } else {
-        read()
-        Dict.size(pending) > 0 ? drain() : empty
-      }
-    }
-  | _ =>
-    () => {
-      reregister()
-      read()
-      Dict.size(pending) > 0 ? drain() : empty
-    }
-  }
-
-  let mute = fn => {
-    reregister()
-    ignore(Set.delete(currentCbs.contents, cb))
-    if root.lock {
-      fn()
-    } else {
-      root.lock = true
-      fn()
-      root.lock = false
-      flush(root)
-    }
-    Set.add(currentCbs.contents, cb)
-  }
-
-  {changes: capture, mute}
-}
-
-external identity: 'a => 'b = "%identity"
-let changing = (accessor, ~guard=?) => _changing(identity(accessor), guard)
 
 let tilia = _ctx.tilia
 let carve = _ctx.carve

@@ -65,7 +65,7 @@ card.interval = 3 // ✨ triggers the observe callback
 
 The mechanism is worth holding onto, because all of tilia rests on it. During the callback's execution, tilia records which properties are read on which reactive objects. Those exact properties — no more — become the callback's dependencies. The callback always runs once when `observe` is set up, which is how the first dependencies are captured.
 
-Notice what you did not write: no subscription list, no event names, no unsubscribe bookkeeping. You declared what the reaction needs by simply using it, and tilia drew the wiring from that.
+Notice what you did not write: no subscription list, no event names, no unsubscribe bookkeeping. You declared what the reaction needs by simply using it, and tilia drew the wiring from that. And when a reaction should end, `observe` hands you the off-switch: it returns a function that stops the observation.
 
 Two details complete the picture. Writing a value that is *equal* to the current one notifies nobody — silence is the correct reaction to a non-change. And if the callback mutates a value it also observes, it is scheduled to run again as soon as it ends; that behavior is deliberate and powerful, and [chapter 7](#time-and-consistency) treats it with the care it deserves.
 
