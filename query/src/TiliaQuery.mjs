@@ -207,9 +207,15 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let idsByKey = Tilia.tilia({});
   let entries = {};
   let results = Tilia.tilia({});
-  let loaded = (entry, values, local) => {
-    if (!local) {
+  let loaded = (entry, values, isLocal) => {
+    if (!isLocal) {
       entry.refreshedAt = now();
+      if (local !== undefined) {
+        local.push(values.map(value => ({
+          op: "upsert",
+          value: value
+        })));
+      }
     }
     values.forEach(value => {
       itemById[id(value)] = value;
@@ -220,7 +226,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     results[entry.key] = {
       state: "loaded",
       data: Tilia.computed(build),
-      local: local
+      local: isLocal
     };
   };
   let clearOnline = Tilia.watch(() => remote.online.value, online => {

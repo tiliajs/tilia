@@ -123,6 +123,8 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
 
+  # Remote loads are written through to local storage (upsert-only: rows
+  # deleted on the remote linger in local until the local purge).
   Scenario: a closed deck is not refreshed
     When I open the "Spanish" deck
     And time passes

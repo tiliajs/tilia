@@ -162,7 +162,7 @@ let makeFetch = (remote, local, loaded, results, now) =>
               set: values => {
                 if entry.state == Pristine {
                   entry.state = LoadedLocal
-                  loaded(entry, values, true)
+                  loaded(entry, values, false)
                 }
               },
               unknown: () => unknown(),
@@ -177,11 +177,11 @@ let makeFetch = (remote, local, loaded, results, now) =>
         {
           set: values => {
             entry.state = LoadedRemote
-            loaded(entry, values, false)
+            loaded(entry, values, true)
           },
           live: values => {
             entry.state = LiveRemote
-            loaded(entry, values, false)
+            loaded(entry, values, true)
           },
           fail: message => results->Dict.set(entry.key, Failed({message: message})),
         },
@@ -270,6 +270,9 @@ let makeTick = (remote, entries, results, expiry, now, fetch) => {
     needRemove = now > lastSeen + expiry.memory,
     // Only purge things that haven't been seen for a very long time.
     // needPurge needs access to the stored queries inside local storage.
+    // NOTE: as part of purge, we should also check if items are referenced by
+    // any queries and are dropped otherwise.  This touches itemsById and local
+    // storage.
     needPurge = now > lastSeen + expiry.local,
 
     // For every purge mechanism, we need to:
@@ -328,9 +331,13 @@ let make = (
 
   let entries: dict<entry<'query>> = Dict.make()
   let results: dict<loadable<array<'a>>> = Dict.make()->Tilia.tilia
-  let loaded = (entry, values, local) => {
-    if !local {
+  let loaded = (entry, values, remote) => {
+    if remote {
       entry.refreshedAt = now()
+      switch local {
+      | Some(local) => local.push(values->Array.map(value => Upsert({value: value})))
+      | None => ()
+      }
     }
     values->Array.forEach(value => {
       itemById->Dict.set(id(value), value)
@@ -344,7 +351,7 @@ let make = (
       ->Option.getOr([])
       ->Array.filterMap(id => itemById->Dict.get(id))
       ->sort // sorting must be watched so that edits to keys used by sort make the list update.
-    results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local}))
+    results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local: !remote}))
   }
 
   let clearOnline = Tilia.watch(
