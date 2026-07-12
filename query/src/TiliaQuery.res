@@ -115,7 +115,7 @@ let _expiry = {
 let _now = () => Date.now()
 let _no_sort = array => array
 
-type entryState = Pristine | LoadedRemote | LiveRemote
+type entryState = Pristine | LoadedLocal | LoadedRemote | LiveRemote
 
 /**
  * Per-query runtime state. The result lives in a signal so reads inside a
@@ -125,6 +125,8 @@ type entry<'a, 'query> = {
   key: string,
   query: 'query,
   result_: Tilia.signal<loadable<array<'a>>>,
+  mutable lastSeen: float,
+  mutable refreshedAt: float,
   set: loadable<array<'a>> => unit,
   mutable state: entryState,
 }
@@ -147,6 +149,7 @@ let makeFetch = (remote, local, loaded) =>
           {
             set: values => {
               if entry.state == Pristine {
+                entry.state = LoadedLocal
                 loaded(entry, values, true)
               }
             },
@@ -173,7 +176,7 @@ let makeFetch = (remote, local, loaded) =>
     }
   }
 
-let makeGetEntry = (remote, local, entries, key, loaded) => {
+let makeGetEntry = (remote, local, entries, key, loaded, now) => {
   let fetch = makeFetch(remote, local, loaded)
   query => {
     let k = key(query)
@@ -182,6 +185,8 @@ let makeGetEntry = (remote, local, entries, key, loaded) => {
     | None =>
       let (result_, set) = Tilia.signal(Loading)
       let entry = {
+        lastSeen: now(),
+        refreshedAt: 0.0,
         key: k,
         result_,
         set,
@@ -236,14 +241,45 @@ let makeUpsert = (
     }
     remote.push([Upsert({value: value})], write)
   }
+let makeTick = (now, expiry, entries) =>
+  /*
+    Does this list of checks make sense ?
+    Every tick : record lastSeen.
+    Every expiry.refresh / 8 : check needRefresh.
+    Every expiry.memory / 8 : check needRemove.
+    Every expiry.local / 8 : check needPurge.
+    
+    needRefresh = 
+      // LiveRemote is not refreshed and all other states are refreshed on transition to online.
+      entry.state === LoadedRemote &&
+      // Only refresh every expiry.refresh time.
+      now > refreshedAt + expiry.refresh &&
+      // Only refresh things that have been recently seen.
+      now < lastSeen + expiry.refresh,
+    // Only remove things that haven't been seen for a long time.
+    needRemove = now > lastSeen + expiry.memory,
+    // Only purge things that haven't been seen for a very long time.
+    needPurge = now > lastSeen + expiry.local,
+ */
+  () => {
+    entries->Dict.forEach(entry => {
+      switch entry.result_.value {
+      | Loaded({data, local}) =>
+        if local {
+          entry.set(Loaded({data, local: true}))
+        }
+      | _ => ()
+      }
+    })
+  }
 
 let make = (
   ~id,
   ~matches as _matches,
   ~remote,
   ~local=?,
-  ~expiry as _expiry=_expiry,
-  ~now as _now=_now,
+  ~expiry=_expiry,
+  ~now=_now,
   ~key=sortedStringify,
   ~sort=_no_sort,
 ) => {
@@ -283,7 +319,7 @@ let make = (
     },
   )
 
-  let getEntry = makeGetEntry(remote, local, entries, key, loaded)
+  let getEntry = makeGetEntry(remote, local, entries, key, loaded, now)
 
   {
     one: makeOne(getEntry),
@@ -296,7 +332,7 @@ let make = (
     status: {pending: 0, rejected: []},
     retry: _rejection => (),
     discard: _rejection => (),
-    tick: () => (),
+    tick: makeTick(now, expiry, entries),
     dispose: clearOnline,
     _canopy: () => {live: entries->Dict.keysToArray, idle: []},
   }

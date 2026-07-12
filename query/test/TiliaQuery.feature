@@ -76,3 +76,18 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+
+  Scenario: remote data becomes local after refresh timeout
+    And I open the "Spanish" deck
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And I go "offline"
+    And 35 seconds pass
+    And tick is called
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |

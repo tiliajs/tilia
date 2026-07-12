@@ -14,7 +14,7 @@ given("an {string} training app", ({step}, status: string) => {
   let network = Network.make()
   let papabase = Papabase.make(network)
   let dexme = Dexme.make()
-  let app = make(~dexme, papabase, now_, online_)
+  let cards = make(~dexme, papabase, () => now_.value, online_)
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
 
   step("a set of language cards on a remote", (table: array<array<string>>) =>
@@ -22,10 +22,18 @@ given("an {string} training app", ({step}, status: string) => {
   )
 
   // Advance the clock and deliver every pending network response.
-  step("time passes", () => {
-    setNow(now_.value + 1.0)
+  let advanceClock = (ms: float) => {
+    setNow(now_.value + ms)
+    network.flush()
+  }
+
+  step("time passes", () => advanceClock(1.0))
+  step("{number} minutes pass", (minutes: float) => advanceClock(minutes * 60.0 * 1000.0))
+  step("{number} seconds pass", (seconds: float) => {
+    setNow(now_.value + seconds * 1000.0)
     network.flush()
   })
+  step("tick is called", cards.tick)
 
   step("a local cache of cards", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(card => dexme.cards.put(card)->ignore)
@@ -39,7 +47,7 @@ given("an {string} training app", ({step}, status: string) => {
     let query = {deck: deck->String.toLowerCase}
     Tilia.observe(
       () => {
-        view := app.array(query)
+        view := cards.array(query)
         switch view.contents {
         | TiliaQuery.Loaded({data}) => Console.log(data)
         | _ => Console.log("not loaded")
@@ -64,7 +72,7 @@ given("an {string} training app", ({step}, status: string) => {
   })
 
   step("I upsert", (table: array<array<string>>) =>
-    toRecords(table)->Array.forEach(card => app.upsert(card))
+    toRecords(table)->Array.forEach(card => cards.upsert(card))
   )
 
   // `_select` looks straight inside the simulated stores — test-only

@@ -21,6 +21,10 @@ let sortedStringify = (function sortedStringify(value) {
   });
 });
 
+function _now() {
+  return Date.now();
+}
+
 function _no_sort(array) {
   return array;
 }
@@ -39,6 +43,7 @@ function makeFetch(remote, local, loaded) {
       local.fetch(entry.query, {
         set: values => {
           if (entry.state === "Pristine") {
+            entry.state = "LoadedLocal";
             return loaded(entry, values, true);
           }
         },
@@ -68,7 +73,7 @@ function makeFetch(remote, local, loaded) {
   };
 }
 
-function makeGetEntry(remote, local, entries, key, loaded) {
+function makeGetEntry(remote, local, entries, key, loaded, now) {
   let fetch = makeFetch(remote, local, loaded);
   return query => {
     let k = key(query);
@@ -81,6 +86,8 @@ function makeGetEntry(remote, local, entries, key, loaded) {
       key: k,
       query: query,
       result_: match[0],
+      lastSeen: now(),
+      refreshedAt: 0.0,
       set: match[1],
       state: "Pristine"
     };
@@ -151,7 +158,28 @@ function makeUpsert(id, remote, local, itemById) {
   };
 }
 
-function make(id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt) {
+function makeTick(now, expiry, entries) {
+  return () => Stdlib_Dict.forEach(entries, entry => {
+    let match = entry.result_.value;
+    if (typeof match !== "object" || !(match.state === "loaded" && match.local)) {
+      return;
+    } else {
+      return entry.set({
+        state: "loaded",
+        data: match.data,
+        local: true
+      });
+    }
+  });
+}
+
+function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
+  let expiry = expiryOpt !== undefined ? expiryOpt : ({
+      refresh: 30000.0,
+      memory: 300000.0,
+      local: 2592000000.0
+    });
+  let now = nowOpt !== undefined ? nowOpt : _now;
   let key = keyOpt !== undefined ? keyOpt : sortedStringify;
   let sort = sortOpt !== undefined ? sortOpt : _no_sort;
   let itemById = Tilia.tilia({});
@@ -180,7 +208,7 @@ function make(id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt)
       });
     }
   });
-  let getEntry = makeGetEntry(remote, local, entries, key, loaded);
+  let getEntry = makeGetEntry(remote, local, entries, key, loaded, now);
   return {
     one: makeOne(getEntry),
     array: query => getEntry(query).result_.value,
@@ -196,7 +224,7 @@ function make(id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt)
     },
     retry: _rejection => {},
     discard: _rejection => {},
-    tick: () => {},
+    tick: makeTick(now, expiry, entries),
     dispose: clearOnline,
     _canopy: () => ({
       live: Object.keys(entries),

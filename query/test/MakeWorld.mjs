@@ -204,20 +204,14 @@ function sortByEnglish(a, b) {
   }
 }
 
-function make$5(dexme, expiryOpt, papabase, now_, online_) {
-  let expiry = expiryOpt !== undefined ? expiryOpt : ({
-      refresh: 2.0,
-      memory: 4.0,
-      local: 8.0
-    });
+function make$5(dexme, papabase, now, online_) {
   let remote = make$3(papabase, online_);
-  let now = () => now_.value;
   let sort = array => array.toSorted(sortByEnglish);
   if (dexme === undefined) {
-    return TiliaQuery.make(id, matches, remote, undefined, expiry, now, undefined, sort);
+    return TiliaQuery.make(id, matches, remote, undefined, undefined, now, undefined, sort);
   }
   let local = make$4(dexme);
-  return TiliaQuery.make(id, matches, remote, local, expiry, now, undefined, sort);
+  return TiliaQuery.make(id, matches, remote, local, undefined, now, undefined, sort);
 }
 
 export {

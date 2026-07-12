@@ -16,7 +16,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   let network = MakeWorld.Network.make();
   let papabase = MakeWorld.Papabase.make(network);
   let dexme = MakeWorld.Dexme.make();
-  let app = MakeWorld.make(dexme, undefined, papabase, now_, match[0]);
+  let cards = MakeWorld.make(dexme, papabase, () => now_.value, match[0]);
   let view = {
     contents: "loading"
   };
@@ -25,10 +25,17 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       papabase.upsert(card);
     });
   });
-  step("time passes", () => {
-    setNow(now_.value + 1.0);
+  let advanceClock = ms => {
+    setNow(now_.value + ms);
+    network.flush();
+  };
+  step("time passes", () => advanceClock(1.0));
+  step("{number} minutes pass", minutes => advanceClock(minutes * 60.0 * 1000.0));
+  step("{number} seconds pass", seconds => {
+    setNow(now_.value + seconds * 1000.0);
     network.flush();
   });
+  step("tick is called", cards.tick);
   step("a local cache of cards", table => {
     VitestBdd.toRecords(table).forEach(card => {
       dexme.cards.put(card);
@@ -40,7 +47,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       deck: deck.toLowerCase()
     };
     Tilia.observe(() => {
-      view.contents = app.array(query);
+      view.contents = cards.array(query);
       let match = view.contents;
       if (typeof match !== "object") {
         console.log("not loaded");
@@ -64,7 +71,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     });
   });
   step("I upsert", table => {
-    VitestBdd.toRecords(table).forEach(card => app.upsert(card));
+    VitestBdd.toRecords(table).forEach(card => cards.upsert(card));
   });
   step("remote should have", table => {
     VitestBdd.toRecords(table).forEach(card => {

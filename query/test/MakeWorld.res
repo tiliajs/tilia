@@ -239,18 +239,16 @@ let sortByEnglish = (a: card, b: card) =>
 // single-digit `now_` moves: refresh 2, memory 4, local 8.
 let make = (
   ~dexme: option<Dexme.t>=?,
-  ~expiry: TiliaQuery.expiry={refresh: 2.0, memory: 4.0, local: 8.0},
   papabase: Papabase.t,
-  now_: Tilia.signal<float>,
+  now: unit => float,
   online_: Tilia.signal<bool>,
 ): TiliaQuery.t<card, query> => {
   let remote = PapabaseAdaptor.make(papabase, online_)
-  let now = () => now_.value
   let sort = array => array->Array.toSorted(sortByEnglish)
   switch dexme {
   | Some(dexme) =>
     let local = DexmeAdaptor.make(dexme)
-    TiliaQuery.make(~id, ~matches, ~sort, ~remote, ~local, ~expiry, ~now)
-  | None => TiliaQuery.make(~id, ~matches, ~sort, ~remote, ~expiry, ~now)
+    TiliaQuery.make(~id, ~matches, ~sort, ~remote, ~local, ~now)
+  | None => TiliaQuery.make(~id, ~matches, ~sort, ~remote, ~now)
   }
 }
