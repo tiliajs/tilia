@@ -50,7 +50,7 @@ function makeFetch(remote, local, loaded, results, now) {
           set: values => {
             if (entry.state === "Pristine") {
               entry.state = "LoadedLocal";
-              return loaded(entry, values, true);
+              return loaded(entry, values, false);
             }
           },
           unknown: () => unknown()
@@ -63,11 +63,11 @@ function makeFetch(remote, local, loaded, results, now) {
     remote.fetch(entry.query, {
       set: values => {
         entry.state = "LoadedRemote";
-        loaded(entry, values, false);
+        loaded(entry, values, true);
       },
       live: values => {
         entry.state = "LiveRemote";
-        loaded(entry, values, false);
+        loaded(entry, values, true);
       },
       fail: message => {
         results[entry.key] = {
@@ -162,38 +162,6 @@ function makeUpsert(id, remote, local, itemById) {
   };
 }
 
-function makeTick(remote, entries, results, expiry, now, fetch) {
-  return () => {
-    let t = now();
-    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0;
-    let freshLimit = t - expiry.refresh - buffer;
-    let live = Tilia._canopy(results).live;
-    let online = remote.online.value;
-    Stdlib_Dict.forEach(entries, entry => {
-      if (live.has(entry.key)) {
-        entry.lastSeen = t;
-      }
-      if (entry.state !== "LoadedRemote") {
-        return;
-      }
-      if (online && entry.refreshedAt < t - expiry.refresh && entry.fetchedAt < t - expiry.refresh && t < entry.lastSeen + expiry.refresh) {
-        fetch(entry);
-      }
-      let match = getResult(results, entry);
-      if (typeof match !== "object" || match.state !== "loaded" || match.local || entry.refreshedAt >= freshLimit) {
-        return;
-      } else {
-        results[entry.key] = {
-          state: "loaded",
-          data: match.data,
-          local: true
-        };
-        return;
-      }
-    });
-  };
-}
-
 function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let expiry = expiryOpt !== undefined ? expiryOpt : ({
       refresh: 30000.0,
@@ -207,8 +175,8 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let idsByKey = Tilia.tilia({});
   let entries = {};
   let results = Tilia.tilia({});
-  let loaded = (entry, values, isLocal) => {
-    if (!isLocal) {
+  let loaded = (entry, values, remote) => {
+    if (remote) {
       entry.refreshedAt = now();
       if (local !== undefined) {
         local.push(values.map(value => ({
@@ -226,7 +194,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     results[entry.key] = {
       state: "loaded",
       data: Tilia.computed(build),
-      local: isLocal
+      local: !remote
     };
   };
   let clearOnline = Tilia.watch(() => remote.online.value, online => {
@@ -246,6 +214,58 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   });
   let fetch = makeFetch(remote, local, loaded, results, now);
   let getEntry = makeGetEntry(fetch, entries, results, key, now);
+  let tick = () => {
+    let t = now();
+    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0;
+    let freshLimit = t - expiry.refresh - buffer;
+    let live = Tilia._canopy(results).live;
+    let online = remote.online.value;
+    let dropped = [];
+    Stdlib_Dict.forEach(entries, entry => {
+      if (live.has(entry.key)) {
+        entry.lastSeen = t;
+      }
+      if (t > entry.lastSeen + expiry.memory) {
+        dropped.push(entry.key);
+        return;
+      }
+      if (entry.state !== "LoadedRemote") {
+        return;
+      }
+      if (online && entry.refreshedAt < t - expiry.refresh && entry.fetchedAt < t - expiry.refresh && t < entry.lastSeen + expiry.refresh) {
+        fetch(entry);
+      }
+      let match = getResult(results, entry);
+      if (typeof match !== "object" || match.state !== "loaded" || match.local || entry.refreshedAt >= freshLimit) {
+        return;
+      } else {
+        results[entry.key] = {
+          state: "loaded",
+          data: match.data,
+          local: true
+        };
+        return;
+      }
+    });
+    if (dropped.length === 0) {
+      return;
+    }
+    let orphans = new Set();
+    dropped.forEach(key => {
+      Stdlib_Option.getOr(idsByKey[key], []).forEach(id => {
+        orphans.add(id);
+      });
+      Stdlib_Dict.$$delete(entries, key);
+      Stdlib_Dict.$$delete(results, key);
+      Stdlib_Dict.$$delete(idsByKey, key);
+    });
+    Stdlib_Dict.forEach(idsByKey, ids => {
+      ids.forEach(id => {
+        orphans.delete(id);
+      });
+    });
+    orphans.forEach(id => Stdlib_Dict.$$delete(itemById, id));
+  };
   return {
     one: makeOne(getEntry, results),
     array: query => getResult(results, getEntry(query)),
@@ -261,7 +281,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     },
     retry: _rejection => {},
     discard: _rejection => {},
-    tick: makeTick(remote, entries, results, expiry, now, fetch),
+    tick: tick,
     dispose: clearOnline,
     _canopy: () => {
       let match = Tilia._canopy(results);

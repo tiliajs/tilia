@@ -251,70 +251,6 @@ let makeUpsert = (
     }
     remote.push([Upsert({value: value})], write)
   }
-let makeTick = (remote, entries, results, expiry, now, fetch) => {
-  /*
-    Does this list of checks make sense ?
-    Every tick : record lastSeen.
-    Every expiry.refresh / 8 : check needRefresh.
-    Every expiry.memory / 8 : check needRemove.
-    Every expiry.local / 8 : check needPurge.
-
-    needRefresh =
-      // LiveRemote is not refreshed and all other states are refreshed on transition to online.
-      entry.state === LoadedRemote &&
-      // Only refresh every expiry.refresh time.
-      now > refreshedAt + expiry.refresh &&
-      // Only refresh things that have been recently seen.
-      now < lastSeen + expiry.refresh,
-    // Only remove things that haven't been seen for a long time.
-    needRemove = now > lastSeen + expiry.memory,
-    // Only purge things that haven't been seen for a very long time.
-    // needPurge needs access to the stored queries inside local storage.
-    // NOTE: as part of purge, we should also check if items are referenced by
-    // any queries and are dropped otherwise.  This touches itemsById and local
-    // storage.
-    needPurge = now > lastSeen + expiry.local,
-
-    // For every purge mechanism, we need to:
-    //  1. remove the queries
-    //  2. for all ids in the removed queries (or all ids in the memory resp. local database), check if they are referenced by another query
-    //  3. if not, remove the items from the memory resp. local database.
- */
-  () => {
-    let t = now()
-    // Online: one extra refresh-check period (refresh / 8) of buffer so an
-    // in-flight refresh can land without a flip/flop. Offline: flip right at
-    // the refresh expiry limit.
-    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0
-    let freshLimit = t - expiry.refresh - buffer
-    let live = observedKeys(results)
-    let online = remote.online.value
-    entries->Dict.forEach(entry => {
-      if live->Set.has(entry.key) {
-        entry.lastSeen = t
-      }
-      if entry.state === LoadedRemote {
-        if (
-          online &&
-          entry.refreshedAt < t - expiry.refresh &&
-          // At most one in-flight refresh; a hung request frees the slot
-          // after a full refresh window.
-          entry.fetchedAt < t - expiry.refresh &&
-          t < entry.lastSeen + expiry.refresh
-        ) {
-          fetch(entry)
-        }
-        switch getResult(results, entry) {
-        | Loaded({data, local: false}) =>
-          if entry.refreshedAt < freshLimit {
-            results->Dict.set(entry.key, Loaded({data, local: true}))
-          }
-        | _ => ()
-        }
-      }
-    })
-  }
-}
 
 let make = (
   ~id,
@@ -374,6 +310,87 @@ let make = (
   let fetch = makeFetch(remote, local, loaded, results, now)
   let getEntry = makeGetEntry(fetch, entries, results, key, now)
 
+  /*
+    Does this list of checks make sense ?
+    Every tick : record lastSeen.
+    Every expiry.refresh / 8 : check needRefresh.
+    Every expiry.memory / 8 : check needRemove.
+    Every expiry.local / 8 : check needPurge.
+
+    needRefresh =
+      // LiveRemote is not refreshed and all other states are refreshed on transition to online.
+      entry.state === LoadedRemote &&
+      // Only refresh every expiry.refresh time.
+      now > refreshedAt + expiry.refresh &&
+      // Only refresh things that have been recently seen.
+      now < lastSeen + expiry.refresh,
+    // Only remove things that haven't been seen for a long time.
+    needRemove = now > lastSeen + expiry.memory,
+    // Only purge things that haven't been seen for a very long time.
+    // needPurge needs access to the stored queries inside local storage.
+    // NOTE: as part of purge, we should also check if items are referenced by
+    // any queries and are dropped otherwise.  This touches itemsById and local
+    // storage.
+    needPurge = now > lastSeen + expiry.local,
+
+    // For every purge mechanism, we need to:
+    //  1. remove the queries
+    //  2. for all ids in the removed queries (or all ids in the memory resp. local database), check if they are referenced by another query
+    //  3. if not, remove the items from the memory resp. local database.
+ */
+  let tick = () => {
+    let t = now()
+    // Online: one extra refresh-check period (refresh / 8) of buffer so an
+    // in-flight refresh can land without a flip/flop. Offline: flip right at
+    // the refresh expiry limit.
+    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0
+    let freshLimit = t - expiry.refresh - buffer
+    let live = observedKeys(results)
+    let online = remote.online.value
+    // Live entries get stamped before the expiry check, so only unobserved
+    // entries can be dropped.
+    let dropped = []
+    entries->Dict.forEach(entry => {
+      if live->Set.has(entry.key) {
+        entry.lastSeen = t
+      }
+      if t > entry.lastSeen + expiry.memory {
+        dropped->Array.push(entry.key)
+      } else if entry.state === LoadedRemote {
+        if (
+          online &&
+          entry.refreshedAt < t - expiry.refresh &&
+          // At most one in-flight refresh; a hung request frees the slot
+          // after a full refresh window.
+          entry.fetchedAt < t - expiry.refresh &&
+          t < entry.lastSeen + expiry.refresh
+        ) {
+          fetch(entry)
+        }
+        switch getResult(results, entry) {
+        | Loaded({data, local: false}) =>
+          if entry.refreshedAt < freshLimit {
+            results->Dict.set(entry.key, Loaded({data, local: true}))
+          }
+        | _ => ()
+        }
+      }
+    })
+    if dropped->Array.length > 0 {
+      // An item leaves memory only when no remaining query references it:
+      // optimistic upserts not yet attached to a query are left alone.
+      let orphans = Set.make()
+      dropped->Array.forEach(key => {
+        idsByKey->Dict.get(key)->Option.getOr([])->Array.forEach(id => orphans->Set.add(id))
+        entries->Dict.delete(key)
+        results->Dict.delete(key)
+        idsByKey->Dict.delete(key)
+      })
+      idsByKey->Dict.forEach(ids => ids->Array.forEach(id => orphans->Set.delete(id)->ignore))
+      orphans->Set.forEach(id => itemById->Dict.delete(id))
+    }
+  }
+
   {
     one: makeOne(getEntry, results),
     array: makeArray(getEntry, results),
@@ -385,7 +402,7 @@ let make = (
     status: {pending: 0, rejected: []},
     retry: _rejection => (),
     discard: _rejection => (),
-    tick: makeTick(remote, entries, results, expiry, now, fetch),
+    tick,
     dispose: clearOnline,
     _canopy: () => {
       let {live, idle}: Tilia.canopy = Tilia._canopy(results)

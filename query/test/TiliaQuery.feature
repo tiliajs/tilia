@@ -150,6 +150,11 @@ Feature: Language training app
     And tick is called
     Then I should see "local" loaded with data
       | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
 
@@ -164,7 +169,11 @@ Feature: Language training app
     And 6 minutes pass
     And tick is called
     When I open the "Spanish" deck
-    Then I should see loading
+    # Dropped from memory, but still on disk: the cache answers first.
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
     And time passes
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
