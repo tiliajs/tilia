@@ -160,7 +160,6 @@ module PapabaseAdaptor = {
     online: online_,
     fetch: (query, channel) => {
       papabase.select(card => matches(query, card))->Promise.thenResolve(channel.set)->ignore
-      None
     },
     push: (ops, channel) => {
       ops->Array.forEach(op =>
@@ -197,9 +196,14 @@ module DexmeAdaptor = {
   let make = (dexme: Dexme.t): TiliaQuery.local<card, query> => {
     fetch: (query, channel) => {
       dexme.cards.filter(card => matches(query, card))
-      ->Promise.thenResolve(result => channel.set(result))
+      ->Promise.thenResolve(result => {
+        if result->Array.length > 0 {
+          channel.set(result)
+        } else {
+          channel.unknown()
+        }
+      })
       ->ignore
-      None
     },
     push: ops =>
       ops->Array.forEach(op =>

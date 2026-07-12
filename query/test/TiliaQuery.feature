@@ -13,7 +13,7 @@ Feature: Language training app
     When I open the "Spanish" deck
     Then I should see loading
     And time passes
-    Then I should see loaded with data
+    Then I should see "remote" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |

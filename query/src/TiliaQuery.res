@@ -3,7 +3,7 @@
 @tag("state")
 type loadable<'a> =
   | @as("loading") Loading
-  | @as("loaded") Loaded({data: 'a})
+  | @as("loaded") Loaded({data: 'a, local: bool})
   | @as("notFound") NotFound
   | @as("notLocal") NotLocal
   | @as("failed") Failed({message: string})
@@ -22,7 +22,7 @@ type rejection<'a> = {
 module Channel = {
   type read<'a> = {
     set: array<'a> => unit,
-    live: unit => unit,
+    live: array<'a> => unit,
     fail: string => unit,
   }
 
@@ -139,37 +139,21 @@ let make = (
   ~sort=_no_sort,
 ) => {
   let entries: dict<entry<'a, 'query>> = Dict.make()
-  let loaded = values => Loaded({data: sort(values)})
+  let loaded = (values, local) => Loaded({data: sort(values), local})
 
-  // Watch `remote.online` transitions. Built on the internal observer API
-  // (the shape of `Tilia.watch`) so `dispose` can stop it — the public
-  // `watch` has no handle.
-  // FIXME: Needs to be fixed to ensure mutations in goOffline are unobserved.
-  // Waiting for the new Tilia.watch API.
-  let onlineObserver = ref(None)
-  let rec notifyOnline = () => {
-    let o = Tilia._observe(notifyOnline)
-    onlineObserver := Some(o)
-    let online = remote.online.value
-    Tilia._done(o)
-    if !online {
-      // go offline
-      Tilia.batch(() =>
+  let clearOnline = Tilia.watch(
+    () => remote.online.value,
+    online => {
+      if !online {
         entries->Dict.forEach(entry => {
           switch entry.result_.value {
           | Loading => entry.set(NotLocal)
           | _ => ()
           }
         })
-      )
-    }
-    Tilia._ready(o, false)
-  }
-  // First registration runs the effect on the current value too, which is
-  // harmless: no query entry exists yet, `goOffline` has nothing to do.
-  // (Registering with a bare `ignore(remote.online.value)` does not work:
-  // the compiler drops the unused read and nothing gets captured.)
-  notifyOnline()
+      }
+    },
+  )
 
   let fetch = entry => {
     if entry.state !== LiveRemote {
@@ -188,7 +172,7 @@ let make = (
           {
             set: values => {
               if entry.state == Pristine {
-                entry.set(loaded(values))
+                entry.set(loaded(values, true))
               }
             },
             unknown: () => unknown(),
@@ -201,11 +185,11 @@ let make = (
         {
           set: values => {
             entry.state = LoadedRemote
-            entry.set(loaded(values))
+            entry.set(loaded(values, false))
           },
           live: values => {
             entry.state = LiveRemote
-            entry.set(Loading)
+            entry.set(loaded(values, false))
             entry.set(Failed({message: `Local fetch should not call live.`}))
           },
           fail: message => entry.set(Failed({message: message})),
@@ -227,6 +211,7 @@ let make = (
         query,
       }
       entries->Dict.set(k, entry)
+      fetch(entry)
       entry
     }
   }
@@ -234,9 +219,9 @@ let make = (
   {
     one: query =>
       switch getEntry(query).result_.value {
-      | Loaded({data}) =>
+      | Loaded({data, local}) =>
         switch data->Array.get(0) {
-        | Some(value) => Loaded({data: value})
+        | Some(value) => Loaded({data: value, local})
         | None => NotFound
         }
       | Loading => Loading
@@ -252,10 +237,7 @@ let make = (
     retry: _rejection => (),
     discard: _rejection => (),
     tick: () => (),
-    dispose: () => {
-      onlineObserver.contents->Option.forEach(o => Tilia._clear(o))
-      onlineObserver := None
-    },
+    dispose: clearOnline,
     _canopy: () => {live: entries->Dict.keysToArray, idle: []},
   }
 }

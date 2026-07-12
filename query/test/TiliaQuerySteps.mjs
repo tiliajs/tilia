@@ -39,17 +39,18 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     let query = {
       deck: deck.toLowerCase()
     };
-    Tilia.observe(() => {
+    return Tilia.observe(() => {
       view.contents = app.array(query);
     });
   });
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
   step("I should see not local", () => Vitest.expect(view.contents).toMatchObject("notLocal"));
-  step("I should see loaded with data", table => {
+  step("I should see {string} loaded with data", (local, table) => {
     let expected = VitestBdd.toRecords(table);
     Vitest.expect(view.contents).toMatchObject({
       state: "loaded",
-      data: expected
+      data: expected,
+      local: local === "local"
     });
   });
   step("I upsert", table => {

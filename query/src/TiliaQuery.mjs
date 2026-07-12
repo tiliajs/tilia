@@ -2,7 +2,6 @@
 
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
-import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js";
 
 let Channel = {};
@@ -24,117 +23,71 @@ function _no_sort(array) {
   return array;
 }
 
-function connect(fetch, set, fail) {
-  let closed = {
-    contents: false
-  };
-  let channel_set = values => {
-    if (!closed.contents) {
-      return set(values);
-    }
-  };
-  let channel_live = () => {};
-  let channel_fail = message => {
-    if (!closed.contents) {
-      closed.contents = true;
-      return fail(message);
-    }
-  };
-  let channel = {
-    set: channel_set,
-    live: channel_live,
-    fail: channel_fail
-  };
-  let cancel = fetch(channel);
-  return () => {
-    closed.contents = true;
-    Stdlib_Option.forEach(cancel, cancel => cancel());
-  };
-}
-
-function closeEntry(entry) {
-  Stdlib_Option.forEach(entry.state.local, close => close());
-  Stdlib_Option.forEach(entry.state.remote, close => close());
-  entry.state = {
-    local: undefined,
-    remote: undefined
-  };
-}
-
 function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt) {
   let key = keyOpt !== undefined ? keyOpt : sortedStringify;
   let sort = sortOpt !== undefined ? sortOpt : _no_sort;
   let entries = {};
-  let goOffline = () => Tilia.batch(() => Stdlib_Dict.forEach(entries, entry => {
-    Stdlib_Option.forEach(entry.state.remote, close => close());
-    let init = entry.state;
-    entry.state = {
-      local: init.local,
-      remote: undefined
-    };
-    let match = entry.result_.value;
-    if (typeof match !== "object" && match === "loading") {
-      return entry.set("notLocal");
-    }
-  }));
-  let onlineObserver = {
-    contents: undefined
-  };
-  let notifyOnline = () => {
-    let o = Tilia._observe(notifyOnline);
-    onlineObserver.contents = Primitive_option.some(o);
-    let online = remote.online.value;
-    Tilia._done(o);
+  let clearOnline = Tilia.watch(() => remote.online.value, online => {
     if (!online) {
-      goOffline();
+      return Stdlib_Dict.forEach(entries, entry => {
+        let match = entry.result_.value;
+        if (typeof match !== "object" && match === "loading") {
+          return entry.set("notLocal");
+        }
+      });
     }
-    Tilia._ready(o, false);
-  };
-  notifyOnline();
-  let startFetch = (query, entry) => {
-    let online = remote.online.value;
-    if (local !== undefined) {
-      let init = entry.state;
-      entry.state = {
-        local: connect(channel => local.fetch(query, channel), values => {
-          if (values.length !== 0) {
-            return entry.set({
-              state: "loaded",
-              data: sort(values)
-            });
-          } else if (!remote.online.value) {
-            return entry.set("notLocal");
-          } else {
-            return;
-          }
-        }, param => {}),
-        remote: init.remote
-      };
-    } else if (!online) {
-      entry.set("notLocal");
-    }
-    if (!online) {
+  });
+  let fetch = entry => {
+    if (entry.state === "LiveRemote") {
       return;
     }
-    let init$1 = entry.state;
-    entry.state = {
-      local: init$1.local,
-      remote: connect(channel => remote.fetch(query, channel), values => {
-        Stdlib_Option.forEach(entry.state.local, close => close());
-        let init = entry.state;
-        entry.state = {
-          local: undefined,
-          remote: init.remote
-        };
+    let unknown = () => {
+      if (!remote.online.value && entry.state === "Pristine") {
+        return entry.set("notLocal");
+      }
+    };
+    if (local !== undefined) {
+      local.fetch(entry.query, {
+        set: values => {
+          if (entry.state === "Pristine") {
+            return entry.set({
+              state: "loaded",
+              data: sort(values),
+              local: true
+            });
+          }
+        },
+        unknown: () => unknown()
+      });
+    } else {
+      unknown();
+    }
+    remote.fetch(entry.query, {
+      set: values => {
+        entry.state = "LoadedRemote";
         entry.set({
           state: "loaded",
-          data: sort(values)
+          data: sort(values),
+          local: false
         });
-      }, message => entry.set({
+      },
+      live: values => {
+        entry.state = "LiveRemote";
+        entry.set({
+          state: "loaded",
+          data: sort(values),
+          local: false
+        });
+        entry.set({
+          state: "failed",
+          message: `Local fetch should not call live.`
+        });
+      },
+      fail: message => entry.set({
         state: "failed",
         message: message
-      }))
-    };
+      })
+    });
   };
   let getEntry = query => {
     let k = key(query);
@@ -144,15 +97,13 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
     }
     let match = Tilia.signal("loading");
     let entry$1 = {
+      query: query,
       result_: match[0],
       set: match[1],
-      state: {
-        local: undefined,
-        remote: undefined
-      }
+      state: "Pristine"
     };
     entries[k] = entry$1;
-    startFetch(query, entry$1);
+    fetch(entry$1);
     return entry$1;
   };
   return {
@@ -178,7 +129,8 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
         if (value !== undefined) {
           return {
             state: "loaded",
-            data: Primitive_option.valFromOption(value)
+            data: Primitive_option.valFromOption(value),
+            local: match.local
           };
         } else {
           return "notFound";
@@ -199,11 +151,7 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
     retry: _rejection => {},
     discard: _rejection => {},
     tick: () => {},
-    dispose: () => {
-      Stdlib_Option.forEach(onlineObserver.contents, Tilia._clear);
-      onlineObserver.contents = undefined;
-      Stdlib_Dict.forEach(entries, closeEntry);
-    },
+    dispose: clearOnline,
     _canopy: () => ({
       live: Object.keys(entries),
       idle: []

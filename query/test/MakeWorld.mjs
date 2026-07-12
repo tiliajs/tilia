@@ -152,7 +152,13 @@ function kvKey(tag, key) {
 function make$4(dexme) {
   return {
     fetch: (query, channel) => {
-      dexme.cards.filter(card => matches(query, card)).then(result => channel.set(result));
+      dexme.cards.filter(card => matches(query, card)).then(result => {
+        if (result.length !== 0) {
+          return channel.set(result);
+        } else {
+          return channel.unknown();
+        }
+      });
     },
     push: ops => {
       ops.forEach(op => {

@@ -15,7 +15,7 @@
 @tag("state")
 type loadable<'a> =
   | @as("loading") Loading
-  | @as("loaded") Loaded({data: 'a})
+  | @as("loaded") Loaded({data: 'a, local: bool})
   | @as("notFound") NotFound
   | @as("notLocal") NotLocal
   | @as("failed") Failed({message: string})
@@ -63,7 +63,7 @@ module Channel: {
    */
   type read<'a> = {
     set: array<'a> => unit,
-    live: unit => unit,
+    live: array<'a> => unit,
     fail: string => unit,
   }
 
@@ -185,7 +185,7 @@ type local<'a, 'query> = {
    * the query, second is the callback to set the results, third is the callback
    * to call if there is no answer.
    */
-  fetch: ('query, array<'a> => unit, unit => unit) => unit,
+  fetch: ('query, Channel.local<'a>) => unit,
   /**
    * Apply value changes to the values table, in order: `Upsert` writes
    * or replaces the row, `Remove` drops it. Command-only — no channel.

@@ -48,9 +48,11 @@ given("an {string} training app", ({step}, status: string) => {
     expect(view.contents).toMatchObject(TiliaQuery.NotLocal)
   })
 
-  step("I should see loaded with data", (table: array<array<string>>) => {
+  step("I should see {string} loaded with data", (local: string, table: array<array<string>>) => {
     let expected: array<card> = toRecords(table)
-    expect(view.contents).toMatchObject(TiliaQuery.Loaded({data: expected}))
+    expect(view.contents).toMatchObject(
+      TiliaQuery.Loaded({data: expected, local: local === "local"}),
+    )
   })
 
   step("I upsert", (table: array<array<string>>) =>
