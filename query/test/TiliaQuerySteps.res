@@ -37,7 +37,15 @@ given("an {string} training app", ({step}, status: string) => {
   // query result changes, keeping `view` in sync.
   step("I open the {string} deck", (deck: string) => {
     let query = {deck: deck->String.toLowerCase}
-    Tilia.observe(() => view := app.array(query))
+    Tilia.observe(
+      () => {
+        view := app.array(query)
+        switch view.contents {
+        | TiliaQuery.Loaded({data}) => Console.log(data)
+        | _ => Console.log("not loaded")
+        }
+      },
+    )->ignore
   })
 
   step("I should see loading", () => {

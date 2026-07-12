@@ -122,40 +122,15 @@ type entryState = Pristine | LoadedRemote | LiveRemote
  * `Tilia.observe` re-run when a channel delivers fresher results.
  */
 type entry<'a, 'query> = {
+  key: string,
   query: 'query,
   result_: Tilia.signal<loadable<array<'a>>>,
   set: loadable<array<'a>> => unit,
   mutable state: entryState,
 }
 
-let make = (
-  ~id as _id,
-  ~matches as _matches,
-  ~remote,
-  ~local=?,
-  ~expiry as _expiry=_expiry,
-  ~now as _now=_now,
-  ~key=sortedStringify,
-  ~sort=_no_sort,
-) => {
-  let entries: dict<entry<'a, 'query>> = Dict.make()
-  let loaded = (values, local) => Loaded({data: sort(values), local})
-
-  let clearOnline = Tilia.watch(
-    () => remote.online.value,
-    online => {
-      if !online {
-        entries->Dict.forEach(entry => {
-          switch entry.result_.value {
-          | Loading => entry.set(NotLocal)
-          | _ => ()
-          }
-        })
-      }
-    },
-  )
-
-  let fetch = entry => {
+let makeFetch = (remote, local, loaded) =>
+  entry => {
     if entry.state !== LiveRemote {
       let unknown = () => {
         if !remote.online.value && entry.state == Pristine {
@@ -172,7 +147,7 @@ let make = (
           {
             set: values => {
               if entry.state == Pristine {
-                entry.set(loaded(values, true))
+                loaded(entry, values, true)
               }
             },
             unknown: () => unknown(),
@@ -185,11 +160,11 @@ let make = (
         {
           set: values => {
             entry.state = LoadedRemote
-            entry.set(loaded(values, false))
+            loaded(entry, values, false)
           },
           live: values => {
             entry.state = LiveRemote
-            entry.set(loaded(values, false))
+            loaded(entry, values, false)
             entry.set(Failed({message: `Local fetch should not call live.`}))
           },
           fail: message => entry.set(Failed({message: message})),
@@ -198,13 +173,16 @@ let make = (
     }
   }
 
-  let getEntry = query => {
+let makeGetEntry = (remote, local, entries, key, loaded) => {
+  let fetch = makeFetch(remote, local, loaded)
+  query => {
     let k = key(query)
     switch entries->Dict.get(k) {
     | Some(entry) => entry
     | None =>
       let (result_, set) = Tilia.signal(Loading)
       let entry = {
+        key: k,
         result_,
         set,
         state: Pristine,
@@ -215,22 +193,104 @@ let make = (
       entry
     }
   }
+}
+
+let makeOne = getEntry =>
+  query =>
+    switch getEntry(query).result_.value {
+    | Loaded({data, local}) =>
+      switch data->Array.get(0) {
+      | Some(value) => Loaded({data: value, local})
+      | None => NotFound
+      }
+    | Loading => Loading
+    | NotFound => NotFound
+    | NotLocal => NotLocal
+    | Failed({message}) => Failed({message: message})
+    }
+
+let makeArray = getEntry => query => getEntry(query).result_.value
+
+let makeUpsert = (
+  id: 'a => string,
+  remote: remote<'a, 'query>,
+  local: option<local<'a, 'query>>,
+  itemById: dict<'a>,
+) =>
+  value => {
+    // Optimistic write
+    itemById->Dict.set(id(value), value)
+    // FIXME: we need to manage the outbox, with or without local.
+    let write: Channel.write<'a> = {
+      set: value => {
+        itemById->Dict.set(id(value), value)
+      },
+      removed: _ => (),
+      retry: () => (),
+      fail: _ => (),
+    }
+    // TODO : Update in-memory element by id and queries, mark as dirty in local, update local queries that match.
+    switch local {
+    | None => ()
+    | Some(local) => local.push([Upsert({value: value})])
+    }
+    remote.push([Upsert({value: value})], write)
+  }
+
+let make = (
+  ~id,
+  ~matches as _matches,
+  ~remote,
+  ~local=?,
+  ~expiry as _expiry=_expiry,
+  ~now as _now=_now,
+  ~key=sortedStringify,
+  ~sort=_no_sort,
+) => {
+  let itemById: dict<'a> = Dict.make()->Tilia.tilia
+  let idsByKey: dict<array<string>> = Dict.make()->Tilia.tilia
+
+  // Should be
+  // let entries: dict<entry<'query>> = Dict.make()
+  let entries: dict<entry<'a, 'query>> = Dict.make()
+  let loaded = (entry, values, local) => {
+    values->Array.forEach(value => {
+      itemById->Dict.set(id(value), value)
+    })
+    let ids = values->Array.map(id)
+    idsByKey->Dict.set(entry.key, ids)
+    // We make the entry signal rebuild on changes to ids or any of the id in the list.
+    let build = () =>
+      idsByKey
+      ->Dict.get(entry.key)
+      ->Option.getOr([])
+      ->Array.filterMap(id => itemById->Dict.get(id))
+      ->sort // sorting must be watched so that edits to keys used by sort make the list update.
+    entry.set(Loaded({data: Tilia.computed(build), local}))
+  }
+
+  let clearOnline = Tilia.watch(
+    () => remote.online.value,
+    online => {
+      if !online {
+        entries->Dict.forEach(entry => {
+          switch entry.result_.value {
+          | Loading => entry.set(NotLocal)
+          | _ => ()
+          }
+        })
+      }
+    },
+  )
+
+  let getEntry = makeGetEntry(remote, local, entries, key, loaded)
 
   {
-    one: query =>
-      switch getEntry(query).result_.value {
-      | Loaded({data, local}) =>
-        switch data->Array.get(0) {
-        | Some(value) => Loaded({data: value, local})
-        | None => NotFound
-        }
-      | Loading => Loading
-      | NotFound => NotFound
-      | NotLocal => NotLocal
-      | Failed({message}) => Failed({message: message})
-      },
-    array: query => getEntry(query).result_.value,
-    upsert: _value => (),
+    one: makeOne(getEntry),
+    array: makeArray(getEntry),
+    // TODO: on upsert, should match queries and update the ids + the stored item. If no query
+    // matches, create a query by id and mark last seen as now.
+    upsert: makeUpsert(id, remote, local, itemById),
     remove: _id => (),
     receive: {changed: _values => (), removed: _ids => ()},
     status: {pending: 0, rejected: []},

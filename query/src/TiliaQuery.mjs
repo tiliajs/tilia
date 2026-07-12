@@ -2,6 +2,8 @@
 
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
+import * as Stdlib_Array from "@rescript/runtime/lib/es6/Stdlib_Array.js";
+import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js";
 
 let Channel = {};
@@ -23,21 +25,8 @@ function _no_sort(array) {
   return array;
 }
 
-function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt) {
-  let key = keyOpt !== undefined ? keyOpt : sortedStringify;
-  let sort = sortOpt !== undefined ? sortOpt : _no_sort;
-  let entries = {};
-  let clearOnline = Tilia.watch(() => remote.online.value, online => {
-    if (!online) {
-      return Stdlib_Dict.forEach(entries, entry => {
-        let match = entry.result_.value;
-        if (typeof match !== "object" && match === "loading") {
-          return entry.set("notLocal");
-        }
-      });
-    }
-  });
-  let fetch = entry => {
+function makeFetch(remote, local, loaded) {
+  return entry => {
     if (entry.state === "LiveRemote") {
       return;
     }
@@ -50,11 +39,7 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
       local.fetch(entry.query, {
         set: values => {
           if (entry.state === "Pristine") {
-            return entry.set({
-              state: "loaded",
-              data: sort(values),
-              local: true
-            });
+            return loaded(entry, values, true);
           }
         },
         unknown: () => unknown()
@@ -65,19 +50,11 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
     remote.fetch(entry.query, {
       set: values => {
         entry.state = "LoadedRemote";
-        entry.set({
-          state: "loaded",
-          data: sort(values),
-          local: false
-        });
+        loaded(entry, values, false);
       },
       live: values => {
         entry.state = "LiveRemote";
-        entry.set({
-          state: "loaded",
-          data: sort(values),
-          local: false
-        });
+        loaded(entry, values, false);
         entry.set({
           state: "failed",
           message: `Local fetch should not call live.`
@@ -89,7 +66,11 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
       })
     });
   };
-  let getEntry = query => {
+}
+
+function makeGetEntry(remote, local, entries, key, loaded) {
+  let fetch = makeFetch(remote, local, loaded);
+  return query => {
     let k = key(query);
     let entry = entries[k];
     if (entry !== undefined) {
@@ -97,6 +78,7 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
     }
     let match = Tilia.signal("loading");
     let entry$1 = {
+      key: k,
       query: query,
       result_: match[0],
       set: match[1],
@@ -106,39 +88,103 @@ function make(_id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt
     fetch(entry$1);
     return entry$1;
   };
-  return {
-    one: query => {
-      let match = getEntry(query).result_.value;
-      if (typeof match !== "object") {
-        switch (match) {
-          case "loading" :
-            return "loading";
-          case "notFound" :
-            return "notFound";
-          case "notLocal" :
-            return "notLocal";
-        }
-      } else {
-        if (match.state !== "loaded") {
-          return {
-            state: "failed",
-            message: match.message
-          };
-        }
-        let value = match.data[0];
-        if (value !== undefined) {
-          return {
-            state: "loaded",
-            data: Primitive_option.valFromOption(value),
-            local: match.local
-          };
-        } else {
+}
+
+function makeOne(getEntry) {
+  return query => {
+    let match = getEntry(query).result_.value;
+    if (typeof match !== "object") {
+      switch (match) {
+        case "loading" :
+          return "loading";
+        case "notFound" :
           return "notFound";
-        }
+        case "notLocal" :
+          return "notLocal";
       }
-    },
+    } else {
+      if (match.state !== "loaded") {
+        return {
+          state: "failed",
+          message: match.message
+        };
+      }
+      let value = match.data[0];
+      if (value !== undefined) {
+        return {
+          state: "loaded",
+          data: Primitive_option.valFromOption(value),
+          local: match.local
+        };
+      } else {
+        return "notFound";
+      }
+    }
+  };
+}
+
+function makeUpsert(id, remote, local, itemById) {
+  return value => {
+    itemById[id(value)] = value;
+    let write_set = value => {
+      itemById[id(value)] = value;
+    };
+    let write_removed = param => {};
+    let write_retry = () => {};
+    let write_fail = param => {};
+    let write = {
+      set: write_set,
+      removed: write_removed,
+      retry: write_retry,
+      fail: write_fail
+    };
+    if (local !== undefined) {
+      local.push([{
+          op: "upsert",
+          value: value
+        }]);
+    }
+    remote.push([{
+        op: "upsert",
+        value: value
+      }], write);
+  };
+}
+
+function make(id, _matches, remote, local, _expiryOpt, _nowOpt, keyOpt, sortOpt) {
+  let key = keyOpt !== undefined ? keyOpt : sortedStringify;
+  let sort = sortOpt !== undefined ? sortOpt : _no_sort;
+  let itemById = Tilia.tilia({});
+  let idsByKey = Tilia.tilia({});
+  let entries = {};
+  let loaded = (entry, values, local) => {
+    values.forEach(value => {
+      itemById[id(value)] = value;
+    });
+    let ids = values.map(id);
+    idsByKey[entry.key] = ids;
+    let build = () => sort(Stdlib_Array.filterMap(Stdlib_Option.getOr(idsByKey[entry.key], []), id => itemById[id]));
+    entry.set({
+      state: "loaded",
+      data: Tilia.computed(build),
+      local: local
+    });
+  };
+  let clearOnline = Tilia.watch(() => remote.online.value, online => {
+    if (!online) {
+      return Stdlib_Dict.forEach(entries, entry => {
+        let match = entry.result_.value;
+        if (typeof match !== "object" && match === "loading") {
+          return entry.set("notLocal");
+        }
+      });
+    }
+  });
+  let getEntry = makeGetEntry(remote, local, entries, key, loaded);
+  return {
+    one: makeOne(getEntry),
     array: query => getEntry(query).result_.value,
-    upsert: _value => {},
+    upsert: makeUpsert(id, remote, local, itemById),
     remove: _id => {},
     receive: {
       changed: _values => {},

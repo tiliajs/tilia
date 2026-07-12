@@ -25,7 +25,7 @@ Feature: Language training app
       | cat.fr | french  | cat     | chat        | 0    |
     And I go "offline"
     When I open the "Spanish" deck
-    Then I should see loaded with data
+    Then I should see "local" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
 
@@ -41,15 +41,26 @@ Feature: Language training app
     Then I should see not local
 
   Scenario: update a card while online
-    When I upsert
+    When I open the "Spanish" deck
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And I upsert
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
+    And time passes
     Then remote should have
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
     And local should have
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
+    And I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
 
   Scenario: update a card while offline
     And I open the "Spanish" deck
@@ -58,7 +69,10 @@ Feature: Language training app
     When I upsert
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    Then I should see loaded with data
+    # Not sure what we should see here. I guess that it should switch to 'local'
+    # after refresh timeout if not refreshed from remote.
+    # TODO: switch flag during refresh timeout.
+    Then I should see "remote" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |

@@ -39,8 +39,18 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     let query = {
       deck: deck.toLowerCase()
     };
-    return Tilia.observe(() => {
+    Tilia.observe(() => {
       view.contents = app.array(query);
+      let match = view.contents;
+      if (typeof match !== "object") {
+        console.log("not loaded");
+        return;
+      }
+      if (match.state === "loaded") {
+        console.log(match.data);
+        return;
+      }
+      console.log("not loaded");
     });
   });
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
