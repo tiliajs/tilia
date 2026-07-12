@@ -25,9 +25,20 @@ Feature: Language training app
       | cat.fr | french  | cat     | chat        | 0    |
     And I go "offline"
     When I open the "Spanish" deck
-    Then I should see
+    Then I should see loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
+
+  Scenario: fetch an uncached deck while offline
+    And I go "offline"
+    When I open the "Spanish" deck
+    Then I should see not local
+
+  Scenario: go offline while a fetch is in flight
+    When I open the "Spanish" deck
+    Then I should see loading
+    And I go "offline"
+    Then I should see not local
 
   Scenario: update a card while online
     When I upsert
@@ -42,11 +53,12 @@ Feature: Language training app
 
   Scenario: update a card while offline
     And I open the "Spanish" deck
+    And time passes
     And I go "offline"
     When I upsert
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    Then I should see
+    Then I should see loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |

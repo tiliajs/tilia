@@ -13,9 +13,9 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   let match$1 = Tilia.signal(0.0);
   let setNow = match$1[1];
   let now_ = match$1[0];
-  let stack = MakeWorld.Stack.make();
-  let papabase = MakeWorld.Papabase.make(stack);
-  let dexme = MakeWorld.Dexme.make(stack);
+  let network = MakeWorld.Network.make();
+  let papabase = MakeWorld.Papabase.make(network);
+  let dexme = MakeWorld.Dexme.make();
   let app = MakeWorld.make(dexme, undefined, papabase, now_, match[0]);
   let view = {
     contents: "loading"
@@ -27,7 +27,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("time passes", () => {
     setNow(now_.value + 1.0);
-    stack.flush();
+    network.flush();
   });
   step("a local cache of cards", table => {
     VitestBdd.toRecords(table).forEach(card => {
@@ -44,6 +44,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     });
   });
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
+  step("I should see not local", () => Vitest.expect(view.contents).toMatchObject("notLocal"));
   step("I should see loaded with data", table => {
     let expected = VitestBdd.toRecords(table);
     Vitest.expect(view.contents).toMatchObject({

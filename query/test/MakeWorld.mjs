@@ -5,19 +5,19 @@ import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 
 function make() {
-  let pending = [];
+  let queue = [];
   return {
-    push: f => {
-      pending.push(f);
+    respond: f => {
+      queue.push(f);
     },
     flush: () => {
-      pending.forEach(f => f());
-      pending.splice(0, pending.length);
+      queue.forEach(f => f());
+      queue.splice(0, queue.length);
     }
   };
 }
 
-let Stack = {
+let Network = {
   make: make
 };
 
@@ -39,38 +39,35 @@ function sort(a, b) {
   }
 }
 
-function make$1(stack) {
-  let $$do = stack.push;
+function make$1(network) {
   let data = {};
+  let respond = value => new Promise((resolve, param) => network.respond(() => resolve(value)));
   let upsert = card => {
     let actual = Stdlib_Option.getOr(Stdlib_Option.flatMap(data[card.id], c => c.version), 0.0);
     let incoming = Stdlib_Option.getOr(card.version, 0.0);
     if (incoming !== 0.0 && incoming !== actual) {
-      return new Promise((resolve, param) => $$do(() => resolve({
+      return respond({
         TAG: "Error",
         _0: `version conflict on "` + card.id + `"`
-      })));
+      });
     }
     let newrecord = {...card};
     newrecord.version = actual + 1.0;
     data[card.id] = newrecord;
-    return new Promise((resolve, param) => $$do(() => resolve({
+    return respond({
       TAG: "Ok",
       _0: newrecord
-    })));
+    });
   };
   let remove = id => {
     Stdlib_Dict.$$delete(data, id);
-    return new Promise((resolve, param) => $$do(() => resolve({
+    return respond({
       TAG: "Ok",
       _0: undefined
-    })));
+    });
   };
   let _select = filter => Object.values(data).filter(filter);
-  let select = filter => {
-    let result = Object.values(data).filter(filter);
-    return new Promise((resolve, param) => $$do(() => resolve(result)));
-  };
+  let select = filter => respond(Object.values(data).filter(filter));
   return {
     select: select,
     upsert: upsert,
@@ -83,26 +80,15 @@ let Papabase = {
   make: make$1
 };
 
-function makeTable(stack, getKey) {
+function makeTable(getKey) {
   let data = {};
-  let $$do = stack.push;
-  let get = key => {
-    let result = data[key];
-    return new Promise((resolve, param) => $$do(() => resolve(result)));
-  };
-  let put = row => {
+  let get = async key => data[key];
+  let put = async row => {
     data[getKey(row)] = row;
-    return new Promise((resolve, param) => $$do(resolve));
   };
-  let $$delete = key => {
-    Stdlib_Dict.$$delete(data, key);
-    return new Promise((resolve, param) => $$do(resolve));
-  };
+  let $$delete = async key => Stdlib_Dict.$$delete(data, key);
   let _select = f => Object.values(data).filter(f);
-  let filter = f => {
-    let result = Object.values(data).filter(f);
-    return new Promise((resolve, param) => $$do(() => resolve(result)));
-  };
+  let filter = async f => Object.values(data).filter(f);
   return {
     get: get,
     put: put,
@@ -112,10 +98,10 @@ function makeTable(stack, getKey) {
   };
 }
 
-function make$2(stack) {
+function make$2() {
   return {
-    cards: makeTable(stack, card => card.id),
-    kv: makeTable(stack, entry => entry.key)
+    cards: makeTable(card => card.id),
+    kv: makeTable(entry => entry.key)
   };
 }
 
@@ -229,7 +215,7 @@ function make$5(dexme, expiryOpt, papabase, now_, online_) {
 }
 
 export {
-  Stack,
+  Network,
   id,
   matches,
   sort,
@@ -240,4 +226,4 @@ export {
   sortByEnglish,
   make$5 as make,
 }
-/* No side effect */
+/* TiliaQuery Not a pure module */

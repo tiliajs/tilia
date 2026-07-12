@@ -1,23 +1,41 @@
 // Test world for tilia/query: a simulated remote (Supabase-like) and local
 // store (Dexie-like), plus the adaptors that expose them as a
 // `TiliaQuery.remote` / `TiliaQuery.local`. Doubles as the reference
-// example for writing real adaptors.
+// example for writing real adaptors: `PapabaseAdaptor` and `DexmeAdaptor`
+// are exactly the code an app would write against the real services.
+//
+// Simulation model:
+// - Dexme answers with plain promises: local storage is fast, so results
+//   land "immediately" (on the microtask drain between two test steps).
+// - Papabase sits behind `Network`: requests reach the server instantly,
+//   responses only travel back when the `time passes` step flushes the
+//   network. This keeps a remote fetch observably in flight across steps
+//   (`Then I should see loading`) and enforces the ordering the engine
+//   assumes: local answers before remote.
+// - Functions prefixed with `_` (like `_select`) are test-only inspection
+//   helpers; a real remote or local store has no equivalent and no adaptor
+//   uses them.
 
 // ================ Helpers
 
-module Stack = {
+/**
+ * The simulated network. Responses are held in a queue and delivered, in
+ * order, only when `flush` runs — however often the pending promises are
+ * awaited in between. The `time passes` step owns the flush.
+ */
+module Network = {
   type t = {
-    push: (unit => unit) => unit,
+    respond: (unit => unit) => unit,
     flush: unit => unit,
   }
 
   let make = (): t => {
-    let pending: array<unit => unit> = []
+    let queue: array<unit => unit> = []
     {
-      push: f => pending->Array.push(f),
+      respond: f => queue->Array.push(f),
       flush: () => {
-        pending->Array.forEach(f => f())
-        pending->Array.splice(~start=0, ~remove=pending->Array.length, ~insert=[])
+        queue->Array.forEach(f => f())
+        queue->Array.splice(~start=0, ~remove=queue->Array.length, ~insert=[])
       },
     }
   }
@@ -44,41 +62,40 @@ let id = card => card.id
 let matches = (query: query, card: card) => card.deck === query.deck
 let sort = (a: card, b: card) => a.id < b.id ? -1.0 : a.id > b.id ? 1.0 : 0.0
 
-// Simulate the api of a remote like Supabase
-// with version based rejection (incoming version must === 0 or actual version
-// of record, auto-increments version on write).
+// Simulate the api of a remote like Supabase, with version based rejection
+// (incoming version must be 0 or match the actual version of the record;
+// the version auto-increments on write).
 module Papabase = {
   type t = {
     select: (card => bool) => promise<array<card>>,
     upsert: card => promise<result<card, string>>,
     remove: string => promise<result<unit, string>>,
-    // For testing
+    /** Test-only: synchronous look inside the server's table. */
     _select: (card => bool) => array<card>,
   }
 
-  let make = (stack: Stack.t): t => {
-    let do = stack.push
+  // The server processes a request the moment it is made; only the response
+  // travels slowly, delivered by the next network flush.
+  let make = (network: Network.t): t => {
     let data: dict<card> = Dict.make()
+    let respond = value => Promise.make((resolve, _) => network.respond(() => resolve(value)))
     let upsert = card => {
       let actual = data->Dict.get(card.id)->Option.flatMap(c => c.version)->Option.getOr(0.0)
       let incoming = card.version->Option.getOr(0.0)
       if incoming !== 0.0 && incoming !== actual {
-        Promise.make((resolve, _) => do(() => resolve(Error(`version conflict on "${card.id}"`))))
+        respond(Error(`version conflict on "${card.id}"`))
       } else {
         let stored = {...card, version: actual +. 1.0}
         data->Dict.set(card.id, stored)
-        Promise.make((resolve, _) => do(() => resolve(Ok(stored))))
+        respond(Ok(stored))
       }
     }
     let remove = id => {
       data->Dict.delete(id)
-      Promise.make((resolve, _) => do(() => resolve(Ok())))
+      respond(Ok())
     }
     let _select = filter => data->Dict.valuesToArray->Array.filter(filter)
-    let select = filter => {
-      let result = _select(filter)
-      Promise.make((resolve, _) => do(() => resolve(result)))
-    }
+    let select = filter => respond(_select(filter))
     {
       select,
       upsert,
@@ -87,15 +104,16 @@ module Papabase = {
     }
   }
 }
-// Simulate the api of a local storage like Dexie: id-keyed tables with
-// inbound keys. `cards` holds the values, `kv` the engine bookkeeping.
+
+// Simulate the api of a local storage like Dexie: promise-based, id-keyed
+// tables. `cards` holds the values, `kv` the engine bookkeeping.
 module Dexme = {
   type table<'a> = {
     get: string => promise<option<'a>>,
     put: 'a => promise<unit>,
     delete: string => promise<unit>,
     filter: ('a => bool) => promise<array<'a>>,
-    // For testing
+    /** Test-only: synchronous look inside the table. */
     _select: ('a => bool) => array<'a>,
   }
 
@@ -106,26 +124,13 @@ module Dexme = {
     kv: table<kvEntry>,
   }
 
-  let makeTable = (stack: Stack.t, getKey: 'a => string): table<'a> => {
+  let makeTable = (getKey: 'a => string): table<'a> => {
     let data: dict<'a> = Dict.make()
-    let do = stack.push
-    let get = key => {
-      let result = data->Dict.get(key)
-      Promise.make((resolve, _) => do(() => resolve(result)))
-    }
-    let put = row => {
-      data->Dict.set(getKey(row), row)
-      Promise.make((resolve, _) => do(resolve))
-    }
-    let delete = key => {
-      data->Dict.delete(key)
-      Promise.make((resolve, _) => do(resolve))
-    }
+    let get = async key => data->Dict.get(key)
+    let put = async row => data->Dict.set(getKey(row), row)
+    let delete = async key => data->Dict.delete(key)
     let _select = f => data->Dict.valuesToArray->Array.filter(f)
-    let filter = f => {
-      let result = _select(f)
-      Promise.make((resolve, _) => do(() => resolve(result)))
-    }
+    let filter = async f => _select(f)
     {
       get,
       put,
@@ -135,14 +140,18 @@ module Dexme = {
     }
   }
 
-  let make = (stack: Stack.t): t => {
-    cards: makeTable(stack, card => card.id),
-    kv: makeTable(stack, entry => entry.key),
+  let make = (): t => {
+    cards: makeTable(card => card.id),
+    kv: makeTable(entry => entry.key),
   }
 }
 
+// ================ Adaptors — the reference code for a real app
+
 // Wire a Supabase-like api as a tilia/query remote. The online signal is
-// owned by the app (or the test): the adaptor only hands it over.
+// owned by the app (or the test): the adaptor only hands it over. Fetches
+// are one-shot promises — no `channel.live`, nothing to cancel, so `fetch`
+// returns `None` and the engine refreshes periodically.
 module PapabaseAdaptor = {
   let make = (papabase: Papabase.t, online_: Tilia.signal<bool>): TiliaQuery.remote<
     card,

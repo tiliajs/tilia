@@ -1,6 +1,14 @@
 /**
  * A value as seen by the read path.
  *
+ * `NotLocal` is the offline dead end: nothing cached locally and the remote
+ * unreachable. Unlike `Loading` it is an answer, not a progress state —
+ * show "not available offline", not a spinner. It only appears while
+ * offline: when the remote is online, an empty local answer keeps the
+ * query `Loading` until the remote responds. Rare in practice — a local
+ * adaptor can instead build partial results from whatever it has (filtering
+ * its cache with `matches`) and `set` those.
+ *
  * `Failed` carries the fetch error to the place where the value is read —
  * there is no global error slot to join against.
  */
@@ -9,6 +17,7 @@ type loadable<'a> =
   | @as("loading") Loading
   | @as("loaded") Loaded({data: 'a})
   | @as("notFound") NotFound
+  | @as("notLocal") NotLocal
   | @as("failed") Failed({message: string})
 
 /**
@@ -56,6 +65,17 @@ module Channel: {
     set: array<'a> => unit,
     live: unit => unit,
     fail: string => unit,
+  }
+
+  /**
+   * Local fetch channel, handed to `local.fetch`.
+   *
+   * `set` sets the results.
+   * `unknown` is called if the local storage cannot answer the query.
+   */
+  type local<'a> = {
+    set: array<'a> => unit,
+    unknown: unit => unit,
   }
 
   /**
@@ -128,8 +148,10 @@ type status<'a> = {
 /** Remote adaptor: the authoritative store behind the network. */
 type remote<'a, 'query> = {
   /**
-   * Connectivity signal. Set `online.value` as connectivity changes; the
-   * engine pushes pending ops whenever it flips to true.
+   * Connectivity signal. Set `online.value` as connectivity changes. The
+   * engine reacts to the transitions: flipping to false cancels in-flight
+   * remote fetches and settles queries still `Loading` to `NotLocal`;
+   * flipping to true pushes pending ops.
    */
   online: Tilia.signal<bool>,
   /**
@@ -138,7 +160,7 @@ type remote<'a, 'query> = {
    * `channel.live`). Optionally return a cancel function; the engine
    * calls it when the query expires.
    */
-  fetch: ('query, Channel.read<'a>) => option<unit => unit>,
+  fetch: ('query, Channel.read<'a>) => unit,
   /**
    * Push a batch of pending ops, in order. Confirm each op individually via
    * `channel.set` / `channel.removed`; end with nothing (all confirmed),
@@ -159,10 +181,11 @@ type remote<'a, 'query> = {
  */
 type local<'a, 'query> = {
   /**
-   * Fetch cached results for a query from the values table. Same channel
-   * discipline as `remote.fetch`.
+   * Fetch cached results for a query from the values table. First argument is
+   * the query, second is the callback to set the results, third is the callback
+   * to call if there is no answer.
    */
-  fetch: ('query, Channel.read<'a>) => option<unit => unit>,
+  fetch: ('query, array<'a> => unit, unit => unit) => unit,
   /**
    * Apply value changes to the values table, in order: `Upsert` writes
    * or replaces the row, `Remove` drops it. Command-only — no channel.
@@ -239,26 +262,6 @@ type t<'a, 'query> = {
  * Only meaningful on plain data — no functions, no cycles.
  */
 let sortedStringify: 'a => string
-
-type config<'a, 'query> = {
-  /** Extract the unique id of a value. */
-  id: 'a => string,
-  /**
-   * Does a value belong to a query's result set? Drives optimistic
-   * updates: local upserts/removes appear in cached query results
-   * immediately, and membership moves between lists.
-   */
-  matches: ('query, 'a) => bool,
-  remote: remote<'a, 'query>,
-  local?: local<'a, 'query>,
-  expiry?: expiry,
-  /** Injectable clock (ms). Defaults to `Date.now`. For tests. */
-  now?: unit => float,
-  /** Stable cache key for a query. Defaults to `sortedStringify`. */
-  key?: 'query => string,
-  /** Result ordering. Also decides which item `one` picks. Default: no sorting. */
-  sort?: array<'a> => array<'a>,
-}
 
 let make: (
   ~id: 'a => string,
