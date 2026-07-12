@@ -118,46 +118,60 @@ let _no_sort = array => array
 type entryState = Pristine | LoadedLocal | LoadedRemote | LiveRemote
 
 /**
- * Per-query runtime state. The result lives in a signal so reads inside a
- * `Tilia.observe` re-run when a channel delivers fresher results.
+ * Per-query runtime state. Results live in the shared reactive `results`
+ * dict, one key per query: reads inside a `Tilia.observe` re-run when a
+ * channel delivers fresher results, and a single canopy scan of the dict
+ * tells which queries are observed.
  */
-type entry<'a, 'query> = {
+type entry<'query> = {
   key: string,
   query: 'query,
-  result_: Tilia.signal<loadable<array<'a>>>,
   mutable lastSeen: float,
   mutable refreshedAt: float,
-  set: loadable<array<'a>> => unit,
+  /** When the latest remote fetch was issued — throttles refresh to one
+   * in-flight request per refresh window. Reset to 0.0 on going offline so
+   * the first tick back online may refetch immediately. */
+  mutable fetchedAt: float,
   mutable state: entryState,
 }
 
-let makeFetch = (remote, local, loaded) =>
+/** Keys of the queries whose result is currently observed ("open"). */
+let observedKeys = results => Tilia._canopy(results).live
+
+/** Missing key means the entry was never created: treat as still loading. */
+let getResult = (results, entry) => results->Dict.get(entry.key)->Option.getOr(Loading)
+
+let makeFetch = (remote, local, loaded, results, now) =>
   entry => {
     if entry.state !== LiveRemote {
       let unknown = () => {
         if !remote.online.value && entry.state == Pristine {
           // No local storage and no network: nothing can ever answer this query.
-          entry.set(NotLocal)
+          results->Dict.set(entry.key, NotLocal)
         }
       }
 
-      switch local {
-      | None => unknown()
-      | Some(local) =>
-        local.fetch(
-          entry.query,
-          {
-            set: values => {
-              if entry.state == Pristine {
-                entry.state = LoadedLocal
-                loaded(entry, values, true)
-              }
+      if entry.state == Pristine {
+        // Local only materializes a query: a refresh would discard its answer.
+        switch local {
+        | None => unknown()
+        | Some(local) =>
+          local.fetch(
+            entry.query,
+            {
+              set: values => {
+                if entry.state == Pristine {
+                  entry.state = LoadedLocal
+                  loaded(entry, values, true)
+                }
+              },
+              unknown: () => unknown(),
             },
-            unknown: () => unknown(),
-          },
-        )
+          )
+        }
       }
 
+      entry.fetchedAt = now()
       remote.fetch(
         entry.query,
         {
@@ -168,41 +182,37 @@ let makeFetch = (remote, local, loaded) =>
           live: values => {
             entry.state = LiveRemote
             loaded(entry, values, false)
-            entry.set(Failed({message: `Local fetch should not call live.`}))
           },
-          fail: message => entry.set(Failed({message: message})),
+          fail: message => results->Dict.set(entry.key, Failed({message: message})),
         },
       )
     }
   }
 
-let makeGetEntry = (remote, local, entries, key, loaded, now) => {
-  let fetch = makeFetch(remote, local, loaded)
+let makeGetEntry = (fetch, entries, results, key, now) =>
   query => {
     let k = key(query)
     switch entries->Dict.get(k) {
     | Some(entry) => entry
     | None =>
-      let (result_, set) = Tilia.signal(Loading)
       let entry = {
         lastSeen: now(),
         refreshedAt: 0.0,
+        fetchedAt: 0.0,
         key: k,
-        result_,
-        set,
         state: Pristine,
         query,
       }
+      results->Dict.set(k, Loading)
       entries->Dict.set(k, entry)
       fetch(entry)
       entry
     }
   }
-}
 
-let makeOne = getEntry =>
+let makeOne = (getEntry, results) =>
   query =>
-    switch getEntry(query).result_.value {
+    switch getResult(results, getEntry(query)) {
     | Loaded({data, local}) =>
       switch data->Array.get(0) {
       | Some(value) => Loaded({data: value, local})
@@ -214,7 +224,7 @@ let makeOne = getEntry =>
     | Failed({message}) => Failed({message: message})
     }
 
-let makeArray = getEntry => query => getEntry(query).result_.value
+let makeArray = (getEntry, results) => query => getResult(results, getEntry(query))
 
 let makeUpsert = (
   id: 'a => string,
@@ -241,7 +251,7 @@ let makeUpsert = (
     }
     remote.push([Upsert({value: value})], write)
   }
-let makeTick = (remote, entries, expiry, now) => {
+let makeTick = (remote, entries, results, expiry, now, fetch) => {
   /*
     Does this list of checks make sense ?
     Every tick : record lastSeen.
@@ -268,18 +278,36 @@ let makeTick = (remote, entries, expiry, now) => {
     //  3. if not, remove the items from the memory resp. local database.
  */
   () => {
+    let t = now()
     // Online: one extra refresh-check period (refresh / 8) of buffer so an
     // in-flight refresh can land without a flip/flop. Offline: flip right at
     // the refresh expiry limit.
     let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0
-    let freshLimit = now() - expiry.refresh - buffer
+    let freshLimit = t - expiry.refresh - buffer
+    let live = observedKeys(results)
+    let online = remote.online.value
     entries->Dict.forEach(entry => {
-      switch entry.result_.value {
-      | Loaded({data, local: false}) =>
-        if entry.state === LoadedRemote && entry.refreshedAt < freshLimit {
-          entry.set(Loaded({data, local: true}))
+      if live->Set.has(entry.key) {
+        entry.lastSeen = t
+      }
+      if entry.state === LoadedRemote {
+        if (
+          online &&
+          entry.refreshedAt < t - expiry.refresh &&
+          // At most one in-flight refresh; a hung request frees the slot
+          // after a full refresh window.
+          entry.fetchedAt < t - expiry.refresh &&
+          t < entry.lastSeen + expiry.refresh
+        ) {
+          fetch(entry)
         }
-      | _ => ()
+        switch getResult(results, entry) {
+        | Loaded({data, local: false}) =>
+          if entry.refreshedAt < freshLimit {
+            results->Dict.set(entry.key, Loaded({data, local: true}))
+          }
+        | _ => ()
+        }
       }
     })
   }
@@ -298,9 +326,8 @@ let make = (
   let itemById: dict<'a> = Dict.make()->Tilia.tilia
   let idsByKey: dict<array<string>> = Dict.make()->Tilia.tilia
 
-  // Should be
-  // let entries: dict<entry<'query>> = Dict.make()
-  let entries: dict<entry<'a, 'query>> = Dict.make()
+  let entries: dict<entry<'query>> = Dict.make()
+  let results: dict<loadable<array<'a>>> = Dict.make()->Tilia.tilia
   let loaded = (entry, values, local) => {
     if !local {
       entry.refreshedAt = now()
@@ -310,14 +337,14 @@ let make = (
     })
     let ids = values->Array.map(id)
     idsByKey->Dict.set(entry.key, ids)
-    // We make the entry signal rebuild on changes to ids or any of the id in the list.
+    // We make the entry result rebuild on changes to ids or any of the id in the list.
     let build = () =>
       idsByKey
       ->Dict.get(entry.key)
       ->Option.getOr([])
       ->Array.filterMap(id => itemById->Dict.get(id))
       ->sort // sorting must be watched so that edits to keys used by sort make the list update.
-    entry.set(Loaded({data: Tilia.computed(build), local}))
+    results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local}))
   }
 
   let clearOnline = Tilia.watch(
@@ -325,8 +352,11 @@ let make = (
     online => {
       if !online {
         entries->Dict.forEach(entry => {
-          switch entry.result_.value {
-          | Loading => entry.set(NotLocal)
+          // Cancel in-flight remote fetches; free the refresh slot so the
+          // first tick back online may refetch immediately.
+          entry.fetchedAt = 0.0
+          switch getResult(results, entry) {
+          | Loading => results->Dict.set(entry.key, NotLocal)
           | _ => ()
           }
         })
@@ -334,11 +364,12 @@ let make = (
     },
   )
 
-  let getEntry = makeGetEntry(remote, local, entries, key, loaded, now)
+  let fetch = makeFetch(remote, local, loaded, results, now)
+  let getEntry = makeGetEntry(fetch, entries, results, key, now)
 
   {
-    one: makeOne(getEntry),
-    array: makeArray(getEntry),
+    one: makeOne(getEntry, results),
+    array: makeArray(getEntry, results),
     // TODO: on upsert, should match queries and update the ids + the stored item. If no query
     // matches, create a query by id and mark last seen as now.
     upsert: makeUpsert(id, remote, local, itemById),
@@ -347,8 +378,11 @@ let make = (
     status: {pending: 0, rejected: []},
     retry: _rejection => (),
     discard: _rejection => (),
-    tick: makeTick(remote, entries, expiry, now),
+    tick: makeTick(remote, entries, results, expiry, now, fetch),
     dispose: clearOnline,
-    _canopy: () => {live: entries->Dict.keysToArray, idle: []},
+    _canopy: () => {
+      let {live, idle}: Tilia.canopy = Tilia._canopy(results)
+      {live: live->Set.toArray, idle: idle->Set.toArray}
+    },
   }
 }

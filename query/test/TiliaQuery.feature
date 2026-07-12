@@ -105,7 +105,7 @@ Feature: Language training app
     And time passes
     Then I should see "remote" loaded with data
       | id      | english | translation | seen |
-      | cat.es  | cat     | gato        | 1    |
+      | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
       | rain.es | rain    | lluvia      | 0    |
 

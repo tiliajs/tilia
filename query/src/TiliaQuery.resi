@@ -158,8 +158,9 @@ type status<'a> = {
 type remote<'a, 'query> = {
   /**
    * Connectivity signal. Set `online.value` as connectivity changes. The
-   * engine reacts to the transitions: flipping to false cancels in-flight
-   * remote fetches and settles queries still `Loading` to `NotLocal`;
+   * engine reacts to the transitions: flipping to false settles queries
+   * still `Loading` to `NotLocal` — an in-flight remote response may still
+   * land and is taken as-is, its freshness self-corrects on later ticks;
    * flipping to true pushes pending ops.
    */
   online: Tilia.signal<bool>,
