@@ -16,8 +16,15 @@ given("an {string} training app", ({step}, status: string) => {
   let dexme = Dexme.make()
   let cards = make(~dexme, papabase, () => now_.value, online_)
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
+  let closeDeck: ref<unit => unit> = ref(() => ())
 
   step("a set of language cards on a remote", (table: array<array<string>>) =>
+    toRecords(table)->Array.forEach(card => papabase.upsert(card)->ignore)
+  )
+
+  // Write straight to the server, behind the app's back: the app only sees
+  // this after a refresh.
+  step("the remote is updated with", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(card => papabase.upsert(card)->ignore)
   )
 
@@ -29,10 +36,8 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("time passes", () => advanceClock(1.0))
   step("{number} minutes pass", (minutes: float) => advanceClock(minutes * 60.0 * 1000.0))
-  step("{number} seconds pass", (seconds: float) => {
-    setNow(now_.value + seconds * 1000.0)
-    network.flush()
-  })
+  step("{number} seconds pass", (seconds: float) => advanceClock(seconds * 1000.0))
+  step("{number} days pass", (days: float) => advanceClock(days * 86_400_000.0))
   step("tick is called", cards.tick)
 
   step("a local cache of cards", (table: array<array<string>>) =>
@@ -45,16 +50,18 @@ given("an {string} training app", ({step}, status: string) => {
   // query result changes, keeping `view` in sync.
   step("I open the {string} deck", (deck: string) => {
     let query = {deck: deck->String.toLowerCase}
-    Tilia.observe(
-      () => {
+    closeDeck :=
+      Tilia.observe(() => {
         view := cards.array(query)
         switch view.contents {
         | TiliaQuery.Loaded({data}) => Console.log(data)
         | _ => Console.log("not loaded")
         }
-      },
-    )->ignore
+      })
   })
+
+  // Stop observing, like a UI unmount: the query is no longer "seen".
+  step("I close the deck", () => closeDeck.contents())
 
   step("I should see loading", () => {
     expect(view.contents).toMatchObject(TiliaQuery.Loading)
@@ -88,6 +95,10 @@ given("an {string} training app", ({step}, status: string) => {
       },
     )
   )
+
+  step("local should not have {string}", (id: string) => {
+    expect(dexme.cards._select(c => c.id === id)->Array.length).toBe(0)
+  })
 
   step("local should have", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(

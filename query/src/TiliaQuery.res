@@ -259,7 +259,13 @@ let makeTick = (now, expiry, entries) =>
     // Only remove things that haven't been seen for a long time.
     needRemove = now > lastSeen + expiry.memory,
     // Only purge things that haven't been seen for a very long time.
+    // needPurge needs access to the stored queries inside local storage.
     needPurge = now > lastSeen + expiry.local,
+
+    // For every purge mechanism, we need to:
+    //  1. remove the queries
+    //  2. for all ids in the removed queries (or all ids in the memory resp. local database), check if they are referenced by another query
+    //  3. if not, remove the items from the memory resp. local database.
  */
   () => {
     entries->Dict.forEach(entry => {

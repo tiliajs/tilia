@@ -235,8 +235,8 @@ let sortByEnglish = (a: card, b: card) =>
   a.english < b.english ? -1.0 : a.english > b.english ? 1.0 : 0.0
 
 // Convention: signals end with an underscore (now_, online_).
-// Test expiry defaults are tiny integers so scenarios drive time with
-// single-digit `now_` moves: refresh 2, memory 4, local 8.
+// The engine's default expiry applies (refresh 30s, memory 5min, local
+// 30 days): scenarios advance the clock with real durations.
 let make = (
   ~dexme: option<Dexme.t>=?,
   papabase: Papabase.t,

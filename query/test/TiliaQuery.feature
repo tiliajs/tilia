@@ -91,3 +91,102 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
+
+  # Default expiry: refresh 30 seconds, memory 5 minutes, local 30 days.
+
+  Scenario: an open deck is refreshed after the refresh timeout
+    When I open the "Spanish" deck
+    And time passes
+    And the remote is updated with
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then I should see "remote" loaded with data
+      | id      | english | translation | seen |
+      | cat.es  | cat     | gato        | 1    |
+      | dog.es  | dog     | perro       | 0    |
+      | rain.es | rain    | lluvia      | 0    |
+
+  Scenario: an open deck is not refreshed before the refresh timeout
+    When I open the "Spanish" deck
+    And time passes
+    And the remote is updated with
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And 10 seconds pass
+    And tick is called
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a closed deck is not refreshed
+    When I open the "Spanish" deck
+    And time passes
+    And I close the deck
+    And 35 seconds pass
+    # Not visible for refresh duration = stop refreshing.
+    And the remote is updated with
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    And tick is called
+    And time passes
+    Then local should have
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 0    |
+
+  Scenario: an open deck is kept in memory after the memory timeout
+    And I open the "Spanish" deck
+    And time passes
+    And the remote is updated with
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    And 6 minutes pass
+    And tick is called
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a closed deck is dropped from memory after the memory timeout
+    When I open the "Spanish" deck
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And I close the deck
+    And 6 minutes pass
+    And tick is called
+    When I open the "Spanish" deck
+    Then I should see loading
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  # Dropping from memory (memory timeout) and purging local storage (local
+  # timeout) are distinct: after 6 minutes the cards are gone from memory but
+  # still on disk, only after 30 days do they leave local storage.
+  Scenario: a closed deck is purged from local storage after the local timeout
+    And a local cache of cards
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 0    |
+    And I go "offline"
+    When I open the "Spanish" deck
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+    And I close the deck
+    And 6 minutes pass
+    And tick is called
+    Then local should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+    And 31 days pass
+    And tick is called
+    Then local should not have "cat.es"

@@ -20,7 +20,15 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   let view = {
     contents: "loading"
   };
+  let closeDeck = {
+    contents: () => {}
+  };
   step("a set of language cards on a remote", table => {
+    VitestBdd.toRecords(table).forEach(card => {
+      papabase.upsert(card);
+    });
+  });
+  step("the remote is updated with", table => {
     VitestBdd.toRecords(table).forEach(card => {
       papabase.upsert(card);
     });
@@ -31,10 +39,8 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   };
   step("time passes", () => advanceClock(1.0));
   step("{number} minutes pass", minutes => advanceClock(minutes * 60.0 * 1000.0));
-  step("{number} seconds pass", seconds => {
-    setNow(now_.value + seconds * 1000.0);
-    network.flush();
-  });
+  step("{number} seconds pass", seconds => advanceClock(seconds * 1000.0));
+  step("{number} days pass", days => advanceClock(days * 86400000.0));
   step("tick is called", cards.tick);
   step("a local cache of cards", table => {
     VitestBdd.toRecords(table).forEach(card => {
@@ -46,7 +52,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     let query = {
       deck: deck.toLowerCase()
     };
-    Tilia.observe(() => {
+    closeDeck.contents = Tilia.observe(() => {
       view.contents = cards.array(query);
       let match = view.contents;
       if (typeof match !== "object") {
@@ -60,6 +66,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       console.log("not loaded");
     });
   });
+  step("I close the deck", () => closeDeck.contents());
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
   step("I should see not local", () => Vitest.expect(view.contents).toMatchObject("notLocal"));
   step("I should see {string} loaded with data", (local, table) => {
@@ -79,6 +86,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       Vitest.expect(found).toMatchObject(card);
     });
   });
+  step("local should not have {string}", id => Vitest.expect(dexme.cards._select(c => c.id === id).length).toBe(0));
   step("local should have", table => {
     VitestBdd.toRecords(table).forEach(card => {
       let found = Stdlib_Option.getOrThrow(dexme.cards._select(c => c.id === card.id)[0], `local has no card "` + card.id + `"`);
