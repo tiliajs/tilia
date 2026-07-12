@@ -1,6 +1,15 @@
 /**
  * A value as seen by the read path.
  *
+ * `Loaded.local` tells whether the data is known-fresh from the remote
+ * (`false`) or served from the local cache (`true`). On `tick`, a query
+ * whose data came from the remote (and is not live) and has not received a
+ * remote delivery within `expiry.refresh` has its result flipped to
+ * `local: true`; the next remote delivery flips it back to `local: false`.
+ * While online the flip waits one extra refresh-check period
+ * (`expiry.refresh / 8`) so an in-flight refresh can land without a
+ * flip/flop; offline it flips right at the refresh expiry limit.
+ *
  * `NotLocal` is the offline dead end: nothing cached locally and the remote
  * unreachable. Unlike `Loading` it is an answer, not a progress state —
  * show "not available offline", not a spinner. It only appears while
@@ -118,20 +127,20 @@ type expiry = {
    * Interval between refreshes for observed queries — except those whose
    * channel declared `live`. Default: 30_000 (30 s).
    */
-  refresh?: float,
+  refresh: float,
   /**
    * How long a stale (no longer observed) query result stays in RAM.
    * Eviction only frees memory — the data stays in the local store, and
    * reopening the query re-materializes it from there.
    * Default: 300_000 (5 min).
    */
-  memory?: float,
+  memory: float,
   /**
    * How long a query is retained in the local store since its last
    * refresh. Days-to-weeks scale; local gc runs against it.
    * Default: 2_592_000_000. (30 days).
    */
-  local?: float,
+  local: float,
 }
 
 /**

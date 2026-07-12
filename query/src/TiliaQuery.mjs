@@ -158,19 +158,23 @@ function makeUpsert(id, remote, local, itemById) {
   };
 }
 
-function makeTick(now, expiry, entries) {
-  return () => Stdlib_Dict.forEach(entries, entry => {
-    let match = entry.result_.value;
-    if (typeof match !== "object" || !(match.state === "loaded" && match.local)) {
-      return;
-    } else {
-      return entry.set({
-        state: "loaded",
-        data: match.data,
-        local: true
-      });
-    }
-  });
+function makeTick(remote, entries, expiry, now) {
+  return () => {
+    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0;
+    let freshLimit = now() - expiry.refresh - buffer;
+    Stdlib_Dict.forEach(entries, entry => {
+      let match = entry.result_.value;
+      if (typeof match !== "object" || match.state !== "loaded" || match.local || !(entry.state === "LoadedRemote" && entry.refreshedAt < freshLimit)) {
+        return;
+      } else {
+        return entry.set({
+          state: "loaded",
+          data: match.data,
+          local: true
+        });
+      }
+    });
+  };
 }
 
 function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
@@ -186,6 +190,9 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let idsByKey = Tilia.tilia({});
   let entries = {};
   let loaded = (entry, values, local) => {
+    if (!local) {
+      entry.refreshedAt = now();
+    }
     values.forEach(value => {
       itemById[id(value)] = value;
     });
@@ -224,7 +231,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     },
     retry: _rejection => {},
     discard: _rejection => {},
-    tick: makeTick(now, expiry, entries),
+    tick: makeTick(remote, entries, expiry, now),
     dispose: clearOnline,
     _canopy: () => ({
       live: Object.keys(entries),

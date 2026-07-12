@@ -40,9 +40,9 @@ module Channel = {
 }
 
 type expiry = {
-  refresh?: float,
-  memory?: float,
-  local?: float,
+  refresh: float,
+  memory: float,
+  local: float,
 }
 
 type status<'a> = {
@@ -241,15 +241,15 @@ let makeUpsert = (
     }
     remote.push([Upsert({value: value})], write)
   }
-let makeTick = (now, expiry, entries) =>
+let makeTick = (remote, entries, expiry, now) => {
   /*
     Does this list of checks make sense ?
     Every tick : record lastSeen.
     Every expiry.refresh / 8 : check needRefresh.
     Every expiry.memory / 8 : check needRemove.
     Every expiry.local / 8 : check needPurge.
-    
-    needRefresh = 
+
+    needRefresh =
       // LiveRemote is not refreshed and all other states are refreshed on transition to online.
       entry.state === LoadedRemote &&
       // Only refresh every expiry.refresh time.
@@ -268,16 +268,22 @@ let makeTick = (now, expiry, entries) =>
     //  3. if not, remove the items from the memory resp. local database.
  */
   () => {
+    // Online: one extra refresh-check period (refresh / 8) of buffer so an
+    // in-flight refresh can land without a flip/flop. Offline: flip right at
+    // the refresh expiry limit.
+    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0
+    let freshLimit = now() - expiry.refresh - buffer
     entries->Dict.forEach(entry => {
       switch entry.result_.value {
-      | Loaded({data, local}) =>
-        if local {
+      | Loaded({data, local: false}) =>
+        if entry.state === LoadedRemote && entry.refreshedAt < freshLimit {
           entry.set(Loaded({data, local: true}))
         }
       | _ => ()
       }
     })
   }
+}
 
 let make = (
   ~id,
@@ -296,6 +302,9 @@ let make = (
   // let entries: dict<entry<'query>> = Dict.make()
   let entries: dict<entry<'a, 'query>> = Dict.make()
   let loaded = (entry, values, local) => {
+    if !local {
+      entry.refreshedAt = now()
+    }
     values->Array.forEach(value => {
       itemById->Dict.set(id(value), value)
     })
@@ -338,7 +347,7 @@ let make = (
     status: {pending: 0, rejected: []},
     retry: _rejection => (),
     discard: _rejection => (),
-    tick: makeTick(now, expiry, entries),
+    tick: makeTick(remote, entries, expiry, now),
     dispose: clearOnline,
     _canopy: () => {live: entries->Dict.keysToArray, idle: []},
   }
