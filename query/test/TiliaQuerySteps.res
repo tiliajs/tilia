@@ -1,6 +1,10 @@
 open VitestBdd
 open MakeWorld
 
+type queryRecord = {ids: array<string>}
+
+@scope("JSON") @val external parseRecord: string => queryRecord = "parse"
+
 // Step definitions for TiliaQuery.feature. The `given` builds the world —
 // simulated remote (Papabase behind a Network), local store (Dexme) and the
 // app — then each step drives or observes it the way a real app would.
@@ -169,5 +173,34 @@ given("an {string} training app", ({step}, status: string) => {
         expect(found).toMatchObject(card)
       },
     )
+  )
+
+  let expectMemory = (deck, table) => {
+    let query = {deck: deck->String.toLowerCase}
+    let ids = toRecords(table)->Array.map(row => row.id)
+    expect(cards.contents._ids(query)).toEqual(Some(ids))
+  }
+
+  let expectLocal = (deck, table) => {
+    let query = {deck: deck->String.toLowerCase}
+    let ids = toRecords(table)->Array.map(row => row.id)
+    let key = DexmeAdaptor.kvKey(~tag="query", ~key=TiliaQuery.sortedStringify(query))
+    let entry =
+      dexme.kv._select(entry => entry.key === key)
+      ->Array.get(0)
+      ->Option.getOrThrow(~message=`local has no query for "${deck}"`)
+    expect(parseRecord(entry.value).ids).toEqual(ids)
+  }
+
+  step("memory query {string} should have ids", expectMemory)
+
+  step("local query {string} should have ids", expectLocal)
+
+  step(
+    "memory and local query {string} should have ids",
+    (deck, table) => {
+      expectMemory(deck, table)
+      expectLocal(deck, table)
+    },
   )
 })

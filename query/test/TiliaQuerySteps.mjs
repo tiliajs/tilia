@@ -3,6 +3,7 @@
 import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Vitest from "vitest";
 import * as MakeWorld from "./MakeWorld.mjs";
+import * as TiliaQuery from "../src/TiliaQuery.mjs";
 import * as VitestBdd from "vitest-bdd";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 
@@ -126,6 +127,28 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       let found = Stdlib_Option.getOrThrow(dexme.cards._select(c => c.id === card.id)[0], `local has no card "` + card.id + `"`);
       Vitest.expect(found).toMatchObject(card);
     });
+  });
+  let expectMemory = (deck, table) => {
+    let query = {
+      deck: deck.toLowerCase()
+    };
+    let ids = VitestBdd.toRecords(table).map(row => row.id);
+    Vitest.expect(cards.contents._ids(query)).toEqual(ids);
+  };
+  let expectLocal = (deck, table) => {
+    let query = {
+      deck: deck.toLowerCase()
+    };
+    let ids = VitestBdd.toRecords(table).map(row => row.id);
+    let key = MakeWorld.DexmeAdaptor.kvKey("query", TiliaQuery.sortedStringify(query));
+    let entry = Stdlib_Option.getOrThrow(dexme.kv._select(entry => entry.key === key)[0], `local has no query for "` + deck + `"`);
+    Vitest.expect(JSON.parse(entry.value).ids).toEqual(ids);
+  };
+  step("memory query {string} should have ids", expectMemory);
+  step("local query {string} should have ids", expectLocal);
+  step("memory and local query {string} should have ids", (deck, table) => {
+    expectMemory(deck, table);
+    expectLocal(deck, table);
   });
 });
 

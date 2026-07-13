@@ -486,7 +486,8 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
         live: Array.from(match.live),
         idle: Array.from(match.idle)
       };
-    }
+    },
+    _ids: query => Stdlib_Option.map(idsByKey[key(query)], ids => ids.map(id => id))
   };
 }
 

@@ -312,6 +312,9 @@ Feature: Language training app
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
+    And memory and local query "Spanish" should have ids
+      | id     |
+      | dog.es |
     And time passes
     Then remote should not have "cat.es"
     And local should not have "cat.es"
@@ -327,6 +330,11 @@ Feature: Language training app
       | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
       | rain.es | rain    | lluvia      | 0    |
+    And memory and local query "Spanish" should have ids
+      | id      |
+      | cat.es  |
+      | dog.es  |
+      | rain.es |
 
   # Papabase rejects an upsert whose version does not match the stored row.
   # The app never sends versions — the table forges one to force a
@@ -407,6 +415,12 @@ Feature: Language training app
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
+    And memory and local query "Spanish" should have ids
+      | id     |
+      | dog.es |
+    And memory and local query "Spanglish" should have ids
+      | id     |
+      | cat.es |
 
   Scenario: a new card joins matching queries stored locally
     When deck "Spanish" is in local db
@@ -416,6 +430,8 @@ Feature: Language training app
     And time passes
     Then status should have 0 pending
     When tick is called
-    Then local should have
-      | id      | english | translation | seen |
-      | rain.es | rain    | lluvia      | 0    |
+    Then local query "Spanish" should have ids
+      | id      |
+      | cat.es  |
+      | dog.es  |
+      | rain.es |

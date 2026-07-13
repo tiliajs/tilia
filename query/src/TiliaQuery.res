@@ -86,6 +86,8 @@ type t<'a, 'query> = {
   tick: unit => unit,
   dispose: unit => unit,
   _canopy: unit => canopy,
+  /** Testing hook: ids held by an in-memory query. */
+  _ids: 'query => option<array<string>>,
 }
 
 // --------------- IMPLEMENTATION
@@ -644,5 +646,8 @@ let make = (
       let {live, idle}: Tilia.canopy = Tilia._canopy(results)
       {live: live->Set.toArray, idle: idle->Set.toArray}
     },
+    // Testing hook: return a copy so tests cannot mutate query state.
+    _ids: query =>
+      idsByKey->Dict.get(key(query))->Option.map(ids => ids->Array.map(id => id)),
   }
 }

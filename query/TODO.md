@@ -1,0 +1,1 @@
+- [ ] How to orchestrate sync and pruning between multiple instances (collections) to make sure they do not flood the app on boot and then trigger all at the same time ?

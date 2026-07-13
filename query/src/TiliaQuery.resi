@@ -279,6 +279,8 @@ type t<'a, 'query> = {
   dispose: unit => unit,
   /** Internal/debug: observed vs idle query keys. */
   _canopy: unit => canopy,
+  /** Testing hook: ids held by an in-memory query. Returns a copy. */
+  _ids: 'query => option<array<string>>,
 }
 
 /**
