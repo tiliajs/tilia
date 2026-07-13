@@ -293,7 +293,7 @@ let makeArray = (getEntry, results) => query => getResult(results, getEntry(quer
 
 let make = (
   ~id,
-  ~matches as _matches,
+  ~matches,
   ~remote,
   ~local=?,
   ~expiry=_expiry,
@@ -337,7 +337,41 @@ let make = (
       persistRecord(record)
     }
 
+  // Every write (`upsert` / `remove`) enqueues its op in the outbox and
+  // counts in `status.pending`. The outbox is pushed only while online —
+  // `remote.push` is never called offline. A confirmation (`channel.set` /
+  // `channel.removed`) drops the op from the outbox. The outbox is durable:
+  // ops are persisted in the local kv and reloaded at boot, so pending
+  // writes survive a restart and replay.
+  let status: status<'a> = Tilia.tilia({pending: 0, rejected: []})
+  let outboxTag = "outbox"
+  let outbox: array<outboxOp<'a>> = []
+  let nextSeq = ref(0.0)
+  let syncPending = () => status.pending = outbox->Array.length
+
+  // A remote delivery reflects the server before our pending writes: the
+  // outbox is re-applied on top of every remote result — a pending upsert
+  // replaces the server's copy of the same id and joins results it
+  // `matches`; a pending remove filters the id out. An optimistic write
+  // never flickers out of a result.
+  let applyPending = (entry: entry<'query>, values) =>
+    outbox->Array.reduce(values, (values, {op}) =>
+      switch op {
+      | Upsert({value}) =>
+        let vid = id(value)
+        if values->Array.some(v => id(v) === vid) {
+          values->Array.map(v => id(v) === vid ? value : v)
+        } else if matches(entry.query, value) {
+          values->Array.concat([value])
+        } else {
+          values
+        }
+      | Remove({id: rid}) => values->Array.filter(v => id(v) !== rid)
+      }
+    )
+
   let loaded = (entry, values, remote) => {
+    let values = remote ? applyPending(entry, values) : values
     if remote {
       entry.refreshedAt = now()
       switch local {
@@ -360,18 +394,6 @@ let make = (
       ->sort // sorting must be watched so that edits to keys used by sort make the list update.
     results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local: !remote}))
   }
-
-  // Every write (`upsert` / `remove`) enqueues its op in the outbox and
-  // counts in `status.pending`. The outbox is pushed only while online —
-  // `remote.push` is never called offline. A confirmation (`channel.set` /
-  // `channel.removed`) drops the op from the outbox. The outbox is durable:
-  // ops are persisted in the local kv and reloaded at boot, so pending
-  // writes survive a restart and replay.
-  let status: status<'a> = Tilia.tilia({pending: 0, rejected: []})
-  let outboxTag = "outbox"
-  let outbox: array<outboxOp<'a>> = []
-  let nextSeq = ref(0.0)
-  let syncPending = () => status.pending = outbox->Array.length
 
   let confirmed = (entry: outboxOp<'a>) => {
     let i = outbox->Array.indexOf(entry)
@@ -451,12 +473,47 @@ let make = (
     pushPending()
   }
 
+  // An upsert joins matching queries immediately: the value's id is
+  // appended to every in-memory query result whose `matches` accepts it,
+  // and to those queries' persisted records. Query records only on disk
+  // are not scanned — they catch up on the query's next refresh. If after
+  // the join no persisted query record lists the id, a synthetic record
+  // (key `id:<id>`, never refreshed) is written so the row survives the
+  // local purge for `expiry.local` and later local fetches can find it.
   let upsert = value => {
     // Optimistic: the value is visible and persisted before the remote
     // confirms.
-    itemById->Dict.set(id(value), value)
+    let vid = id(value)
+    itemById->Dict.set(vid, value)
+    entries->Dict.forEach(entry =>
+      if matches(entry.query, value) {
+        switch idsByKey->Dict.get(entry.key) {
+        | Some(ids) if !(ids->Array.includes(vid)) =>
+          idsByKey->Dict.set(entry.key, ids->Array.concat([vid]))
+        | _ => ()
+        }
+        switch registry->Dict.get(entry.key) {
+        | Some(record) if !(record.ids->Array.includes(vid)) =>
+          record.ids = record.ids->Array.concat([vid])
+          persistRecord(record)
+        | _ => ()
+        }
+      }
+    )
     switch local {
-    | Some(local) => local.push([Upsert({value: value})])
+    | Some(local) =>
+      let listed = ref(false)
+      registry->Dict.forEach(record =>
+        if record.ids->Array.includes(vid) {
+          listed := true
+        }
+      )
+      if !listed.contents {
+        let record = {key: "__id:" ++ vid, ids: [vid], lastSeen: now()}
+        registry->Dict.set(record.key, record)
+        persistRecord(record)
+      }
+      local.push([Upsert({value: value})])
     | None => ()
     }
     enqueue(Upsert({value: value}))
@@ -656,10 +713,6 @@ let make = (
   {
     one: makeOne(getEntry, results),
     array: makeArray(getEntry, results),
-    // TODO (outbox): on upsert, join the queries the record `matches`
-    // (update their ids + the stored item). No dedicated per-record query:
-    // while the op is pending, the sweep marks its id from the outbox;
-    // after confirmation the row lives through the queries that list it.
     upsert,
     remove,
     receive: {changed: _values => (), removed: _ids => ()},
@@ -673,7 +726,6 @@ let make = (
       {live: live->Set.toArray, idle: idle->Set.toArray}
     },
     // Testing hook: return a copy so tests cannot mutate query state.
-    _ids: query =>
-      idsByKey->Dict.get(key(query))->Option.map(ids => ids->Array.map(id => id)),
+    _ids: query => idsByKey->Dict.get(key(query))->Option.map(ids => ids->Array.map(id => id)),
   }
 }

@@ -158,7 +158,7 @@ function makeOne(getEntry, results) {
   };
 }
 
-function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
+function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let expiry = expiryOpt !== undefined ? expiryOpt : ({
       refresh: 30000.0,
       memory: 300000.0,
@@ -199,29 +199,6 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     record$1.ids = ids;
     persistRecord(record$1);
   };
-  let loaded = (entry, values, remote) => {
-    if (remote) {
-      entry.refreshedAt = now();
-      if (local !== undefined) {
-        local.push(values.map(value => ({
-          op: "upsert",
-          value: value
-        })));
-      }
-    }
-    values.forEach(value => {
-      itemById[id(value)] = value;
-    });
-    let ids = values.map(id);
-    recordSeen(entry, ids);
-    idsByKey[entry.key] = ids;
-    let build = () => sort(Stdlib_Array.filterMap(Stdlib_Option.getOr(idsByKey[entry.key], []), id => itemById[id]));
-    results[entry.key] = {
-      state: "loaded",
-      data: Tilia.computed(build),
-      local: !remote
-    };
-  };
   let status = Tilia.tilia({
     pending: 0,
     rejected: []
@@ -230,6 +207,52 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let outbox = [];
   let nextSeq = {
     contents: 0.0
+  };
+  let applyPending = (entry, values) => Stdlib_Array.reduce(outbox, values, (values, param) => {
+    let op = param.op;
+    if (op.op === "upsert") {
+      let value = op.value;
+      let vid = id(value);
+      if (values.some(v => id(v) === vid)) {
+        return values.map(v => {
+          if (id(v) === vid) {
+            return value;
+          } else {
+            return v;
+          }
+        });
+      } else if (matches(entry.query, value)) {
+        return values.concat([value]);
+      } else {
+        return values;
+      }
+    }
+    let rid = op.id;
+    return values.filter(v => id(v) !== rid);
+  });
+  let loaded = (entry, values, remote) => {
+    let values$1 = remote ? applyPending(entry, values) : values;
+    if (remote) {
+      entry.refreshedAt = now();
+      if (local !== undefined) {
+        local.push(values$1.map(value => ({
+          op: "upsert",
+          value: value
+        })));
+      }
+    }
+    values$1.forEach(value => {
+      itemById[id(value)] = value;
+    });
+    let ids = values$1.map(id);
+    recordSeen(entry, ids);
+    idsByKey[entry.key] = ids;
+    let build = () => sort(Stdlib_Array.filterMap(Stdlib_Option.getOr(idsByKey[entry.key], []), id => itemById[id]));
+    results[entry.key] = {
+      state: "loaded",
+      data: Tilia.computed(build),
+      local: !remote
+    };
   };
   let confirmed = entry => {
     let i = outbox.indexOf(entry);
@@ -320,8 +343,41 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     pushPending();
   };
   let upsert = value => {
-    itemById[id(value)] = value;
+    let vid = id(value);
+    itemById[vid] = value;
+    Stdlib_Dict.forEach(entries, entry => {
+      if (!matches(entry.query, value)) {
+        return;
+      }
+      let ids = idsByKey[entry.key];
+      if (ids !== undefined && !ids.includes(vid)) {
+        idsByKey[entry.key] = ids.concat([vid]);
+      }
+      let record = registry[entry.key];
+      if (record !== undefined && !record.ids.includes(vid)) {
+        record.ids = record.ids.concat([vid]);
+        return persistRecord(record);
+      }
+    });
     if (local !== undefined) {
+      let listed = {
+        contents: false
+      };
+      Stdlib_Dict.forEach(registry, record => {
+        if (record.ids.includes(vid)) {
+          listed.contents = true;
+          return;
+        }
+      });
+      if (!listed.contents) {
+        let record = {
+          key: "id:" + vid,
+          ids: [vid],
+          lastSeen: now()
+        };
+        registry[record.key] = record;
+        persistRecord(record);
+      }
       local.push([{
           op: "upsert",
           value: value

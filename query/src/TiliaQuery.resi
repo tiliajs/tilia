@@ -153,6 +153,12 @@ type expiry = {
  * `channel.removed`) drops the op from the outbox. The outbox is durable:
  * ops are persisted in the local kv and reloaded at boot, so pending
  * writes survive a restart and replay.
+ *
+ * A remote delivery reflects the server before our pending writes: the
+ * outbox is re-applied on top of every remote result — a pending upsert
+ * replaces the server's copy of the same id and joins results it
+ * `matches`; a pending remove filters the id out. An optimistic write
+ * never flickers out of a result.
  */
 type status<'a> = {
   /** Number of ops waiting in the outbox. */
@@ -250,7 +256,16 @@ type t<'a, 'query> = {
    * `Loaded({data: []})`. Reactive.
    */
   array: 'query => loadable<array<'a>>,
-  /** Write a value: applied locally, persisted, op queued for push. */
+  /**
+   * Write a value: applied locally, persisted, op queued for push.
+   *
+   * An upsert joins matching queries immediately: the value's id is
+   * appended to every in-memory query result whose `matches` accepts it,
+   * and to those queries' persisted records. Query records only on disk
+   * are not scanned — they catch up on the query's next refresh. If after
+   * the join no persisted query record lists the id, a synthetic record
+   * is written so the row survives the local purge for `expiry.local`.
+   */
   upsert: 'a => unit,
   /**
    * Remove is optimistic: the id leaves every in-memory query result and
