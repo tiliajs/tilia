@@ -58,17 +58,14 @@ module Channel: {
    * fresher results arrive. Each call replaces the previous results for
    * this query.
    *
-   * `live` declares that this channel keeps its result fresh on its own
-   * (e.g. a server subscription): while the channel is open,
-   * `expiry.refresh` skips this query. Each `set` still advances
-   * freshness; when the channel ends — `fail` or the engine's cancel —
-   * the query re-enters normal refresh. One-shot adaptors never call it
-   * and get periodic refresh.
+   * `live` publishes a result and declares that the adaptor keeps it fresh
+   * on its own (e.g. a server subscription), so `expiry.refresh` skips this
+   * query. Call it again whenever fresher results arrive. One-shot adaptors
+   * use `set` and get periodic refresh.
    *
-   * `fail` is definitive: this fetch is dead. The first `fail` wins; after
-   * it — or after the engine invokes the cancel function returned by
-   * `fetch` — every callback on this channel is a noop. Calling `fail`
-   * twice is an adaptor bug, but a harmless one.
+   * `fail` publishes a failed result. Callbacks are applied in arrival order,
+   * so adaptors must stop delivering after failure and suppress replies from
+   * superseded fetches.
    */
   type read<'a> = {
     set: array<'a> => unit,
@@ -187,10 +184,9 @@ type remote<'a, 'query> = {
    */
   online: Tilia.signal<bool>,
   /**
-   * Fetch the results for a query. Call `channel.set` with the full result
-   * set, again on every update if the fetch is live (declare that with
-   * `channel.live`). Optionally return a cancel function; the engine
-   * calls it when the query expires.
+   * Fetch the results for a query. Call `channel.set` with a one-shot full
+   * result set, or `channel.live` with the full result and again on every
+   * update when the adaptor keeps it fresh.
    */
   fetch: ('query, Channel.read<'a>) => unit,
   /**
@@ -239,7 +235,25 @@ type local<'a, 'query> = {
   ids: (~set: array<string> => unit) => unit,
 }
 
-/** Inbound push from the remote (e.g. websocket), past tense. */
+/**
+ * Inbound push from the remote (e.g. a websocket subscription), past
+ * tense: facts about the server, not commands.
+ *
+ * A delivery is matched against every in-memory query, like an optimistic
+ * upsert: a changed value joins the results it `matches` and leaves the
+ * ones it no longer matches; a removed id leaves every result and its
+ * local row is deleted.
+ *
+ * The outbox overlay wins over deliveries: an id with a pending or
+ * rejected op is skipped entirely — memory and the local row keep the
+ * optimistic value until the op confirms or is discarded.
+ *
+ * A changed value is kept in memory only while some in-memory query
+ * matches it, and persisted only while some query record lists it; a
+ * value matching nothing is dropped. Deliveries do not touch freshness:
+ * the fresh flag and refresh scheduling stay owned by the per-query
+ * read channel (`set` / `live`).
+ */
 type receive<'a> = {
   /** These values changed on the server; they replace local clean copies. */
   changed: array<'a> => unit,
@@ -287,7 +301,7 @@ type t<'a, 'query> = {
    * remote confirms. The op queues in the outbox like any write.
    */
   remove: string => unit,
-  /** Inbound push from the server. */
+  /** Inbound push from server subscriptions. */
   receive: receive<'a>,
   /** Reactive sync state (tilia object). */
   status: status<'a>,
@@ -308,7 +322,7 @@ type t<'a, 'query> = {
    * is fine.
    */
   tick: unit => unit,
-  /** Cancel fetches, stop watching, release everything. Keeps local data. */
+  /** Stop watching remote connectivity. Cached data is left to normal expiry. */
   dispose: unit => unit,
   /** Internal/debug: observed vs idle query keys. */
   _canopy: unit => canopy,

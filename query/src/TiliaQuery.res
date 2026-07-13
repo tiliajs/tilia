@@ -491,12 +491,14 @@ let make = (
     pushPending()
   }
 
-  // Join or un-join optimistic upserts on every in-memory query.
-  let upsert = value => {
+  // Join or un-join a value on every in-memory query (and its registry
+  // record). Returns true when at least one query matches the value.
+  let join = value => {
     let vid = id(value)
-    itemById->Dict.set(vid, value)
+    let joined = ref(false)
     entries->Dict.forEach(entry =>
       if matches(entry.query, value) {
+        joined := true
         switch idsByKey->Dict.get(entry.key) {
         | Some(ids) if !(ids->Array.includes(vid)) =>
           idsByKey->Dict.set(entry.key, ids->Array.concat([vid]))
@@ -522,6 +524,14 @@ let make = (
         }
       }
     )
+    joined.contents
+  }
+
+  // Join or un-join optimistic upserts on every in-memory query.
+  let upsert = value => {
+    let vid = id(value)
+    itemById->Dict.set(vid, value)
+    join(value)->ignore
     switch local {
     | Some(local) =>
       let listed = ref(false)
@@ -542,8 +552,8 @@ let make = (
     enqueue(Upsert({value: value}))
   }
 
-  // Remove optimistically from memory, loaded query records, and local storage.
-  let remove = rid => {
+  // Drop an id from memory, loaded query records, and local storage.
+  let forget = rid => {
     itemById->Dict.delete(rid)
     idsByKey->Dict.forEachWithKey((ids, key) =>
       if ids->Array.includes(rid) {
@@ -560,8 +570,54 @@ let make = (
     | Some(local) => local.push([Remove({id: rid})])
     | None => ()
     }
+  }
+
+  // Remove optimistically from memory, loaded query records, and local storage.
+  let remove = rid => {
+    forget(rid)
     enqueue(Remove({id: rid}))
   }
+
+  // An id with a pending or rejected op is dirty: the outbox overlay owns
+  // it, so inbound deliveries must not displace the optimistic value.
+  let dirty = vid =>
+    rejectedOps->Dict.get(vid)->Option.isSome ||
+      outbox->Array.some(entry => opId(entry.op) === vid)
+
+  // Server truth for one row, joined like an upsert. The row stays in RAM
+  // only while some in-memory query matches it, and is persisted only while
+  // some query record lists it. Freshness is untouched: fresh / refresh
+  // scheduling stay owned by the per-query read channel.
+  let receiveChanged = values =>
+    values->Array.forEach(value => {
+      let vid = id(value)
+      if !dirty(vid) {
+        itemById->Dict.set(vid, value)
+        if !join(value) {
+          itemById->Dict.delete(vid)
+        }
+        switch local {
+        | Some(local) =>
+          let listed = ref(false)
+          registry->Dict.forEach(record =>
+            if record.ids->Array.includes(vid) {
+              listed := true
+            }
+          )
+          if listed.contents {
+            local.push([Upsert({value: value})])
+          }
+        | None => ()
+        }
+      }
+    })
+
+  let receiveRemoved = ids =>
+    ids->Array.forEach(rid =>
+      if !dirty(rid) {
+        forget(rid)
+      }
+    )
 
   // Boot: reload the persisted outbox, oldest first, and replay if online.
   switch local {
@@ -758,7 +814,7 @@ let make = (
     array: makeArray(getEntry, results),
     upsert,
     remove,
-    receive: {changed: _values => (), removed: _ids => ()},
+    receive: {changed: receiveChanged, removed: receiveRemoved},
     status,
     retry,
     discard,

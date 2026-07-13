@@ -395,11 +395,14 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     status.pending = outbox.length;
     pushPending();
   };
-  let upsert = value => {
+  let join = value => {
     let vid = id(value);
-    itemById[vid] = value;
+    let joined = {
+      contents: false
+    };
     Stdlib_Dict.forEach(entries, entry => {
       if (matches(entry.query, value)) {
+        joined.contents = true;
         let ids = idsByKey[entry.key];
         if (ids !== undefined && !ids.includes(vid)) {
           idsByKey[entry.key] = ids.concat([vid]);
@@ -422,6 +425,12 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
         return persistRecord(record$1);
       }
     });
+    return joined.contents;
+  };
+  let upsert = value => {
+    let vid = id(value);
+    itemById[vid] = value;
+    join(value);
     if (local !== undefined) {
       let listed = {
         contents: false
@@ -452,7 +461,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       value: value
     });
   };
-  let remove = rid => {
+  let forget = rid => {
     Stdlib_Dict.$$delete(itemById, rid);
     Stdlib_Dict.forEachWithKey(idsByKey, (ids, key) => {
       if (ids.includes(rid)) {
@@ -467,14 +476,61 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       }
     });
     if (local !== undefined) {
-      local.push([{
+      return local.push([{
           op: "remove",
           id: rid
         }]);
     }
+  };
+  let remove = rid => {
+    forget(rid);
     enqueue({
       op: "remove",
       id: rid
+    });
+  };
+  let dirty = vid => {
+    if (Stdlib_Option.isSome(rejectedOps[vid])) {
+      return true;
+    } else {
+      return outbox.some(entry => opId(entry.op) === vid);
+    }
+  };
+  let receiveChanged = values => {
+    values.forEach(value => {
+      let vid = id(value);
+      if (dirty(vid)) {
+        return;
+      }
+      itemById[vid] = value;
+      if (!join(value)) {
+        Stdlib_Dict.$$delete(itemById, vid);
+      }
+      if (local === undefined) {
+        return;
+      }
+      let listed = {
+        contents: false
+      };
+      Stdlib_Dict.forEach(registry, record => {
+        if (record.ids.includes(vid)) {
+          listed.contents = true;
+          return;
+        }
+      });
+      if (listed.contents) {
+        return local.push([{
+            op: "upsert",
+            value: value
+          }]);
+      }
+    });
+  };
+  let receiveRemoved = ids => {
+    ids.forEach(rid => {
+      if (!dirty(rid)) {
+        return forget(rid);
+      }
     });
   };
   if (local !== undefined) {
@@ -671,8 +727,8 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     upsert: upsert,
     remove: remove,
     receive: {
-      changed: _values => {},
-      removed: _ids => {}
+      changed: receiveChanged,
+      removed: receiveRemoved
     },
     status: status,
     retry: retry,

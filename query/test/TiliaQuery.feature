@@ -38,6 +38,37 @@ Feature: Language training app
     And I go "offline"
     Then I should see not local
 
+  Scenario: a subscription updates a visible card
+    When I open the "Spanish" deck
+    And time passes
+    And the subscription changes
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a subscription adds a card to its deck
+    When I open the "Spanish" deck
+    And time passes
+    And the subscription changes
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    Then I should see "remote" loaded with data
+      | id      | english | translation | seen |
+      | cat.es  | cat     | gato        | 0    |
+      | dog.es  | dog     | perro       | 0    |
+      | rain.es | rain    | lluvia      | 0    |
+
+  Scenario: a subscription removes a card from its deck
+    When I open the "Spanish" deck
+    And time passes
+    And the subscription removes "cat.es"
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 0    |
+
   Scenario: update a card while online
     When I open the "Spanish" deck
     And time passes

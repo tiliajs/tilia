@@ -34,6 +34,14 @@ given("an {string} training app", ({step}, status: string) => {
     toRecords(table)->Array.forEach(card => papabase.upsert(card)->ignore)
   )
 
+  step("the subscription changes", (table: array<array<string>>) =>
+    cards.contents.receive.changed(toRecords(table))
+  )
+
+  step("the subscription removes {string}", (id: string) =>
+    cards.contents.receive.removed([id])
+  )
+
   // Delete straight on the server: the local copy lingers until the purge
   // sweeps it.
   step("the remote removes {string}", (id: string) => papabase.remove(id)->ignore)

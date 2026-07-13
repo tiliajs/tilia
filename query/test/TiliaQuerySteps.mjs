@@ -37,6 +37,8 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       papabase.upsert(card);
     });
   });
+  step("the subscription changes", table => cards.contents.receive.changed(VitestBdd.toRecords(table)));
+  step("the subscription removes {string}", id => cards.contents.receive.removed([id]));
   step("the remote removes {string}", id => {
     papabase.remove(id);
   });
