@@ -252,7 +252,11 @@ type t<'a, 'query> = {
   array: 'query => loadable<array<'a>>,
   /** Write a value: applied locally, persisted, op queued for push. */
   upsert: 'a => unit,
-  /** Remove by id: applied locally, persisted, op queued for push. */
+  /**
+   * Remove is optimistic: the id leaves every in-memory query result and
+   * the persisted query records, and the local row is deleted, before the
+   * remote confirms. The op queues in the outbox like any write.
+   */
   remove: string => unit,
   /** Inbound push from the server. */
   receive: receive<'a>,

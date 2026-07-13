@@ -304,18 +304,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       });
     }
   };
-  let upsert = value => {
-    itemById[id(value)] = value;
-    if (local !== undefined) {
-      local.push([{
-          op: "upsert",
-          value: value
-        }]);
-    }
-    let op = {
-      op: "upsert",
-      value: value
-    };
+  let enqueue = op => {
     let seq = Math.max(now(), nextSeq.contents);
     nextSeq.contents = seq + 1.0;
     let entry = {
@@ -329,6 +318,44 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     }
     status.pending = outbox.length;
     pushPending();
+  };
+  let upsert = value => {
+    itemById[id(value)] = value;
+    if (local !== undefined) {
+      local.push([{
+          op: "upsert",
+          value: value
+        }]);
+    }
+    enqueue({
+      op: "upsert",
+      value: value
+    });
+  };
+  let remove = rid => {
+    Stdlib_Dict.$$delete(itemById, rid);
+    Stdlib_Dict.forEachWithKey(idsByKey, (ids, key) => {
+      if (ids.includes(rid)) {
+        idsByKey[key] = ids.filter(i => i !== rid);
+        return;
+      }
+    });
+    Stdlib_Dict.forEach(registry, record => {
+      if (record.ids.includes(rid)) {
+        record.ids = record.ids.filter(i => i !== rid);
+        return persistRecord(record);
+      }
+    });
+    if (local !== undefined) {
+      local.push([{
+          op: "remove",
+          id: rid
+        }]);
+    }
+    enqueue({
+      op: "remove",
+      id: rid
+    });
   };
   if (local !== undefined) {
     local.get(outboxTag, undefined, values => {
@@ -470,7 +497,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     one: makeOne(getEntry, results),
     array: query => getResult(results, getEntry(query)),
     upsert: upsert,
-    remove: _id => {},
+    remove: remove,
     receive: {
       changed: _values => {},
       removed: _ids => {}

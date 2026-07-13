@@ -462,6 +462,32 @@ let make = (
     enqueue(Upsert({value: value}))
   }
 
+  // Remove is optimistic: the id leaves every in-memory query result and
+  // the persisted query records, and the local row is deleted, before the
+  // remote confirms. The op queues in the outbox like any write.
+  // Disk-only query records from past sessions may keep listing the id:
+  // harmless (the row is gone, marking a rowless id is a no-op) and
+  // self-correcting on the query's next refresh.
+  let remove = rid => {
+    itemById->Dict.delete(rid)
+    idsByKey->Dict.forEachWithKey((ids, key) =>
+      if ids->Array.includes(rid) {
+        idsByKey->Dict.set(key, ids->Array.filter(i => i !== rid))
+      }
+    )
+    registry->Dict.forEach(record =>
+      if record.ids->Array.includes(rid) {
+        record.ids = record.ids->Array.filter(i => i !== rid)
+        persistRecord(record)
+      }
+    )
+    switch local {
+    | Some(local) => local.push([Remove({id: rid})])
+    | None => ()
+    }
+    enqueue(Remove({id: rid}))
+  }
+
   // Boot: reload the persisted outbox, oldest first, and replay if online.
   switch local {
   | None => ()
@@ -635,7 +661,7 @@ let make = (
     // while the op is pending, the sweep marks its id from the outbox;
     // after confirmation the row lives through the queries that list it.
     upsert,
-    remove: _id => (),
+    remove,
     receive: {changed: _values => (), removed: _ids => ()},
     status,
     retry: _rejection => (),
