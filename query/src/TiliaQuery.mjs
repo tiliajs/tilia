@@ -39,6 +39,20 @@ let parseRecord = (function parseRecord(value) {
   return undefined;
 });
 
+let encodeOp = (function encodeOp(entry) {
+  return JSON.stringify({seq: entry.seq, op: entry.op});
+});
+
+let parseOp = (function parseOp(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.seq === "number" && r.op && (r.op.op === "upsert" || r.op.op === "remove")) {
+      return {seq: r.seq, op: r.op, flight: false};
+    }
+  } catch (_) {}
+  return undefined;
+});
+
 function getResult(results, entry) {
   return Stdlib_Option.getOr(results[entry.key], "loading");
 }
@@ -144,34 +158,6 @@ function makeOne(getEntry, results) {
   };
 }
 
-function makeUpsert(id, remote, local, itemById) {
-  return value => {
-    itemById[id(value)] = value;
-    let write_set = value => {
-      itemById[id(value)] = value;
-    };
-    let write_removed = param => {};
-    let write_retry = () => {};
-    let write_fail = param => {};
-    let write = {
-      set: write_set,
-      removed: write_removed,
-      retry: write_retry,
-      fail: write_fail
-    };
-    if (local !== undefined) {
-      local.push([{
-          op: "upsert",
-          value: value
-        }]);
-    }
-    remote.push([{
-        op: "upsert",
-        value: value
-      }], write);
-  };
-}
-
 function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let expiry = expiryOpt !== undefined ? expiryOpt : ({
       refresh: 30000.0,
@@ -236,8 +222,133 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       local: !remote
     };
   };
+  let status = Tilia.tilia({
+    pending: 0,
+    rejected: []
+  });
+  let outboxTag = "outbox";
+  let outbox = [];
+  let nextSeq = {
+    contents: 0.0
+  };
+  let confirmed = entry => {
+    let i = outbox.indexOf(entry);
+    if (i >= 0) {
+      outbox.splice(i, 1);
+    }
+    if (local !== undefined) {
+      local.set(outboxTag, entry.seq.toString(), undefined);
+    }
+    status.pending = outbox.length;
+  };
+  let pushPending = () => {
+    if (!remote.online.value) {
+      return;
+    }
+    let batch = outbox.filter(entry => !entry.flight);
+    if (batch.length !== 0) {
+      batch.forEach(entry => {
+        entry.flight = true;
+      });
+      return remote.push(batch.map(entry => entry.op), {
+        set: value => {
+          let vid = id(value);
+          let match = outbox.find(entry => {
+            if (!entry.flight) {
+              return false;
+            }
+            let match = entry.op;
+            if (match.op === "upsert") {
+              return id(match.value) === vid;
+            } else {
+              return false;
+            }
+          });
+          if (match !== undefined) {
+            itemById[vid] = value;
+            if (local !== undefined) {
+              local.push([{
+                  op: "upsert",
+                  value: value
+                }]);
+            }
+            return confirmed(match);
+          }
+        },
+        removed: rid => {
+          let match = outbox.find(entry => {
+            if (!entry.flight) {
+              return false;
+            }
+            let match = entry.op;
+            if (match.op === "upsert") {
+              return false;
+            } else {
+              return match.id === rid;
+            }
+          });
+          if (match !== undefined) {
+            return confirmed(match);
+          }
+        },
+        retry: () => {
+          batch.forEach(entry => {
+            entry.flight = false;
+          });
+        },
+        fail: param => {
+          batch.forEach(entry => {
+            entry.flight = false;
+          });
+        }
+      });
+    }
+  };
+  let upsert = value => {
+    itemById[id(value)] = value;
+    if (local !== undefined) {
+      local.push([{
+          op: "upsert",
+          value: value
+        }]);
+    }
+    let op = {
+      op: "upsert",
+      value: value
+    };
+    let seq = Math.max(now(), nextSeq.contents);
+    nextSeq.contents = seq + 1.0;
+    let entry = {
+      seq: seq,
+      op: op,
+      flight: false
+    };
+    outbox.push(entry);
+    if (local !== undefined) {
+      local.set(outboxTag, seq.toString(), encodeOp(entry));
+    }
+    status.pending = outbox.length;
+    pushPending();
+  };
+  if (local !== undefined) {
+    local.get(outboxTag, undefined, values => {
+      values.forEach(value => {
+        let entry = parseOp(value);
+        if (entry !== undefined) {
+          outbox.push(entry);
+          nextSeq.contents = Math.max(nextSeq.contents, entry.seq + 1.0);
+          return;
+        }
+      });
+      outbox.sort((a, b) => a.seq - b.seq);
+      status.pending = outbox.length;
+      pushPending();
+    });
+  }
   let clearOnline = Tilia.watch(() => remote.online.value, online => {
-    if (!online) {
+    if (online) {
+      return pushPending();
+    } else {
       return Stdlib_Dict.forEach(entries, entry => {
         entry.fetchedAt = 0.0;
         let match = getResult(results, entry);
@@ -358,16 +469,13 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   return {
     one: makeOne(getEntry, results),
     array: query => getResult(results, getEntry(query)),
-    upsert: makeUpsert(id, remote, local, itemById),
+    upsert: upsert,
     remove: _id => {},
     receive: {
       changed: _values => {},
       removed: _ids => {}
     },
-    status: {
-      pending: 0,
-      rejected: []
-    },
+    status: status,
     retry: _rejection => {},
     discard: _rejection => {},
     tick: tick,

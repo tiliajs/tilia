@@ -58,6 +58,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("I restart the app", () => {
     cards.contents.dispose();
     cards.contents = MakeWorld.make(dexme, papabase, () => now_.value, online_);
+    return settled();
   });
   step("a local cache of cards", table => {
     VitestBdd.toRecords(table).forEach(card => {

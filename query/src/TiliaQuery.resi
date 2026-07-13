@@ -146,10 +146,17 @@ type expiry = {
 /**
  * Reactive sync state. Read-path errors are NOT here — they live in
  * `loadable.Failed`, at the read site.
+ *
+ * Every write (`upsert` / `remove`) enqueues its op in the outbox and
+ * counts in `status.pending`. The outbox is pushed only while online —
+ * `remote.push` is never called offline. A confirmation (`channel.set` /
+ * `channel.removed`) drops the op from the outbox. The outbox is durable:
+ * ops are persisted in the local kv and reloaded at boot, so pending
+ * writes survive a restart and replay.
  */
 type status<'a> = {
   /** Number of ops waiting in the outbox. */
-  pending: int,
+  mutable pending: int,
   /** Ops the remote definitively refused. Handle with `retry` / `discard`. */
   rejected: array<rejection<'a>>,
 }
@@ -172,7 +179,8 @@ type remote<'a, 'query> = {
    */
   fetch: ('query, Channel.read<'a>) => unit,
   /**
-   * Push a batch of pending ops, in order. Confirm each op individually via
+   * Push a batch of pending ops, in order. One push carries every pending
+   * op not already in flight, in order. Confirm each op individually via
    * `channel.set` / `channel.removed`; end with nothing (all confirmed),
    * `channel.retry` (transient) or `channel.fail` (definitive).
    */

@@ -46,7 +46,7 @@ type expiry = {
 }
 
 type status<'a> = {
-  pending: int,
+  mutable pending: int,
   rejected: array<rejection<'a>>,
 }
 
@@ -167,6 +167,36 @@ function parseRecord(value) {
   return undefined;
 }`)
 
+/**
+ * One outbox entry: a write not yet confirmed by the remote.
+ * - `seq` orders replay and keys the persisted copy (kv tag "outbox").
+ * - `flight` marks entries already handed to an in-flight `remote.push`,
+ *   so a later push does not send them again.
+ */
+type outboxOp<'a> = {
+  seq: float,
+  op: op<'a>,
+  mutable flight: bool,
+}
+
+/** The persisted form drops the transient `flight` flag. */
+let encodeOp: outboxOp<'a> => string = %raw(`
+function encodeOp(entry) {
+  return JSON.stringify({seq: entry.seq, op: entry.op});
+}`)
+
+/** Returns None on malformed kv data: the entry is skipped, not fatal. */
+let parseOp: string => option<outboxOp<'a>> = %raw(`
+function parseOp(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.seq === "number" && r.op && (r.op.op === "upsert" || r.op.op === "remove")) {
+      return {seq: r.seq, op: r.op, flight: false};
+    }
+  } catch (_) {}
+  return undefined;
+}`)
+
 /** Keys of the queries whose result is currently observed ("open"). */
 let observedKeys = results => Tilia._canopy(results).live
 
@@ -259,32 +289,6 @@ let makeOne = (getEntry, results) =>
 
 let makeArray = (getEntry, results) => query => getResult(results, getEntry(query))
 
-let makeUpsert = (
-  id: 'a => string,
-  remote: remote<'a, 'query>,
-  local: option<local<'a, 'query>>,
-  itemById: dict<'a>,
-) =>
-  value => {
-    // Optimistic write
-    itemById->Dict.set(id(value), value)
-    // FIXME: we need to manage the outbox, with or without local.
-    let write: Channel.write<'a> = {
-      set: value => {
-        itemById->Dict.set(id(value), value)
-      },
-      removed: _ => (),
-      retry: () => (),
-      fail: _ => (),
-    }
-    // TODO : Update in-memory element by id and queries, mark as dirty in local, update local queries that match.
-    switch local {
-    | None => ()
-    | Some(local) => local.push([Upsert({value: value})])
-    }
-    remote.push([Upsert({value: value})], write)
-  }
-
 let make = (
   ~id,
   ~matches as _matches,
@@ -355,10 +359,133 @@ let make = (
     results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local: !remote}))
   }
 
+  // Every write (`upsert` / `remove`) enqueues its op in the outbox and
+  // counts in `status.pending`. The outbox is pushed only while online —
+  // `remote.push` is never called offline. A confirmation (`channel.set` /
+  // `channel.removed`) drops the op from the outbox. The outbox is durable:
+  // ops are persisted in the local kv and reloaded at boot, so pending
+  // writes survive a restart and replay.
+  let status: status<'a> = Tilia.tilia({pending: 0, rejected: []})
+  let outboxTag = "outbox"
+  let outbox: array<outboxOp<'a>> = []
+  let nextSeq = ref(0.0)
+  let syncPending = () => status.pending = outbox->Array.length
+
+  let confirmed = (entry: outboxOp<'a>) => {
+    let i = outbox->Array.indexOf(entry)
+    if i >= 0 {
+      outbox->Array.splice(~start=i, ~remove=1, ~insert=[])
+    }
+    switch local {
+    | Some(local) => local.set(~tag=outboxTag, ~key=Float.toString(entry.seq), None)
+    | None => ()
+    }
+    syncPending()
+  }
+
+  // One push carries every pending op not already in flight, in order.
+  let pushPending = () =>
+    if remote.online.value {
+      let batch = outbox->Array.filter(entry => !entry.flight)
+      if batch->Array.length > 0 {
+        batch->Array.forEach(entry => entry.flight = true)
+        remote.push(
+          batch->Array.map(entry => entry.op),
+          {
+            set: value => {
+              let vid = id(value)
+              let match = outbox->Array.find(entry =>
+                entry.flight &&
+                switch entry.op {
+                | Upsert({value}) => id(value) === vid
+                | Remove(_) => false
+                }
+              )
+              switch match {
+              | Some(entry) =>
+                // The confirmed value is authoritative (it may be
+                // server-corrected): it replaces the local copies.
+                itemById->Dict.set(vid, value)
+                switch local {
+                | Some(local) => local.push([Upsert({value: value})])
+                | None => ()
+                }
+                confirmed(entry)
+              | None => ()
+              }
+            },
+            removed: rid => {
+              let match = outbox->Array.find(entry =>
+                entry.flight &&
+                switch entry.op {
+                | Remove({id}) => id === rid
+                | Upsert(_) => false
+                }
+              )
+              switch match {
+              | Some(entry) => confirmed(entry)
+              | None => ()
+              }
+            },
+            retry: () => batch->Array.forEach(entry => entry.flight = false),
+            // TODO (rejections): a definitive failure moves the unconfirmed
+            // ops to `status.rejected`; until that lands, treat like retry.
+            fail: _ => batch->Array.forEach(entry => entry.flight = false),
+          },
+        )
+      }
+    }
+
+  let enqueue = (op: op<'a>) => {
+    let seq = Math.max(now(), nextSeq.contents)
+    nextSeq := seq +. 1.0
+    let entry = {seq, op, flight: false}
+    outbox->Array.push(entry)
+    switch local {
+    | Some(local) => local.set(~tag=outboxTag, ~key=Float.toString(seq), Some(encodeOp(entry)))
+    | None => ()
+    }
+    syncPending()
+    pushPending()
+  }
+
+  let upsert = value => {
+    // Optimistic: the value is visible and persisted before the remote
+    // confirms.
+    itemById->Dict.set(id(value), value)
+    switch local {
+    | Some(local) => local.push([Upsert({value: value})])
+    | None => ()
+    }
+    enqueue(Upsert({value: value}))
+  }
+
+  // Boot: reload the persisted outbox, oldest first, and replay if online.
+  switch local {
+  | None => ()
+  | Some(local) =>
+    local.get(~tag=outboxTag, ~set=values => {
+      values->Array.forEach(value =>
+        switch parseOp(value) {
+        | Some(entry) =>
+          outbox->Array.push(entry)
+          nextSeq := Math.max(nextSeq.contents, entry.seq +. 1.0)
+        | None => ()
+        }
+      )
+      outbox->Array.sort((a, b) => a.seq -. b.seq)
+      syncPending()
+      pushPending()
+    })
+  }
+
   let clearOnline = Tilia.watch(
     () => remote.online.value,
     online => {
-      if !online {
+      if online {
+        // Reconnect: replay the outbox.
+        pushPending()
+      } else {
         entries->Dict.forEach(entry => {
           // Cancel in-flight remote fetches; free the refresh slot so the
           // first tick back online may refetch immediately.
@@ -505,10 +632,10 @@ let make = (
     // (update their ids + the stored item). No dedicated per-record query:
     // while the op is pending, the sweep marks its id from the outbox;
     // after confirmation the row lives through the queries that list it.
-    upsert: makeUpsert(id, remote, local, itemById),
+    upsert,
     remove: _id => (),
     receive: {changed: _values => (), removed: _ids => ()},
-    status: {pending: 0, rejected: []},
+    status,
     retry: _rejection => (),
     discard: _rejection => (),
     tick,

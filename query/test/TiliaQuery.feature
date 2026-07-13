@@ -256,12 +256,15 @@ Feature: Language training app
     And tick is called
     Then local should not have "cat.es"
 
-  # ---- Outbox (spec-first: the engine does not implement the write path
-  # yet, these scenarios fail until it lands). Rules encoded:
+  # ---- Outbox. Landed:
   # - upsert/remove while offline queue in the outbox; nothing reaches the
   #   remote until reconnect; `status.pending` counts queued ops.
   # - the outbox is durable: pending ops survive a restart and replay.
+  # - batching is pinned: one push carries every pending op not already in
+  #   flight, in order.
+  # Still spec-first (these scenarios fail until their rule lands):
   # - an upsert joins matching open queries immediately (optimistic).
+  # - remove: optimistic removal, confirmation by id.
   # - a definitive remote failure moves the op to `status.rejected`;
   #   `retry` re-queues it; `discard` drops it and local state reverts to
   #   remote truth.
@@ -269,7 +272,6 @@ Feature: Language training app
   #   purge's mark phase also marks the ids of pending outbox ops. There is
   #   no dedicated per-record query: an upsert joins the existing queries
   #   the record `matches`, and those keep the row after confirmation.
-  # Batching (per-op vs per-tick remote.push) is deliberately not pinned.
 
   Scenario: a card updated while offline reaches the remote on reconnect
     When I open the "Spanish" deck

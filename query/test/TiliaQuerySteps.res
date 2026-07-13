@@ -61,6 +61,8 @@ given("an {string} training app", ({step}, status: string) => {
   step("I restart the app", () => {
     cards.contents.dispose()
     cards := make(~dexme, papabase, () => now_.value, online_)
+    // Boot reloads the outbox from the kv, answering on the microtask queue.
+    settled()
   })
 
   step("a local cache of cards", (table: array<array<string>>) =>
