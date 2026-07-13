@@ -639,7 +639,9 @@ let make = (
         local.ids(~set=allIds => {
           let marked = Set.make()
           registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
-          // Pending outbox ids are not roots yet; see TODO.md.
+          // Pending and rejected ops root their rows: both replay after restart.
+          outbox->Array.forEach(entry => marked->Set.add(opId(entry.op)))
+          rejectedOps->Dict.forEach(entry => marked->Set.add(opId(entry.op)))
           let removes =
             allIds->Array.filterMap(id => marked->Set.has(id) ? None : Some(Remove({id: id})))
           if removes->Array.length > 0 {

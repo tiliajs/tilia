@@ -598,6 +598,12 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
                 marked.add(id);
               });
             });
+            outbox.forEach(entry => {
+              marked.add(opId(entry.op));
+            });
+            Stdlib_Dict.forEach(rejectedOps, entry => {
+              marked.add(opId(entry.op));
+            });
             let removes = Stdlib_Array.filterMap(allIds, id => {
               if (marked.has(id)) {
                 return;

@@ -147,10 +147,11 @@ garbage collector:
 4. Enumerate the rows in local storage.
 5. Remove every unmarked row.
 
-Pending outbox operations are not yet marked as reachable. Until that work is
-complete, an optimistic row can be swept before remote confirmation once no
-retained query record lists it. This limitation is tracked in
-[`TODO.md`](./TODO.md).
+Pending and rejected operations are additional roots. Both survive a restart
+and replay, so their optimistic rows must survive too — even after every query
+record listing them has expired. The ids come from the in-memory outbox and
+rejection table; those mirror the persisted entries, so marking them costs no
+extra I/O.
 
 For example:
 
