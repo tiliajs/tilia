@@ -374,13 +374,17 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     status.pending = outbox.length;
     pushPending();
   };
-  let retry = rejection => {
-    let entry = Stdlib_Option.getOrThrow(rejectedOps[rejection.id], `no rejection for "` + rejection.id + `"`);
-    Stdlib_Dict.$$delete(rejectedOps, rejection.id);
-    let i = status.rejected.findIndex(r => r.id === rejection.id);
+  let takeRejected = rid => {
+    let entry = Stdlib_Option.getOrThrow(rejectedOps[rid], `no rejection for "` + rid + `"`);
+    Stdlib_Dict.$$delete(rejectedOps, rid);
+    let i = status.rejected.findIndex(r => r.id === rid);
     if (i !== -1) {
       status.rejected.splice(i, 1);
     }
+    return entry;
+  };
+  let retry = rejection => {
+    let entry = takeRejected(rejection.id);
     entry.flight = false;
     outbox.push(entry);
     outbox.sort((a, b) => a.seq - b.seq);
@@ -492,6 +496,26 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   });
   let fetch = makeFetch(remote, local, loaded, results, now);
   let getEntry = makeGetEntry(fetch, entries, results, key, now);
+  let discard = rejection => {
+    let entry = takeRejected(rejection.id);
+    if (local !== undefined) {
+      local.set(outboxTag, entry.seq.toString(), undefined);
+    }
+    let match = entry.op;
+    if (match.op === "upsert") {
+      return Stdlib_Dict.forEach(entries, e => {
+        if (Stdlib_Option.getOr(idsByKey[e.key], []).includes(rejection.id)) {
+          return fetch(e);
+        }
+      });
+    }
+    let live = Tilia._canopy(results).live;
+    Stdlib_Dict.forEach(entries, e => {
+      if (live.has(e.key)) {
+        return fetch(e);
+      }
+    });
+  };
   let lastPurgeAt = {
     contents: Number.NEGATIVE_INFINITY
   };
@@ -605,7 +629,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     },
     status: status,
     retry: retry,
-    discard: _rejection => {},
+    discard: discard,
     tick: tick,
     dispose: clearOnline,
     _canopy: () => {

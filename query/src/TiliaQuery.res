@@ -466,17 +466,21 @@ let make = (
     pushPending()
   }
 
-  // Reuse the original seq and persisted entry so later edits still win.
-  let retry = (rejection: rejection<'a>) => {
+  // Claim a rejection by id, raising when absent.
+  let takeRejected = rid => {
     let entry =
-      rejectedOps
-      ->Dict.get(rejection.id)
-      ->Option.getOrThrow(~message=`no rejection for "${rejection.id}"`)
-    rejectedOps->Dict.delete(rejection.id)
-    switch status.rejected->Array.findIndex(r => r.id === rejection.id) {
+      rejectedOps->Dict.get(rid)->Option.getOrThrow(~message=`no rejection for "${rid}"`)
+    rejectedOps->Dict.delete(rid)
+    switch status.rejected->Array.findIndex(r => r.id === rid) {
     | -1 => ()
     | i => status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
     }
+    entry
+  }
+
+  // Reuse the original seq and persisted entry so later edits still win.
+  let retry = (rejection: rejection<'a>) => {
+    let entry = takeRejected(rejection.id)
     entry.flight = false
     outbox->Array.push(entry)
     outbox->Array.sort((a, b) => a.seq -. b.seq)
@@ -585,6 +589,31 @@ let make = (
   let fetch = makeFetch(remote, local, loaded, results, now)
   let getEntry = makeGetEntry(fetch, entries, results, key, now)
 
+  // Drop a rejection for good: forget its persisted op and refetch remote truth.
+  let discard = (rejection: rejection<'a>) => {
+    let entry = takeRejected(rejection.id)
+    switch local {
+    | Some(local) => local.set(~tag=outboxTag, ~key=Float.toString(entry.seq), None)
+    | None => ()
+    }
+    switch entry.op {
+    | Upsert(_) =>
+      entries->Dict.forEach(e =>
+        if idsByKey->Dict.get(e.key)->Option.getOr([])->Array.includes(rejection.id) {
+          fetch(e)
+        }
+      )
+    | Remove(_) =>
+      // A discarded remove is in no result: refresh every observed query instead.
+      let live = observedKeys(results)
+      entries->Dict.forEach(e =>
+        if live->Set.has(e.key) {
+          fetch(e)
+        }
+      )
+    }
+  }
+
   let lastPurgeAt = ref(Float.Constants.negativeInfinity)
   let purgeLocal = t =>
     switch local {
@@ -687,7 +716,7 @@ let make = (
     receive: {changed: _values => (), removed: _ids => ()},
     status,
     retry,
-    discard: _rejection => (),
+    discard,
     tick,
     dispose: clearOnline,
     _canopy: () => {

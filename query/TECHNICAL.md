@@ -209,9 +209,25 @@ later and wins. The persisted entry never left local storage, so retry writes
 nothing to disk. When online, the push happens immediately, like any fresh
 write. Retrying an id that has no rejection raises.
 
-Discard still needs its recovery behavior: it will remove the optimistic
-overlay and restore remote truth. This work is tracked in
-[`TODO.md`](./TODO.md).
+Discarding a rejection drops it for good. The rejection leaves
+`status.rejected` and its persisted outbox entry is deleted, so a restart can
+no longer replay and re-fail the operation. Discarding an id that has no
+rejection raises.
+
+The client cannot rebuild remote truth on its own: the optimistic write
+replaced both the in-memory value and the local row. Discard therefore
+refetches.
+
+For a discarded upsert, every in-memory query that lists the row is
+refetched. The remote result restores the value in memory and, through
+write-through, in local storage. A rejected new row disappears the same way:
+the remote result does not contain it, so it leaves the query's id list.
+
+For a discarded remove, no in-memory result lists the row anymore, so every
+observed query is refetched instead. The row returns with those results.
+
+While offline, the refetch cannot answer and the optimistic value stays
+visible; the next online refresh restores remote truth.
 
 ### Upsert trace
 
@@ -289,6 +305,4 @@ stored version  -> current
 upsert version  -> 5
 result          -> definitive rejection
 ```
-
-The unfinished discard behavior is tracked in [`TODO.md`](./TODO.md).
 
