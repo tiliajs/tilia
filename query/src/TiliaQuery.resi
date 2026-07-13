@@ -208,6 +208,12 @@ type local<'a, 'query> = {
    * Reply through `set` — synchronously or later, like everything else.
    */
   get: (~tag: string, ~key: string=?, ~set: array<string> => unit) => unit,
+  /**
+   * Reply with the id of every row in the values table. The sweep phase of the
+   * local purge enumerates rows through this. Reply through `set` —
+   * synchronously or later.
+   */
+  ids: (~set: array<string> => unit) => unit,
 }
 
 /** Inbound push from the remote (e.g. websocket), past tense. */

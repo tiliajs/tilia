@@ -61,6 +61,7 @@ type local<'a, 'query> = {
   push: array<op<'a>> => unit,
   set: (~tag: string, ~key: string, option<string>) => unit,
   get: (~tag: string, ~key: string=?, ~set: array<string> => unit) => unit,
+  ids: (~set: array<string> => unit) => unit,
 }
 
 type receive<'a> = {
@@ -135,11 +136,43 @@ type entry<'query> = {
   mutable state: entryState,
 }
 
+/**
+ * Persisted query registry record — mirrors one kv entry (tag "query").  The
+ * registry drives the local purge. It outlives both the in-memory entry
+ * (dropped after expiry.memory) and app restarts. `ids` holds the query's
+ * latest result only. The purge is a mark and sweep:
+ * - mark: every id listed by a surviving record or in the outbox;
+ * - sweep: enumerate the stored rows (`local.ids`) and remove the rest.
+ * local.push never removes rows on its own. So when a row is deleted on
+ * the remote, it lingers in local storage — until no fresh query lists it
+ * and the next sweep drops it.
+ */
+type queryRecord = {
+  key: string,
+  mutable ids: array<string>,
+  mutable lastSeen: float,
+}
+
+@scope("JSON") @val external encodeRecord: queryRecord => string = "stringify"
+
+/** Returns None on malformed kv data: the entry is skipped, not fatal. */
+let parseRecord: string => option<queryRecord> = %raw(`
+function parseRecord(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
+      return r;
+    }
+  } catch (_) {}
+  return undefined;
+}`)
+
 /** Keys of the queries whose result is currently observed ("open"). */
 let observedKeys = results => Tilia._canopy(results).live
 
 /** Missing key means the entry was never created: treat as still loading. */
-let getResult = (results, entry) => results->Dict.get(entry.key)->Option.getOr(Loading)
+let getResult = (results, entry: entry<'query>) =>
+  results->Dict.get(entry.key)->Option.getOr(Loading)
 
 let makeFetch = (remote, local, loaded, results, now) =>
   entry => {
@@ -267,6 +300,37 @@ let make = (
 
   let entries: dict<entry<'query>> = Dict.make()
   let results: dict<loadable<array<'a>>> = Dict.make()->Tilia.tilia
+
+  // In-memory mirror of the persisted query registry (kv tag "query"),
+  // written through on change. So for any key the mirror holds, the disk
+  // copy is never fresher. The purge merges disk records only for keys the
+  // mirror lacks (queries from past sessions).
+  let queryTag = "query"
+  let registry: dict<queryRecord> = Dict.make()
+  let persistRecord = record =>
+    switch local {
+    | None => ()
+    | Some(local) => local.set(~tag=queryTag, ~key=record.key, Some(encodeRecord(record)))
+    }
+  // lastSeen tracks observation (entry.lastSeen), not delivery time: a
+  // late remote response landing on a long-closed query must not extend
+  // its local retention.
+  let recordSeen = (entry: entry<'query>, ids) =>
+    switch local {
+    | None => ()
+    | Some(_) =>
+      let record = switch registry->Dict.get(entry.key) {
+      | Some(record) => record
+      | None =>
+        let record = {key: entry.key, ids: [], lastSeen: 0.0}
+        registry->Dict.set(entry.key, record)
+        record
+      }
+      record.lastSeen = Math.max(record.lastSeen, entry.lastSeen)
+      record.ids = ids
+      persistRecord(record)
+    }
+
   let loaded = (entry, values, remote) => {
     if remote {
       entry.refreshedAt = now()
@@ -279,6 +343,7 @@ let make = (
       itemById->Dict.set(id(value), value)
     })
     let ids = values->Array.map(id)
+    recordSeen(entry, ids)
     idsByKey->Dict.set(entry.key, ids)
     // We make the entry result rebuild on changes to ids or any of the id in the list.
     let build = () =>
@@ -311,33 +376,62 @@ let make = (
   let getEntry = makeGetEntry(fetch, entries, results, key, now)
 
   /*
-    Does this list of checks make sense ?
-    Every tick : record lastSeen.
-    Every expiry.refresh / 8 : check needRefresh.
-    Every expiry.memory / 8 : check needRemove.
-    Every expiry.local / 8 : check needPurge.
-
-    needRefresh =
-      // LiveRemote is not refreshed and all other states are refreshed on transition to online.
-      entry.state === LoadedRemote &&
-      // Only refresh every expiry.refresh time.
-      now > refreshedAt + expiry.refresh &&
-      // Only refresh things that have been recently seen.
-      now < lastSeen + expiry.refresh,
-    // Only remove things that haven't been seen for a long time.
-    needRemove = now > lastSeen + expiry.memory,
-    // Only purge things that haven't been seen for a very long time.
-    // needPurge needs access to the stored queries inside local storage.
-    // NOTE: as part of purge, we should also check if items are referenced by
-    // any queries and are dropped otherwise.  This touches itemsById and local
-    // storage.
-    needPurge = now > lastSeen + expiry.local,
-
-    // For every purge mechanism, we need to:
-    //  1. remove the queries
-    //  2. for all ids in the removed queries (or all ids in the memory resp. local database), check if they are referenced by another query
-    //  3. if not, remove the items from the memory resp. local database.
+    When to do what:
+    Every tick, in one pass over the entries (all in-memory work); the expensive
+    parts self-throttle per entry
+    - record lastSeen for observed queries
+    - refresh observed LoadedRemote queries (throttled by refreshedAt /
+      fetchedAt)
+    - flip un-refreshed remote results to `local: true`
+    - drop queries unseen for expiry.memory, then items no query references
+    First tick after boot, then at most every expiry.local / 8 (async kv
+    I/O, so gated — sessions rarely span 3.75 days, so in practice once
+    per boot):
+    - local purge, a mark and sweep:
+      1. merge the on-disk query registry into the mirror
+      2. drop records unseen for expiry.local
+      3. mark every id the surviving records list and in the outbox
+      4. remove the unmarked ids from the stored rows (local.ids)
  */
+  let lastPurgeAt = ref(Float.Constants.negativeInfinity)
+  let purgeLocal = t =>
+    switch local {
+    | None => ()
+    | Some(local) =>
+      local.get(~tag=queryTag, ~set=values => {
+        // Merge queries from past sessions. The mirror is written through,
+        // so a key it already holds is at least as fresh as the disk copy.
+        values->Array.forEach(value =>
+          switch parseRecord(value) {
+          | Some(record) if registry->Dict.get(record.key)->Option.isNone =>
+            registry->Dict.set(record.key, record)
+          | _ => ()
+          }
+        )
+        // Drop records unseen for expiry.local. An in-memory entry was
+        // seen within expiry.memory: never stale.
+        registry->Dict.forEach(record =>
+          if t > record.lastSeen + expiry.local && entries->Dict.get(record.key)->Option.isNone {
+            registry->Dict.delete(record.key)
+            local.set(~tag=queryTag, ~key=record.key, None)
+          }
+        )
+        // Mark and sweep: a row stays only while some record lists it.
+        local.ids(~set=allIds => {
+          let marked = Set.make()
+          registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
+          // TODO (outbox): also mark the ids of pending outbox ops. A row
+          // with an unconfirmed write must survive the sweep even when no
+          // query lists it.
+          let removes =
+            allIds->Array.filterMap(id => marked->Set.has(id) ? None : Some(Remove({id: id})))
+          if removes->Array.length > 0 {
+            local.push(removes)
+          }
+        })
+      })
+    }
+
   let tick = () => {
     let t = now()
     // Online: one extra refresh-check period (refresh / 8) of buffer so an
@@ -353,6 +447,15 @@ let make = (
     entries->Dict.forEach(entry => {
       if live->Set.has(entry.key) {
         entry.lastSeen = t
+        // Keep the on-disk lastSeen fresh for queries observed without
+        // remote deliveries (offline), so they survive the purge across a
+        // restart. At most one kv write per refresh window.
+        switch registry->Dict.get(entry.key) {
+        | Some(record) if t > record.lastSeen + expiry.refresh =>
+          record.lastSeen = t
+          persistRecord(record)
+        | _ => ()
+        }
       }
       if t > entry.lastSeen + expiry.memory {
         dropped->Array.push(entry.key)
@@ -389,13 +492,19 @@ let make = (
       idsByKey->Dict.forEach(ids => ids->Array.forEach(id => orphans->Set.delete(id)->ignore))
       orphans->Set.forEach(id => itemById->Dict.delete(id))
     }
+    if t > lastPurgeAt.contents + expiry.local / 8.0 {
+      lastPurgeAt := t
+      purgeLocal(t)
+    }
   }
 
   {
     one: makeOne(getEntry, results),
     array: makeArray(getEntry, results),
-    // TODO: on upsert, should match queries and update the ids + the stored item. If no query
-    // matches, create a query by id and mark last seen as now.
+    // TODO (outbox): on upsert, join the queries the record `matches`
+    // (update their ids + the stored item). No dedicated per-record query:
+    // while the op is pending, the sweep marks its id from the outbox;
+    // after confirmation the row lives through the queries that list it.
     upsert: makeUpsert(id, remote, local, itemById),
     remove: _id => (),
     receive: {changed: _values => (), removed: _ids => ()},

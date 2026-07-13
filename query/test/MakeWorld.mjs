@@ -185,6 +185,9 @@ function make$4(dexme) {
       } else {
         dexme.kv.filter(e => e.key.startsWith(tag + `/`)).then(result => set(result.map(e => e.value)));
       }
+    },
+    ids: set => {
+      dexme.cards.filter(param => true).then(cards => set(cards.map(card => card.id)));
     }
   };
 }

@@ -10,13 +10,16 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   let step = param.step;
   let match = Tilia.signal(status === "online");
   let setOnline = match[1];
+  let online_ = match[0];
   let match$1 = Tilia.signal(0.0);
   let setNow = match$1[1];
   let now_ = match$1[0];
   let network = MakeWorld.Network.make();
   let papabase = MakeWorld.Papabase.make(network);
   let dexme = MakeWorld.Dexme.make();
-  let cards = MakeWorld.make(dexme, papabase, () => now_.value, match[0]);
+  let cards = {
+    contents: MakeWorld.make(dexme, papabase, () => now_.value, online_)
+  };
   let view = {
     contents: "loading"
   };
@@ -33,15 +36,29 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       papabase.upsert(card);
     });
   });
+  step("the remote removes {string}", id => {
+    papabase.remove(id);
+  });
+  let settled = () => new Promise((resolve, param) => {
+    setTimeout(() => resolve(), 0);
+  });
   let advanceClock = ms => {
     setNow(now_.value + ms);
     network.flush();
+    return settled();
   };
   step("time passes", () => advanceClock(1.0));
   step("{number} minutes pass", minutes => advanceClock(minutes * 60.0 * 1000.0));
   step("{number} seconds pass", seconds => advanceClock(seconds * 1000.0));
   step("{number} days pass", days => advanceClock(days * 86400000.0));
-  step("tick is called", cards.tick);
+  step("tick is called", () => {
+    cards.contents.tick();
+    return settled();
+  });
+  step("I restart the app", () => {
+    cards.contents.dispose();
+    cards.contents = MakeWorld.make(dexme, papabase, () => now_.value, online_);
+  });
   step("a local cache of cards", table => {
     VitestBdd.toRecords(table).forEach(card => {
       dexme.cards.put(card);
@@ -53,7 +70,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       deck: deck.toLowerCase()
     };
     closeDeck.contents = Tilia.observe(() => {
-      view.contents = cards.array(query);
+      view.contents = cards.contents.array(query);
       let match = view.contents;
       if (typeof match !== "object") {
         console.log("not loaded");
@@ -78,8 +95,15 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     });
   });
   step("I upsert", table => {
-    VitestBdd.toRecords(table).forEach(card => cards.upsert(card));
+    VitestBdd.toRecords(table).forEach(card => cards.contents.upsert(card));
   });
+  step("I remove {string}", id => cards.contents.remove(id));
+  step("status should have {number} pending", count => Vitest.expect(cards.contents.status.pending).toBe(count | 0));
+  step("status should have {number} rejected", count => Vitest.expect(cards.contents.status.rejected.length).toBe(count | 0));
+  let findRejection = id => Stdlib_Option.getOrThrow(cards.contents.status.rejected.find(rejection => rejection.id === id), `no rejection for "` + id + `"`);
+  step("I retry the rejection for {string}", id => cards.contents.retry(findRejection(id)));
+  step("I discard the rejection for {string}", id => cards.contents.discard(findRejection(id)));
+  step("remote should not have {string}", id => Vitest.expect(papabase._select(c => c.id === id).length).toBe(0));
   step("remote should have", table => {
     VitestBdd.toRecords(table).forEach(card => {
       let found = Stdlib_Option.getOrThrow(papabase._select(c => c.id === card.id)[0], `remote has no card "` + card.id + `"`);

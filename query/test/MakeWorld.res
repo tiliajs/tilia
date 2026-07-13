@@ -228,6 +228,11 @@ module DexmeAdaptor = {
         ->Promise.thenResolve(result => set(result->Array.map(e => e.value)))
         ->ignore
       },
+    // With real Dexie this is `table.toCollection().primaryKeys()`.
+    ids: (~set) =>
+      dexme.cards.filter(_ => true)
+      ->Promise.thenResolve(cards => set(cards->Array.map(card => card.id)))
+      ->ignore,
   }
 }
 

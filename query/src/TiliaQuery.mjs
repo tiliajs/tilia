@@ -29,6 +29,16 @@ function _no_sort(array) {
   return array;
 }
 
+let parseRecord = (function parseRecord(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
+      return r;
+    }
+  } catch (_) {}
+  return undefined;
+});
+
 function getResult(results, entry) {
   return Stdlib_Option.getOr(results[entry.key], "loading");
 }
@@ -175,6 +185,34 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let idsByKey = Tilia.tilia({});
   let entries = {};
   let results = Tilia.tilia({});
+  let queryTag = "query";
+  let registry = {};
+  let persistRecord = record => {
+    if (local !== undefined) {
+      return local.set(queryTag, record.key, JSON.stringify(record));
+    }
+  };
+  let recordSeen = (entry, ids) => {
+    if (local === undefined) {
+      return;
+    }
+    let record = registry[entry.key];
+    let record$1;
+    if (record !== undefined) {
+      record$1 = record;
+    } else {
+      let record$2 = {
+        key: entry.key,
+        ids: [],
+        lastSeen: 0.0
+      };
+      registry[entry.key] = record$2;
+      record$1 = record$2;
+    }
+    record$1.lastSeen = Math.max(record$1.lastSeen, entry.lastSeen);
+    record$1.ids = ids;
+    persistRecord(record$1);
+  };
   let loaded = (entry, values, remote) => {
     if (remote) {
       entry.refreshedAt = now();
@@ -189,6 +227,7 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       itemById[id(value)] = value;
     });
     let ids = values.map(id);
+    recordSeen(entry, ids);
     idsByKey[entry.key] = ids;
     let build = () => sort(Stdlib_Array.filterMap(Stdlib_Option.getOr(idsByKey[entry.key], []), id => itemById[id]));
     results[entry.key] = {
@@ -214,6 +253,9 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   });
   let fetch = makeFetch(remote, local, loaded, results, now);
   let getEntry = makeGetEntry(fetch, entries, results, key, now);
+  let lastPurgeAt = {
+    contents: Number.NEGATIVE_INFINITY
+  };
   let tick = () => {
     let t = now();
     let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0;
@@ -224,6 +266,11 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     Stdlib_Dict.forEach(entries, entry => {
       if (live.has(entry.key)) {
         entry.lastSeen = t;
+        let record = registry[entry.key];
+        if (record !== undefined && t > record.lastSeen + expiry.refresh) {
+          record.lastSeen = t;
+          persistRecord(record);
+        }
       }
       if (t > entry.lastSeen + expiry.memory) {
         dropped.push(entry.key);
@@ -247,24 +294,66 @@ function make(id, _matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
         return;
       }
     });
-    if (dropped.length === 0) {
-      return;
+    if (dropped.length !== 0) {
+      let orphans = new Set();
+      dropped.forEach(key => {
+        Stdlib_Option.getOr(idsByKey[key], []).forEach(id => {
+          orphans.add(id);
+        });
+        Stdlib_Dict.$$delete(entries, key);
+        Stdlib_Dict.$$delete(results, key);
+        Stdlib_Dict.$$delete(idsByKey, key);
+      });
+      Stdlib_Dict.forEach(idsByKey, ids => {
+        ids.forEach(id => {
+          orphans.delete(id);
+        });
+      });
+      orphans.forEach(id => Stdlib_Dict.$$delete(itemById, id));
     }
-    let orphans = new Set();
-    dropped.forEach(key => {
-      Stdlib_Option.getOr(idsByKey[key], []).forEach(id => {
-        orphans.add(id);
-      });
-      Stdlib_Dict.$$delete(entries, key);
-      Stdlib_Dict.$$delete(results, key);
-      Stdlib_Dict.$$delete(idsByKey, key);
-    });
-    Stdlib_Dict.forEach(idsByKey, ids => {
-      ids.forEach(id => {
-        orphans.delete(id);
-      });
-    });
-    orphans.forEach(id => Stdlib_Dict.$$delete(itemById, id));
+    if (t > lastPurgeAt.contents + expiry.local / 8.0) {
+      lastPurgeAt.contents = t;
+      if (local !== undefined) {
+        return local.get(queryTag, undefined, values => {
+          values.forEach(value => {
+            let record = parseRecord(value);
+            if (record !== undefined && Stdlib_Option.isNone(registry[record.key])) {
+              registry[record.key] = record;
+              return;
+            }
+          });
+          Stdlib_Dict.forEach(registry, record => {
+            if (t > record.lastSeen + expiry.local && Stdlib_Option.isNone(entries[record.key])) {
+              Stdlib_Dict.$$delete(registry, record.key);
+              return local.set(queryTag, record.key, undefined);
+            }
+          });
+          local.ids(allIds => {
+            let marked = new Set();
+            Stdlib_Dict.forEach(registry, record => {
+              record.ids.forEach(id => {
+                marked.add(id);
+              });
+            });
+            let removes = Stdlib_Array.filterMap(allIds, id => {
+              if (marked.has(id)) {
+                return;
+              } else {
+                return {
+                  op: "remove",
+                  id: id
+                };
+              }
+            });
+            if (removes.length !== 0) {
+              return local.push(removes);
+            }
+          });
+        });
+      } else {
+        return;
+      }
+    }
   };
   return {
     one: makeOne(getEntry, results),

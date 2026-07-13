@@ -5,16 +5,18 @@ open MakeWorld
 // simulated remote (Papabase behind a Network), local store (Dexme) and the
 // app — then each step drives or observes it the way a real app would.
 //
-// Timing: vitest-bdd awaits every step, so plain promise results (Dexme)
-// land between two steps on their own. Remote responses are held by the
-// Network and only arrive when a `time passes` step flushes it.
+// Timing: vitest-bdd awaits every step, and the clock/tick steps end on a
+// macrotask (`settled`), so every pending local (Dexme) answer lands
+// between two steps. Remote responses are held by the Network and only
+// arrive when a `time passes` step flushes it.
 given("an {string} training app", ({step}, status: string) => {
   let (online_, setOnline) = Tilia.signal(status === "online")
   let (now_, setNow) = Tilia.signal(0.0)
   let network = Network.make()
   let papabase = Papabase.make(network)
   let dexme = Dexme.make()
-  let cards = make(~dexme, papabase, () => now_.value, online_)
+  // A ref so "I restart the app" can rebuild the engine on the same stores.
+  let cards = ref(make(~dexme, papabase, () => now_.value, online_))
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
   let closeDeck: ref<unit => unit> = ref(() => ())
 
@@ -28,17 +30,38 @@ given("an {string} training app", ({step}, status: string) => {
     toRecords(table)->Array.forEach(card => papabase.upsert(card)->ignore)
   )
 
+  // Delete straight on the server: the local copy lingers until the purge
+  // sweeps it.
+  step("the remote removes {string}", (id: string) => papabase.remove(id)->ignore)
+
+  // Dexme answers on the microtask queue, sometimes through several chained
+  // promises (the purge: kv read, then row enumeration, then removes).
+  // Waiting one macrotask drains the whole queue, so every pending local
+  // answer has landed before the next step runs.
+  let settled = () => Promise.make((resolve, _) => setTimeout(() => resolve(), 0)->ignore)
+
   // Advance the clock and deliver every pending network response.
   let advanceClock = (ms: float) => {
     setNow(now_.value + ms)
     network.flush()
+    settled()
   }
 
   step("time passes", () => advanceClock(1.0))
   step("{number} minutes pass", (minutes: float) => advanceClock(minutes * 60.0 * 1000.0))
   step("{number} seconds pass", (seconds: float) => advanceClock(seconds * 1000.0))
   step("{number} days pass", (days: float) => advanceClock(days * 86_400_000.0))
-  step("tick is called", cards.tick)
+  step("tick is called", () => {
+    cards.contents.tick()
+    settled()
+  })
+
+  // A restart: the engine instance is torn down and rebuilt on the same
+  // local and remote stores, like the app coming back after a reload.
+  step("I restart the app", () => {
+    cards.contents.dispose()
+    cards := make(~dexme, papabase, () => now_.value, online_)
+  })
 
   step("a local cache of cards", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(card => dexme.cards.put(card)->ignore)
@@ -52,7 +75,7 @@ given("an {string} training app", ({step}, status: string) => {
     let query = {deck: deck->String.toLowerCase}
     closeDeck :=
       Tilia.observe(() => {
-        view := cards.array(query)
+        view := cards.contents.array(query)
         switch view.contents {
         | TiliaQuery.Loaded({data}) => Console.log(data)
         | _ => Console.log("not loaded")
@@ -79,8 +102,35 @@ given("an {string} training app", ({step}, status: string) => {
   })
 
   step("I upsert", (table: array<array<string>>) =>
-    toRecords(table)->Array.forEach(card => cards.upsert(card))
+    toRecords(table)->Array.forEach(card => cards.contents.upsert(card))
   )
+
+  step("I remove {string}", (id: string) => cards.contents.remove(id))
+
+  step("status should have {number} pending", (count: float) =>
+    expect(cards.contents.status.pending).toBe(count->Float.toInt)
+  )
+
+  step("status should have {number} rejected", (count: float) =>
+    expect(cards.contents.status.rejected->Array.length).toBe(count->Float.toInt)
+  )
+
+  let findRejection = (id: string) =>
+    cards.contents.status.rejected
+    ->Array.find(rejection => rejection.id === id)
+    ->Option.getOrThrow(~message=`no rejection for "${id}"`)
+
+  step("I retry the rejection for {string}", (id: string) =>
+    cards.contents.retry(findRejection(id))
+  )
+
+  step("I discard the rejection for {string}", (id: string) =>
+    cards.contents.discard(findRejection(id))
+  )
+
+  step("remote should not have {string}", (id: string) => {
+    expect(papabase._select(c => c.id === id)->Array.length).toBe(0)
+  })
 
   // `_select` looks straight inside the simulated stores — test-only
   // inspection, this is not something an adaptor can or should do.
