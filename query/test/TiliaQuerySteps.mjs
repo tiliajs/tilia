@@ -60,9 +60,18 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     cards.contents = MakeWorld.make(dexme, papabase, () => now_.value, online_);
     return settled();
   });
-  step("a local cache of cards", table => {
-    VitestBdd.toRecords(table).forEach(card => {
-      dexme.cards.put(card);
+  step("deck {string} is in local db", deck => {
+    let app = MakeWorld.make(dexme, papabase, () => now_.value, online_);
+    let query = {
+      deck: deck.toLowerCase()
+    };
+    let close = Tilia.observe(() => {
+      app.array(query);
+    });
+    network.flush();
+    return settled().then(() => {
+      close();
+      app.dispose();
     });
   });
   step("I go {string}", status => setOnline(status === "online"));

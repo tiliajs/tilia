@@ -65,9 +65,16 @@ given("an {string} training app", ({step}, status: string) => {
     settled()
   })
 
-  step("a local cache of cards", (table: array<array<string>>) =>
-    toRecords(table)->Array.forEach(card => dexme.cards.put(card)->ignore)
-  )
+  step("deck {string} is in local db", (deck: string) => {
+    let app = make(~dexme, papabase, () => now_.value, online_)
+    let query = {deck: deck->String.toLowerCase}
+    let close = Tilia.observe(() => app.array(query)->ignore)
+    network.flush()
+    settled()->Promise.thenResolve(() => {
+      close()
+      app.dispose()
+    })
+  })
 
   step("I go {string}", (status: string) => setOnline(status === "online"))
 

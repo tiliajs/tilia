@@ -19,19 +19,17 @@ Feature: Language training app
       | dog.es | dog     | perro       | 0    |
 
   Scenario: fetch a deck while offline
-    And a local cache of cards
-      | id     | deck    | english | translation | seen |
-      | cat.es | spanish | cat     | gato        | 0    |
-      | cat.fr | french  | cat     | chat        | 0    |
+    When deck "Spanish" is in local db
     And I go "offline"
-    When I open the "Spanish" deck
+    And I open the "Spanish" deck
     Then I should see "local" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
 
   Scenario: fetch an uncached deck while offline
-    And I go "offline"
-    When I open the "Spanish" deck
+    When I go "offline"
+    And I open the "Spanish" deck
     Then I should see not local
 
   Scenario: go offline while a fetch is in flight
@@ -63,10 +61,10 @@ Feature: Language training app
       | dog.es | dog     | perro       | 0    |
 
   Scenario: update a card while offline
-    And I open the "Spanish" deck
+    When I open the "Spanish" deck
     And time passes
     And I go "offline"
-    When I upsert
+    And I upsert
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
     # Not sure what we should see here. I guess that it should switch to 'local'
@@ -78,7 +76,7 @@ Feature: Language training app
       | dog.es | dog     | perro       | 0    |
 
   Scenario: remote data becomes local after refresh timeout
-    And I open the "Spanish" deck
+    When I open the "Spanish" deck
     And time passes
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
@@ -168,7 +166,7 @@ Feature: Language training app
     And I close the deck
     And 6 minutes pass
     And tick is called
-    When I open the "Spanish" deck
+    And I open the "Spanish" deck
     # Dropped from memory, but still on disk: the cache answers first.
     Then I should see "local" loaded with data
       | id     | english | translation | seen |
@@ -184,14 +182,13 @@ Feature: Language training app
   # timeout) are distinct: after 6 minutes the cards are gone from memory but
   # still on disk, only after 30 days do they leave local storage.
   Scenario: a closed deck is purged from local storage after the local timeout
-    And a local cache of cards
-      | id     | deck    | english | translation | seen |
-      | cat.es | spanish | cat     | gato        | 0    |
+    And deck "Spanish" is in local db
     And I go "offline"
-    When I open the "Spanish" deck
+    And I open the "Spanish" deck
     Then I should see "local" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
     And I close the deck
     And 6 minutes pass
     And tick is called
@@ -207,11 +204,9 @@ Feature: Language training app
   # (3.75 days) — in practice once per boot. All in-memory work (lastSeen,
   # refresh, memory drop) runs on every tick, unthrottled.
   Scenario: local purge does not run on every tick
-    And a local cache of cards
-      | id     | deck    | english | translation | seen |
-      | cat.es | spanish | cat     | gato        | 0    |
+    And deck "Spanish" is in local db
     And I go "offline"
-    When I open the "Spanish" deck
+    And I open the "Spanish" deck
     And I close the deck
     And 28 days pass
     # First purge: the deck was seen 28 days ago, still retained.
@@ -239,7 +234,7 @@ Feature: Language training app
     Then local should have
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
-    When the remote removes "cat.es"
+    And the remote removes "cat.es"
     And 35 seconds pass
     And tick is called
     And time passes
@@ -376,11 +371,9 @@ Feature: Language training app
       | dog.es | dog     | perro       | 0    |
 
   Scenario: the local purge spares rows with pending writes
-    And a local cache of cards
-      | id     | deck    | english | translation | seen |
-      | cat.es | spanish | cat     | gato        | 0    |
+    When deck "Spanish" is in local db
     And I go "offline"
-    When I open the "Spanish" deck
+    And I open the "Spanish" deck
     And I close the deck
     And I upsert
       | id     | deck    | english | translation | seen |
@@ -391,3 +384,38 @@ Feature: Language training app
     And local should have
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
+
+  Scenario: moving a card updates matching queries in memory
+    When deck "Spanish" is in local db
+    And I open the "Spanglish" deck
+    And time passes
+    And I close the deck
+    And I go "offline"
+    When I open the "Spanish" deck
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When I upsert
+      | id     | deck      | english | translation | seen |
+      | cat.es | spanglish | cat     | gato        | 1    |
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 0    |
+    When I close the deck
+    And I open the "Spanglish" deck
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+
+  Scenario: a new card joins matching queries stored locally
+    When deck "Spanish" is in local db
+    And I upsert
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And time passes
+    Then status should have 0 pending
+    When tick is called
+    Then local should have
+      | id      | english | translation | seen |
+      | rain.es | rain    | lluvia      | 0    |
