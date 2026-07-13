@@ -1,11 +1,11 @@
 /**
  * A value as seen by the read path.
  *
- * `Loaded.local` tells whether the data is known-fresh from the remote
- * (`false`) or served from the local cache (`true`). On `tick`, a query
+ * `Loaded.fresh` tells whether the data is known-fresh from the remote
+ * (`true`) or served from the local cache (`false`). On `tick`, a query
  * whose data came from the remote (and is not live) and has not received a
  * remote delivery within `expiry.refresh` has its result flipped to
- * `local: true`; the next remote delivery flips it back to `local: false`.
+ * `fresh: false`; the next remote delivery flips it back to `fresh: true`.
  * While online the flip waits one extra refresh-check period
  * (`expiry.refresh / 8`) so an in-flight refresh can land without a
  * flip/flop; offline it flips right at the refresh expiry limit.
@@ -24,7 +24,7 @@
 @tag("state")
 type loadable<'a> =
   | @as("loading") Loading
-  | @as("loaded") Loaded({data: 'a, local: bool})
+  | @as("loaded") Loaded({data: 'a, fresh: bool})
   | @as("notFound") NotFound
   | @as("notLocal") NotLocal
   | @as("failed") Failed({message: string})

@@ -3,7 +3,7 @@
 @tag("state")
 type loadable<'a> =
   | @as("loading") Loading
-  | @as("loaded") Loaded({data: 'a, local: bool})
+  | @as("loaded") Loaded({data: 'a, fresh: bool})
   | @as("notFound") NotFound
   | @as("notLocal") NotLocal
   | @as("failed") Failed({message: string})
@@ -258,9 +258,9 @@ let makeGetEntry = (fetch, entries, results, key, now) =>
 let makeOne = (getEntry, results) =>
   query =>
     switch getResult(results, getEntry(query)) {
-    | Loaded({data, local}) =>
+    | Loaded({data, fresh}) =>
       switch data->Array.get(0) {
-      | Some(value) => Loaded({data: value, local})
+      | Some(value) => Loaded({data: value, fresh})
       | None => NotFound
       }
     | Loading => Loading
@@ -386,7 +386,7 @@ let make = (
       ->Option.getOr([])
       ->Array.filterMap(id => itemById->Dict.get(id))
       ->sort // Observe sorting so edits to sort keys update the list.
-    results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local: !remote}))
+    results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), fresh: remote}))
   }
 
   let confirmed = (entry: outboxOp<'a>) => {
@@ -727,9 +727,9 @@ let make = (
           fetch(entry)
         }
         switch getResult(results, entry) {
-        | Loaded({data, local: false}) =>
+        | Loaded({data, fresh: true}) =>
           if entry.refreshedAt < freshLimit {
-            results->Dict.set(entry.key, Loaded({data, local: true}))
+            results->Dict.set(entry.key, Loaded({data, fresh: false}))
           }
         | _ => ()
         }

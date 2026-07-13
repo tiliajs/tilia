@@ -97,12 +97,12 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("I close the deck", () => closeDeck.contents());
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
   step("I should see not local", () => Vitest.expect(view.contents).toMatchObject("notLocal"));
-  step("I should see {string} loaded with data", (local, table) => {
+  step("I should see {string} loaded with data", (source, table) => {
     let expected = VitestBdd.toRecords(table);
     Vitest.expect(view.contents).toMatchObject({
       state: "loaded",
       data: expected,
-      local: local === "local"
+      fresh: source === "remote"
     });
   });
   step("I upsert", table => {

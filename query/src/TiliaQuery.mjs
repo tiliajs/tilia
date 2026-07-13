@@ -149,7 +149,7 @@ function makeOne(getEntry, results) {
         return {
           state: "loaded",
           data: Primitive_option.valFromOption(value),
-          local: match.local
+          fresh: match.fresh
         };
       } else {
         return "notFound";
@@ -266,7 +266,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     results[entry.key] = {
       state: "loaded",
       data: Tilia.computed(build),
-      local: !remote
+      fresh: remote
     };
   };
   let confirmed = entry => {
@@ -561,13 +561,13 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
         fetch(entry);
       }
       let match = getResult(results, entry);
-      if (typeof match !== "object" || match.state !== "loaded" || match.local || entry.refreshedAt >= freshLimit) {
+      if (typeof match !== "object" || !(match.state === "loaded" && match.fresh && entry.refreshedAt < freshLimit)) {
         return;
       } else {
         results[entry.key] = {
           state: "loaded",
           data: match.data,
-          local: true
+          fresh: false
         };
         return;
       }

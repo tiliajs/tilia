@@ -26,12 +26,12 @@ request finishes.
 For example, opening the Spanish deck can produce this sequence:
 
 ```text
-local result  -> Loaded({data: [cat, dog], local: true})
-remote result -> Loaded({data: [cat, dog], local: false})
+local result  -> Loaded({data: [cat, dog], fresh: false})
+remote result -> Loaded({data: [cat, dog], fresh: true})
 ```
 
-The `local` field describes the source freshness. It does not describe where
-the rows are physically stored.
+The `fresh` field describes whether the remote is known to be current. It does
+not describe where the rows are physically stored.
 
 When the remote result arrives, it becomes the visible result. If local storage
 is configured, the rows are also upserted there so a later offline read can
@@ -90,12 +90,12 @@ data.
 
 ### Freshness source
 
-A remote result is marked local when no replacement arrives within the refresh
-period. The data stays visible; only its freshness source changes.
+A remote result is marked stale when no replacement arrives within the refresh
+period. The data stays visible; only its freshness changes.
 
 ```text
-before expiry -> Loaded({data: [cat, dog], local: false})
-after expiry  -> Loaded({data: [cat, dog], local: true})
+before expiry -> Loaded({data: [cat, dog], fresh: true})
+after expiry  -> Loaded({data: [cat, dog], fresh: false})
 ```
 
 While offline, this change happens at the refresh expiry. While online, the
