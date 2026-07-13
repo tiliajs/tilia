@@ -374,6 +374,19 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     status.pending = outbox.length;
     pushPending();
   };
+  let retry = rejection => {
+    let entry = Stdlib_Option.getOrThrow(rejectedOps[rejection.id], `no rejection for "` + rejection.id + `"`);
+    Stdlib_Dict.$$delete(rejectedOps, rejection.id);
+    let i = status.rejected.findIndex(r => r.id === rejection.id);
+    if (i !== -1) {
+      status.rejected.splice(i, 1);
+    }
+    entry.flight = false;
+    outbox.push(entry);
+    outbox.sort((a, b) => a.seq - b.seq);
+    status.pending = outbox.length;
+    pushPending();
+  };
   let upsert = value => {
     let vid = id(value);
     itemById[vid] = value;
@@ -591,7 +604,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       removed: _ids => {}
     },
     status: status,
-    retry: _rejection => {},
+    retry: retry,
     discard: _rejection => {},
     tick: tick,
     dispose: clearOnline,

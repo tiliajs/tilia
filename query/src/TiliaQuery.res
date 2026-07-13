@@ -466,6 +466,24 @@ let make = (
     pushPending()
   }
 
+  // Reuse the original seq and persisted entry so later edits still win.
+  let retry = (rejection: rejection<'a>) => {
+    let entry =
+      rejectedOps
+      ->Dict.get(rejection.id)
+      ->Option.getOrThrow(~message=`no rejection for "${rejection.id}"`)
+    rejectedOps->Dict.delete(rejection.id)
+    switch status.rejected->Array.findIndex(r => r.id === rejection.id) {
+    | -1 => ()
+    | i => status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
+    }
+    entry.flight = false
+    outbox->Array.push(entry)
+    outbox->Array.sort((a, b) => a.seq -. b.seq)
+    syncPending()
+    pushPending()
+  }
+
   // Join optimistic upserts to matching in-memory queries.
   let upsert = value => {
     let vid = id(value)
@@ -668,7 +686,7 @@ let make = (
     remove,
     receive: {changed: _values => (), removed: _ids => ()},
     status,
-    retry: _rejection => (),
+    retry,
     discard: _rejection => (),
     tick,
     dispose: clearOnline,

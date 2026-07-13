@@ -202,10 +202,16 @@ The rejected operation remains part of the optimistic overlay, keeping the
 refused edit visible. Its persisted outbox entry is also retained. After a
 restart it loads as pending, is sent again, and can surface the same rejection.
 
-Retry and discard still need their recovery behavior. Retry will put the
-operation back in the outbox using its original sequence and persisted entry.
-Discard will remove the optimistic overlay and restore remote truth. This work
-is tracked in [`TODO.md`](./TODO.md).
+Retrying a rejection removes it from `status.rejected` and returns the
+operation to the outbox under its original sequence number. Keeping the
+sequence preserves edit order: an edit made after the rejection still pushes
+later and wins. The persisted entry never left local storage, so retry writes
+nothing to disk. When online, the push happens immediately, like any fresh
+write. Retrying an id that has no rejection raises.
+
+Discard still needs its recovery behavior: it will remove the optimistic
+overlay and restore remote truth. This work is tracked in
+[`TODO.md`](./TODO.md).
 
 ### Upsert trace
 
@@ -284,5 +290,5 @@ upsert version  -> 5
 result          -> definitive rejection
 ```
 
-The unfinished retry and discard behavior is tracked in [`TODO.md`](./TODO.md).
+The unfinished discard behavior is tracked in [`TODO.md`](./TODO.md).
 
