@@ -132,16 +132,18 @@ type entry<'query> = {
 }
 
 /** Durable query result used to find rows still reachable during local purge. */
-type queryRecord = {
+type queryRecord<'query> = {
   key: string,
+  // The query itself, so matches can run on disk-only records. None on synthetics.
+  query: option<'query>,
   mutable ids: array<string>,
   mutable lastSeen: float,
 }
 
-@scope("JSON") @val external encodeRecord: queryRecord => string = "stringify"
+@scope("JSON") @val external encodeRecord: queryRecord<'query> => string = "stringify"
 
 /** Returns None on malformed kv data: the entry is skipped, not fatal. */
-let parseRecord: string => option<queryRecord> = %raw(`
+let parseRecord: string => option<queryRecord<'query>> = %raw(`
 function parseRecord(value) {
   try {
     const r = JSON.parse(value);
@@ -287,7 +289,8 @@ let make = (
 
   // The write-through registry wins over older persisted records during purge.
   let queryTag = "query"
-  let registry: dict<queryRecord> = Dict.make()
+  let syntheticPrefix = "__id:"
+  let registry: dict<queryRecord<'query>> = Dict.make()
   let persistRecord = record =>
     switch local {
     | None => ()
@@ -301,7 +304,7 @@ let make = (
       let record = switch registry->Dict.get(entry.key) {
       | Some(record) => record
       | None =>
-        let record = {key: entry.key, ids: [], lastSeen: 0.0}
+        let record = {key: entry.key, query: Some(entry.query), ids: [], lastSeen: 0.0}
         registry->Dict.set(entry.key, record)
         record
       }
@@ -332,7 +335,7 @@ let make = (
     }
     let rid = opId(entry.op)
     rejectedOps->Dict.set(rid, entry)
-    let rejection = {id: rid, op: entry.op, message: message}
+    let rejection = {id: rid, op: entry.op, message}
     switch status.rejected->Array.findIndex(r => r.id === rid) {
     | -1 => status.rejected->Array.push(rejection)
     | i => status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[rejection])
@@ -469,8 +472,7 @@ let make = (
 
   // Claim a rejection by id, raising when absent.
   let takeRejected = rid => {
-    let entry =
-      rejectedOps->Dict.get(rid)->Option.getOrThrow(~message=`no rejection for "${rid}"`)
+    let entry = rejectedOps->Dict.get(rid)->Option.getOrThrow(~message=`no rejection for "${rid}"`)
     rejectedOps->Dict.delete(rid)
     switch status.rejected->Array.findIndex(r => r.id === rid) {
     | -1 => ()
@@ -530,7 +532,7 @@ let make = (
       )
       if !listed.contents {
         // A synthetic record keeps an otherwise unreferenced row reachable.
-        let record = {key: "__id:" ++ vid, ids: [vid], lastSeen: now()}
+        let record = {key: syntheticPrefix ++ vid, query: None, ids: [vid], lastSeen: now()}
         registry->Dict.set(record.key, record)
         persistRecord(record)
       }
@@ -641,6 +643,34 @@ let make = (
           | _ => ()
           }
         )
+        // Adopt homeless rows: a matching real query replaces the synthetic root.
+        registry
+        ->Dict.keysToArray
+        ->Array.filter(rkey => rkey->String.startsWith(syntheticPrefix))
+        ->Array.forEach(rkey => {
+          let rid = rkey->String.slice(~start=syntheticPrefix->String.length)
+          switch itemById->Dict.get(rid) {
+          | None => () // Value unknown (earlier session): keep the synthetic root.
+          | Some(value) =>
+            let adopted = ref(false)
+            registry->Dict.forEach(
+              record =>
+                switch record.query {
+                | Some(query) if matches(query, value) =>
+                  if !(record.ids->Array.includes(rid)) {
+                    record.ids = record.ids->Array.concat([rid])
+                    persistRecord(record)
+                  }
+                  adopted := true
+                | _ => ()
+                },
+            )
+            if adopted.contents {
+              registry->Dict.delete(rkey)
+              local.set(~tag=queryTag, ~key=rkey, None)
+            }
+          }
+        })
         // Retain records for queries still in memory.
         registry->Dict.forEach(record =>
           if t > record.lastSeen + expiry.local && entries->Dict.get(record.key)->Option.isNone {

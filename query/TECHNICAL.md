@@ -125,8 +125,12 @@ The local purge is garbage collection for persisted query data. It removes
 rows that are no longer reachable from any retained query.
 
 The **query registry** is the source of reachability information. Each
-persisted record contains a query key, its latest row ids, and the time that
-query was last seen.
+persisted record contains a query key, the query itself, its latest row ids,
+and the time that query was last seen.
+
+Storing the query lets `matches` run against records whose query is not in
+memory. This requires queries to be plain data that survives a JSON round
+trip — the same assumption the default `sortedStringify` key already makes.
 
 The running application keeps an in-memory mirror of records it has written.
 During a purge, records from earlier sessions are merged only when the mirror
@@ -144,10 +148,14 @@ The purge uses **mark and sweep**, the same reachability pattern used by a
 garbage collector:
 
 1. Load the persisted query registry.
-2. Remove closed query records unseen for longer than `expiry.local`.
-3. Mark every row id listed by the surviving records.
-4. Enumerate the rows in local storage.
-5. Remove every unmarked row.
+2. Offer each synthetic `__id:` row to every real record's query. A match
+   adopts the id into that record and deletes the synthetic record — the real
+   query now roots the row. A synthetic row whose value is not in memory is
+   skipped and kept.
+3. Remove closed query records unseen for longer than `expiry.local`.
+4. Mark every row id listed by the surviving records.
+5. Enumerate the rows in local storage.
+6. Remove every unmarked row.
 
 Pending and rejected operations are additional roots. Both survive a restart
 and replay, so their optimistic rows must survive too — even after every query
@@ -245,8 +253,11 @@ records. Query records that exist only on disk are not scanned; they catch up
 when the query next refreshes.
 
 If no query record lists the row, a synthetic record named `__id:<id>` keeps it
-reachable during local purge. The record is never refreshed, so normal local
-expiry eventually removes it when no real query adopts the row.
+reachable during local purge. The next purge offers the row to every persisted
+query — including queries that exist only on disk, since records carry their
+query. A match adopts the row and drops the synthetic record. A row no query
+ever adopts keeps its synthetic record, which is never refreshed, so normal
+local expiry eventually removes it.
 
 ```text
 before:

@@ -172,6 +172,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let entries = {};
   let results = Tilia.tilia({});
   let queryTag = "query";
+  let syntheticPrefix = "__id:";
   let registry = {};
   let persistRecord = record => {
     if (local !== undefined) {
@@ -189,6 +190,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     } else {
       let record$2 = {
         key: entry.key,
+        query: Primitive_option.some(entry.query),
         ids: [],
         lastSeen: 0.0
       };
@@ -432,7 +434,8 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       });
       if (!listed.contents) {
         let record = {
-          key: "__id:" + vid,
+          key: syntheticPrefix + vid,
+          query: undefined,
           ids: [vid],
           lastSeen: now()
         };
@@ -595,6 +598,32 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
             if (record !== undefined && Stdlib_Option.isNone(registry[record.key])) {
               registry[record.key] = record;
               return;
+            }
+          });
+          Object.keys(registry).filter(rkey => rkey.startsWith(syntheticPrefix)).forEach(rkey => {
+            let rid = rkey.slice(syntheticPrefix.length);
+            let value = itemById[rid];
+            if (value === undefined) {
+              return;
+            }
+            let value$1 = Primitive_option.valFromOption(value);
+            let adopted = {
+              contents: false
+            };
+            Stdlib_Dict.forEach(registry, record => {
+              let query = record.query;
+              if (query !== undefined && matches(Primitive_option.valFromOption(query), value$1)) {
+                if (!record.ids.includes(rid)) {
+                  record.ids = record.ids.concat([rid]);
+                  persistRecord(record);
+                }
+                adopted.contents = true;
+                return;
+              }
+            });
+            if (adopted.contents) {
+              Stdlib_Dict.$$delete(registry, rkey);
+              return local.set(queryTag, rkey, undefined);
             }
           });
           Stdlib_Dict.forEach(registry, record => {

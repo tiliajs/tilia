@@ -276,6 +276,9 @@ type t<'a, 'query> = {
    * are not scanned — they catch up on the query's next refresh. If after
    * the join no persisted query record lists the id, a synthetic record
    * is written so the row survives the local purge for `expiry.local`.
+   * The next purge offers such a row to every persisted query (records
+   * carry their query — keep queries plain data): a match adopts the row
+   * and drops the synthetic record.
    */
   upsert: 'a => unit,
   /**
