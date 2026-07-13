@@ -159,6 +159,15 @@ type expiry = {
  * replaces the server's copy of the same id and joins results it
  * `matches`; a pending remove filters the id out. An optimistic write
  * never flickers out of a result.
+ *
+ * A definitive push failure (`channel.fail`) moves every op of the batch
+ * not yet confirmed from the outbox to `status.rejected`, keyed by id —
+ * a newer rejection replaces an older one for the same id. The op's
+ * persisted outbox entry is kept: after a restart the op reloads as
+ * pending and the re-push fails again, so the rejection resurfaces on
+ * its own. A rejected op keeps overlaying remote deliveries like a
+ * pending one — the refused edit stays visible until `retry` re-queues
+ * it or `discard` reverts it.
  */
 type status<'a> = {
   /** Number of ops waiting in the outbox. */

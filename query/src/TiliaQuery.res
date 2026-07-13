@@ -120,35 +120,18 @@ let _no_sort = array => array
 
 type entryState = Pristine | LoadedLocal | LoadedRemote | LiveRemote
 
-/**
- * Per-query runtime state. Results live in the shared reactive `results`
- * dict, one key per query: reads inside a `Tilia.observe` re-run when a
- * channel delivers fresher results, and a single canopy scan of the dict
- * tells which queries are observed.
- */
+/** Runtime state for one in-memory query. */
 type entry<'query> = {
   key: string,
   query: 'query,
   mutable lastSeen: float,
   mutable refreshedAt: float,
-  /** When the latest remote fetch was issued — throttles refresh to one
-   * in-flight request per refresh window. Reset to 0.0 on going offline so
-   * the first tick back online may refetch immediately. */
+  /** Latest remote fetch attempt, used to throttle refreshes. */
   mutable fetchedAt: float,
   mutable state: entryState,
 }
 
-/**
- * Persisted query registry record — mirrors one kv entry (tag "query").  The
- * registry drives the local purge. It outlives both the in-memory entry
- * (dropped after expiry.memory) and app restarts. `ids` holds the query's
- * latest result only. The purge is a mark and sweep:
- * - mark: every id listed by a surviving record or in the outbox;
- * - sweep: enumerate the stored rows (`local.ids`) and remove the rest.
- * local.push never removes rows on its own. So when a row is deleted on
- * the remote, it lingers in local storage — until no fresh query lists it
- * and the next sweep drops it.
- */
+/** Durable query result used to find rows still reachable during local purge. */
 type queryRecord = {
   key: string,
   mutable ids: array<string>,
@@ -169,12 +152,7 @@ function parseRecord(value) {
   return undefined;
 }`)
 
-/**
- * One outbox entry: a write not yet confirmed by the remote.
- * - `seq` orders replay and keys the persisted copy (kv tag "outbox").
- * - `flight` marks entries already handed to an in-flight `remote.push`,
- *   so a later push does not send them again.
- */
+/** A queued write, ordered by `seq` and guarded from duplicate pushes by `flight`. */
 type outboxOp<'a> = {
   seq: float,
   op: op<'a>,
@@ -307,10 +285,7 @@ let make = (
   let entries: dict<entry<'query>> = Dict.make()
   let results: dict<loadable<array<'a>>> = Dict.make()->Tilia.tilia
 
-  // In-memory mirror of the persisted query registry (kv tag "query"),
-  // written through on change. So for any key the mirror holds, the disk
-  // copy is never fresher. The purge merges disk records only for keys the
-  // mirror lacks (queries from past sessions).
+  // The write-through registry wins over older persisted records during purge.
   let queryTag = "query"
   let registry: dict<queryRecord> = Dict.make()
   let persistRecord = record =>
@@ -318,9 +293,7 @@ let make = (
     | None => ()
     | Some(local) => local.set(~tag=queryTag, ~key=record.key, Some(encodeRecord(record)))
     }
-  // lastSeen tracks observation (entry.lastSeen), not delivery time: a
-  // late remote response landing on a long-closed query must not extend
-  // its local retention.
+  // A late delivery must not extend the retention of an unobserved query.
   let recordSeen = (entry: entry<'query>, ids) =>
     switch local {
     | None => ()
@@ -337,25 +310,39 @@ let make = (
       persistRecord(record)
     }
 
-  // Every write (`upsert` / `remove`) enqueues its op in the outbox and
-  // counts in `status.pending`. The outbox is pushed only while online —
-  // `remote.push` is never called offline. A confirmation (`channel.set` /
-  // `channel.removed`) drops the op from the outbox. The outbox is durable:
-  // ops are persisted in the local kv and reloaded at boot, so pending
-  // writes survive a restart and replay.
+  // Track queued writes in order and persist them for restart recovery.
   let status: status<'a> = Tilia.tilia({pending: 0, rejected: []})
   let outboxTag = "outbox"
   let outbox: array<outboxOp<'a>> = []
   let nextSeq = ref(0.0)
   let syncPending = () => status.pending = outbox->Array.length
 
-  // A remote delivery reflects the server before our pending writes: the
-  // outbox is re-applied on top of every remote result — a pending upsert
-  // replaces the server's copy of the same id and joins results it
-  // `matches`; a pending remove filters the id out. An optimistic write
-  // never flickers out of a result.
-  let applyPending = (entry: entry<'query>, values) =>
-    outbox->Array.reduce(values, (values, {op}) =>
+  let opId = (op: op<'a>) =>
+    switch op {
+    | Upsert({value}) => id(value)
+    | Remove({id}) => id
+    }
+
+  // Keep rejected ops available for optimistic overlay and planned recovery.
+  let rejectedOps: dict<outboxOp<'a>> = Dict.make()
+  let reject = (entry: outboxOp<'a>, message) => {
+    let i = outbox->Array.indexOf(entry)
+    if i >= 0 {
+      outbox->Array.splice(~start=i, ~remove=1, ~insert=[])
+    }
+    let rid = opId(entry.op)
+    rejectedOps->Dict.set(rid, entry)
+    let rejection = {id: rid, op: entry.op, message: message}
+    switch status.rejected->Array.findIndex(r => r.id === rid) {
+    | -1 => status.rejected->Array.push(rejection)
+    | i => status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[rejection])
+    }
+    syncPending()
+  }
+
+  // Preserve optimistic state when applying remote results.
+  let applyPending = (entry: entry<'query>, values) => {
+    let apply = (values, op) =>
       switch op {
       | Upsert({value}) =>
         let vid = id(value)
@@ -368,7 +355,10 @@ let make = (
         }
       | Remove({id: rid}) => values->Array.filter(v => id(v) !== rid)
       }
-    )
+    let values =
+      rejectedOps->Dict.valuesToArray->Array.reduce(values, (values, {op}) => apply(values, op))
+    outbox->Array.reduce(values, (values, {op}) => apply(values, op))
+  }
 
   let loaded = (entry, values, remote) => {
     let values = remote ? applyPending(entry, values) : values
@@ -385,13 +375,13 @@ let make = (
     let ids = values->Array.map(id)
     recordSeen(entry, ids)
     idsByKey->Dict.set(entry.key, ids)
-    // We make the entry result rebuild on changes to ids or any of the id in the list.
+    // Rebuild when the id list or any listed item changes.
     let build = () =>
       idsByKey
       ->Dict.get(entry.key)
       ->Option.getOr([])
       ->Array.filterMap(id => itemById->Dict.get(id))
-      ->sort // sorting must be watched so that edits to keys used by sort make the list update.
+      ->sort // Observe sorting so edits to sort keys update the list.
     results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), local: !remote}))
   }
 
@@ -427,8 +417,7 @@ let make = (
               )
               switch match {
               | Some(entry) =>
-                // The confirmed value is authoritative (it may be
-                // server-corrected): it replaces the local copies.
+                // A server-corrected confirmation replaces local copies.
                 itemById->Dict.set(vid, value)
                 switch local {
                 | Some(local) => local.push([Upsert({value: value})])
@@ -452,9 +441,13 @@ let make = (
               }
             },
             retry: () => batch->Array.forEach(entry => entry.flight = false),
-            // TODO (rejections): a definitive failure moves the unconfirmed
-            // ops to `status.rejected`; until that lands, treat like retry.
-            fail: _ => batch->Array.forEach(entry => entry.flight = false),
+            // Reject only unconfirmed operations still in the outbox.
+            fail: message =>
+              batch->Array.forEach(entry =>
+                if outbox->Array.includes(entry) {
+                  reject(entry, message)
+                }
+              ),
           },
         )
       }
@@ -473,16 +466,8 @@ let make = (
     pushPending()
   }
 
-  // An upsert joins matching queries immediately: the value's id is
-  // appended to every in-memory query result whose `matches` accepts it,
-  // and to those queries' persisted records. Query records only on disk
-  // are not scanned — they catch up on the query's next refresh. If after
-  // the join no persisted query record lists the id, a synthetic record
-  // (key `id:<id>`, never refreshed) is written so the row survives the
-  // local purge for `expiry.local` and later local fetches can find it.
+  // Join optimistic upserts to matching in-memory queries.
   let upsert = value => {
-    // Optimistic: the value is visible and persisted before the remote
-    // confirms.
     let vid = id(value)
     itemById->Dict.set(vid, value)
     entries->Dict.forEach(entry =>
@@ -509,6 +494,7 @@ let make = (
         }
       )
       if !listed.contents {
+        // A synthetic record keeps an otherwise unreferenced row reachable.
         let record = {key: "__id:" ++ vid, ids: [vid], lastSeen: now()}
         registry->Dict.set(record.key, record)
         persistRecord(record)
@@ -519,12 +505,7 @@ let make = (
     enqueue(Upsert({value: value}))
   }
 
-  // Remove is optimistic: the id leaves every in-memory query result and
-  // the persisted query records, and the local row is deleted, before the
-  // remote confirms. The op queues in the outbox like any write.
-  // Disk-only query records from past sessions may keep listing the id:
-  // harmless (the row is gone, marking a rowless id is a no-op) and
-  // self-correcting on the query's next refresh.
+  // Remove optimistically from memory, loaded query records, and local storage.
   let remove = rid => {
     itemById->Dict.delete(rid)
     idsByKey->Dict.forEachWithKey((ids, key) =>
@@ -572,8 +553,7 @@ let make = (
         pushPending()
       } else {
         entries->Dict.forEach(entry => {
-          // Cancel in-flight remote fetches; free the refresh slot so the
-          // first tick back online may refetch immediately.
+          // Going offline frees the refresh slot for the next reconnect.
           entry.fetchedAt = 0.0
           switch getResult(results, entry) {
           | Loading => results->Dict.set(entry.key, NotLocal)
@@ -587,32 +567,13 @@ let make = (
   let fetch = makeFetch(remote, local, loaded, results, now)
   let getEntry = makeGetEntry(fetch, entries, results, key, now)
 
-  /*
-    When to do what:
-    Every tick, in one pass over the entries (all in-memory work); the expensive
-    parts self-throttle per entry
-    - record lastSeen for observed queries
-    - refresh observed LoadedRemote queries (throttled by refreshedAt /
-      fetchedAt)
-    - flip un-refreshed remote results to `local: true`
-    - drop queries unseen for expiry.memory, then items no query references
-    First tick after boot, then at most every expiry.local / 8 (async kv
-    I/O, so gated — sessions rarely span 3.75 days, so in practice once
-    per boot):
-    - local purge, a mark and sweep:
-      1. merge the on-disk query registry into the mirror
-      2. drop records unseen for expiry.local
-      3. mark every id the surviving records list and in the outbox
-      4. remove the unmarked ids from the stored rows (local.ids)
- */
   let lastPurgeAt = ref(Float.Constants.negativeInfinity)
   let purgeLocal = t =>
     switch local {
     | None => ()
     | Some(local) =>
       local.get(~tag=queryTag, ~set=values => {
-        // Merge queries from past sessions. The mirror is written through,
-        // so a key it already holds is at least as fresh as the disk copy.
+        // Merge only persisted queries absent from the write-through mirror.
         values->Array.forEach(value =>
           switch parseRecord(value) {
           | Some(record) if registry->Dict.get(record.key)->Option.isNone =>
@@ -620,8 +581,7 @@ let make = (
           | _ => ()
           }
         )
-        // Drop records unseen for expiry.local. An in-memory entry was
-        // seen within expiry.memory: never stale.
+        // Retain records for queries still in memory.
         registry->Dict.forEach(record =>
           if t > record.lastSeen + expiry.local && entries->Dict.get(record.key)->Option.isNone {
             registry->Dict.delete(record.key)
@@ -632,9 +592,7 @@ let make = (
         local.ids(~set=allIds => {
           let marked = Set.make()
           registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
-          // TODO (outbox): also mark the ids of pending outbox ops. A row
-          // with an unconfirmed write must survive the sweep even when no
-          // query lists it.
+          // Pending outbox ids are not roots yet; see TODO.md.
           let removes =
             allIds->Array.filterMap(id => marked->Set.has(id) ? None : Some(Remove({id: id})))
           if removes->Array.length > 0 {
@@ -646,22 +604,17 @@ let make = (
 
   let tick = () => {
     let t = now()
-    // Online: one extra refresh-check period (refresh / 8) of buffer so an
-    // in-flight refresh can land without a flip/flop. Offline: flip right at
-    // the refresh expiry limit.
+    // Online refreshes get a buffer to avoid a brief local-freshness flip.
     let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0
     let freshLimit = t - expiry.refresh - buffer
     let live = observedKeys(results)
     let online = remote.online.value
-    // Live entries get stamped before the expiry check, so only unobserved
-    // entries can be dropped.
+    // Stamp live entries before expiry so only unobserved entries can drop.
     let dropped = []
     entries->Dict.forEach(entry => {
       if live->Set.has(entry.key) {
         entry.lastSeen = t
-        // Keep the on-disk lastSeen fresh for queries observed without
-        // remote deliveries (offline), so they survive the purge across a
-        // restart. At most one kv write per refresh window.
+        // Persist observation without deliveries at most once per refresh window.
         switch registry->Dict.get(entry.key) {
         | Some(record) if t > record.lastSeen + expiry.refresh =>
           record.lastSeen = t
@@ -675,8 +628,7 @@ let make = (
         if (
           online &&
           entry.refreshedAt < t - expiry.refresh &&
-          // At most one in-flight refresh; a hung request frees the slot
-          // after a full refresh window.
+          // A hung refresh frees its slot after one refresh window.
           entry.fetchedAt < t - expiry.refresh &&
           t < entry.lastSeen + expiry.refresh
         ) {
@@ -692,8 +644,7 @@ let make = (
       }
     })
     if dropped->Array.length > 0 {
-      // An item leaves memory only when no remaining query references it:
-      // optimistic upserts not yet attached to a query are left alone.
+      // Keep items referenced by another query or unattached optimistic upserts.
       let orphans = Set.make()
       dropped->Array.forEach(key => {
         idsByKey->Dict.get(key)->Option.getOr([])->Array.forEach(id => orphans->Set.add(id))

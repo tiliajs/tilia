@@ -52,6 +52,14 @@ The flow is:
 The **outbox** is an ordered queue that connects optimistic local writes to
 eventual remote confirmation. Its detailed behavior is described below.
 
+A remote query result represents the server before these optimistic writes.
+Before displaying that result, the query reapplies unresolved rejections and
+then pending outbox operations. An upsert replaces the server's copy of the row
+or joins a matching result, while a remove filters the row out. Applying
+pending operations last means a newer write wins over an older rejection. It
+also prevents optimistic changes from briefly disappearing when a remote
+result arrives.
+
 ## Cache lifecycle
 
 Separate expiry periods control network freshness, memory use, and disk
@@ -70,6 +78,9 @@ queries from expiring from memory.
 A closed query no longer updates its last-seen time. After the refresh period,
 it stops triggering remote refreshes. After the memory period, its in-memory
 entry can be removed.
+
+Last-seen time records observation rather than delivery. A remote response that
+arrives after a query has been closed does not extend that query's retention.
 
 Removing an entry from memory does not remove its local data. Reopening the
 query can still return the persisted result before requesting fresh remote
@@ -115,6 +126,11 @@ The **query registry** is the source of reachability information. Each
 persisted record contains a query key, its latest row ids, and the time that
 query was last seen.
 
+The running application keeps an in-memory mirror of records it has written.
+During a purge, records from earlier sessions are merged only when the mirror
+does not already contain the key, because the write-through mirror is at least
+as fresh as its persisted copy.
+
 Purging requires asynchronous local I/O. To limit that cost, purge runs on the
 first tick after boot and then at most once per `expiry.local / 8`. With the
 default local expiry, the interval is 3.75 days.
@@ -130,6 +146,11 @@ garbage collector:
 3. Mark every row id listed by the surviving records.
 4. Enumerate the rows in local storage.
 5. Remove every unmarked row.
+
+Pending outbox operations are not yet marked as reachable. Until that work is
+complete, an optimistic row can be swept before remote confirmation once no
+retained query record lists it. This limitation is tracked in
+[`TODO.md`](./TODO.md).
 
 For example:
 
@@ -170,11 +191,35 @@ prevents another push from sending the same operations concurrently.
 If the remote asks for a retry, the batch returns to the pending state. A later
 push can then send it again.
 
+### Definitive failures
+
+A definitive failure moves every unconfirmed operation in the batch from the
+outbox to `status.rejected`. Rejections are keyed by row id, so a newer
+rejection replaces an older one for the same row. Operations confirmed before
+the failure have already left the outbox and are not rejected.
+
+The rejected operation remains part of the optimistic overlay, keeping the
+refused edit visible. Its persisted outbox entry is also retained. After a
+restart it loads as pending, is sent again, and can surface the same rejection.
+
+Retry and discard still need their recovery behavior. Retry will put the
+operation back in the outbox using its original sequence and persisted entry.
+Discard will remove the optimistic overlay and restore remote truth. This work
+is tracked in [`TODO.md`](./TODO.md).
+
 ### Upsert trace
 
 An **upsert** inserts a missing row or replaces an existing row with the same
 id. The optimistic update changes the in-memory value and local row before
 enqueueing the operation.
+
+The row also joins every matching query currently in memory, and those query
+records are persisted. Query records that exist only on disk are not scanned;
+they catch up when the query next refreshes.
+
+If no query record lists the row, a synthetic record named `__id:<id>` keeps it
+reachable during local purge. The record is never refreshed, so normal local
+expiry eventually removes it when no real query adopts the row.
 
 ```text
 before:
@@ -239,6 +284,5 @@ upsert version  -> 5
 result          -> definitive rejection
 ```
 
-The unfinished rejection and recovery behavior is tracked in
-[`TODO.md`](./TODO.md).
+The unfinished retry and discard behavior is tracked in [`TODO.md`](./TODO.md).
 

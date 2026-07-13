@@ -208,28 +208,39 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
   let nextSeq = {
     contents: 0.0
   };
-  let applyPending = (entry, values) => Stdlib_Array.reduce(outbox, values, (values, param) => {
-    let op = param.op;
+  let opId = op => {
     if (op.op === "upsert") {
-      let value = op.value;
-      let vid = id(value);
-      if (values.some(v => id(v) === vid)) {
-        return values.map(v => {
-          if (id(v) === vid) {
-            return value;
-          } else {
-            return v;
-          }
-        });
-      } else if (matches(entry.query, value)) {
-        return values.concat([value]);
-      } else {
-        return values;
-      }
+      return id(op.value);
+    } else {
+      return op.id;
     }
-    let rid = op.id;
-    return values.filter(v => id(v) !== rid);
-  });
+  };
+  let rejectedOps = {};
+  let applyPending = (entry, values) => {
+    let apply = (values, op) => {
+      if (op.op === "upsert") {
+        let value = op.value;
+        let vid = id(value);
+        if (values.some(v => id(v) === vid)) {
+          return values.map(v => {
+            if (id(v) === vid) {
+              return value;
+            } else {
+              return v;
+            }
+          });
+        } else if (matches(entry.query, value)) {
+          return values.concat([value]);
+        } else {
+          return values;
+        }
+      }
+      let rid = op.id;
+      return values.filter(v => id(v) !== rid);
+    };
+    let values$1 = Stdlib_Array.reduce(Object.values(rejectedOps), values, (values, param) => apply(values, param.op));
+    return Stdlib_Array.reduce(outbox, values$1, (values, param) => apply(values, param.op));
+  };
   let loaded = (entry, values, remote) => {
     let values$1 = remote ? applyPending(entry, values) : values;
     if (remote) {
@@ -319,9 +330,30 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
             entry.flight = false;
           });
         },
-        fail: param => {
+        fail: message => {
           batch.forEach(entry => {
-            entry.flight = false;
+            if (outbox.includes(entry)) {
+              let i = outbox.indexOf(entry);
+              if (i >= 0) {
+                outbox.splice(i, 1);
+              }
+              let rid = opId(entry.op);
+              rejectedOps[rid] = entry;
+              let rejection_op = entry.op;
+              let rejection = {
+                id: rid,
+                op: rejection_op,
+                message: message
+              };
+              let i$1 = status.rejected.findIndex(r => r.id === rid);
+              if (i$1 !== -1) {
+                status.rejected.splice(i$1, 1, rejection);
+              } else {
+                status.rejected.push(rejection);
+              }
+              status.pending = outbox.length;
+              return;
+            }
           });
         }
       });
@@ -371,7 +403,7 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       });
       if (!listed.contents) {
         let record = {
-          key: "id:" + vid,
+          key: "__id:" + vid,
           ids: [vid],
           lastSeen: now()
         };
