@@ -221,18 +221,20 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
       if (op.op === "upsert") {
         let value = op.value;
         let vid = id(value);
-        if (values.some(v => id(v) === vid)) {
-          return values.map(v => {
-            if (id(v) === vid) {
-              return value;
-            } else {
-              return v;
-            }
-          });
-        } else if (matches(entry.query, value)) {
-          return values.concat([value]);
+        if (matches(entry.query, value)) {
+          if (values.some(v => id(v) === vid)) {
+            return values.map(v => {
+              if (id(v) === vid) {
+                return value;
+              } else {
+                return v;
+              }
+            });
+          } else {
+            return values.concat([value]);
+          }
         } else {
-          return values;
+          return values.filter(v => id(v) !== vid);
         }
       }
       let rid = op.id;
@@ -395,17 +397,27 @@ function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
     let vid = id(value);
     itemById[vid] = value;
     Stdlib_Dict.forEach(entries, entry => {
-      if (!matches(entry.query, value)) {
-        return;
+      if (matches(entry.query, value)) {
+        let ids = idsByKey[entry.key];
+        if (ids !== undefined && !ids.includes(vid)) {
+          idsByKey[entry.key] = ids.concat([vid]);
+        }
+        let record = registry[entry.key];
+        if (record !== undefined && !record.ids.includes(vid)) {
+          record.ids = record.ids.concat([vid]);
+          return persistRecord(record);
+        } else {
+          return;
+        }
       }
-      let ids = idsByKey[entry.key];
-      if (ids !== undefined && !ids.includes(vid)) {
-        idsByKey[entry.key] = ids.concat([vid]);
+      let ids$1 = idsByKey[entry.key];
+      if (ids$1 !== undefined && ids$1.includes(vid)) {
+        idsByKey[entry.key] = ids$1.filter(i => i !== vid);
       }
-      let record = registry[entry.key];
-      if (record !== undefined && !record.ids.includes(vid)) {
-        record.ids = record.ids.concat([vid]);
-        return persistRecord(record);
+      let record$1 = registry[entry.key];
+      if (record$1 !== undefined && record$1.ids.includes(vid)) {
+        record$1.ids = record$1.ids.filter(i => i !== vid);
+        return persistRecord(record$1);
       }
     });
     if (local !== undefined) {

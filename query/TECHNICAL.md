@@ -55,7 +55,9 @@ eventual remote confirmation. Its detailed behavior is described below.
 A remote query result represents the server before these optimistic writes.
 Before displaying that result, the query reapplies unresolved rejections and
 then pending outbox operations. An upsert replaces the server's copy of the row
-or joins a matching result, while a remove filters the row out. Applying
+or joins a matching result — and leaves a result the new value no longer
+matches, so a moved row cannot flicker back into its old query while the write
+is unconfirmed. A remove filters the row out. Applying
 pending operations last means a newer write wins over an older rejection. It
 also prevents optimistic changes from briefly disappearing when a remote
 result arrives.
@@ -236,9 +238,11 @@ An **upsert** inserts a missing row or replaces an existing row with the same
 id. The optimistic update changes the in-memory value and local row before
 enqueueing the operation.
 
-The row also joins every matching query currently in memory, and those query
-records are persisted. Query records that exist only on disk are not scanned;
-they catch up when the query next refreshes.
+The row also joins every matching query currently in memory, and leaves every
+in-memory query the new value no longer matches — moving a card between decks
+updates both results at once. Both changes are persisted in the affected query
+records. Query records that exist only on disk are not scanned; they catch up
+when the query next refreshes.
 
 If no query record lists the row, a synthetic record named `__id:<id>` keeps it
 reachable during local purge. The record is never refreshed, so normal local

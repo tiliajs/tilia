@@ -346,12 +346,13 @@ let make = (
       switch op {
       | Upsert({value}) =>
         let vid = id(value)
-        if values->Array.some(v => id(v) === vid) {
+        if !matches(entry.query, value) {
+          // A pending move keeps the row out of queries it left.
+          values->Array.filter(v => id(v) !== vid)
+        } else if values->Array.some(v => id(v) === vid) {
           values->Array.map(v => id(v) === vid ? value : v)
-        } else if matches(entry.query, value) {
-          values->Array.concat([value])
         } else {
-          values
+          values->Array.concat([value])
         }
       | Remove({id: rid}) => values->Array.filter(v => id(v) !== rid)
       }
@@ -488,7 +489,7 @@ let make = (
     pushPending()
   }
 
-  // Join optimistic upserts to matching in-memory queries.
+  // Join or un-join optimistic upserts on every in-memory query.
   let upsert = value => {
     let vid = id(value)
     itemById->Dict.set(vid, value)
@@ -502,6 +503,18 @@ let make = (
         switch registry->Dict.get(entry.key) {
         | Some(record) if !(record.ids->Array.includes(vid)) =>
           record.ids = record.ids->Array.concat([vid])
+          persistRecord(record)
+        | _ => ()
+        }
+      } else {
+        switch idsByKey->Dict.get(entry.key) {
+        | Some(ids) if ids->Array.includes(vid) =>
+          idsByKey->Dict.set(entry.key, ids->Array.filter(i => i !== vid))
+        | _ => ()
+        }
+        switch registry->Dict.get(entry.key) {
+        | Some(record) if record.ids->Array.includes(vid) =>
+          record.ids = record.ids->Array.filter(i => i !== vid)
           persistRecord(record)
         | _ => ()
         }

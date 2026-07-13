@@ -156,9 +156,9 @@ type expiry = {
  *
  * A remote delivery reflects the server before our pending writes: the
  * outbox is re-applied on top of every remote result — a pending upsert
- * replaces the server's copy of the same id and joins results it
- * `matches`; a pending remove filters the id out. An optimistic write
- * never flickers out of a result.
+ * replaces the server's copy of the same id, joins results it `matches`
+ * and leaves results it no longer matches; a pending remove filters the
+ * id out. An optimistic write never flickers out of a result.
  *
  * A definitive push failure (`channel.fail`) moves every op of the batch
  * not yet confirmed from the outbox to `status.rejected`, keyed by id —
@@ -270,7 +270,9 @@ type t<'a, 'query> = {
    *
    * An upsert joins matching queries immediately: the value's id is
    * appended to every in-memory query result whose `matches` accepts it,
-   * and to those queries' persisted records. Query records only on disk
+   * and removed from those it no longer matches — a move updates both
+   * queries at once. Both changes reach the affected queries' persisted
+   * records. Query records only on disk
    * are not scanned — they catch up on the query's next refresh. If after
    * the join no persisted query record lists the id, a synthetic record
    * is written so the row survives the local purge for `expiry.local`.
