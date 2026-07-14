@@ -414,3 +414,228 @@ Feature: Language training app
       | cat.es  |
       | dog.es  |
       | rain.es |
+
+  # A failed fetch shows `Failed` at the read site and re-enters the refresh
+  # loop: the next tick past the refresh window retries. A live source owns
+  # its own recovery instead (a later delivery or `end`).
+
+  Scenario: a failed fetch surfaces and retries after the refresh window
+    When the remote is failing with "boom"
+    And I open the "Spanish" deck
+    And time passes
+    Then I should see failed with "boom"
+    When the remote recovers
+    And 35 seconds pass
+    And tick is called
+    Then the remote fetch should have run 2 time(s)
+    When time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a failed fetch replaces a local result and retries
+    When deck "Spanish" is in local db
+    And the remote is failing with "boom"
+    And I open the "Spanish" deck
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When time passes
+    Then I should see failed with "boom"
+    When the remote recovers
+    And 35 seconds pass
+    And tick is called
+    Then the remote fetch should have run 2 time(s)
+    When time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  # Live queries: the adaptor answers through `channel.live` and keeps the
+  # result fresh itself. It registers its teardown with `channel.finally`
+  # and calls `channel.end` when its source shuts down. The engine owns
+  # late-callback suppression: anything a closed fetch says is ignored.
+
+  Scenario: a live delivery updates the result without periodic refresh
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When the live source delivers
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+      | dog.es | spanish | dog     | perro       | 0    |
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then the remote fetch should have run 1 time(s)
+    And I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a live source that ends re-enters periodic refresh
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    When the live source ends
+    Then the source teardown should have run 1 time(s)
+    When the remote is updated with
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then the remote fetch should have run 2 time(s)
+    And I should see "remote" loaded with data
+      | id      | english | translation | seen |
+      | cat.es  | cat     | gato        | 0    |
+      | dog.es  | dog     | perro       | 0    |
+      | rain.es | rain    | lluvia      | 0    |
+
+  Scenario: an unobserved live query keeps its source until memory eviction
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    And I close the deck
+    And 3 minutes pass
+    And tick is called
+    Then the source teardown should have run 0 time(s)
+    When 3 minutes pass
+    And tick is called
+    Then the source teardown should have run 1 time(s)
+    And memory query "Spanish" should be dropped
+    When the live source delivers
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    Then memory query "Spanish" should be dropped
+    And the source teardown should have run 1 time(s)
+
+  Scenario: deliveries from an ended source are ignored
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    And the live source ends
+    Then the source teardown should have run 1 time(s)
+    When the live source delivers
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And the live source fails with "boom"
+    And the live source ends
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And the source teardown should have run 1 time(s)
+
+  Scenario: a live source failure recovers on the next delivery
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    And the live source fails with "boom"
+    Then I should see failed with "boom"
+    # The engine does not refetch a failed live query: recovery is the
+    # source's job.
+    When 35 seconds pass
+    And tick is called
+    Then the remote fetch should have run 1 time(s)
+    When the live source delivers
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+
+  # `discard` restores server truth by refetching. On a live query this
+  # tears down the subscription (its `finally` runs) and re-creates it: the
+  # fresh source's first delivery replaces the discarded optimistic value.
+
+  Scenario: discarding a rejection on a live query resubscribes for truth
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    And I upsert
+      | id     | deck    | english | translation | seen | version |
+      | cat.es | spanish | cat     | gato        | 9    | 5       |
+    And time passes
+    Then status should have 1 rejected
+    When I discard the rejection for "cat.es"
+    Then status should have 0 rejected
+    And the source teardown should have run 1 time(s)
+    And the remote fetch should have run 2 time(s)
+    When time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a late reply from a superseded fetch is ignored
+    When I open the "Spanish" deck
+    And time passes
+    And 35 seconds pass
+    And tick is called
+    Then the remote fetch should have run 2 time(s)
+    When the superseded fetch delivers
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And the superseded fetch fails with "boom"
+    # Assert before the network flush: the replacement response must not be
+    # able to repair a result a late callback corrupted.
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: going offline does not end a live query
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    When the live source delivers
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+      | dog.es | spanish | dog     | perro       | 0    |
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
+    And the source teardown should have run 0 time(s)
+
+  Scenario: a teardown registered after a synchronous end runs immediately
+    When the live source ends during fetch
+    And I open the "Spanish" deck
+    Then the source teardown should have run 1 time(s)
+
+  Scenario: dispose tears down live sources and is safe to call twice
+    When the remote supports live queries
+    And I open the "Spanish" deck
+    And time passes
+    When I dispose the app
+    And I dispose the app
+    Then the source teardown should have run 1 time(s)
+    # A disposed fetch is closed: anything the source still says is ignored.
+    When the live source delivers
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And the live source fails with "boom"
+    And the live source ends
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And the source teardown should have run 1 time(s)

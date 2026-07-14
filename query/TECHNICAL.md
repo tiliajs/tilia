@@ -68,7 +68,7 @@ Separate expiry periods control network freshness, memory use, and disk
 retention. Expiring one layer does not imply that another layer must expire.
 
 - **Refresh expiry — 30 seconds by default.** An open remote result becomes
-  eligible for refresh.
+  eligible for refresh. A live result is excluded: its source keeps it fresh.
 - **Memory expiry — 5 minutes by default.** A closed query can be removed from
   memory.
 - **Local expiry — 30 days by default.** An unused persisted query can be
@@ -118,6 +118,52 @@ local row ids     -> [cat, dog]
 
 The query record no longer references `cat`, but its local row remains until a
 purge proves that no retained query references it.
+
+## Failed fetches
+
+A remote `fail` replaces the visible result with `Failed`. The error appears
+at the read site, where the value is used; there is no global error slot.
+
+A failed query is not stuck. On every tick, a failed non-live query re-enters
+the refresh check. Once the refresh window has passed since the failed
+attempt, it is refetched. A successful refetch replaces `Failed` with the new
+result.
+
+A live query is the exception: the engine never refetches it on its own.
+Recovery is the source's job, described below.
+
+## Live queries
+
+A remote adaptor can keep a query fresh on its own, for example through a
+server subscription. Such an adaptor answers through `channel.live` instead of
+`channel.set`, and calls it again on every update. The refresh expiry skips a
+live query: no periodic refetch is scheduled while the source keeps
+delivering.
+
+The subscription belongs to the adaptor; running its teardown belongs to the
+engine:
+
+- The adaptor registers its teardown with `channel.finally`. The slot holds
+  one function; a later registration replaces the earlier one.
+- The engine runs the teardown exactly once, when the fetch closes. A fetch
+  closes on `end`, when a newer fetch supersedes it, when the query is
+  evicted from memory, or on `dispose`.
+- Registering a teardown on a fetch that is already closed runs it
+  immediately. A source that dies synchronously inside `remote.fetch` is
+  still torn down.
+
+`channel.end` says the stream is over. The teardown runs, and the query
+returns to the normal refresh cycle: the next tick past the refresh window
+refetches it. Ending is the adaptor's call — going offline does not end a
+live query, because the engine cannot know whether the transport survived.
+
+Every callback on a closed fetch is ignored. Late replies from ended,
+superseded, or evicted fetches cannot corrupt the visible result, and
+adaptors do not need to guard against this themselves.
+
+A failure does not close a live fetch. `channel.fail` shows `Failed` at the
+read site, but the source stays connected: a later delivery replaces the
+failure, and `end` hands the query back to periodic refresh.
 
 ## Local purge
 
@@ -236,6 +282,11 @@ the remote result does not contain it, so it leaves the query's id list.
 
 For a discarded remove, no in-memory result lists the row anymore, so every
 observed query is refetched instead. The row returns with those results.
+
+A live query holds a subscription instead of a refresh slot, and discard
+still refetches it. The subscription is torn down — its registered teardown
+runs — and a new fetch re-subscribes. The fresh source's first delivery
+restores remote truth.
 
 While offline, the refetch cannot answer and the optimistic value stays
 visible; the next online refresh restores remote truth.

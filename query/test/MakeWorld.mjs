@@ -66,13 +66,32 @@ function make$1(network) {
       _0: undefined
     });
   };
+  let failing = {
+    contents: undefined
+  };
   let _select = filter => Object.values(data).filter(filter);
-  let select = filter => respond(Object.values(data).filter(filter));
+  let select = filter => {
+    let message = failing.contents;
+    if (message !== undefined) {
+      return respond({
+        TAG: "Error",
+        _0: message
+      });
+    } else {
+      return respond({
+        TAG: "Ok",
+        _0: Object.values(data).filter(filter)
+      });
+    }
+  };
   return {
     select: select,
     upsert: upsert,
     remove: remove,
-    _select: _select
+    _select: _select,
+    _failing: message => {
+      failing.contents = message;
+    }
   };
 }
 
@@ -114,7 +133,13 @@ function make$3(papabase, online_) {
   return {
     online: online_,
     fetch: (query, channel) => {
-      papabase.select(card => matches(query, card)).then(channel.set);
+      papabase.select(card => matches(query, card)).then(result => {
+        if (result.TAG === "Ok") {
+          return channel.set(result._0);
+        } else {
+          return channel.fail(result._0);
+        }
+      });
     },
     push: (ops, channel) => {
       ops.forEach(op => {
@@ -197,6 +222,48 @@ let DexmeAdaptor = {
   make: make$4
 };
 
+function make$5(network) {
+  return {
+    network: network,
+    enabled: false,
+    endsInFetch: false,
+    channel: undefined,
+    superseded: undefined,
+    cleanups: 0,
+    fetches: 0
+  };
+}
+
+function wrap(live, papabase, remote) {
+  return {
+    online: remote.online,
+    fetch: (query, channel) => {
+      live.fetches = live.fetches + 1 | 0;
+      live.superseded = live.channel;
+      live.channel = channel;
+      if (live.endsInFetch) {
+        channel.end();
+        return channel.finally(() => {
+          live.cleanups = live.cleanups + 1 | 0;
+        });
+      } else if (live.enabled) {
+        channel.finally(() => {
+          live.cleanups = live.cleanups + 1 | 0;
+        });
+        return live.network.respond(() => channel.live(papabase._select(card => matches(query, card))));
+      } else {
+        return remote.fetch(query, channel);
+      }
+    },
+    push: remote.push
+  };
+}
+
+let Live = {
+  make: make$5,
+  wrap: wrap
+};
+
 function sortByEnglish(a, b) {
   if (a.english < b.english) {
     return -1.0;
@@ -207,14 +274,15 @@ function sortByEnglish(a, b) {
   }
 }
 
-function make$5(dexme, papabase, now, online_) {
+function make$6(dexme, live, papabase, now, online_) {
   let remote = make$3(papabase, online_);
+  let remote$1 = live !== undefined ? wrap(live, papabase, remote) : remote;
   let sort = array => array.toSorted(sortByEnglish);
   if (dexme === undefined) {
-    return TiliaQuery.make(id, matches, remote, undefined, undefined, now, undefined, sort);
+    return TiliaQuery.make(id, matches, remote$1, undefined, undefined, now, undefined, sort);
   }
   let local = make$4(dexme);
-  return TiliaQuery.make(id, matches, remote, local, undefined, now, undefined, sort);
+  return TiliaQuery.make(id, matches, remote$1, local, undefined, now, undefined, sort);
 }
 
 export {
@@ -226,7 +294,8 @@ export {
   Dexme,
   PapabaseAdaptor,
   DexmeAdaptor,
+  Live,
   sortByEnglish,
-  make$5 as make,
+  make$6 as make,
 }
 /* TiliaQuery Not a pure module */

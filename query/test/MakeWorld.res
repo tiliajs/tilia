@@ -67,11 +67,13 @@ let sort = (a: card, b: card) => a.id < b.id ? -1.0 : a.id > b.id ? 1.0 : 0.0
 // the version auto-increments on write).
 module Papabase = {
   type t = {
-    select: (card => bool) => promise<array<card>>,
+    select: (card => bool) => promise<result<array<card>, string>>,
     upsert: card => promise<result<card, string>>,
     remove: string => promise<result<unit, string>>,
     /** Test-only: synchronous look inside the server's table. */
     _select: (card => bool) => array<card>,
+    /** Test-only: while set, `select` answers this error. */
+    _failing: option<string> => unit,
   }
 
   // The server processes a request the moment it is made; only the response
@@ -94,13 +96,19 @@ module Papabase = {
       data->Dict.delete(id)
       respond(Ok())
     }
+    let failing = ref(None)
     let _select = filter => data->Dict.valuesToArray->Array.filter(filter)
-    let select = filter => respond(_select(filter))
+    let select = filter =>
+      switch failing.contents {
+      | Some(message) => respond(Error(message))
+      | None => respond(Ok(_select(filter)))
+      }
     {
       select,
       upsert,
       remove,
       _select,
+      _failing: message => failing := message,
     }
   }
 }
@@ -150,8 +158,8 @@ module Dexme = {
 
 // Wire a Supabase-like api as a tilia/query remote. The online signal is
 // owned by the app (or the test): the adaptor only hands it over. Fetches
-// are one-shot promises — no `channel.live`, nothing to cancel, so `fetch`
-// returns `None` and the engine refreshes periodically.
+// are one-shot promises — no `channel.live`, nothing to register with
+// `channel.finally` — so the engine refreshes periodically.
 module PapabaseAdaptor = {
   let make = (papabase: Papabase.t, online_: Tilia.signal<bool>): TiliaQuery.remote<
     card,
@@ -159,7 +167,14 @@ module PapabaseAdaptor = {
   > => {
     online: online_,
     fetch: (query, channel) => {
-      papabase.select(card => matches(query, card))->Promise.thenResolve(channel.set)->ignore
+      papabase.select(card => matches(query, card))
+      ->Promise.thenResolve(result =>
+        switch result {
+        | Ok(cards) => channel.set(cards)
+        | Error(error) => channel.fail(error)
+        }
+      )
+      ->ignore
     },
     push: (ops, channel) => {
       ops->Array.forEach(op =>
@@ -236,6 +251,69 @@ module DexmeAdaptor = {
   }
 }
 
+// ================ Live test controls
+
+/**
+ * Test-only instrumentation wrapped around the remote adaptor. It counts
+ * fetches, keeps channel handles so scenarios can play a subscription
+ * source (deliver, end) and attempt late replies, and counts `finally`
+ * teardowns. While `enabled`, a fetch answers through `channel.live` — the
+ * scenario then owns freshness, like a real subscription adaptor would.
+ */
+module Live = {
+  type t = {
+    network: Network.t,
+    mutable enabled: bool,
+    /** When set, a fetch's source is already dead: it ends synchronously,
+     before registering its teardown. */
+    mutable endsInFetch: bool,
+    /** Channel of the latest fetch — kept after it ends or is evicted. */
+    mutable channel: option<TiliaQuery.Channel.read<card>>,
+    /** Channel of the fetch the latest one replaced. */
+    mutable superseded: option<TiliaQuery.Channel.read<card>>,
+    /** How many times a registered `finally` teardown ran. */
+    mutable cleanups: int,
+    /** How many times the engine called `remote.fetch`. */
+    mutable fetches: int,
+  }
+
+  let make = (network: Network.t): t => {
+    network,
+    enabled: false,
+    endsInFetch: false,
+    channel: None,
+    superseded: None,
+    cleanups: 0,
+    fetches: 0,
+  }
+
+  let wrap = (
+    live: t,
+    papabase: Papabase.t,
+    remote: TiliaQuery.remote<card, query>,
+  ): TiliaQuery.remote<card, query> => {
+    ...remote,
+    fetch: (query, channel) => {
+      live.fetches = live.fetches + 1
+      live.superseded = live.channel
+      live.channel = Some(channel)
+      if live.endsInFetch {
+        // The source is already dead: it ends before registering its
+        // teardown — the engine runs the late registration immediately.
+        channel.end()
+        channel.finally(() => live.cleanups = live.cleanups + 1)
+      } else if live.enabled {
+        channel.finally(() => live.cleanups = live.cleanups + 1)
+        // The initial result travels back like any response; later
+        // deliveries are driven by the scenario through `live.channel`.
+        live.network.respond(() => channel.live(papabase._select(card => matches(query, card))))
+      } else {
+        remote.fetch(query, channel)
+      }
+    },
+  }
+}
+
 let sortByEnglish = (a: card, b: card) =>
   a.english < b.english ? -1.0 : a.english > b.english ? 1.0 : 0.0
 
@@ -244,11 +322,16 @@ let sortByEnglish = (a: card, b: card) =>
 // 30 days): scenarios advance the clock with real durations.
 let make = (
   ~dexme: option<Dexme.t>=?,
+  ~live: option<Live.t>=?,
   papabase: Papabase.t,
   now: unit => float,
   online_: Tilia.signal<bool>,
 ): TiliaQuery.t<card, query> => {
   let remote = PapabaseAdaptor.make(papabase, online_)
+  let remote = switch live {
+  | Some(live) => Live.wrap(live, papabase, remote)
+  | None => remote
+  }
   let sort = array => array->Array.toSorted(sortByEnglish)
   switch dexme {
   | Some(dexme) =>

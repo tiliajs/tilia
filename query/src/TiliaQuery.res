@@ -24,6 +24,8 @@ module Channel = {
     set: array<'a> => unit,
     live: array<'a> => unit,
     fail: string => unit,
+    end: unit => unit,
+    finally: (unit => unit) => unit,
   }
 
   type local<'a> = {
@@ -129,6 +131,11 @@ type entry<'query> = {
   /** Latest remote fetch attempt, used to throttle refreshes. */
   mutable fetchedAt: float,
   mutable state: entryState,
+  /**
+   * Closes the entry's latest fetch: late callbacks become noops and the
+   * registered cleanup runs once. Idempotent.
+   */
+  mutable close: unit => unit,
 }
 
 /** Durable query result used to find rows still reachable during local purge. */
@@ -187,10 +194,25 @@ let getResult = (results, entry: entry<'query>) =>
   results->Dict.get(entry.key)->Option.getOr(Loading)
 
 let makeFetch = (remote, local, loaded, results, now) =>
-  entry => {
-    if entry.state !== LiveRemote {
+  (~force=false, entry) => {
+    // A live entry keeps its source: only `discard` forces a resubscribe.
+    if force || entry.state !== LiveRemote {
+      // Close the superseded fetch: its late callbacks become noops.
+      entry.close()
+      // One flag per fetch: every callback below is a noop once it is false.
+      let active = ref(true)
+      let cleanup = ref(() => ())
+      let close = () =>
+        if active.contents {
+          active := false
+          let clean = cleanup.contents
+          cleanup := (() => ())
+          clean()
+        }
+      entry.close = close
+
       let unknown = () => {
-        if !remote.online.value && entry.state == Pristine {
+        if active.contents && !remote.online.value && entry.state == Pristine {
           // No local storage and no network: nothing can ever answer this query.
           results->Dict.set(entry.key, NotLocal)
         }
@@ -205,7 +227,7 @@ let makeFetch = (remote, local, loaded, results, now) =>
             entry.query,
             {
               set: values => {
-                if entry.state == Pristine {
+                if active.contents && entry.state == Pristine {
                   entry.state = LoadedLocal
                   loaded(entry, values, false)
                 }
@@ -221,14 +243,47 @@ let makeFetch = (remote, local, loaded, results, now) =>
         entry.query,
         {
           set: values => {
-            entry.state = LoadedRemote
-            loaded(entry, values, true)
+            if active.contents {
+              entry.state = LoadedRemote
+              loaded(entry, values, true)
+            }
           },
           live: values => {
-            entry.state = LiveRemote
-            loaded(entry, values, true)
+            if active.contents {
+              entry.state = LiveRemote
+              loaded(entry, values, true)
+            }
           },
-          fail: message => results->Dict.set(entry.key, Failed({message: message})),
+          fail: message => {
+            if active.contents {
+              results->Dict.set(entry.key, Failed({message: message}))
+            }
+          },
+          end: () => {
+            if active.contents {
+              // Only a live entry is demoted: `end` on a fetch that never
+              // delivered must not stamp LoadedRemote on a Loading result.
+              if entry.state === LiveRemote {
+                entry.state = LoadedRemote
+              }
+
+              // Free the refresh slot, like going offline does.
+              entry.fetchedAt = 0.0
+
+              // Teardown runs last: a throwing cleanup must not block the
+              // return to periodic refresh.
+              close()
+            }
+          },
+          finally: fn => {
+            if active.contents {
+              // Single slot, last write wins.
+              cleanup := fn
+            } else {
+              // The fetch is already closed: run the teardown right away.
+              fn()
+            }
+          },
         },
       )
     }
@@ -247,6 +302,7 @@ let makeGetEntry = (fetch, entries, results, key, now) =>
         key: k,
         state: Pristine,
         query,
+        close: () => (),
       }
       results->Dict.set(k, Loading)
       entries->Dict.set(k, entry)
@@ -581,8 +637,7 @@ let make = (
   // An id with a pending or rejected op is dirty: the outbox overlay owns
   // it, so inbound deliveries must not displace the optimistic value.
   let dirty = vid =>
-    rejectedOps->Dict.get(vid)->Option.isSome ||
-      outbox->Array.some(entry => opId(entry.op) === vid)
+    rejectedOps->Dict.get(vid)->Option.isSome || outbox->Array.some(entry => opId(entry.op) === vid)
 
   // Server truth for one row, joined like an upsert. The row stays in RAM
   // only while some in-memory query matches it, and is persisted only while
@@ -658,7 +713,7 @@ let make = (
   )
 
   let fetch = makeFetch(remote, local, loaded, results, now)
-  let getEntry = makeGetEntry(fetch, entries, results, key, now)
+  let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now)
 
   // Drop a rejection for good: forget its persisted op and refetch remote truth.
   let discard = (rejection: rejection<'a>) => {
@@ -671,7 +726,7 @@ let make = (
     | Upsert(_) =>
       entries->Dict.forEach(e =>
         if idsByKey->Dict.get(e.key)->Option.getOr([])->Array.includes(rejection.id) {
-          fetch(e)
+          fetch(~force=true, e)
         }
       )
     | Remove(_) =>
@@ -679,7 +734,7 @@ let make = (
       let live = observedKeys(results)
       entries->Dict.forEach(e =>
         if live->Set.has(e.key) {
-          fetch(e)
+          fetch(~force=true, e)
         }
       )
     }
@@ -771,9 +826,16 @@ let make = (
         }
       }
       if t > entry.lastSeen + expiry.memory {
-        dropped->Array.push(entry.key)
-      } else if entry.state === LoadedRemote {
+        dropped->Array.push(entry)
+      } else {
+        // A failed fetch re-enters the refresh loop whatever state produced
+        // it; a live source owns its own recovery (a later delivery or `end`).
+        let failed = switch getResult(results, entry) {
+        | Failed(_) => true
+        | _ => false
+        }
         if (
+          (entry.state === LoadedRemote || (failed && entry.state !== LiveRemote)) &&
           online &&
           entry.refreshedAt < t - expiry.refresh &&
           // A hung refresh frees its slot after one refresh window.
@@ -782,19 +844,24 @@ let make = (
         ) {
           fetch(entry)
         }
-        switch getResult(results, entry) {
-        | Loaded({data, fresh: true}) =>
-          if entry.refreshedAt < freshLimit {
-            results->Dict.set(entry.key, Loaded({data, fresh: false}))
+        if entry.state === LoadedRemote {
+          switch getResult(results, entry) {
+          | Loaded({data, fresh: true}) =>
+            if entry.refreshedAt < freshLimit {
+              results->Dict.set(entry.key, Loaded({data, fresh: false}))
+            }
+          | _ => ()
           }
-        | _ => ()
         }
       }
     })
     if dropped->Array.length > 0 {
       // Keep items referenced by another query or unattached optimistic upserts.
       let orphans = Set.make()
-      dropped->Array.forEach(key => {
+      dropped->Array.forEach(entry => {
+        // Stop a still-open source (e.g. a live subscription) before eviction.
+        entry.close()
+        let key = entry.key
         idsByKey->Dict.get(key)->Option.getOr([])->Array.forEach(id => orphans->Set.add(id))
         entries->Dict.delete(key)
         results->Dict.delete(key)
@@ -819,7 +886,11 @@ let make = (
     retry,
     discard,
     tick,
-    dispose: clearOnline,
+    dispose: () => {
+      clearOnline()
+      // Stop every still-open source. Cached values are left to normal expiry.
+      entries->Dict.forEach(entry => entry.close())
+    },
     _canopy: () => {
       let {live, idle}: Tilia.canopy = Tilia._canopy(results)
       {live: live->Set.toArray, idle: idle->Set.toArray}

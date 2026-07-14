@@ -143,6 +143,8 @@ type FetchChannel<T> = {
   set(rows: T[]): void; // replace the result (complete rows, not a delta)
   fail(message: string): void; // transport error: retried on next stale window
   covered(): void; // delta-sync engine owns this query: mark fresh
+  end(): void; // the stream is over: teardown runs, periodic refresh resumes
+  finally(fn: () => void): void; // register the teardown (single slot, last write wins)
 };
 
 type WriteChannel<T> = {
@@ -158,8 +160,10 @@ type WriteChannel<T> = {
 
 `remote` must be a tilia object so the core can watch `online` reactively
 (reconnect triggers query refresh and outbox replay); `make` throws if it is
-not. `fetch` may return a cleanup for live subscriptions. `upsert` and `remove` are push-and-forget:
-respond through the channel.
+not. A live subscription registers its cleanup with `channel.finally`; the
+core runs it exactly once when the fetch closes (`end`, superseded, evicted,
+disposed). `upsert` and `remove` are push-and-forget: respond through the
+channel.
 
 ```typescript
 import { computed, tilia } from "tilia";

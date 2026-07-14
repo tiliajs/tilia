@@ -19,8 +19,9 @@ given("an {string} training app", ({step}, status: string) => {
   let network = Network.make()
   let papabase = Papabase.make(network)
   let dexme = Dexme.make()
+  let live = Live.make(network)
   // A ref so "I restart the app" can rebuild the engine on the same stores.
-  let cards = ref(make(~dexme, papabase, () => now_.value, online_))
+  let cards = ref(make(~dexme, ~live, papabase, () => now_.value, online_))
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
   let closeDeck: ref<unit => unit> = ref(() => ())
 
@@ -38,9 +39,7 @@ given("an {string} training app", ({step}, status: string) => {
     cards.contents.receive.changed(toRecords(table))
   )
 
-  step("the subscription removes {string}", (id: string) =>
-    cards.contents.receive.removed([id])
-  )
+  step("the subscription removes {string}", (id: string) => cards.contents.receive.removed([id]))
 
   // Delete straight on the server: the local copy lingers until the purge
   // sweeps it.
@@ -72,7 +71,7 @@ given("an {string} training app", ({step}, status: string) => {
   // local and remote stores, like the app coming back after a reload.
   step("I restart the app", () => {
     cards.contents.dispose()
-    cards := make(~dexme, papabase, () => now_.value, online_)
+    cards := make(~dexme, ~live, papabase, () => now_.value, online_)
     // Boot reloads the outbox from the kv, answering on the microtask queue.
     settled()
   })
@@ -82,26 +81,36 @@ given("an {string} training app", ({step}, status: string) => {
     let query = {deck: deck->String.toLowerCase}
     let close = Tilia.observe(() => app.array(query)->ignore)
     network.flush()
-    settled()->Promise.thenResolve(() => {
-      close()
-      app.dispose()
-    })
+    settled()->Promise.thenResolve(
+      () => {
+        close()
+        app.dispose()
+      },
+    )
   })
 
   step("I go {string}", (status: string) => setOnline(status === "online"))
+
+  step("the remote is failing with {string}", (message: string) =>
+    papabase._failing(Some(message))
+  )
+
+  step("the remote recovers", () => papabase._failing(None))
 
   // Observe like a UI binding would: the callback re-runs whenever the
   // query result changes, keeping `view` in sync.
   step("I open the {string} deck", (deck: string) => {
     let query = {deck: deck->String.toLowerCase}
     closeDeck :=
-      Tilia.observe(() => {
-        view := cards.contents.array(query)
-        switch view.contents {
-        | TiliaQuery.Loaded({data}) => Console.log(data)
-        | _ => Console.log("not loaded")
-        }
-      })
+      Tilia.observe(
+        () => {
+          view := cards.contents.array(query)
+          switch view.contents {
+          | TiliaQuery.Loaded({data}) => Console.log(data)
+          | _ => Console.log("not loaded")
+          }
+        },
+      )
   })
 
   // Stop observing, like a UI unmount: the query is no longer "seen".
@@ -113,6 +122,10 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("I should see not local", () => {
     expect(view.contents).toMatchObject(TiliaQuery.NotLocal)
+  })
+
+  step("I should see failed with {string}", (message: string) => {
+    expect(view.contents).toMatchObject(TiliaQuery.Failed({message: message}))
   })
 
   step("I should see {string} loaded with data", (source: string, table: array<array<string>>) => {
@@ -204,11 +217,53 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("local query {string} should have ids", expectLocal)
 
-  step(
-    "memory and local query {string} should have ids",
-    (deck, table) => {
-      expectMemory(deck, table)
-      expectLocal(deck, table)
-    },
+  step("memory and local query {string} should have ids", (deck, table) => {
+    expectMemory(deck, table)
+    expectLocal(deck, table)
+  })
+
+  step("memory query {string} should be dropped", (deck: string) => {
+    let query = {deck: deck->String.toLowerCase}
+    expect(cards.contents._ids(query)).toEqual(None)
+  })
+
+  // ================ Live source controls
+  // The scenario plays the subscription source, driving the channel handles
+  // the `Live` instrumentation keeps.
+
+  let liveChannel = () => live.channel->Option.getOrThrow(~message="no fetch happened yet")
+  let supersededChannel = () =>
+    live.superseded->Option.getOrThrow(~message="no fetch was superseded yet")
+
+  step("the remote supports live queries", () => live.enabled = true)
+
+  step("the live source ends during fetch", () => live.endsInFetch = true)
+
+  step("the live source delivers", (table: array<array<string>>) => {
+    let values: array<card> = toRecords(table)
+    liveChannel().live(values)
+  })
+
+  step("the live source fails with {string}", (message: string) => liveChannel().fail(message))
+
+  step("the live source ends", () => liveChannel().end())
+
+  step("the superseded fetch delivers", (table: array<array<string>>) => {
+    let values: array<card> = toRecords(table)
+    supersededChannel().set(values)
+  })
+
+  step("the superseded fetch fails with {string}", (message: string) =>
+    supersededChannel().fail(message)
   )
+
+  step("the source teardown should have run {number} time(s)", (count: float) =>
+    expect(live.cleanups).toBe(count->Float.toInt)
+  )
+
+  step("the remote fetch should have run {number} time(s)", (count: float) =>
+    expect(live.fetches).toBe(count->Float.toInt)
+  )
+
+  step("I dispose the app", () => cards.contents.dispose())
 })

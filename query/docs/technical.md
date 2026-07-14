@@ -187,6 +187,13 @@ Remote fetch outcomes:
 - `set(rows)` — rows land, freshness refreshed, `status.error` cleared
 - `covered()` — no rows; the query is marked fresh (a delta-sync engine keeps the local store complete, see below)
 - `fail(message)` — freshness is **not** touched, so the next `tick` past the stale window retries; `{key, message}` is recorded on `status.error`
+- `end()` — the stream is over (valid after a result, not a substitute for
+  `fail`): the registered teardown runs, a live query becomes a normal remote
+  result and re-enters periodic refresh
+- `finally(fn)` — registers the fetch's teardown (e.g. unsubscribe a socket).
+  Single slot, last write wins. It runs exactly once, when the fetch closes:
+  on `end`, when a newer fetch supersedes it, on memory eviction, or on
+  `dispose`. Registering on an already closed fetch runs `fn` immediately.
 
 Local tier failures are ignored: a broken local store is an adapter bug, not a sync state.
 
@@ -215,8 +222,8 @@ converge to remote truth.
 `remote.upsert` / `remote.remove` are push-and-forget: they return nothing and
 once a write is handed to the transport it cannot be uncommitted. Cancelling
 the write channel is the only disposal mechanism (late callbacks become
-no-ops). Only fetch contracts return a cleanup, since live subscriptions need
-teardown on query GC.
+no-ops). Only fetch contracts carry a teardown — registered through
+`channel.finally`, since live subscriptions need teardown on query GC.
 
 Write settlement (dirty lifecycle):
 
@@ -272,6 +279,9 @@ observer API (`Tilia._observe` / `_ready`) rather than `Tilia.watch`, so
 `dispose()` can stop it:
 - on `false -> true`, live queries are marked stale (re-running both tiers) and queued outbox entries replay
 - on `true -> false`, active write channels are cancelled but entries are retained
+- going offline does **not** end a live query: the core cannot know whether
+  the adaptor's transport survived, so ending is the adaptor's call
+  (`channel.end` when its source dies)
 
 Replay sends each queued entry once per reconnect; an entry that gets
 `offline()` stays queued for the next reconnect.

@@ -63,14 +63,32 @@ module Channel: {
    * query. Call it again whenever fresher results arrive. One-shot adaptors
    * use `set` and get periodic refresh.
    *
-   * `fail` publishes a failed result. Callbacks are applied in arrival order,
-   * so adaptors must stop delivering after failure and suppress replies from
-   * superseded fetches.
+   * `fail` publishes a failed result. It does not close the fetch: a live
+   * source may recover by delivering again. A failed non-live query
+   * re-enters the refresh loop and is retried once per refresh window.
+   *
+   * `end` says "the stream is over" — valid after `set` or `live`, not a
+   * substitute for `fail`. It closes the fetch: the registered `finally`
+   * runs, a live query becomes a normal remote result again and re-enters
+   * periodic refresh. Use it when a subscription's source shuts down.
+   *
+   * `finally` registers the fetch's teardown (e.g. unsubscribe a socket).
+   * Single slot, last write wins. The engine runs it exactly once, when the
+   * fetch closes: on `end`, when a newer fetch supersedes this one, when
+   * the query is evicted from memory, or on `dispose`. Registering on an
+   * already closed fetch runs the function immediately — a source that ends
+   * synchronously inside `remote.fetch` is still torn down.
+   *
+   * Every callback on a closed fetch is a noop: the engine suppresses late
+   * replies from ended, superseded or evicted fetches — adaptors do not
+   * need to.
    */
   type read<'a> = {
     set: array<'a> => unit,
     live: array<'a> => unit,
     fail: string => unit,
+    end: unit => unit,
+    finally: (unit => unit) => unit,
   }
 
   /**
@@ -128,7 +146,9 @@ type expiry = {
   /**
    * How long a stale (no longer observed) query result stays in RAM.
    * Eviction only frees memory — the data stays in the local store, and
-   * reopening the query re-materializes it from there.
+   * reopening the query re-materializes it from there. Eviction also closes
+   * the query's fetch: an unobserved live query keeps its subscription open
+   * until this expiry, then its `finally` teardown runs.
    * Default: 300_000 (5 min).
    */
   memory: float,
@@ -186,7 +206,10 @@ type remote<'a, 'query> = {
   /**
    * Fetch the results for a query. Call `channel.set` with a one-shot full
    * result set, or `channel.live` with the full result and again on every
-   * update when the adaptor keeps it fresh.
+   * update when the adaptor keeps it fresh. A live adaptor registers its
+   * teardown with `channel.finally` and calls `channel.end` when its source
+   * shuts down. Going offline does not end a live query — the engine cannot
+   * know whether the transport survived, so ending is the adaptor's call.
    */
   fetch: ('query, Channel.read<'a>) => unit,
   /**
@@ -312,7 +335,9 @@ type t<'a, 'query> = {
   retry: rejection<'a> => unit,
   /**
    * Drop a rejected op for good, matched by its `id`; local state
-   * reverts to the remote's. An id with no rejected entry raises.
+   * reverts to the remote's by refetching the queries that held the
+   * value. On a live query the refetch tears down the subscription (its
+   * `finally` runs) and re-creates it. An id with no rejected entry raises.
    */
   discard: rejection<'a> => unit,
   /**
@@ -322,7 +347,11 @@ type t<'a, 'query> = {
    * is fine.
    */
   tick: unit => unit,
-  /** Stop watching remote connectivity. Cached data is left to normal expiry. */
+  /**
+   * Stop watching remote connectivity and close every open fetch: each
+   * registered `finally` teardown (live subscriptions) runs. Cached data is
+   * left to normal expiry. Safe to call more than once.
+   */
   dispose: unit => unit,
   /** Internal/debug: observed vs idle query keys. */
   _canopy: unit => canopy,

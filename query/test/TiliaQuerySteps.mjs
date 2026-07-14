@@ -18,8 +18,9 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   let network = MakeWorld.Network.make();
   let papabase = MakeWorld.Papabase.make(network);
   let dexme = MakeWorld.Dexme.make();
+  let live = MakeWorld.Live.make(network);
   let cards = {
-    contents: MakeWorld.make(dexme, papabase, () => now_.value, online_)
+    contents: MakeWorld.make(dexme, live, papabase, () => now_.value, online_)
   };
   let view = {
     contents: "loading"
@@ -60,11 +61,11 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("I restart the app", () => {
     cards.contents.dispose();
-    cards.contents = MakeWorld.make(dexme, papabase, () => now_.value, online_);
+    cards.contents = MakeWorld.make(dexme, live, papabase, () => now_.value, online_);
     return settled();
   });
   step("deck {string} is in local db", deck => {
-    let app = MakeWorld.make(dexme, papabase, () => now_.value, online_);
+    let app = MakeWorld.make(dexme, undefined, papabase, () => now_.value, online_);
     let query = {
       deck: deck.toLowerCase()
     };
@@ -78,6 +79,8 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     });
   });
   step("I go {string}", status => setOnline(status === "online"));
+  step("the remote is failing with {string}", message => papabase._failing(message));
+  step("the remote recovers", () => papabase._failing(undefined));
   step("I open the {string} deck", deck => {
     let query = {
       deck: deck.toLowerCase()
@@ -99,6 +102,10 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("I close the deck", () => closeDeck.contents());
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
   step("I should see not local", () => Vitest.expect(view.contents).toMatchObject("notLocal"));
+  step("I should see failed with {string}", message => Vitest.expect(view.contents).toMatchObject({
+    state: "failed",
+    message: message
+  }));
   step("I should see {string} loaded with data", (source, table) => {
     let expected = VitestBdd.toRecords(table);
     Vitest.expect(view.contents).toMatchObject({
@@ -152,6 +159,26 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     expectMemory(deck, table);
     expectLocal(deck, table);
   });
+  step("memory query {string} should be dropped", deck => {
+    let query = {
+      deck: deck.toLowerCase()
+    };
+    Vitest.expect(cards.contents._ids(query)).toEqual(undefined);
+  });
+  step("the remote supports live queries", () => {
+    live.enabled = true;
+  });
+  step("the live source ends during fetch", () => {
+    live.endsInFetch = true;
+  });
+  step("the live source delivers", table => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").live(VitestBdd.toRecords(table)));
+  step("the live source fails with {string}", message => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").fail(message));
+  step("the live source ends", () => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").end());
+  step("the superseded fetch delivers", table => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").set(VitestBdd.toRecords(table)));
+  step("the superseded fetch fails with {string}", message => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").fail(message));
+  step("the source teardown should have run {number} time(s)", count => Vitest.expect(live.cleanups).toBe(count | 0));
+  step("the remote fetch should have run {number} time(s)", count => Vitest.expect(live.fetches).toBe(count | 0));
+  step("I dispose the app", () => cards.contents.dispose());
 });
 
 /*  Not a pure module */
