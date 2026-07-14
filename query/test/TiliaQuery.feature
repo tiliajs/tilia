@@ -427,7 +427,7 @@ Feature: Language training app
     When the remote recovers
     And 35 seconds pass
     And tick is called
-    Then the remote fetch should have run 2 time(s)
+    Then the remote fetch should have run 2 times
     When time passes
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
@@ -447,7 +447,7 @@ Feature: Language training app
     When the remote recovers
     And 35 seconds pass
     And tick is called
-    Then the remote fetch should have run 2 time(s)
+    Then the remote fetch should have run 2 times
     When time passes
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
@@ -478,7 +478,7 @@ Feature: Language training app
     And 35 seconds pass
     And tick is called
     And time passes
-    Then the remote fetch should have run 1 time(s)
+    Then the remote fetch should have run 1 time
     And I should see "remote" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
@@ -489,14 +489,14 @@ Feature: Language training app
     And I open the "Spanish" deck
     And time passes
     When the live source ends
-    Then the source teardown should have run 1 time(s)
+    Then the source teardown should have run 1 time
     When the remote is updated with
       | id      | deck    | english | translation | seen |
       | rain.es | spanish | rain    | lluvia      | 0    |
     And 35 seconds pass
     And tick is called
     And time passes
-    Then the remote fetch should have run 2 time(s)
+    Then the remote fetch should have run 2 times
     And I should see "remote" loaded with data
       | id      | english | translation | seen |
       | cat.es  | cat     | gato        | 0    |
@@ -510,23 +510,23 @@ Feature: Language training app
     And I close the deck
     And 3 minutes pass
     And tick is called
-    Then the source teardown should have run 0 time(s)
+    Then the source teardown should have run 0 times
     When 3 minutes pass
     And tick is called
-    Then the source teardown should have run 1 time(s)
+    Then the source teardown should have run 1 time
     And memory query "Spanish" should be dropped
     When the live source delivers
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
     Then memory query "Spanish" should be dropped
-    And the source teardown should have run 1 time(s)
+    And the source teardown should have run 1 time
 
   Scenario: deliveries from an ended source are ignored
     When the remote supports live queries
     And I open the "Spanish" deck
     And time passes
     And the live source ends
-    Then the source teardown should have run 1 time(s)
+    Then the source teardown should have run 1 time
     When the live source delivers
       | id      | deck    | english | translation | seen |
       | rain.es | spanish | rain    | lluvia      | 0    |
@@ -536,7 +536,7 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
-    And the source teardown should have run 1 time(s)
+    And the source teardown should have run 1 time
 
   Scenario: a live source failure recovers on the next delivery
     When the remote supports live queries
@@ -548,7 +548,7 @@ Feature: Language training app
     # source's job.
     When 35 seconds pass
     And tick is called
-    Then the remote fetch should have run 1 time(s)
+    Then the remote fetch should have run 1 time
     When the live source delivers
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
@@ -571,8 +571,8 @@ Feature: Language training app
     Then status should have 1 rejected
     When I discard the rejection for "cat.es"
     Then status should have 0 rejected
-    And the source teardown should have run 1 time(s)
-    And the remote fetch should have run 2 time(s)
+    And the source teardown should have run 1 time
+    And the remote fetch should have run 2 times
     When time passes
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
@@ -584,7 +584,7 @@ Feature: Language training app
     And time passes
     And 35 seconds pass
     And tick is called
-    Then the remote fetch should have run 2 time(s)
+    Then the remote fetch should have run 2 times
     When the superseded fetch delivers
       | id      | deck    | english | translation | seen |
       | rain.es | spanish | rain    | lluvia      | 0    |
@@ -614,12 +614,12 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
-    And the source teardown should have run 0 time(s)
+    And the source teardown should have run 0 times
 
   Scenario: a teardown registered after a synchronous end runs immediately
     When the live source ends during fetch
     And I open the "Spanish" deck
-    Then the source teardown should have run 1 time(s)
+    Then the source teardown should have run 1 time
 
   Scenario: dispose tears down live sources and is safe to call twice
     When the remote supports live queries
@@ -627,7 +627,7 @@ Feature: Language training app
     And time passes
     When I dispose the app
     And I dispose the app
-    Then the source teardown should have run 1 time(s)
+    Then the source teardown should have run 1 time
     # A disposed fetch is closed: anything the source still says is ignored.
     When the live source delivers
       | id      | deck    | english | translation | seen |
@@ -638,4 +638,4 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
-    And the source teardown should have run 1 time(s)
+    And the source teardown should have run 1 time

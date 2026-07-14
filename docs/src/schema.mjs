@@ -91,9 +91,7 @@ const pageGuideSchema = S.schema({
 
 const buildConfigSchema = S.schema({
   base: S.optional(S.string),
-  var: S.schema({
-    project: S.string,
-  }),
+  var: S.record(S.string),
   shared: S.schema({
     literals: S.schema({
       wordmarkSvg: S.string,
@@ -135,7 +133,11 @@ export function parseGuideChapter(file, raw) {
 
 export function parseBuildConfig(file, data) {
   try {
-    return S.parser(buildConfigSchema)(data);
+    const config = S.parser(buildConfigSchema)(data);
+    if (typeof config.var.project !== "string") {
+      throw new Error("var.project: expected string");
+    }
+    return config;
   } catch (err) {
     throw new Error(`${file}: ${err.message}`);
   }

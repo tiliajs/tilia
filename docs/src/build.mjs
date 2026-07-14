@@ -157,7 +157,7 @@ function matches(file, glob) {
   return file.endsWith(".md");
 }
 
-async function loadMergedConfig(target, seen) {
+async function loadMergedConfig(target, seen, inheritedVars = {}) {
   const file = path.resolve(target);
   if (seen.has(file)) {
     throw new Error(`${file}: circular base chain`);
@@ -165,27 +165,33 @@ async function loadMergedConfig(target, seen) {
   seen.add(file);
 
   const raw = await readFile(file, "utf8");
-  const local = resolveConfigPaths(YAML.parse(raw), path.dirname(file));
-  if (!object(local)) {
+  const parsed = YAML.parse(raw);
+  if (!object(parsed)) {
     seen.delete(file);
     throw new Error(`${file}: config must be an object`);
   }
+  const ownVars = object(parsed.var) ? parsed.var : {};
+  const descendantVars = merge(ownVars, inheritedVars);
 
-  let config = local;
-  if (typeof local.base === "string" && local.base.length > 0) {
-    const baseConfig = await loadMergedConfig(local.base, seen);
-    config = merge(baseConfig, local);
+  let baseConfig = {};
+  let baseVars = {};
+  if (typeof parsed.base === "string" && parsed.base.length > 0) {
+    const base = resolvePath(injectVars(parsed.base, descendantVars), path.dirname(file));
+    const loaded = await loadMergedConfig(base, seen, descendantVars);
+    baseConfig = loaded.config;
+    baseVars = loaded.vars;
   }
+  const vars = merge(baseVars, descendantVars);
+  const local = resolveConfigPaths(applyVars(parsed, vars), path.dirname(file));
   seen.delete(file);
-  return config;
+  return { config: merge(baseConfig, local), vars };
 }
 
 export async function loadConfig(target = configFile, seen = new Set()) {
   const file = path.resolve(target);
-  const config = await loadMergedConfig(file, seen);
+  const { config } = await loadMergedConfig(file, seen);
   const parsed = parseBuildConfig(file, config);
-  const resolved = applyVars(parsed, parsed.var);
-  return resolved;
+  return parsed;
 }
 
 function copyPlan(config) {

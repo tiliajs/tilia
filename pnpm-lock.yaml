@@ -90,8 +90,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   performance:
     devDependencies:
@@ -145,8 +145,8 @@ importers:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@25.0.3)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   react:
     dependencies:
@@ -206,8 +206,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app1:
     dependencies:
@@ -264,8 +264,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app2:
     dependencies:
@@ -325,8 +325,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app3:
     dependencies:
@@ -374,8 +374,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   tests/app4:
     dependencies:
@@ -408,8 +408,8 @@ importers:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@25.0.3)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   todo-app-ts:
     dependencies:
@@ -481,8 +481,8 @@ importers:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)
       vitest-bdd:
-        specifier: ^1.0.1
-        version: 1.0.1(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
+        specifier: 1.1.0-beta.20260714T204711
+        version: 1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2))
 
   website:
     dependencies:
@@ -1825,6 +1825,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vitejs/plugin-react@4.7.0':
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
@@ -3813,8 +3814,8 @@ packages:
       vite:
         optional: true
 
-  vitest-bdd@1.0.1:
-    resolution: {integrity: sha512-/8osoXwjeMKSRM6yzUpm3ZKgGkosP1JEcTJbaDp8fx//S+xzvm612Ft/7Sk25itaXXP/uI15SR5t9RQWpdK85w==}
+  vitest-bdd@1.1.0-beta.20260714T204711:
+    resolution: {integrity: sha512-cEfzsTfB4iL7OWKw1ACtyhfRJAORsluQxZbymfkuXAozP/j61B8ERwulBUzIFiu6o4s/RrQHCHy/0rzbHCb1Fg==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       vite: '*'
@@ -3886,6 +3887,7 @@ packages:
   whatwg-encoding@3.1.1:
     resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
     engines: {node: '>=18'}
+    deprecated: Use @exodus/bytes instead for a more spec-conformant and faster implementation
 
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
@@ -7659,14 +7661,14 @@ snapshots:
     optionalDependencies:
       vite: 7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)
 
-  vitest-bdd@1.0.1(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
+  vitest-bdd@1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
     dependencies:
       '@cucumber/gherkin': 32.2.0
       '@cucumber/messages': 27.2.0
       source-map: 0.7.6
       vite: 6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)
 
-  vitest-bdd@1.0.1(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
+  vitest-bdd@1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)):
     dependencies:
       '@cucumber/gherkin': 32.2.0
       '@cucumber/messages': 27.2.0
