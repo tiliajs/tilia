@@ -6,10 +6,6 @@
       are pure predicates over one row — no limits, no pagination, no
       aggregates — because join-on-upsert and full-result `set` semantics
       both break otherwise.
-- [ ] Document the linear-scan bet: `upsert` walks every entry and registry
-      record, `applyPending` re-applies the whole outbox per delivery. Fine
-      at client-cache scale (dozens of queries); say so rather than betting
-      silently.
 - [ ] Rejected ops overlay in dict order before the seq-ordered outbox
       (`applyPending`). With one rejection per id it mostly cannot matter,
       but it is the only place ordering is accidental rather than chosen.
@@ -17,10 +13,16 @@
 - [ ] Restart-with-rejection scenario: the `.resi` promises the rejection
       resurfaces on its own after a restart (op reloads as pending, re-push
       fails again). Test it.
-- [ ] `README.md` and `docs/technical.md` still describe the pre-`live` API
+- [x] Document the linear-scan bet: `upsert` walks every entry and registry
+      record, `applyPending` re-applies the whole outbox per delivery. Fine
+      at client-cache scale (dozens of queries); say so rather than betting
+      silently. → "The linear-scan bet" in `TECHNICAL.md`, echoed in
+      `README.md` and `llms.txt`.
+- [x] `README.md` and `docs/technical.md` still describe the pre-`live` API
       generation (`covered`, `status.error`, `channel.state`,
-      `saved`/`conflict`/`rejected`). Deliberately deferred: the truth for a
-      rewrite is `TiliaQuery.resi` + `TECHNICAL.md`.
+      `saved`/`conflict`/`rejected`). → `README.md` and `llms.txt` rewritten
+      from `TiliaQuery.resi` + `TECHNICAL.md`; `docs/technical.md` removed
+      (still-true content merged into `TECHNICAL.md`).
 - [x] Implement inbound subscriptions.
   - [x] Apply values delivered through `receive.changed`.
   - [x] Apply ids delivered through `receive.removed`.

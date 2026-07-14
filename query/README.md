@@ -4,38 +4,47 @@ Offline-first query and cache layer for [Tilia](https://tiliajs.com) apps.
 
 `@tilia/query` keeps a reactive in-memory view of your collections, backed by
 two pluggable tiers: a **local store** (e.g. IndexedDB/Dexie) that answers
-every query — even offline — and a **remote** (e.g. REST, Supabase, websocket)
-that is the source of truth when the network is available. Writes and deletes
-are optimistic, saved locally as a durable outbox, and replayed automatically
-on reconnect — including after an app restart.
+queries even offline, and a **remote** (REST, Supabase, websocket) that is the
+authoritative source when the network is available. Writes and removes are
+optimistic, queued in a durable outbox, and replayed automatically on
+reconnect — including after an app restart.
 
 > Status: `0.1.0`, API stabilizing. The source contract lives in
 > [`src/TiliaQuery.resi`](src/TiliaQuery.resi) (ReScript) and
-> [`src/index.d.ts`](src/index.d.ts) (TypeScript).
+> [`src/index.d.ts`](src/index.d.ts) (TypeScript). The engine model —
+> freshness, live queries, outbox, rejections, local purge — is described in
+> [TECHNICAL.md](TECHNICAL.md).
 
 ## What it does
 
-- shared object cache by id, query results as ids (normalized, consistent across views)
-- `loading` / `loaded` / `notFound` states per query, plus `one()` for detail views
-- offline-first reads: local store answers immediately, remote refreshes when online
-- optimistic writes **and deletes** with a durable dirty outbox and automatic replay on reconnect
-- boot replay: unsynced writes from a previous session resume syncing
-- bounded local retention: the store keeps exactly the rows of known query
-  results (plus unsynced writes) — server truth prunes rows that left a
-  result, and idle-query GC releases rows nothing references anymore
-- inbound live updates (`changed` / `removed`) are persisted, so pushed
-  changes survive an offline restart
-- reactive sync status: pending writes count, rejected writes, last fetch error
-- stale refresh in the background without clearing current data
-- idle-query garbage collection driven by real reactivity (who is watching what)
-- object-driven membership: a changed object enters and leaves query results in place, without refetching
-- sorted, stable query results: views only change when membership changes
-- lifecycle control: `dispose()` and `clear()` for logout / user switch
+- shared object cache by id, query results as ids (normalized: one row can
+  belong to several queries without duplication)
+- reactive read states per query: `loading`, `loaded` (with a `fresh` flag),
+  `notFound`, `notLocal`, `failed` — fetch errors surface at the read site,
+  there is no global error slot
+- offline-first reads: the local store materializes a query instantly, the
+  remote result replaces it when online
+- optimistic writes and removes: applied to memory and local storage first,
+  queued as ops in a durable, ordered outbox
+- batch push with per-op confirmation; transient failures stay queued,
+  definitive failures become per-op rejections you `retry` or `discard`
+- boot replay: the persisted outbox reloads and pushes, so closing the app
+  mid-sync loses nothing
+- live queries: an adaptor that keeps a result fresh on its own (server
+  subscription) is exempt from periodic refresh; the engine owns running its
+  teardown
+- inbound server pushes: `receive.changed` / `receive.removed` update memory,
+  membership, and local storage — the optimistic overlay wins
+- membership by predicate: a written or delivered value joins and leaves
+  in-memory query results in place, without refetching
+- bounded local retention: a mark-and-sweep purge removes rows no retained
+  query record references (unsynced writes always survive)
+- lifecycle: a `tick` heartbeat (the engine owns no timers) and `dispose`
 
 ## What it does not do
 
-- transport (HTTP, websocket, auth) — you provide a `remote` adapter
-- storage (IndexedDB schemas, query glue) — you provide a `local` store adapter
+- transport (HTTP, websocket, auth) — you provide a `remote` adaptor
+- storage (IndexedDB schemas, query glue) — you provide a `local` adaptor
 - scheduling — you call `tick()` from your own timer
 - domain APIs — wrap it with feature-shaped helpers
 
@@ -43,261 +52,360 @@ on reconnect — including after an app restart.
 
 ```mermaid
 flowchart LR
-  app[App / UI] --> core[TiliaQuery core]
-  core -->|"fetch always"| localStore["local store: fetch / save / remove / dirty"]
-  core -->|"fetch + upsert + remove when online"| remoteStore["remote: fetch / upsert / remove / online"]
-  localStore -->|"set rows (works offline)"| core
-  remoteStore -->|"set rows -> cache + write-through"| core
+  app[App / UI] --> engine[TiliaQuery engine]
+  engine -->|"fetch (materialize) + push (write-through)"| localStore["local: fetch / push / kv / ids"]
+  engine -->|"fetch + push ops when online"| remoteStore["remote: fetch / push / online"]
 ```
 
-Every query runs against the local store first (instant, works offline). When
-online, the same query also runs against the remote; remote rows are written
-through to the local store and refresh the query's freshness. Rows with a
-pending write keep their optimistic value until the write settles; rows with a
-pending delete are dropped so a fetch cannot resurrect them.
+The first read of a query fetches the local store (instant, works offline)
+and, in parallel, the remote. The local answer only materializes the query:
+once a remote result has landed, a late local answer is ignored. Remote
+deliveries are overlaid with the pending and rejected ops — an optimistic
+edit never flickers out of a result — then written through to the local
+store, and the query's id-list is persisted as a **query record**. Records
+are the retention truth: a periodic mark-and-sweep purge removes local rows
+no record (and no queued op) references anymore.
 
-The remote answer is also the retention truth: each query's id-list is
-persisted (`saveQuery`), rows that dropped out of the result are purged from
-the local store unless another query's persisted list or the outbox still
-needs them, and rows deleted on the server stay gone across an offline
-restart instead of reappearing as ghosts.
+## Read states
+
+`one(query)` and `array(query)` return a loadable. In JavaScript the states
+without data are plain strings, the others tagged objects:
+
+- `"loading"` — no answer yet
+- `{ state: "loaded", data, fresh }` — `fresh` is `true` while the remote is
+  known to be current, `false` when the data is served from the local cache
+  or the last remote delivery has expired
+- `"notFound"` — `one()` resolved on an empty result (`array()` never
+  resolves here: an empty array is loaded)
+- `"notLocal"` — the offline dead end: nothing cached locally and the remote
+  unreachable. An answer, not a progress state — show "not available
+  offline", not a spinner
+- `{ state: "failed", message }` — the remote fetch failed; shown at the read
+  site and retried once per refresh window
 
 ## Quick start (TypeScript)
 
 ```typescript
 import { make } from "@tilia/query";
+import { signal } from "tilia";
 
 type Todo = { id: string; title: string; done: boolean };
 type TodoQuery = { done: boolean };
 
-const todos = make<Todo, TodoQuery>({
-  id: (todo) => todo.id,
-  remote, // remote adapter (see below)
-  local, // local store adapter (optional)
-  // Membership: writes move objects between query results without refetching.
-  matches: (query, todo) => query.done === todo.done,
-  // Order: id-lists stay sorted and stable across refetches.
-  sort: (a, b) => a.title.localeCompare(b.title),
-});
+const todos = make<Todo, TodoQuery>(
+  (todo) => todo.id,
+  // Membership: a written or delivered value joins and leaves results in place.
+  (query, todo) => query.done === todo.done,
+  remote, // remote adaptor (see below)
+  local // local adaptor (optional, see below)
+);
 
-// Read (reactive, safe to call in render / observe / watch)
+// Read (reactive: call in render / observe / watch)
 const list = todos.array({ done: false });
 if (list === "loading") renderSpinner();
-else if (list === "notFound") renderEmpty();
-else renderList(list.data);
+else if (list === "notLocal") renderOffline();
+else if (list === "notFound") renderEmpty(); // one() only, arrays load empty
+else if (list.state === "failed") renderError(list.message);
+else renderList(list.data, list.fresh);
 
-// Detail view (loads like any query, resolves the first row)
-const detail = todos.one({ done: false });
+// Detail view: first result per sort. Model read-by-id as a query.
+const detail = todos.one({ done: true });
 
-// Write: optimistic, saved dirty locally, pushed when online
+// Write: optimistic, durable, pushed when online
 todos.upsert({ id: "t1", title: "Ship it", done: false });
 
-// Delete: optimistic, tombstoned locally, pushed when online
-todos.remove({ id: "t1", title: "Ship it", done: false });
+// Remove by id: optimistic, queued like any write
+todos.remove("t1");
 
-// Inbound updates (websocket / delta sync): cache + membership + a clean
-// local save, no remote push. A pending optimistic write for an id wins.
-// The batch is applied as one reactive transaction.
-todos.changed([changedTodo]);
+// Inbound pushes from a server subscription: facts, not commands
+todos.receive.changed([changedTodo]);
+todos.receive.removed(["t2"]);
 
-// Inbound deletes: evict everywhere, purge the clean local rows
-todos.removed([deletedTodo]);
+// Sync status (reactive tilia object)
+todos.status.pending; // ops waiting in the outbox
+todos.status.rejected; // ops the remote definitively refused
 
-// Sync status for the UI (reactive tilia object)
-todos.status.pending; // writes waiting to sync
-todos.status.rejected; // writes refused by the server, until todos.dismiss()
-todos.status.error; // last remote fetch failure
+// A rejected op stays visible until the app decides:
+todos.retry(rejection); // re-queue it under its original order
+todos.discard(rejection); // drop it; a refetch restores server truth
 
-// Call on your own schedule: stale refresh + garbage collection
-todos.tick();
+// Heartbeat: refresh, expiry, gc and push retries all happen here
+setInterval(() => todos.tick(), 10_000); // anything ≤ expiry.refresh / 2
 
-// Logout / user switch
-todos.clear(); // empty memory + outbox (local database wipe is your adapter's job)
-todos.dispose(); // stop watching connectivity, cancel open channels
+// Shutdown: stop watching connectivity, close every open fetch
+todos.dispose();
 ```
 
-The same API is available in ReScript; `array()` returns a `loadable` variant
-to pattern match on:
+The same API in ReScript pattern matches on the `loadable` variant:
 
 ```rescript
 switch todos.array({done: false}) {
 | Loading => renderSpinner()
-| Loaded({data}) => renderList(data)
-| NotFound => renderEmpty()
+| Loaded({data, fresh}) => renderList(data, ~fresh)
+| NotLocal => renderOffline()
+| Failed({message}) => renderError(message)
+| NotFound => renderEmpty() // array queries never resolve here
 }
 ```
 
-Note: array queries never resolve to `notFound` — an empty result is
-`{ state: "loaded", data: [] }`. Only `one()` and `get()` use `notFound`.
+### Configuration
 
-## The adapter contracts
-
-Both read paths speak through the same fetch channel. A channel can set the
-result several times (cached rows now, fresh rows later, live updates forever)
-and becomes inert once cancelled — late callbacks are ignored by the core. All
-outcomes are named callbacks: adapters never build tagged values.
+`make` takes positional arguments in TypeScript:
 
 ```typescript
-type FetchChannel<T> = {
-  readonly state: "live" | "cancelled";
-  set(rows: T[]): void; // replace the result (complete rows, not a delta)
-  fail(message: string): void; // transport error: retried on next stale window
-  covered(): void; // delta-sync engine owns this query: mark fresh
-  end(): void; // the stream is over: teardown runs, periodic refresh resumes
-  finally(fn: () => void): void; // register the teardown (single slot, last write wins)
+make(id, matches, remote, local?, expiry?, now?, key?, sort?)
+```
+
+- `expiry` — timing tiers in milliseconds, defaults
+  `{ refresh: 30_000, memory: 300_000, local: 2_592_000_000 }` (30 s, 5 min,
+  30 days). Memory is a small RAM cache of observed queries; local is the
+  durable superset on disk.
+- `key` — query to cache key; defaults to `sortedStringify` (deterministic
+  JSON with sorted keys), so equivalent object filters map to the same query.
+- `sort` — transforms the whole result array
+  (e.g. `(rows) => rows.toSorted(byTitle)`). It runs inside a computed, so an
+  edit to a sort key reorders the list reactively.
+
+## The adaptor contracts
+
+**Query shape**: queries must be plain data (they survive a JSON round trip:
+the default `key` and the persisted query registry both assume it) and pure
+per-row predicates. `matches(query, value)` decides membership by looking at
+one row, and a fetch answers with the query's full result set. Limits,
+pagination and aggregates do not fit this shape — a written row joins a
+result through `matches` alone, and a full-result `set` replaces whatever a
+partial window would try to keep.
+
+Both tiers must be able to answer every `'query` value your app generates
+(e.g. Dexie where-clauses and REST params): implement the interpretation
+twice or share a query parser.
+
+### Remote
+
+```typescript
+type Remote<T, Q> = {
+  online: Signal<boolean>; // connectivity, owned by the app
+  fetch(query: Q, channel: ReadChannel<T>): void;
+  push(ops: Op<T>[], channel: WriteChannel<T>): void;
+};
+
+type ReadChannel<T> = {
+  set(values: T[]): void; // full result set; call again when fresher rows arrive
+  live(values: T[]): void; // same, and: "I keep this fresh" — periodic refresh skips the query
+  fail(message: string): void; // failed result; does not close the fetch
+  end(): void; // the stream is over: teardown runs, back to periodic refresh
+  finally(fn: () => void): void; // register the teardown; single slot, runs exactly once
 };
 
 type WriteChannel<T> = {
-  readonly state: "live" | "cancelled";
-  saved(value: T): void; // saved: settle clean with the canonical value
-  offline(): void; // transient: keep queued and dirty for next reconnect
-  conflict(server: T): void; // server wins: server value replaces the write
-  rejected(message: string): void; // permanent: drop write, surface on status
+  set(value: T): void; // confirm one upsert with the authoritative value
+  removed(id: string): void; // confirm one remove, by id
+  retry(): void; // transient: unconfirmed ops stay pending for a later push
+  fail(message: string): void; // definitive: unconfirmed ops become rejections
 };
 ```
 
-### Remote (REST CRUD example)
+`online` is a tilia signal the app owns: set its value as connectivity
+changes. Flipping to `true` replays the outbox; flipping to `false` settles
+queries still loading to `notLocal`.
 
-`remote` must be a tilia object so the core can watch `online` reactively
-(reconnect triggers query refresh and outbox replay); `make` throws if it is
-not. A live subscription registers its cleanup with `channel.finally`; the
-core runs it exactly once when the fetch closes (`end`, superseded, evicted,
-disposed). `upsert` and `remove` are push-and-forget: respond through the
-channel.
+The engine closes a fetch on `end`, when a newer fetch supersedes it, when
+the query is evicted from memory, and on `dispose`. Every callback on a
+closed fetch is a noop — adaptors never need to guard against late replies.
+Registering `finally` on an already closed fetch runs the teardown
+immediately.
+
+A REST remote:
 
 ```typescript
-import { computed, tilia } from "tilia";
+import { signal } from "tilia";
 
-const network = tilia({ online: navigator.onLine });
-window.addEventListener("online", () => (network.online = true));
-window.addEventListener("offline", () => (network.online = false));
+const [online, setOnline] = signal(navigator.onLine);
+window.addEventListener("online", () => setOnline(true));
+window.addEventListener("offline", () => setOnline(false));
 
-// Maps an HTTP error to the right channel callback.
-function settle<T>(channel: WriteChannel<T>, res: Response) {
-  if (res.status === 409) res.json().then((server) => channel.conflict(server));
-  else if (res.status >= 400 && res.status < 500) channel.rejected(res.statusText);
-  else channel.offline(); // 5xx / network: retry on next reconnect
-}
-
-const remote = tilia({
-  online: computed(() => network.online),
-  fetch(filter: TodoQuery, channel: FetchChannel<Todo>) {
-    fetch(`/api/todos?${new URLSearchParams(filter as any)}`)
+const remote: Remote<Todo, TodoQuery> = {
+  online,
+  fetch(query, channel) {
+    fetch(`/api/todos?done=${query.done}`)
       .then((res) => res.json())
       .then(
         (rows) => channel.set(rows),
         (e) => channel.fail(String(e))
       );
   },
-  upsert(todo: Todo, channel: WriteChannel<Todo>) {
-    fetch(`/api/todos/${todo.id}`, { method: "PUT", body: JSON.stringify(todo) }).then(
-      (res) => (res.ok ? res.json().then((saved) => channel.saved(saved)) : settle(channel, res)),
-      () => channel.offline()
-    );
-  },
-  remove(todo: Todo, channel: WriteChannel<Todo>) {
-    fetch(`/api/todos/${todo.id}`, { method: "DELETE" }).then(
-      (res) => (res.ok ? channel.saved(todo) : settle(channel, res)),
-      () => channel.offline()
-    );
-  },
-});
-```
-
-### Local store (Dexie example)
-
-The local store doubles as the optimistic read source, the durable outbox,
-and the query registry that bounds retention. The recommended storage is
-in-row flags — indexed `dirty` and `deleted` columns on the collection table —
-plus one small `queries` table for persisted id-lists. `fetch` must exclude
-tombstones (`deleted`), and `dirty()` returns the outbox as `{ value, deleted }`
-records.
-
-```typescript
-// db.version(1).stores({ todos: "id, done, dirty", todoQueries: "key" });
-
-const local: Store<Todo, TodoQuery> = {
-  fetch(filter, channel) {
-    db.todos
-      .where("done")
-      .equals(filter.done ? 1 : 0)
-      .and((row) => !row.deleted)
-      .toArray()
-      .then((rows) => channel.set(rows.map(strip)));
-  },
-  save(todo, dirty) {
-    db.todos.put({ ...todo, dirty: dirty ? 1 : 0, deleted: 0 });
-  },
-  remove(todo, dirty) {
-    if (dirty) db.todos.put({ ...todo, dirty: 1, deleted: 1 }); // tombstone
-    else db.todos.delete(todo.id); // confirmed or pruned: purge row + tombstone
-  },
-  dirty: () =>
-    db.todos
-      .where("dirty")
-      .equals(1)
-      .toArray()
-      .then((rows) => rows.map((row) => ({ value: strip(row), deleted: !!row.deleted }))),
-  queries: () => db.todoQueries.toArray(),
-  saveQuery(record) {
-    db.todoQueries.put(record);
-  },
-  removeQuery(key) {
-    db.todoQueries.delete(key);
+  async push(ops, channel) {
+    try {
+      for (const op of ops) {
+        if (op.op === "upsert") {
+          const res = await fetch(`/api/todos/${op.value.id}`, {
+            method: "PUT",
+            body: JSON.stringify(op.value),
+          });
+          if (res.status >= 400 && res.status < 500) return channel.fail(res.statusText);
+          if (!res.ok) return channel.retry();
+          channel.set(await res.json()); // server-corrected value wins
+        } else {
+          const res = await fetch(`/api/todos/${op.id}`, { method: "DELETE" });
+          if (res.status >= 400 && res.status < 500) return channel.fail(res.statusText);
+          if (!res.ok) return channel.retry();
+          channel.removed(op.id);
+        }
+      }
+    } catch {
+      channel.retry(); // network error: unconfirmed ops stay pending
+    }
   },
 };
-
-// Remove the storage flags before rows enter the cache.
-const strip = ({ dirty, deleted, ...todo }) => todo;
 ```
 
-`local.fetch` has the exact shape of `remote.fetch`: every query your app
-generates must be answerable by both sides, so implement the query glue twice
-(e.g. Dexie where-clauses and SQL filters) or share a query parser.
+A live subscription answers through `live` and hands its teardown to the
+engine:
 
-Without `local`, the core is purely in-memory and queries wait for the remote.
+```typescript
+fetch(query, channel) {
+  const sub = socket.subscribe(query, (rows) => channel.live(rows));
+  sub.onClose(() => channel.end()); // source shut down: back to periodic refresh
+  channel.finally(() => sub.unsubscribe());
+},
+```
 
-**Ordering assumption**: a one-shot `local.fetch` should resolve before the
-remote answer (IndexedDB is almost always faster than the network). If your
-local fetch can set the result after the remote set, use a live query (Dexie
-`liveQuery`) — remote rows are written through to the local store, so live
-local reads converge naturally.
+Going offline does not end a live query — the engine cannot know whether the
+transport survived, so ending is the adaptor's call.
+
+### Local
+
+The local adaptor is command-only: confirmation, retry and rejection are
+remote concepts. A local storage error is the adaptor's own business (log,
+retry, surface in app state) — the engine never sees it.
+
+```typescript
+type Local<T, Q> = {
+  // Fetch cached results; `unknown` when the storage cannot answer the query.
+  fetch(query: Q, channel: { set(values: T[]): void; unknown(): void }): void;
+  // Apply value changes in order: upsert writes or replaces the row, remove drops it.
+  push(ops: Op<T>[]): void;
+  // String KV for engine bookkeeping (outbox, query registry); undefined deletes.
+  set(tag: string, key: string, value: string | undefined): void;
+  // One entry by key, or every entry for the tag when key is undefined.
+  get(tag: string, key: string | undefined, set: (values: string[]) => void): void;
+  // Every row id in the values table (the purge's sweep phase).
+  ids(set: (ids: string[]) => void): void;
+};
+```
+
+Values reach the adaptor typed, so it stores them natively and can index them
+for `fetch`. There are no dirty flags or tombstones to manage: the values
+table always holds the current optimistic state, and the engine keeps the
+outbox and the query registry in the KV. A Dexie sketch:
+
+```typescript
+// db.version(1).stores({ todos: "id, done", kv: "k" });
+
+const local: Local<Todo, TodoQuery> = {
+  fetch(query, channel) {
+    db.todos
+      .where("done")
+      .equals(query.done ? 1 : 0)
+      .toArray()
+      .then((rows) => channel.set(rows));
+  },
+  push(ops) {
+    for (const op of ops) {
+      if (op.op === "upsert") db.todos.put(op.value);
+      else db.todos.delete(op.id);
+    }
+  },
+  set(tag, key, value) {
+    if (value === undefined) db.kv.delete(`${tag}:${key}`);
+    else db.kv.put({ k: `${tag}:${key}`, v: value });
+  },
+  get(tag, key, set) {
+    if (key !== undefined) db.kv.get(`${tag}:${key}`).then((row) => set(row ? [row.v] : []));
+    else
+      db.kv
+        .where("k")
+        .startsWith(`${tag}:`)
+        .toArray()
+        .then((rows) => set(rows.map((r) => r.v)));
+  },
+  ids(set) {
+    db.todos.toCollection().primaryKeys().then((keys) => set(keys as string[]));
+  },
+};
+```
+
+Without `local`, the engine is purely in-memory: queries wait for the remote,
+and a query opened offline resolves to `notLocal`.
 
 ## Write lifecycle
 
-`upsert(item)` updates the cache immediately, saves the row dirty in the local
-store (even offline — this is what makes writes durable), updates query
-membership through `matches` (the id enters matching results and leaves
-results that no longer match — no refetch), and pushes to the remote when
-online. `remove(item)` follows the same path with a delete tombstone. Latest
-write wins per id.
+`upsert(value)` updates the memory cache, joins and leaves in-memory query
+results through `matches` (a move updates both queries at once — no refetch),
+writes the value to the local store, and enqueues an `Upsert` op. `remove(id)`
+takes the id out of every in-memory result and loaded query record, deletes
+the local row, and enqueues a `Remove` op. Ops are persisted in the local KV,
+so pending writes survive a restart.
 
-| Remote response | Put entry | Delete entry |
-| --- | --- | --- |
-| `saved(value)` | removed, saved clean | removed, row + tombstone purged |
-| `conflict(server)` | removed, server value wins, saved clean | removed, server row resurrected, saved clean |
-| `rejected(message)` | removed, surfaced on `status.rejected`, queries refetch server truth | same, tombstone cleared |
-| `offline()` | kept for next reconnect, stays dirty | kept, tombstone stays dirty |
+While online, one push carries every pending op not already in flight, in
+order. Settlement per the write channel:
 
-At startup, `make` loads `local.dirty()` and queues each entry through the
-same flow, so closing the app mid-sync loses nothing.
+- `set(value)` — the op leaves the outbox; the authoritative value replaces
+  memory and the local row
+- `removed(id)` — the op leaves the outbox
+- `retry()` — unconfirmed ops stay pending; pushed again on a later `tick` or
+  reconnect
+- `fail(message)` — unconfirmed ops move to `status.rejected`, keyed by id (a
+  newer rejection replaces an older one for the same id)
+
+A rejected op keeps overlaying remote deliveries like a pending one: the
+refused edit stays visible until the app calls `retry(rejection)` (re-queues
+it under its original order, so a later edit still wins) or
+`discard(rejection)` (drops the persisted op and refetches the queries that
+held the value, restoring server truth). Rejections also survive a restart on
+their own: the persisted op reloads as pending, the re-push fails again, and
+the rejection resurfaces.
 
 ## Scheduling
 
-The library never starts timers. Call `tick()` whenever you like (e.g. every
-few seconds, on focus, on navigation):
+The engine owns no timers: refresh, expiry, gc and push retries happen only
+inside `tick()` (and on `remote.online` transitions). Call it on an interval;
+anything ≤ `expiry.refresh / 2` is fine.
 
-- watched queries older than `stale` seconds refresh in the background (only while online)
-- queries nobody watches for `gc` seconds are evicted, along with objects no
-  other query references; their persisted id-list is dropped and local rows no
-  remaining query retains are purged (unsynced writes always survive)
+On each tick:
+
+- observed remote-loaded queries past `expiry.refresh` refetch in the
+  background (only while online; live queries are excluded — their source
+  keeps them fresh)
+- a remote result with no delivery within the refresh window flips to
+  `fresh: false` without losing its data
+- queries nobody observes for `expiry.memory` are evicted from RAM — an
+  unobserved live subscription is torn down here — along with objects no
+  remaining query references; the data stays in the local store and reopening
+  the query re-materializes it
+- the local purge (first tick after boot, then at most once per
+  `expiry.local / 8`) mark-and-sweeps rows no retained query record lists;
+  pending and rejected ops always root their rows
+
+## Scale
+
+The engine bets on linear scans instead of indexes: a write offers the value
+to every in-memory query, and every remote delivery re-applies the whole
+outbox overlay. This is deliberate at client-cache scale — dozens of active
+queries and an outbox that drains on reconnect. See
+[the linear-scan bet](TECHNICAL.md#the-linear-scan-bet) in TECHNICAL.md for
+where the bet holds and where it would break.
 
 ## Going further
 
+- [TECHNICAL.md](TECHNICAL.md) — the engine model: freshness, live queries,
+  outbox and rejections, local purge, the linear-scan bet
 - [docs/vision.md](docs/vision.md) — why this exists and where it is going
-- [docs/technical.md](docs/technical.md) — contracts, data flow, delta-sync compatibility, adapter guidance
 - [llms.txt](llms.txt) — entry point for AI coding assistants
 - [tiliajs.com](https://tiliajs.com) — Tilia documentation
+
+Debug hooks: `_canopy()` lists observed vs idle query keys; `_ids(query)`
+returns a copy of the ids an in-memory query holds (testing).
 
 ## License
 

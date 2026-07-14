@@ -1,51 +1,67 @@
 # @tilia/query
 
-> Offline-first query and cache layer for Tilia apps: normalized object cache,
-> two-tier reads (local store + remote), durable optimistic write/delete
-> outbox with reconnect replay, reactive sync status, stale refresh, and
-> reactivity-driven garbage collection.
+> Offline-first query and cache layer for Tilia apps: normalized object
+> cache, two-tier reads (local store + remote), durable optimistic outbox
+> with batch push and reconnect replay, per-op rejections with retry/discard,
+> live queries, inbound server pushes, and mark-and-sweep local retention.
 
 Key facts for code generation:
 
-- Create an instance with `make(config)` where config is a single options
-  object: `{id, remote, local?, stale?, gc?, now?, key?, matches?, sort?}`.
-- `matches(query, value)` is the membership predicate: writes and `changed`
-  update query id-lists in place (no refetch). `sort(a, b)` keeps id-lists
-  sorted and stable, so views only change when membership changes.
-- Reads: `one(query)`, `array(query)`, `dict(query)` return a loadable:
-  the string "loading", the string "notFound", or `{state: "loaded", data}`.
-  Array queries never resolve to "notFound"; empty results are loaded.
-- Writes: `upsert(item)` and `remove(item)` are optimistic and durable; they
-  are pushed to the remote when online and replayed on reconnect and after
-  restart.
-- Adapters respond through named channel callbacks, never tagged values:
-  fetch channels have `set(rows)` (replaces the result), `fail(message)`,
-  `covered()`; write channels have `saved(value)`, `offline()`,
-  `conflict(server)`, `rejected(message)`.
-- The `remote` adapter must be a tilia object with a reactive `online`
-  boolean; the core watches it to replay the outbox on reconnect. `make`
-  throws if `remote` is not a tilia proxy.
-- The optional `local` store answers every query offline, persists the
-  outbox, and holds the query registry: `save(item, dirty)`,
-  `remove(item, dirty)` (dirty=true writes a delete tombstone), `dirty()`
-  returns `{value, deleted}` records, and `queries()` / `saveQuery(record)` /
-  `removeQuery(key)` persist `{key, ids, fetched}` per query. Remote results
-  reconcile against the persisted record: rows that left a result are pruned
-  unless another query or the outbox retains them.
-- Inbound live events take batches: `changed(items)` (updates) and
-  `removed(items)` (deletes) update memory, membership, and the local store
-  in one reactive transaction; a pending optimistic write for the same id
-  always wins.
-- `status` is a reactive object: `pending` (outbox size), `rejected`
-  (refused writes, cleared with `dismiss()`), `error` (last fetch failure).
-- The library never starts timers: call `tick()` from your own scheduler for
-  stale refresh and garbage collection. Call `clear()` on logout (memory
-  only; wipe the local database yourself) and `dispose()` to shut down.
+- Create an instance with positional arguments:
+  `make(id, matches, remote, local?, expiry?, now?, key?, sort?)`.
+- Queries are plain data and pure per-row predicates: `matches(query, value)`
+  decides membership one row at a time and a fetch answers with the full
+  result set — no limits, no pagination, no aggregates. `sort(values)`
+  transforms the whole result array. `key` defaults to `sortedStringify`.
+- Reads: `one(query)` and `array(query)` return a loadable: the strings
+  `"loading"`, `"notFound"` (never for `array` — empty results are loaded),
+  `"notLocal"` (offline and nothing cached: an answer, not a progress state),
+  or the objects `{state: "loaded", data, fresh}` and
+  `{state: "failed", message}`. Fetch errors live at the read site; there is
+  no global error slot.
+- Writes: `upsert(value)` and `remove(id)` are optimistic — they update
+  memory, join and leave in-memory query results through `matches`, write to
+  the local store, and queue an op in a durable, ordered outbox. Pending and
+  rejected ops overlay every remote delivery, so optimistic edits never
+  flicker out of a result.
+- `remote` is `{online, fetch, push}`. `online` is a tilia `Signal<boolean>`
+  the app owns; flipping to true replays the outbox, flipping to false
+  settles loading queries to `"notLocal"`.
+- `remote.fetch(query, channel)` answers through `channel.set(values)` (full
+  result, periodic refresh) or `channel.live(values)` (self-refreshing
+  source: periodic refresh skips the query). `fail(message)` publishes a
+  failed result without closing the fetch; `end()` closes it and returns the
+  query to periodic refresh; `finally(fn)` registers the teardown, run
+  exactly once when the fetch closes (end, superseded, evicted, disposed).
+  Every callback on a closed fetch is a noop.
+- `remote.push(ops, channel)` receives the ordered batch of pending ops.
+  Confirm per op with `channel.set(value)` (authoritative upsert value) and
+  `channel.removed(id)`; `channel.retry()` keeps unconfirmed ops pending;
+  `channel.fail(message)` turns them into rejections in `status.rejected`,
+  handled with `retry(rejection)` / `discard(rejection)`.
+- `local` is command-only (storage errors are the adaptor's business):
+  `fetch(query, {set, unknown})` materializes a query, `push(ops)` applies
+  value changes in order, `set(tag, key, value|undefined)` and
+  `get(tag, key|undefined, set)` are a string KV for engine bookkeeping
+  (outbox, query registry), `ids(set)` lists every row id for the purge
+  sweep. No dirty flags or tombstones: the values table holds the current
+  optimistic state.
+- Inbound pushes: `receive.changed(values)` / `receive.removed(ids)` are
+  facts about the server. The outbox overlay wins over deliveries, and
+  deliveries do not touch freshness.
+- `status` is reactive: `{pending, rejected}`.
+- The engine owns no timers: call `tick()` on an interval ≤
+  `expiry.refresh / 2`. Expiry tiers in ms: `refresh` 30 s (background
+  refetch and `fresh` flag), `memory` 5 min (RAM eviction), `local` 30 days
+  (mark-and-sweep local purge).
+- `dispose()` stops connectivity watching and closes every open fetch.
+- The engine scans linearly by design (no id→query or id→op index); fine at
+  dozens of queries — see TECHNICAL.md.
 
 ## Docs
 
-- [README](README.md): full API tour with REST remote and Dexie local store recipes (TypeScript)
-- [Technical overview](docs/technical.md): contracts, data flow, settlement matrix, delta-sync compatibility
+- [README](README.md): API tour with REST remote and Dexie local recipes (TypeScript)
+- [TECHNICAL.md](TECHNICAL.md): the engine model — freshness, live queries, outbox, rejections, local purge, the linear-scan bet
 - [Vision](docs/vision.md): why TiliaQuery exists
 - [ReScript contract](src/TiliaQuery.resi): source of truth for the API
 - [TypeScript types](src/index.d.ts): TS mirror of the contract

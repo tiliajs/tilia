@@ -14,10 +14,10 @@ import type { Signal } from "tilia";
  * there is no global error slot to join against.
  */
 export type Loadable<T> =
-  | { state: "loading" }
+  | "loading"
   | { state: "loaded"; data: T; fresh: boolean }
-  | { state: "notFound" }
-  | { state: "notLocal" }
+  | "notFound"
+  | "notLocal"
   | { state: "failed"; message: string };
 
 /**

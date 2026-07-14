@@ -11,6 +11,12 @@ A **query** selects and orders a set of rows. Its result is stored as row ids,
 while each row value is stored separately by id. This separation lets one row
 belong to several queries without duplicating its value in memory.
 
+A query must be a pure predicate over one row. `matches(query, value)` decides
+membership by looking at a single row, and a fetch answers with the query's
+full result set. Limits, pagination and aggregates do not fit this shape: a
+written row joins a result through `matches` alone, and a full-result `set`
+replaces whatever a partial window would try to keep.
+
 The application calls **`tick`** to perform time-based maintenance. A tick may
 refresh open queries, release closed queries from memory, or purge expired
 local data.
@@ -73,6 +79,11 @@ retention. Expiring one layer does not imply that another layer must expire.
   memory.
 - **Local expiry — 30 days by default.** An unused persisted query can be
   removed from local storage.
+
+**Open** means observed. The engine asks Tilia's observer graph which query
+results something is currently watching (`_canopy` over the shared results
+dict). There is no registration API: reading a result inside an observer is
+what keeps a query open.
 
 An open query updates its last-seen time on every tick. This prevents active
 queries from expiring from memory.
@@ -358,6 +369,31 @@ that query later rewrites its persisted id list without `cat`.
 A remote `removed` confirmation is matched to an in-flight remove by row id.
 The local deletion is already complete, so confirmation only clears the
 outbox operation.
+
+## The linear-scan bet
+
+The engine keeps no index from row ids to queries or operations. Every
+membership question is answered by a scan:
+
+- An upsert offers the value to every in-memory query, and scans every
+  registry record to see whether some record already lists the row.
+- A remove walks every in-memory id list and every registry record to drop
+  the id.
+- A remote delivery rebuilds the optimistic overlay from scratch: every
+  rejected operation and every pending outbox operation is re-applied over
+  the delivered rows, one pass per operation.
+- A tick visits every in-memory query. A purge marks every id of every
+  record.
+
+This is a bet on scale, and it is deliberate rather than an oversight. The
+intended load is a client cache: dozens of in-memory queries, registry
+records in the same range, and an outbox that drains on reconnect. At that
+scale a scan costs less than an index. There is no structure to update on
+every write, and nothing that can drift from the truth it summarizes.
+
+The bet loses when the counts stop being small — hundreds of active queries,
+or a large outbox overlaid onto frequent deliveries. The fix at that point is
+indexing (ids to queries, ids to operations), not tuning the scans.
 
 ## Rejection test fixture
 
