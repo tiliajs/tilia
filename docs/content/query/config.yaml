@@ -2,6 +2,11 @@ base: ../tilia/config.yaml
 var:
   project: query
 
+shared:
+  literals:
+    moduleLabelCore: |-
+      Query
+
 pages:
   api:
     input:

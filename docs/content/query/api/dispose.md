@@ -1,25 +1,33 @@
 ---
-name: .dispose
+name: dispose
 slug: dispose
 kind: function
 module: core
 since: "0.1"
-sort: 140
-summary: Stop the connectivity watcher and cancel every open channel.
+sort: 120
+summary: Close every open fetch and stop watching connectivity.
 signature:
-  ts: "collection.dispose(): void"
-  res: "collection.dispose: unit => unit"
+  ts: "dispose: () => void"
+  res: "dispose: unit => unit"
 tags: []
 ---
 
-`dispose` tears the instance down: the reactive watcher on `remote.online` stops, and every open fetch and write channel is cancelled, so late adapter answers become no-ops. The instance stays readable but inert — nothing will fetch, replay or settle again.
+`dispose` shuts the collection down:
 
-Use it at the end of a test or when unmounting an app shell. For logout, use [clear](api.html#clear) instead: it resets state but keeps the instance alive.
+- It stops watching `remote.online`.
+- It closes every open fetch: each registered `finally` teardown runs — live subscriptions are unsubscribed.
+- Cached data is left alone; it follows normal expiry.
+
+Safe to call more than once. Remember to also stop the interval driving [tick](api.html#tick) — the engine owns no timers, so it cannot stop them either.
+
+`cards` is the collection from [make](api.html#make). See guide chapter [The pulse and the canopy](docs.html#the-pulse-and-the-canopy).
 
 ```typescript
-afterEach(() => cards.dispose());
+clearInterval(timer);
+cards.dispose();
 ```
 
 ```rescript
-afterEach(() => cards.dispose())
+clearInterval(timer)
+cards.dispose()
 ```

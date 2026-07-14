@@ -1,45 +1,53 @@
 ---
-name: .status
+name: status
 slug: status
-kind: type
+kind: function
 module: core
 since: "0.1"
-sort: 110
-summary: Reactive sync state — pending writes, refused writes, last fetch error.
+sort: 80
+summary: Reactive sync state — pending ops and rejections.
 signature:
   ts: |-
-    collection.status: Status<T>
-
-    interface Status<T> {
-      readonly pending: number,
-      readonly rejected: readonly Rejection<T>[],
-      readonly error: FetchError | undefined
+    status: {
+      pending: number,
+      rejected: Rejection<T>[]
     }
   res: |-
-    collection.status: status<'a>
-
-    type status<'a> = {
+    status: {
       mutable pending: int,
-      mutable rejected: array<rejection<'a>>,
-      mutable error: option<fetchError>,
+      rejected: array<rejection<'a>>,
     }
 tags: []
 ---
 
-`status` is a field on the collection — a tilia object, so reading it from render code subscribes like any reactive value.
+`status` is the collection's sync state. It is a tilia object: reading it inside `observe`, `watch` or a component tracks it.
 
-`pending` counts the writes waiting in the outbox. `rejected` holds writes permanently refused by the remote — each a `Rejection` with the `value`, whether it was a `deleted` operation, and the server's `message` — until [dismiss](api.html#dismiss) clears the list. `error` is the last remote fetch failure as a `FetchError` (`key`, `message`), cleared by the next successful fetch. See guide chapter [When the server disagrees](docs.html#when-the-server-disagrees).
+- `pending` — number of ops waiting in the outbox. Every [upsert](api.html#upsert) / [remove](api.html#remove) counts immediately, including offline writes: `remote.push` is never called while offline, so the count only drains once online.
+- `rejected` — ops the remote definitively refused, keyed by id (a newer rejection replaces an older one for the same id). Handle each entry with [retry](api.html#retry) or [discard](api.html#discard).
+
+Edge cases:
+
+- Read-path errors are **not** here — a failed fetch shows up as `Failed` in [Loadable](api.html#loadable-type), at the read site.
+- The outbox is durable when a local store is configured: ops persist, reload at boot in sequence order, and replay when online. A rejection resurfaces the same way — its persisted op re-pushes and fails again after a restart.
+
+`cards` below is the collection from [make](api.html#make). See guide chapters [Writing without waiting](docs.html#writing-without-waiting) and [When the server disagrees](docs.html#when-the-server-disagrees).
 
 ```typescript
+import { observe } from "tilia";
+
 observe(() => {
-  badge.textContent =
-    cards.status.pending > 0 ? `syncing ${cards.status.pending}…` : "";
+  console.log(`${cards.status.pending} pending`);
+  for (const rejection of cards.status.rejected) {
+    console.log(rejection.id, rejection.message);
+  }
 });
 ```
 
 ```rescript
-observe(() => {
-  badge.textContent =
-    cards.status.pending > 0 ? `syncing ${cards.status.pending->Int.toString}…` : ""
+Tilia.observe(() => {
+  Console.log(`${cards.status.pending->Int.toString} pending`)
+  cards.status.rejected->Array.forEach(rejection =>
+    Console.log2(rejection.id, rejection.message)
+  )
 })
 ```

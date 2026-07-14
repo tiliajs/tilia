@@ -1,31 +1,43 @@
 ---
-name: .array
+name: array
 slug: array
 kind: function
 module: core
 since: "0.1"
-sort: 40
-summary: List view — a reactive array of the rows matching a query.
+sort: 30
+summary: Read a query's full result set, reactively.
 signature:
-  ts: "collection.array(query: Q): Loadable<T[]>"
-  res: "collection.array: 'query => loadable<array<'a>>"
+  ts: "array: (query: Q) => Loadable<T[]>"
+  res: "array: 'query => loadable<array<'a>>"
 tags: []
 ---
 
-`array` is the main list view. The first read registers the query and starts the two-tier fetch; later reads return the same memoized view.
+`array` reads a query's results, ordered per the `sort` given to [make](api.html#make).
 
-An empty result is `Loaded` with an empty array, not `NotFound` — "the query answered and there are none" is an answer. The view rebuilds only when the underlying id list changes membership or order, so a refetch that returns the same rows re-renders nothing. With `sort` configured, rows keep their order as membership changes. See guide chapter [A shape for queries](docs.html#a-shape-for-queries).
+The read is reactive: inside `observe`, `watch` or a component, the caller re-runs when the result changes. A refetch that changes nothing re-renders nothing.
+
+- `array` never answers `NotFound`: an empty result is `Loaded` with an empty array.
+- Results include the optimistic overlay — pending and rejected writes are re-applied on top of every remote delivery, so an unconfirmed write never flickers out of a result.
+- All states and the `fresh` flag behave as described in [Loadable](api.html#loadable-type).
+
+`cards` below is the collection from [make](api.html#make). See guide chapter [Reads answer twice](docs.html#reads-answer-twice).
 
 ```typescript
-const spanish = cards.array({ deck: "spanish" });
-if (spanish !== "loading" && spanish !== "notFound") {
-  spanish.data.forEach((card) => console.log(card.front));
-}
+import { observe } from "tilia";
+
+observe(() => {
+  const spanish = cards.array({ deck: "es" });
+  if (typeof spanish === "object" && spanish.state === "loaded") {
+    console.log(spanish.data.length, spanish.fresh ? "fresh" : "cached");
+  }
+});
 ```
 
 ```rescript
-switch cards.array({deck: "spanish"}) {
-| Loaded({data}) => data->Array.forEach(card => Js.log(card.front))
-| Loading | NotFound => ()
-}
+Tilia.observe(() =>
+  switch cards.array({deck: "es"}) {
+  | Loaded({data, fresh}) => Console.log2(data->Array.length, fresh ? "fresh" : "cached")
+  | Loading | NotFound | NotLocal | Failed(_) => ()
+  }
+)
 ```

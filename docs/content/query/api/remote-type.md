@@ -4,57 +4,93 @@ slug: remote-type
 kind: type
 module: core
 since: "0.1"
-sort: 220
-summary: Authoritative adapter — connectivity plus fetch, upsert and remove.
+sort: 240
+summary: Remote adaptor — the authoritative store behind the network.
 signature:
   ts: |-
-    interface Remote<T, Q> {
-      readonly online: boolean,
-      fetch(query: Q, channel: FetchChannel<T>): void | (() => void),
-      upsert(value: T, channel: WriteChannel<T>): void,
-      remove(value: T, channel: WriteChannel<T>): void
+    type Remote<T, Q> = {
+      online: Signal<boolean>,
+      fetch: (query: Q, channel: ReadChannel<T>) => void,
+      push: (ops: Op<T>[], channel: WriteChannel<T>) => void
     }
   res: |-
     type remote<'a, 'query> = {
-      online: bool,
-      fetch: ('query, Channel.fetch<'a>) => option<unit => unit>,
-      upsert: ('a, Channel.write<'a>) => unit,
-      remove: ('a, Channel.write<'a>) => unit,
+      online: Tilia.signal<bool>,
+      fetch: ('query, Channel.read<'a>) => unit,
+      push: (array<op<'a>>, Channel.write<'a>) => unit,
     }
 tags: []
 ---
 
-The remote adapter translates your transport into the lifecycle's vocabulary. `fetch` answers a query through a [FetchChannel](api.html#fetch-channel-type) and may return a cleanup for live subscriptions; `upsert` and `remove` settle writes through a [WriteChannel](api.html#write-channel-type). Remote rows are authoritative: they refresh query freshness and write through to the local store.
+`Remote` wires the authoritative store into [make](api.html#make). The library owns the lifecycle; the adaptor owns the transport.
 
-`remote` **must be a tilia object**: the core watches `online` reactively to replay the outbox and refresh live queries on reconnect. A plain record has nothing to watch, so [make](api.html#make) refuses it with `make: remote is not a tilia proxy (reconnect could never replay writes)`. See guide chapter [The channel boundary](docs.html#the-channel-boundary).
+`online` is the connectivity signal, owned by the app: set `online.value` as connectivity changes. The engine reacts to transitions:
+
+- Flipping to `false` settles queries still `Loading` to `NotLocal`. An in-flight remote response may still land and is taken as-is; its freshness self-corrects on later ticks.
+- Flipping to `true` pushes pending ops.
+
+`fetch` answers a query through a [ReadChannel](api.html#read-channel-type):
+
+- `channel.set` with the complete result set (one-shot; the engine refreshes periodically).
+- Or `channel.live` when the adaptor keeps the result fresh itself (a subscription): register the teardown with `channel.finally`, call `channel.end` when the source shuts down. Going offline does not end a live query — the engine cannot know whether the transport survived, so ending is the adaptor's call.
+
+`push` receives one ordered batch of every pending op not already in flight, with a [WriteChannel](api.html#write-channel-type):
+
+- Confirm each op individually via `channel.set` / `channel.removed`.
+- End with nothing (all confirmed), `channel.retry` (transient failure) or `channel.fail` (definitive).
+
+See guide chapter [The channel boundary](docs.html#the-channel-boundary).
 
 ```typescript
-import { tilia } from "tilia";
+import { signal } from "tilia";
+import type { Remote } from "@tilia/query";
 
-const remote: Remote<Card, DeckQuery> = tilia({
-  online: navigator.onLine,
-  fetch: (q, channel) =>
-    void api.list(q).then(channel.set, (e) => channel.fail(e.message)),
-  upsert: (card, channel) =>
-    void api.save(card).then(channel.saved, () => channel.offline()),
-  remove: (card, channel) =>
-    void api.delete(card.id).then(() => channel.saved(card), () => channel.offline()),
-});
+const [online, setOnline] = signal(navigator.onLine);
+window.addEventListener("online", () => setOnline(true));
+window.addEventListener("offline", () => setOnline(false));
 
-window.addEventListener("online", () => (remote.online = true));
-window.addEventListener("offline", () => (remote.online = false));
+const remote: Remote<Card, Query> = {
+  online,
+  fetch: (query, channel) =>
+    api.select(query).then(channel.set, (e) => channel.fail(String(e))),
+  push: (ops, channel) =>
+    ops.forEach((op) =>
+      op.op === "upsert"
+        ? api.upsert(op.value).then(channel.set, (e) => channel.fail(String(e)))
+        : api.remove(op.id).then(() => channel.removed(op.id))
+    ),
+};
 ```
 
 ```rescript
-open Tilia
+let (online, setOnline) = Tilia.signal(true)
 
-let remote: TiliaQuery.remote<card, deckQuery> = tilia({
-  online: Navigator.onLine,
-  fetch: (q, channel) =>
-    Api.list(q)->Promise.thenResolve(channel.set)->ignore->None,
-  upsert: (card, channel) =>
-    Api.save(card)->Promise.thenResolve(channel.saved)->ignore,
-  remove: (card, channel) =>
-    Api.delete(card.id)->Promise.thenResolve(() => channel.saved(card))->ignore,
-})
+let remote: TiliaQuery.remote<card, query> = {
+  online,
+  fetch: (query, channel) =>
+    api.select(query)
+    ->Promise.thenResolve(result =>
+      switch result {
+      | Ok(cards) => channel.set(cards)
+      | Error(error) => channel.fail(error)
+      }
+    )
+    ->ignore,
+  push: (ops, channel) =>
+    ops->Array.forEach(op =>
+      switch op {
+      | Upsert({value}) =>
+        api.upsert(value)
+        ->Promise.thenResolve(result =>
+          switch result {
+          | Ok(card) => channel.set(card)
+          | Error(error) => channel.fail(error)
+          }
+        )
+        ->ignore
+      | Remove({id}) =>
+        api.remove(id)->Promise.thenResolve(() => channel.removed(id))->ignore
+      }
+    ),
+}
 ```

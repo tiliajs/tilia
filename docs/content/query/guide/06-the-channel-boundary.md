@@ -2,7 +2,7 @@
 title: The channel boundary
 slug: the-channel-boundary
 sort: 6
-refs: [remote-type, store-type, fetch-channel-type, write-channel-type]
+refs: [remote-type, local-type, read-channel-type, write-channel-type]
 ---
 
 Adapters are where your application's reality — its HTTP client, its IndexedDB wrapper, its sync engine — meets the lifecycle. The contract between the two sides is a handful of functions and the channels they answer through. This chapter builds a remote adapter and explains why the boundary is drawn exactly here.

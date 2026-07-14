@@ -2,7 +2,7 @@
 title: Onward
 slug: onward
 sort: 8
-refs: [clear, dispose]
+refs: [dispose]
 ---
 
 Step back and look at what Alice's cards travel through now. A query is a question asked once and kept fresh. An edit is durable before it is optimistic, and optimistic before it is sent. The server's disagreements arrive as named outcomes, not exceptions. Adapters translate; channels absorb late answers; a tick the app controls decides when anything happens at all. Nowhere in the feature code is there a retry loop, a merge function, or an `isLoading` flag someone forgot to reset.

@@ -2,7 +2,7 @@
 title: A shape for queries
 slug: a-shape-for-queries
 sort: 2
-refs: [make, get, one, array, dict]
+refs: [make, one, array, sorted-stringify]
 ---
 
 Everything in @tilia/query starts with one call: `make` builds the query state for a collection. This chapter is about what that object holds — two connected caches — and the vocabulary it uses to answer honestly when data is not there yet.

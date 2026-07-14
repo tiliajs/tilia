@@ -2,7 +2,7 @@
 title: Writing without waiting
 slug: writing-without-waiting
 sort: 4
-refs: [upsert, remove, store-type]
+refs: [upsert, remove, status, op-type]
 ---
 
 A write in @tilia/query never waits for the network. `upsert` and `remove` return immediately, and the library takes on the debt of making the write true everywhere else. This chapter is about how that debt is recorded, honored, and never lost.

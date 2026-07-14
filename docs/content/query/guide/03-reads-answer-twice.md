@@ -2,7 +2,7 @@
 title: Reads answer twice
 slug: reads-answer-twice
 sort: 3
-refs: [array, one, fetch-channel-type, store-type]
+refs: [array, one, loadable-type, read-channel-type, local-channel-type]
 ---
 
 A query has two possible sources: the local store on the device, and the remote. @tilia/query asks both — and the way it arbitrates between their answers is what makes cached data trustworthy instead of merely fast.

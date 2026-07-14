@@ -2,7 +2,7 @@
 title: When the server disagrees
 slug: when-the-server-disagrees
 sort: 5
-refs: [changed, removed, status, dismiss, write-channel-type, remote-type]
+refs: [receive-changed, receive-removed, status, retry, discard, rejection-type]
 ---
 
 Optimistic writes make a promise the server hasn't confirmed. Most of the time it simply agrees. This chapter is about the other times — and about the fourth kind of update, the one that arrives without being asked for.

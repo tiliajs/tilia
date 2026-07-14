@@ -1,27 +1,37 @@
 ---
-name: .remove
+name: remove
 slug: remove
 kind: function
 module: core
 since: "0.1"
-sort: 70
-summary: Optimistic delete — tombstoned locally, pushed to the remote when online.
+sort: 50
+summary: Remove a value by id, optimistically.
 signature:
-  ts: "collection.remove(value: T): void"
-  res: "collection.remove: 'a => unit"
+  ts: "remove: (id: string) => void"
+  res: "remove: string => unit"
 tags: []
 ---
 
-`remove` deletes optimistically: the local store writes a dirty tombstone, the object leaves the cache and every query id list, and `remote.remove` is dispatched when online.
+`remove` deletes a value by id, before the remote confirms. A remove never requires a full value — the op carries only the id.
 
-While the delete is pending, fetches cannot resurrect the id, and inbound updates for it are ignored. If the remote answers `conflict(server)` or `rejected(message)`, the row is restored from server truth — the server said it still exists. Tombstones survive restarts, replay like any queued write, and are never touched by reconciliation or retention pruning. See guide chapter [Writing without waiting](docs.html#writing-without-waiting).
+What happens immediately:
+
+- The id leaves every in-memory query result and the persisted query records.
+- The local row is deleted.
+- The op queues in the outbox and counts in [status](api.html#status)`.pending`, like any write.
+
+Edge cases:
+
+- The remote's confirmation ([WriteChannel](api.html#write-channel-type)`.removed`) only clears the op — the local deletion is already complete.
+- A pending remove keeps overlaying remote deliveries: the id is filtered out of every result until the op confirms.
+- A stale id left in a query record from an earlier session is harmless: the purge sweep only examines rows that still exist locally, and the next refresh rewrites the record without the id.
+
+`cards` below is the collection from [make](api.html#make). See guide chapter [Writing without waiting](docs.html#writing-without-waiting).
 
 ```typescript
-cards.remove(gato);
-// gone from every list; the tombstone syncs when online
+cards.remove("cat");
 ```
 
 ```rescript
-cards.remove(gato)
-// gone from every list; the tombstone syncs when online
+cards.remove("cat")
 ```

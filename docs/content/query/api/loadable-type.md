@@ -4,36 +4,67 @@ slug: loadable-type
 kind: type
 module: core
 since: "0.1"
-sort: 200
-summary: Read state of a query or cached object.
+sort: 210
+summary: A value as seen by the read path — five honest states.
 signature:
-  ts: 'type Loadable<T> = "loading" | "notFound" | { state: "loaded"; data: T }'
+  ts: |-
+    type Loadable<T> =
+      | "loading"
+      | { state: "loaded", data: T, fresh: boolean }
+      | "notFound"
+      | "notLocal"
+      | { state: "failed", message: string }
   res: |-
     @tag("state")
     type loadable<'a> =
       | @as("loading") Loading
-      | @as("loaded") Loaded({data: 'a})
+      | @as("loaded") Loaded({data: 'a, fresh: bool})
       | @as("notFound") NotFound
+      | @as("notLocal") NotLocal
+      | @as("failed") Failed({message: string})
 tags: []
 ---
 
-Every read answers with a `Loadable`: `Loading` means the question was just asked; `Loaded` carries the data; `NotFound` means [one](api.html#one) resolved nothing or [get](api.html#get) missed the cache.
+`Loadable` is what [one](api.html#one) and [array](api.html#array) answer.
 
-An empty list is `Loaded` with an empty array, not `NotFound` — "the server answered and there are none" is an answer, and the UI can choose between a spinner and an empty state.
+- `Loading` — no source has answered yet. A progress state: show a spinner.
+- `Loaded` — data, with a `fresh` flag (see below).
+- `NotFound` — the fetch completed empty. Only `one` answers it; `array` answers an empty `Loaded`.
+- `NotLocal` — the offline dead end: nothing cached locally and the remote unreachable. Unlike `Loading` it is an answer, not progress — show "not available offline", not a spinner.
+- `Failed` — the fetch error, carried to the place where the value is read. There is no global error slot to join against.
 
-The ReScript variant compiles to the same tagged JavaScript values the TypeScript union describes, so both languages pattern-match the same runtime shape.
+`fresh` says whether the data is known-fresh from the remote (`true`) or served from cache (`false`). It describes trust, not where the rows physically live.
+
+- On [tick](api.html#tick), a non-live remote result with no delivery within `expiry.refresh` flips to `fresh: false`; the next remote delivery flips it back.
+- While online, the flip waits one extra refresh-check period (`expiry.refresh / 8`) so an in-flight refresh can land without a flip/flop. Offline, it flips right at the limit.
+
+More edge cases:
+
+- `NotLocal` only appears while offline. Online, an empty local answer keeps the query `Loading` until the remote responds.
+- A `Failed` non-live query is not stuck: it re-enters the refresh loop and is retried once per refresh window.
+
+See guide chapter [Reads answer twice](docs.html#reads-answer-twice).
 
 ```typescript
-const view = cards.array({ deck: "spanish" });
-if (view === "loading") render(skeleton);
-else if (view === "notFound") render(missing);
-else render(view.data);
+import type { Loadable } from "@tilia/query";
+
+function label(result: Loadable<Card[]>): string {
+  if (result === "loading") return "…";
+  if (result === "notFound") return "not found";
+  if (result === "notLocal") return "not available offline";
+  if (result.state === "failed") return result.message;
+  return result.fresh ? "fresh" : "cached";
+}
 ```
 
 ```rescript
-switch cards.array({deck: "spanish"}) {
-| Loading => render(skeleton)
-| NotFound => render(missing)
-| Loaded({data}) => render(data)
-}
+let label = (result: TiliaQuery.loadable<array<card>>) =>
+  switch result {
+  | Loading => "…"
+  | NotFound => "not found"
+  | NotLocal => "not available offline"
+  | Failed({message}) => message
+  | Loaded({fresh: true}) => "fresh"
+  | Loaded({fresh: false}) => "cached"
+  }
 ```
