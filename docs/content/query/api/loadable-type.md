@@ -43,7 +43,7 @@ More edge cases:
 - `NotLocal` only appears while offline. Online, an empty local answer keeps the query `Loading` until the remote responds.
 - A `Failed` non-live query is not stuck: it re-enters the refresh loop and is retried once per refresh window.
 
-See guide chapter [Reads answer twice](docs.html#reads-answer-twice).
+See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
 
 ```typescript
 import type { Loadable } from "@tilia/query";

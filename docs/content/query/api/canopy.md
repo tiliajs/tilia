@@ -29,7 +29,7 @@ There is no registration API behind this. Reading a result inside an observer is
 
 The underscore marks a tooling entry point — meant for debugging, devtools and library authors, not everyday application code.
 
-`cards` is the collection from [make](api.html#make). See guide chapter [The pulse and the canopy](docs.html#the-pulse-and-the-canopy).
+`cards` is the collection from [make](api.html#make). See guide chapter [The pulse and the canopy](guide.html#the-pulse-and-the-canopy).
 
 ```typescript
 const { live, idle } = cards._canopy();

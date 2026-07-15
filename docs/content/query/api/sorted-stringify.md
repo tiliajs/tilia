@@ -18,7 +18,7 @@ It is the default `key` in [make](api.html#make): the string identifies a query 
 
 Only meaningful on plain data — no functions, no cycles. This is the same constraint the local purge puts on queries anyway: persisted records carry their query through a JSON round trip.
 
-See guide chapter [A shape for queries](docs.html#a-shape-for-queries).
+See guide chapter [A shape for queries](guide.html#a-shape-for-queries).
 
 ```typescript
 import { sortedStringify } from "@tilia/query";

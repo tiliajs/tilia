@@ -20,7 +20,7 @@ The read is reactive: inside `observe`, `watch` or a component, the caller re-ru
 - Reading a value by id is not a separate API: make the id a query and read it with `one`.
 - All other states behave as described in [Loadable](api.html#loadable-type).
 
-`cards` below is the collection from [make](api.html#make). See guide chapter [Reads answer twice](docs.html#reads-answer-twice).
+`cards` below is the collection from [make](api.html#make). See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
 
 ```typescript
 const first = cards.one({ deck: "es" });

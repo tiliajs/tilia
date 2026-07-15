@@ -40,7 +40,7 @@ test("loads tilia config from content folder", async () => {
   assert.equal(config.var.project, "tilia");
   assert.equal(config.pages.api.input.markdownDir, path.resolve(process.cwd(), "content/tilia/api"));
   assert.equal(config.pages.guide.input.markdownDir, path.resolve(process.cwd(), "content/tilia/guide"));
-  assert.equal(config.pages.api.output.htmlFile, path.resolve(process.cwd(), "dist/tilia/api.html"));
+  assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/tilia/api.html"));
 });
 
 test("rejects invalid config format", async () => {
@@ -80,6 +80,7 @@ test("resolves variables before paths", async () => {
         `  dist: "${dist}"`,
         "pages:",
         "  api:",
+        "    output: '{{dist}}/api.html'",
         "    assets:",
         "      copy:",
         "        - from: '{{assets}}/style.css'",
@@ -94,7 +95,7 @@ test("resolves variables before paths", async () => {
     assert.equal(config.pages.api.assets.copy[0].from, path.join(assets, "style.css"));
     assert.equal(config.pages.api.assets.copy[0].to, path.join(dist, "style.css"));
     assert.equal(config.pages.api.assets.copy[1].from, path.join(shared, "fonts"));
-    assert.equal(config.pages.api.output.htmlFile, path.resolve(process.cwd(), "../dist/example/api.html"));
+    assert.equal(config.pages.api.output, path.join(dist, "api.html"));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -108,7 +109,7 @@ test("loads query config via base", async () => {
   assert.equal(config.pages.api.input.markdownDir, path.resolve(process.cwd(), "content/query/api"));
   assert.equal(config.pages.guide.input.markdownDir, path.resolve(process.cwd(), "content/query/guide"));
   assert.equal(config.pages.api.input.glob, "*.md");
-  assert.equal(config.pages.api.output.htmlFile, path.resolve(process.cwd(), "dist/query/api.html"));
+  assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/query/api.html"));
 });
 
 test("deep merges literals over base", async () => {
@@ -156,12 +157,11 @@ test("resolves child file paths before merge", async () => {
         "  project: query",
         "pages:",
         "  api:",
-        "    output:",
-        "      htmlFile: ./out/{{project}}/api.html",
+        "    output: ./out/{{project}}/api.html",
       ].join("\n")
     );
     const config = await loadConfig(file);
-    assert.equal(config.pages.api.output.htmlFile, path.resolve(dir, "out/query/api.html"));
+    assert.equal(config.pages.api.output, path.resolve(dir, "out/query/api.html"));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

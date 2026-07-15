@@ -19,7 +19,7 @@ tags: []
 - When online, the push happens immediately, like a fresh write.
 - An id with no rejected entry raises.
 
-See [discard](api.html#discard) for the other way out, and guide chapter [When the server disagrees](docs.html#when-the-server-disagrees). `cards` is the collection from [make](api.html#make).
+See [discard](api.html#discard) for the other way out, and guide chapter [When the server disagrees](guide.html#when-the-server-disagrees). `cards` is the collection from [make](api.html#make).
 
 ```typescript
 const [rejection] = cards.status.rejected;

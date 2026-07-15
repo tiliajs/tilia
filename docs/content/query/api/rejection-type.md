@@ -32,7 +32,7 @@ Edge cases:
 - A rejected op keeps overlaying remote deliveries like a pending one — the refused edit stays visible until `retry` re-queues it or `discard` reverts it.
 - The op's persisted outbox entry is kept. After a restart it reloads as pending, the re-push fails again, and the rejection resurfaces on its own.
 
-See guide chapter [When the server disagrees](docs.html#when-the-server-disagrees).
+See guide chapter [When the server disagrees](guide.html#when-the-server-disagrees).
 
 ```typescript
 import type { Rejection } from "@tilia/query";

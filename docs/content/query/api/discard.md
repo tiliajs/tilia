@@ -23,7 +23,7 @@ The optimistic write replaced both the in-memory value and the local row, so the
 
 An id with no rejected entry raises.
 
-See [retry](api.html#retry) and guide chapter [When the server disagrees](docs.html#when-the-server-disagrees). `cards` is the collection from [make](api.html#make).
+See [retry](api.html#retry) and guide chapter [When the server disagrees](guide.html#when-the-server-disagrees). `cards` is the collection from [make](api.html#make).
 
 ```typescript
 const [rejection] = cards.status.rejected;

@@ -92,13 +92,13 @@ import { signal } from "tilia";
 type Todo = { id: string; title: string; done: boolean };
 type TodoQuery = { done: boolean };
 
-const todos = make<Todo, TodoQuery>(
-  (todo) => todo.id,
+const todos = make<Todo, TodoQuery>({
+  id: (todo) => todo.id,
   // Membership: a written or delivered value joins and leaves results in place.
-  (query, todo) => query.done === todo.done,
+  matches: (query, todo) => query.done === todo.done,
   remote, // remote adaptor (see below)
-  local // local adaptor (optional, see below)
-);
+  local, // local adaptor (optional, see below)
+});
 
 // Read (reactive: call in render / observe / watch)
 const list = todos.array({ done: false });
@@ -150,10 +150,10 @@ switch todos.array({done: false}) {
 
 ### Configuration
 
-`make` takes positional arguments in TypeScript:
+`make` takes a configuration object:
 
 ```typescript
-make(id, matches, remote, local?, expiry?, now?, key?, sort?)
+make({ id, matches, remote, local?, expiry?, now?, key?, sort? })
 ```
 
 - `expiry` — timing tiers in milliseconds, defaults

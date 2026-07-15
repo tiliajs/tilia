@@ -21,7 +21,7 @@ For each delivered id:
 
 Like [receive.changed](api.html#receive-changed), deliveries do not touch freshness: the `fresh` flag and refresh scheduling stay owned by the per-query read channel.
 
-See guide chapter [The channel boundary](docs.html#the-channel-boundary). `cards` is the collection from [make](api.html#make).
+See guide chapter [The channel boundary](guide.html#the-channel-boundary). `cards` is the collection from [make](api.html#make).
 
 ```typescript
 socket.on("cards-removed", (ids: string[]) => {

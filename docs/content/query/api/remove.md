@@ -26,7 +26,7 @@ Edge cases:
 - A pending remove keeps overlaying remote deliveries: the id is filtered out of every result until the op confirms.
 - A stale id left in a query record from an earlier session is harmless: the purge sweep only examines rows that still exist locally, and the next refresh rewrites the record without the id.
 
-`cards` below is the collection from [make](api.html#make). See guide chapter [Writing without waiting](docs.html#writing-without-waiting).
+`cards` below is the collection from [make](api.html#make). See guide chapter [Writing without waiting](guide.html#writing-without-waiting).
 
 ```typescript
 cards.remove("cat");

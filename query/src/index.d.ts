@@ -160,6 +160,18 @@ export type Local<T, Q> = {
   ids: (set: (ids: string[]) => void) => void;
 };
 
+/** Configuration for {@link make}. */
+export type Config<T, Q> = {
+  id: (value: T) => string;
+  matches: (query: Q, value: T) => boolean;
+  remote: Remote<T, Q>;
+  local?: Local<T, Q>;
+  expiry?: Expiry;
+  now?: () => number;
+  key?: (query: Q) => string;
+  sort?: (values: T[]) => T[];
+};
+
 /**
  * Inbound push from the remote (e.g. a websocket subscription), past
  * tense: facts about the server, not commands. The outbox overlay wins
@@ -222,13 +234,4 @@ export type TiliaQuery<T, Q> = {
  */
 export function sortedStringify(value: unknown): string;
 
-export function make<T, Q>(
-  id: (value: T) => string,
-  matches: (query: Q, value: T) => boolean,
-  remote: Remote<T, Q>,
-  local?: Local<T, Q>,
-  expiry?: Expiry,
-  now?: () => number,
-  key?: (query: Q) => string,
-  sort?: (values: T[]) => T[],
-): TiliaQuery<T, Q>;
+export function make<T, Q>(config: Config<T, Q>): TiliaQuery<T, Q>;

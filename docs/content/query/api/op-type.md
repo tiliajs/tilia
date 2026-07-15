@@ -31,7 +31,7 @@ Adaptors meet ops in two places, always as ordered batches:
 
 Order matters: apply and send ops in the order given.
 
-See guide chapter [Writing without waiting](docs.html#writing-without-waiting).
+See guide chapter [Writing without waiting](guide.html#writing-without-waiting).
 
 ```typescript
 import type { Op } from "@tilia/query";

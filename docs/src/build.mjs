@@ -21,9 +21,9 @@ const parser = {
 export const configPathKeys = [
   "base",
   "pages.api.input.markdownDir",
-  "pages.api.output.htmlFile",
+  "pages.api.output",
   "pages.guide.input.markdownDir",
-  "pages.guide.output.htmlFile",
+  "pages.guide.output",
   "pages.api.assets.copy[].from",
   "pages.api.assets.copy[].to",
   "pages.guide.assets.copy[].from",
@@ -32,9 +32,9 @@ export const configPathKeys = [
 const simplePathKeys = [
   ["base"],
   ["pages", "api", "input", "markdownDir"],
-  ["pages", "api", "output", "htmlFile"],
+  ["pages", "api", "output"],
   ["pages", "guide", "input", "markdownDir"],
-  ["pages", "guide", "output", "htmlFile"],
+  ["pages", "guide", "output"],
 ];
 
 function inject(template, values) {
@@ -362,8 +362,6 @@ async function runConfigBuild(configPath, highlighter, md) {
   const guidePage = pages.guide || {};
   const apiInput = apiPage.input || {};
   const guideInput = guidePage.input || {};
-  const apiOutput = apiPage.output || {};
-  const guideOutput = guidePage.output || {};
   const labels = {
     api: apiInput.sourceLabel || sourceLabel.api,
     guide: guideInput.sourceLabel || sourceLabel.guide,
@@ -371,8 +369,8 @@ async function runConfigBuild(configPath, highlighter, md) {
 
   const apiDir = resolvePath(apiInput.markdownDir || "api", configDir);
   const guideDir = resolvePath(guideInput.markdownDir || "guide", configDir);
-  const apiFile = resolvePath(apiOutput.htmlFile || "../../dist/api.html", configDir);
-  const docsFile = resolvePath(guideOutput.htmlFile || "../../dist/docs.html", configDir);
+  const apiFile = resolvePath(apiPage.output || "../../dist/api.html", configDir);
+  const docsFile = resolvePath(guidePage.output || "../../dist/docs.html", configDir);
 
   const errors = [];
   const [apiFiles, guideFiles] = await Promise.all([

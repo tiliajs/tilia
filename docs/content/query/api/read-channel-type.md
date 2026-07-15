@@ -41,7 +41,7 @@ The teardown contract:
 
 Every callback on a closed fetch is a noop. The engine suppresses late replies from ended, superseded or evicted fetches — adaptors do not need to.
 
-See guide chapter [The channel boundary](docs.html#the-channel-boundary).
+See guide chapter [The channel boundary](guide.html#the-channel-boundary).
 
 ```typescript
 // A subscription source answering through `live`.

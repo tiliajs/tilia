@@ -201,15 +201,19 @@ function makeOne(getEntry, results) {
   };
 }
 
-function make(id, matches, remote, local, expiryOpt, nowOpt, keyOpt, sortOpt) {
-  let expiry = expiryOpt !== undefined ? expiryOpt : ({
-      refresh: 30000.0,
-      memory: 300000.0,
-      local: 2592000000.0
-    });
-  let now = nowOpt !== undefined ? nowOpt : _now;
-  let key = keyOpt !== undefined ? keyOpt : sortedStringify;
-  let sort = sortOpt !== undefined ? sortOpt : _no_sort;
+function make(param) {
+  let local = param.local;
+  let remote = param.remote;
+  let matches = param.matches;
+  let id = param.id;
+  let expiry = Stdlib_Option.getOr(param.expiry, {
+    refresh: 30000.0,
+    memory: 300000.0,
+    local: 2592000000.0
+  });
+  let now = Stdlib_Option.getOr(param.now, _now);
+  let key = Stdlib_Option.getOr(param.key, sortedStringify);
+  let sort = Stdlib_Option.getOr(param.sort, _no_sort);
   let itemById = Tilia.tilia({});
   let idsByKey = Tilia.tilia({});
   let entries = {};

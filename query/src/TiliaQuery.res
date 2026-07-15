@@ -66,6 +66,17 @@ type local<'a, 'query> = {
   ids: (~set: array<string> => unit) => unit,
 }
 
+type config<'a, 'query> = {
+  id: 'a => string,
+  matches: ('query, 'a) => bool,
+  remote: remote<'a, 'query>,
+  local?: local<'a, 'query>,
+  expiry?: expiry,
+  now?: unit => float,
+  key?: 'query => string,
+  sort?: array<'a> => array<'a>,
+}
+
 type receive<'a> = {
   changed: array<'a> => unit,
   removed: array<string> => unit,
@@ -327,16 +338,20 @@ let makeOne = (getEntry, results) =>
 
 let makeArray = (getEntry, results) => query => getResult(results, getEntry(query))
 
-let make = (
-  ~id,
-  ~matches,
-  ~remote,
-  ~local=?,
-  ~expiry=_expiry,
-  ~now=_now,
-  ~key=sortedStringify,
-  ~sort=_no_sort,
-) => {
+let make = ({
+  id,
+  matches,
+  remote,
+  local: ?local,
+  expiry: ?expiry,
+  now: ?now,
+  key: ?key,
+  sort: ?sort,
+}: config<'a, 'query>) => {
+  let expiry = expiry->Option.getOr(_expiry)
+  let now = now->Option.getOr(_now)
+  let key = key->Option.getOr(sortedStringify)
+  let sort = sort->Option.getOr(_no_sort)
   let itemById: dict<'a> = Dict.make()->Tilia.tilia
   let idsByKey: dict<array<string>> = Dict.make()->Tilia.tilia
 

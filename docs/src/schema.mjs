@@ -38,10 +38,6 @@ const pageInputSchema = S.schema({
   sourceLabel: S.string,
 });
 
-const pageOutputSchema = S.schema({
-  htmlFile: S.string,
-});
-
 const pageDocumentSchema = S.schema({
   title: S.string,
   description: S.string,
@@ -75,7 +71,7 @@ const guideTemplatesSchema = S.schema({
 
 const pageApiSchema = S.schema({
   input: pageInputSchema,
-  output: pageOutputSchema,
+  output: S.string,
   templates: apiTemplatesSchema,
   document: pageDocumentSchema,
   assets: pageAssetsSchema,
@@ -83,7 +79,7 @@ const pageApiSchema = S.schema({
 
 const pageGuideSchema = S.schema({
   input: pageInputSchema,
-  output: pageOutputSchema,
+  output: S.string,
   templates: guideTemplatesSchema,
   document: pageDocumentSchema,
   assets: pageAssetsSchema,

@@ -1,5 +1,7 @@
 var:
   project: tilia
+  assets: ../../assets
+  dist: ../../dist/tilia
 
 shared:
   literals:
@@ -101,8 +103,7 @@ pages:
       glob: "*.md"
       parser: parseApiEntry
       sourceLabel: content/api/{{file}}
-    output:
-      htmlFile: ../../dist/{{project}}/api.html
+    output: "{{dist}}/api.html"
     templates:
       indexGroup: |-
         <p class="k idx-group">{{moduleLabel}}</p>
@@ -153,11 +154,11 @@ pages:
     assets:
       copy:
         - from: index.html
-          to: ../../dist/{{project}}/index.html
+          to: "{{dist}}/index.html"
         - from: ../../assets/style.css
-          to: ../../dist/{{project}}/style.css
-        - from: ../../assets/fonts
-          to: ../../dist/{{project}}/fonts
+          to: "{{dist}}/style.css"
+        - from: "{{assets}}/fonts"
+          to: "{{dist}}/fonts"
           recursive: true
 
   guide:
@@ -166,8 +167,7 @@ pages:
       glob: "*.md"
       parser: parseGuideChapter
       sourceLabel: content/guide/{{file}}
-    output:
-      htmlFile: ../../dist/{{project}}/docs.html
+    output: "{{dist}}/docs.html"
     templates:
       tocItem: |-
         <li><a href="#{{slug}}">{{title}}</a></li>
@@ -219,9 +219,9 @@ pages:
     assets:
       copy:
         - from: index.html
-          to: ../../dist/{{project}}/index.html
-        - from: ../../assets/style.css
-          to: ../../dist/{{project}}/style.css
-        - from: ../../assets/fonts
-          to: ../../dist/{{project}}/fonts
+          to: "{{dist}}/index.html"
+        - from: "{{assets}}/style.css"
+          to: "{{dist}}/style.css"
+        - from: "{{assets}}/fonts"
+          to: "{{dist}}/fonts"
           recursive: true

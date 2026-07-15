@@ -30,7 +30,7 @@ Edge cases:
 - Read-path errors are **not** here — a failed fetch shows up as `Failed` in [Loadable](api.html#loadable-type), at the read site.
 - The outbox is durable when a local store is configured: ops persist, reload at boot in sequence order, and replay when online. A rejection resurfaces the same way — its persisted op re-pushes and fails again after a restart.
 
-`cards` below is the collection from [make](api.html#make). See guide chapters [Writing without waiting](docs.html#writing-without-waiting) and [When the server disagrees](docs.html#when-the-server-disagrees).
+`cards` below is the collection from [make](api.html#make). See guide chapters [Writing without waiting](guide.html#writing-without-waiting) and [When the server disagrees](guide.html#when-the-server-disagrees).
 
 ```typescript
 import { observe } from "tilia";

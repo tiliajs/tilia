@@ -336,7 +336,7 @@ let make = (
   switch dexme {
   | Some(dexme) =>
     let local = DexmeAdaptor.make(dexme)
-    TiliaQuery.make(~id, ~matches, ~sort, ~remote, ~local, ~now)
-  | None => TiliaQuery.make(~id, ~matches, ~sort, ~remote, ~now)
+    TiliaQuery.make({id, matches, sort, remote, local, now})
+  | None => TiliaQuery.make({id, matches, sort, remote, now})
   }
 }

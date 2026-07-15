@@ -39,7 +39,7 @@ tags: []
 - Confirm each op individually via `channel.set` / `channel.removed`.
 - End with nothing (all confirmed), `channel.retry` (transient failure) or `channel.fail` (definitive).
 
-See guide chapter [The channel boundary](docs.html#the-channel-boundary).
+See guide chapter [The channel boundary](guide.html#the-channel-boundary).
 
 ```typescript
 import { signal } from "tilia";

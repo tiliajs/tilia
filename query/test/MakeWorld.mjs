@@ -279,10 +279,23 @@ function make$6(dexme, live, papabase, now, online_) {
   let remote$1 = live !== undefined ? wrap(live, papabase, remote) : remote;
   let sort = array => array.toSorted(sortByEnglish);
   if (dexme === undefined) {
-    return TiliaQuery.make(id, matches, remote$1, undefined, undefined, now, undefined, sort);
+    return TiliaQuery.make({
+      id: id,
+      matches: matches,
+      remote: remote$1,
+      now: now,
+      sort: sort
+    });
   }
   let local = make$4(dexme);
-  return TiliaQuery.make(id, matches, remote$1, local, undefined, now, undefined, sort);
+  return TiliaQuery.make({
+    id: id,
+    matches: matches,
+    remote: remote$1,
+    local: local,
+    now: now,
+    sort: sort
+  });
 }
 
 export {

@@ -36,7 +36,7 @@ Local persistence is **command-only** — there is no write channel. Confirmatio
 - `get` — read one entry by key, or every entry for the tag when the key is omitted. Reply through the given `set` — synchronously or later, like everything else.
 - `ids` — reply with the id of every row in the values table. The purge sweep enumerates rows through this.
 
-See guide chapter [The channel boundary](docs.html#the-channel-boundary).
+See guide chapter [The channel boundary](guide.html#the-channel-boundary).
 
 ```typescript
 import type { Local } from "@tilia/query";

@@ -27,7 +27,7 @@ Edge cases:
 - Confirmation replaces the local value with the authoritative one from [WriteChannel](api.html#write-channel-type)`.set` — the server may have corrected it.
 - A definitive push failure moves the op to `status.rejected`; see [retry](api.html#retry) and [discard](api.html#discard).
 
-`cards` below is the collection from [make](api.html#make). See guide chapter [Writing without waiting](docs.html#writing-without-waiting).
+`cards` below is the collection from [make](api.html#make). See guide chapter [Writing without waiting](guide.html#writing-without-waiting).
 
 ```typescript
 cards.upsert({ id: "cat", deck: "es", english: "cat", translation: "gato" });

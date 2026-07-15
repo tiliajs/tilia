@@ -27,10 +27,10 @@ The library is small and adds no dependencies beyond tilia. Because every view i
 
 ### How this guide works
 
-Readers of the [tilia guide](docs.html) left Alice with a working spaced-repetition scheduler and one politely ignored question: what happens when the cards must live on a server? This guide answers it.
+Readers of the [tilia guide](../tilia/docs.html) left Alice with a working spaced-repetition scheduler and one politely ignored question: what happens when the cards must live on a server? This guide answers it.
 
 ::: story
-Alice made an account. Her cards now live on a server, her phone and her laptop both show the deck — and her commute goes through three tunnels.
+Alice made an account. Her cards now live on a server, her phone and her laptop both show the deck — and her commute goes through three tunnels. In two weeks, a bigger test: a week at Nora's in Madrid, with no data plan.
 :::
 
-Each chapter explains one part of the lifecycle and why it is shaped that way: the caches, the two-tier reads, the write outbox, disagreement with the server, the adapter boundary, and time. The behavior described here is pinned by an executable specification — every claim about offline edits, replays and conflicts is a scenario that runs green. If you decide for your team, this chapter and the [last](#onward) may be all you need. The chapters between are for whoever will build — human or machine, the specification holds both to the same contract.
+Each chapter explains one part of the lifecycle and why it is shaped that way: the caches, the two-tier reads, the write outbox, disagreement with the server, the adapter boundary, and time. The behavior described here is pinned by an executable specification — every claim about offline edits, replays and rejections is a scenario that runs green. If you decide for your team, this chapter and the [last](#onward) may be all you need. The chapters between are for whoever will build — human or machine, the specification holds both to the same contract.

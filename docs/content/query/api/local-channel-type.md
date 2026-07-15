@@ -32,7 +32,7 @@ What the engine does with `unknown` depends on connectivity:
 
 A local adaptor that can filter its cache with the collection's `matches` may prefer building partial results and calling `set` — a partial answer beats `NotLocal` for the user standing in a tunnel.
 
-See guide chapter [Reads answer twice](docs.html#reads-answer-twice).
+See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
 
 ```typescript
 // Answer from an id-keyed cache, or admit ignorance.

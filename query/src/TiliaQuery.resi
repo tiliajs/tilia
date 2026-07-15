@@ -258,6 +258,18 @@ type local<'a, 'query> = {
   ids: (~set: array<string> => unit) => unit,
 }
 
+/** Configuration for `make`. */
+type config<'a, 'query> = {
+  id: 'a => string,
+  matches: ('query, 'a) => bool,
+  remote: remote<'a, 'query>,
+  local?: local<'a, 'query>,
+  expiry?: expiry,
+  now?: unit => float,
+  key?: 'query => string,
+  sort?: array<'a> => array<'a>,
+}
+
 /**
  * Inbound push from the remote (e.g. a websocket subscription), past
  * tense: facts about the server, not commands.
@@ -365,13 +377,4 @@ type t<'a, 'query> = {
  */
 let sortedStringify: 'a => string
 
-let make: (
-  ~id: 'a => string,
-  ~matches: ('query, 'a) => bool,
-  ~remote: remote<'a, 'query>,
-  ~local: local<'a, 'query>=?,
-  ~expiry: expiry=?,
-  ~now: unit => float=?,
-  ~key: 'query => string=?,
-  ~sort: array<'a> => array<'a>=?,
-) => t<'a, 'query>
+let make: config<'a, 'query> => t<'a, 'query>

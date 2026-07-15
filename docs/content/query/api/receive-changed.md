@@ -24,7 +24,7 @@ Retention and freshness:
 - A delivered value is kept in memory only while some in-memory query matches it, and persisted only while some query record lists it. A value matching nothing is dropped.
 - Deliveries do not touch freshness: the `fresh` flag and refresh scheduling stay owned by the per-query read channel (`set` / `live`).
 
-See [receive.removed](api.html#receive-removed), [ReadChannel](api.html#read-channel-type), and guide chapter [The channel boundary](docs.html#the-channel-boundary). `cards` is the collection from [make](api.html#make).
+See [receive.removed](api.html#receive-removed), [ReadChannel](api.html#read-channel-type), and guide chapter [The channel boundary](guide.html#the-channel-boundary). `cards` is the collection from [make](api.html#make).
 
 ```typescript
 socket.on("cards-changed", (rows: Card[]) => {

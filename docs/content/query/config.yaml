@@ -1,6 +1,8 @@
 base: ../tilia/config.yaml
 var:
   project: query
+  assets: ../../assets
+  dist: ../../dist/query
 
 shared:
   literals:
@@ -11,27 +13,29 @@ pages:
   api:
     input:
       markdownDir: api
+    output: "{{dist}}/api.html"
     assets:
       copy:
         - from: index.html
-          to: ../../dist/{{project}}/index.html
-        - from: ../../assets/style.css
-          to: ../../dist/{{project}}/style.css
-        - from: ../../assets/fonts
-          to: ../../dist/{{project}}/fonts
+          to: "{{dist}}/index.html"
+        - from: "{{assets}}/style.css"
+          to: "{{dist}}/style.css"
+        - from: "{{assets}}/fonts"
+          to: "{{dist}}/fonts"
           recursive: true
 
   guide:
     input:
       markdownDir: guide
+    output: "{{dist}}/guide.html"
     assets:
       copy:
         - from: index.html
-          to: ../../dist/{{project}}/index.html
-        - from: ../../assets/style.css
-          to: ../../dist/{{project}}/style.css
-        - from: ../../assets/fonts
-          to: ../../dist/{{project}}/fonts
+          to: "{{dist}}/index.html"
+        - from: "{{assets}}/style.css"
+          to: "{{dist}}/style.css"
+        - from: "{{assets}}/fonts"
+          to: "{{dist}}/fonts"
           recursive: true
     templates:
       pageMain: |-

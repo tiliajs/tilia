@@ -20,7 +20,7 @@ tags: []
 
 Safe to call more than once. Remember to also stop the interval driving [tick](api.html#tick) — the engine owns no timers, so it cannot stop them either.
 
-`cards` is the collection from [make](api.html#make). See guide chapter [The pulse and the canopy](docs.html#the-pulse-and-the-canopy).
+`cards` is the collection from [make](api.html#make). See guide chapter [The pulse and the canopy](guide.html#the-pulse-and-the-canopy).
 
 ```typescript
 clearInterval(timer);

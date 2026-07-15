@@ -24,7 +24,7 @@ One tick can:
 
 Only the purge is gated; refresh checks, last-seen updates and memory expiry run on every tick.
 
-See [Expiry](api.html#expiry-type), [dispose](api.html#dispose), and guide chapter [The pulse and the canopy](docs.html#the-pulse-and-the-canopy). `cards` is the collection from [make](api.html#make).
+See [Expiry](api.html#expiry-type), [dispose](api.html#dispose), and guide chapter [The pulse and the canopy](guide.html#the-pulse-and-the-canopy). `cards` is the collection from [make](api.html#make).
 
 ```typescript
 const timer = setInterval(cards.tick, 10_000);
