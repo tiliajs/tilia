@@ -41,6 +41,14 @@ Feature: Language training app
     When I go "offline"
     And I open the "Spanish" deck
     Then I should see not local
+    And the remote fetch should have run 0 times
+    When I go "online"
+    Then the remote fetch should have run 1 time
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
 
   Scenario: go offline while a fetch is in flight
     When I open the "Spanish" deck

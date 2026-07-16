@@ -9,37 +9,6 @@ import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js
 
 let Channel = {};
 
-let sortedStringify = (function sortedStringify(value) {
-  return JSON.stringify(value, function(_key, value) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const sorted = {};
-      for (const key of Object.keys(value).sort()) {
-        sorted[key] = value[key];
-      }
-      return sorted;
-    }
-    return value;
-  });
-});
-
-function _now() {
-  return Date.now();
-}
-
-function _no_sort(_query) {
-  return array => array;
-}
-
-let parseRecord = (function parseRecord(value) {
-  try {
-    const r = JSON.parse(value);
-    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
-      return r;
-    }
-  } catch (_) {}
-  return undefined;
-});
-
 let encodeOp = (function encodeOp(entry) {
   return JSON.stringify({seq: entry.seq, op: entry.op, change: entry.change});
 });
@@ -55,6 +24,16 @@ let parseOp = (function parseOp(value) {
       (r.change || r.op.op === "remove")
     ) {
       return {seq: r.seq, op: r.op, change: r.change, flight: false};
+    }
+  } catch (_) {}
+  return undefined;
+});
+
+let parseRecord = (function parseRecord(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
+      return r;
     }
   } catch (_) {}
   return undefined;
@@ -107,47 +86,49 @@ function makeFetch(remote, local, loaded, results, now) {
         unknown();
       }
     }
-    entry.fetchedAt = now();
-    remote.fetch(entry.query, {
-      set: values => {
-        if (active.contents) {
-          entry.state = "LoadedRemote";
-          return loaded(entry, values, true);
-        }
-      },
-      live: values => {
-        if (active.contents) {
-          entry.state = "LiveRemote";
-          return loaded(entry, values, true);
-        }
-      },
-      fail: message => {
-        if (active.contents) {
-          results[entry.key] = {
-            state: "failed",
-            message: message
-          };
-          return;
-        }
-      },
-      end: () => {
-        if (active.contents) {
-          if (entry.state === "LiveRemote") {
+    if (remote.online.value) {
+      entry.fetchedAt = now();
+      return remote.fetch(entry.query, {
+        set: values => {
+          if (active.contents) {
             entry.state = "LoadedRemote";
+            return loaded(entry, values, true);
           }
-          entry.fetchedAt = 0.0;
-          return close();
+        },
+        live: values => {
+          if (active.contents) {
+            entry.state = "LiveRemote";
+            return loaded(entry, values, true);
+          }
+        },
+        fail: message => {
+          if (active.contents) {
+            results[entry.key] = {
+              state: "failed",
+              message: message
+            };
+            return;
+          }
+        },
+        end: () => {
+          if (active.contents) {
+            if (entry.state === "LiveRemote") {
+              entry.state = "LoadedRemote";
+            }
+            entry.fetchedAt = 0.0;
+            return close();
+          }
+        },
+        finally: fn => {
+          if (active.contents) {
+            cleanup.contents = fn;
+            return;
+          } else {
+            return fn();
+          }
         }
-      },
-      finally: fn => {
-        if (active.contents) {
-          cleanup.contents = fn;
-          return;
-        } else {
-          return fn();
-        }
-      }
-    });
+      });
+    }
   };
 }
 
@@ -205,6 +186,27 @@ function makeOne(getEntry, results) {
       }
     }
   };
+}
+
+let sortedStringify = (function sortedStringify(value) {
+  return JSON.stringify(value, function(_key, value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const sorted = {};
+      for (const key of Object.keys(value).sort()) {
+        sorted[key] = value[key];
+      }
+      return sorted;
+    }
+    return value;
+  });
+});
+
+function _now() {
+  return Date.now();
+}
+
+function _no_sort(_query) {
+  return array => array;
 }
 
 function make(param) {
@@ -911,8 +913,11 @@ function make(param) {
       pushPending();
     });
   }
+  let fetch = makeFetch(remote, local, loaded, results, now);
+  let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now);
   let clearOnline = Tilia.watch(() => remote.online.value, online => {
     if (online) {
+      Stdlib_Dict.forEach(entries, entry => fetch(entry));
       return pushPending();
     } else {
       return Stdlib_Dict.forEach(entries, entry => {
@@ -928,8 +933,6 @@ function make(param) {
       });
     }
   });
-  let fetch = makeFetch(remote, local, loaded, results, now);
-  let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now);
   let dismiss = rejection => {
     let i = status.rejected.indexOf(rejection);
     if (i >= 0) {

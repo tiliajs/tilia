@@ -11,13 +11,18 @@ const view = (value: number) =>
 
 const copy = (settings: Settings): Settings => ({
   latency: settings.latency,
-  refresh: settings.refresh,
-  liveRefresh: settings.liveRefresh,
-  gc: settings.gc,
 });
 
-const summary = (settings: Settings) =>
-  `latency ${view(settings.latency)} ms | refresh ${view(settings.refresh)} s | live ${view(settings.liveRefresh)} s | gc ${view(settings.gc)} s`;
+const summary = (settings: Settings) => `latency ${view(settings.latency)} ms`;
+
+const timestamp = new Intl.DateTimeFormat(undefined, {
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
 
 export function ServerPane({ world }: { world: World }) {
   useTilia();
@@ -35,13 +40,14 @@ export function ServerPane({ world }: { world: World }) {
     closeSettings();
   };
   return (
-    <section className="flex h-[38%] min-h-0 flex-col border-t border-line bg-shade/50">
+    <section className="flex h-full min-h-0 flex-col bg-shade/50">
       <header className="flex items-center gap-2 border-b border-line px-4 py-2">
         <Database size={14} strokeWidth={2.2} className="text-muted" />
         <span className="text-[13px] font-semibold">Server</span>
         <span className="text-[12px] text-muted">{claims.length} claims on file</span>
         <Mode live={server.live} change={world.setLive} />
         {server.live && <Subs subs={server.subs} />}
+        <Time world={world} />
         <div className="relative ml-auto">
           <button
             type="button"
@@ -60,7 +66,6 @@ export function ServerPane({ world }: { world: World }) {
               setDraft={setDraft}
               close={closeSettings}
               apply={applySettings}
-              live={server.live}
             />
           )}
         </div>
@@ -83,23 +88,21 @@ function SettingsPopup({
   setDraft,
   close,
   apply,
-  live,
 }: {
   draft: Settings;
   setDraft: (next: (current: Settings) => Settings) => void;
   close: () => void;
   apply: () => void;
-  live: boolean;
 }) {
   const change = (key: keyof Settings, value: number) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
   return (
-    <div className="absolute right-0 bottom-[calc(100%+0.5rem)] z-30 max-h-[70vh] w-[31rem] overflow-y-auto rounded-md border border-line bg-card p-4 shadow-xl">
+    <div className="absolute right-0 bottom-[calc(100%+0.5rem)] z-30 w-100 rounded-md border border-line bg-card p-4 shadow-xl">
       <div className="mb-3">
         <div className="text-[13px] font-semibold text-ink">Simulation settings</div>
         <p className="mt-1 text-[12px] leading-relaxed text-muted">
-          These values tune how fast server truth is refreshed for visible lists and when unused queries are removed.
+          Tune network latency for local and remote adaptor calls.
         </p>
       </div>
 
@@ -119,53 +122,6 @@ function SettingsPopup({
           </Field>
         </section>
 
-        <section className="rounded-md border border-line/70 bg-shade/40 p-3">
-          <div className="mb-1 text-[12px] font-semibold text-ink">Truth refresh (visible queries only)</div>
-          <div className="space-y-2">
-            <Field label={`Polling mode refresh (${view(draft.refresh)} s)`}>
-              <input
-                className="settings-slider"
-                type="range"
-                min={1}
-                max={300}
-                step={1}
-                value={draft.refresh}
-                onChange={(e) => change("refresh", Number(e.target.value))}
-              />
-            </Field>
-            <Field label={`Live mode fallback refresh (${view(draft.liveRefresh)} s)`}>
-              <input
-                className="settings-slider"
-                type="range"
-                min={1}
-                max={300}
-                step={1}
-                value={draft.liveRefresh}
-                onChange={(e) => change("liveRefresh", Number(e.target.value))}
-              />
-            </Field>
-          </div>
-          <p className="mt-2 text-[11px] text-muted">
-            Active mode: <span className="font-medium text-ink">{live ? "live updates" : "polling"}</span>.
-            Refresh runs only while a query is observed.
-          </p>
-        </section>
-
-        <section className="rounded-md border border-line/70 bg-shade/40 p-3">
-          <div className="mb-1 text-[12px] font-semibold text-ink">Cleanup</div>
-          <Field label={`Expire unobserved queries after (${view(draft.gc)} s)`}>
-            <input
-              className="settings-slider"
-              type="range"
-              min={10}
-              max={600}
-              step={5}
-              value={draft.gc}
-              onChange={(e) => change("gc", Number(e.target.value))}
-            />
-          </Field>
-          <p className="mt-2 text-[11px] text-muted">Expired queries are removed from cache and live pub/sub.</p>
-        </section>
       </div>
 
       <div className="mt-4 flex justify-end gap-2">
@@ -176,6 +132,26 @@ function SettingsPopup({
           Apply settings
         </Button>
       </div>
+    </div>
+  );
+}
+
+function Time({ world }: { world: World }) {
+  const now = world.clock.value;
+  return (
+    <div className="ml-2 flex items-center gap-1">
+      <time className="mr-1 font-mono text-[11px] text-muted" dateTime={new Date(now).toISOString()}>
+        Fake time {timestamp.format(now)}
+      </time>
+      <Button kind="quiet" title="Advance fake time by 10 seconds" onClick={() => world.advance(10 * 1000)}>
+        +10 s
+      </Button>
+      <Button kind="quiet" title="Advance fake time by 10 minutes" onClick={() => world.advance(10 * 60 * 1000)}>
+        +10 m
+      </Button>
+      <Button kind="quiet" title="Advance fake time by 10 days" onClick={() => world.advance(10 * 24 * 60 * 60 * 1000)}>
+        +10 d
+      </Button>
     </div>
   );
 }

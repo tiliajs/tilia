@@ -21,7 +21,7 @@ The deeper habit the library rewards is the one named in the first chapter: draw
 
 The [API reference](api.html) documents the complete public surface — every function with its signature in both TypeScript and ReScript and a minimal example. It is the place to check the precise rule wherever this guide chose the readable one.
 
-The scheduler's repo was injected and politely ignored; synchronizing collections with a server — loading, caching, going offline and coming back — is its own discipline. **tilia/query** builds that lifecycle on the reactivity you now understand: see [its page](query.html).
+The scheduler's repo was injected and politely ignored; synchronizing collections with a server — loading, caching, going offline and coming back — is its own discipline. **@tilia/query** builds that lifecycle on the reactivity you now understand: see [its page](query/index.html).
 
 Testing was a promise this guide made often: pure functions and injected services are what make features checkable in plain language. **vitest-bdd** is the épure suite's tool for exactly that — specifications first, in Gherkin, runnable under [vitest-bdd](https://www.npmjs.com/package/vitest-bdd).
 

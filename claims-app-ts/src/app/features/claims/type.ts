@@ -1,7 +1,16 @@
 import type { Loadable, Rejection } from "@tilia/query";
-import type { Claim, Status } from "../../claim";
+import type { Claim, ClaimField, Status } from "../../claim";
 
 export type Tab = Status | "mine" | "all";
+
+export type ConflictResolution = {
+  rejection: Extract<Rejection<Claim>, { TAG: "UpdateConflict" }>;
+  base: Claim;
+  mine: Claim;
+  theirs: Claim;
+  draft: Claim;
+  fields: ClaimField[];
+};
 
 export type ClaimsFeature = {
   // Read
@@ -12,6 +21,7 @@ export type ClaimsFeature = {
 
   // Local state: the draft being edited (a plain clone, committed on save).
   editing: Claim | null;
+  resolution: ConflictResolution | null;
 
   // Actions
   filter(tab: Tab): void;
@@ -22,5 +32,9 @@ export type ClaimsFeature = {
   commit(): void;
   cancel(): void;
   remove(claim: Claim): void;
-  dismiss(): void;
+  dismiss(rejection: Rejection<Claim>): void;
+  resolve(rejection: Rejection<Claim>, theirs: Claim): void;
+  saveResolution(): void;
+  discardResolution(): void;
+  tick(): void;
 };

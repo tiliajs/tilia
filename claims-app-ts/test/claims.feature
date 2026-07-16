@@ -51,6 +51,55 @@ Feature: Field claims adjusting
     Then "Ben" has no changes waiting to sync
     And the office shows claim "CLM-1045" as "inspected"
 
+  Scenario: Restart visibly clears one client and its adaptor calls
+    When "Ana" opens the "new" claims
+    And "Ana" begins restarting the app
+    Then "Ana" client is reloading
+    And "Ana" adaptor calls are empty
+    When "Ana" finishes restarting the app
+    Then "Ana" client is running
+    And "Ana" sees claims "CLM-1041, CLM-1042"
+
+  Scenario: The latest offline edit is the one that syncs
+    When "Ana" opens the "all" claims
+    And "Ana" goes offline
+    And "Ana" changes claim "CLM-1041" field "city" to "Zurich"
+    And "Ana" changes claim "CLM-1041" field "city" to "Basel"
+    Then "Ana" sees claim "CLM-1041" field "city" as "Basel"
+    And "Ana" has one change waiting to sync
+    When "Ana" comes back online
+    Then "Ana" has no changes waiting to sync
+    And the office shows claim "CLM-1041" field "city" as "Basel"
+
+  Scenario: Concurrent edits to different fields merge
+    When "Ana" opens the "all" claims
+    And "Ben" opens the "all" claims
+    And "Ben" goes offline
+    And "Ana" changes claim "CLM-1041" field "city" to "Zurich"
+    And "Ben" changes claim "CLM-1041" field "notes" to "Roof inspected"
+    When "Ben" comes back online
+    Then "Ben" has no changes waiting to sync
+    And "Ben" has no rejected changes
+    And the office shows claim "CLM-1041" field "city" as "Zurich"
+    And the office shows claim "CLM-1041" field "notes" as "Roof inspected"
+
+  Scenario: Concurrent edits to the same field conflict
+    When "Ana" opens the "all" claims
+    And "Ben" opens the "all" claims
+    And "Ben" goes offline
+    And "Ana" changes claim "CLM-1041" field "city" to "Zurich"
+    And "Ben" changes claim "CLM-1041" field "city" to "Basel"
+    When "Ben" comes back online
+    Then "Ben" has an update conflict for claim "CLM-1041"
+    And "Ben" sees claim "CLM-1041" field "city" as "Zurich"
+    And the office shows claim "CLM-1041" field "city" as "Zurich"
+    When "Ben" begins resolving the conflict for claim "CLM-1041"
+    Then "Ben" resolves field "city" with theirs "Zurich" and mine "Basel"
+    When "Ben" changes the resolution field "city" to "Bern"
+    And "Ben" saves the conflict resolution
+    Then "Ben" has no rejected changes
+    And the office shows claim "CLM-1041" field "city" as "Bern"
+
   Scenario: The office version wins when two adjusters take the same claim
     When "Ana" opens the "new" claims
     And "Ben" opens the "new" claims
@@ -73,11 +122,39 @@ Feature: Field claims adjusting
     Then "Ana" sees claims "CLM-1042"
     And the office has answered 1 read
 
+  Scenario: A client shows local and remote adaptor calls together
+    When "Ana" opens the "new" claims
+    And "Ana" takes claim "CLM-1041"
+    Then "Ana" adaptor calls include
+      | tag    | call  | direction | value |
+      | local  | fetch | call      | some  |
+      | local  | set   | reply     | some  |
+      | local  | push  | call      | some  |
+      | local  | set   | call      | some  |
+      | local  | set   | call      | none  |
+      | remote | fetch | call      | some  |
+      | remote | set   | reply     | some  |
+      | remote | push  | call      | some  |
+
+  Scenario: Offline does not call the remote adaptor
+    When "Ana" goes offline
+    And "Ana" opens the "new" claims
+    Then the office has answered 0 reads
+    And "Ana" adaptor calls include
+      | tag   | call  |
+      | local | fetch |
+    And "Ana" adaptor calls exclude
+      | tag    | call  |
+      | remote | fetch |
+
   Scenario: A live write pushes updates without any refetch
     Given the office switches to live updates
     When "Ana" opens the "new" claims
     And "Ben" opens the "new" claims
     Then the office has answered 2 reads
+    And "Ana" adaptor calls include
+      | tag    | call | direction | value |
+      | remote | live | reply     | some  |
     When "Ana" takes claim "CLM-1041"
     Then "Ana" sees claims "CLM-1042"
     And "Ben" sees claims "CLM-1042"
@@ -120,33 +197,26 @@ Feature: Field claims adjusting
     Then "Ben" sees claims "CLM-1042"
 
   Scenario: Polling truth refresh runs only for observed queries
-    Given the office sets polling truth refresh to 0.05 seconds
-    When 0.08 seconds pass
-    And the scheduler ticks
+    When the office advances time by 10 seconds
     Then the office has answered 0 reads
     When "Ana" opens the "new" claims
     Then the office has answered 1 read
-    When 0.08 seconds pass
-    And the scheduler ticks
+    When the office advances time by 10 minutes
     Then the office has answered 2 reads
 
-  Scenario: Live truth refresh still runs for observed queries
+  Scenario: Live queries do not poll while the subscription owns freshness
     Given the office switches to live updates
-    And the office sets live truth refresh to 0.05 seconds
     When "Ana" opens the "new" claims
     Then the office has answered 1 read
-    When 0.08 seconds pass
-    And the scheduler ticks
-    Then the office has answered 2 reads
+    When the office advances time by 10 minutes
+    Then the office has answered 1 read
 
-  Scenario: Office query settings can be changed
-    Given the office sets polling truth refresh to 0.05 seconds
-    And the office sets live truth refresh to 0.25 seconds
-    And the office sets query expiration to 45 seconds
-    And the office sets network latency to 150 milliseconds
-    Then polling truth refresh is 0.05 seconds
-    And live truth refresh is 0.25 seconds
-    And query expiration is 45 seconds
+  Scenario: The fake clock can jump forward by days
+    When the office advances time by 10 days
+    Then fake time is 10 days after startup
+
+  Scenario: Office network settings can be changed
+    Given the office sets network latency to 150 milliseconds
     And network latency is 150 milliseconds
 
   Scenario: A claim removed offline disappears at the office on reconnect

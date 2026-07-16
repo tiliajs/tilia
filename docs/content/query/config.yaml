@@ -8,6 +8,54 @@ shared:
   literals:
     moduleLabelCore: |-
       Query
+    header: |-
+      <header class="top">
+        <div class="wrap">
+          <div class="package-mark">
+            <a class="wordmark" href="../index.html" aria-label="tilia — home">{{wordmarkSvg}}@tilia</a>
+            <span class="package-sep" aria-hidden="true">/</span>
+            <a class="package-name" href="./index.html">query</a>
+          </div>
+          <nav class="nav" aria-label="@tilia/query">
+            <a href="./index.html">Home</a>
+            <a href="./guide.html"{{guideCurrentAttr}}>Guide</a>
+            <a href="./api.html"{{apiCurrentAttr}}>API</a>
+            <a href="https://github.com/tiliajs/tilia">GitHub</a>
+          </nav>
+        </div>
+      </header>
+    footer: |-
+      <footer class="foot">
+        <div class="wrap">
+          <div class="fcell"><span class="lbl">Package</span><span class="val"><a href="https://www.npmjs.com/package/@tilia/query">@tilia/query on npm</a></span></div>
+          <div class="fcell"><span class="lbl">Source</span><span class="val"><a href="https://github.com/tiliajs/tilia">github.com/tiliajs/tilia</a></span></div>
+          <div class="fcell"><span class="lbl">License</span><span class="val">MIT</span></div>
+          <div class="fcell"><span class="lbl">Method</span><span class="val"><a href="https://epuremethod.com">épure</a></span></div>
+          <div class="fcell"><span class="lbl">Site</span><span class="val">tiliajs.com</span></div>
+        </div>
+      </footer>
+    shell: |-
+      <!doctype html>
+      <html {{htmlAttrs}}>
+      <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <meta name="description" content="{{description}}">
+      <title>{{title}}</title>
+      <link rel="icon" href="{{faviconUrl}}">
+      <link rel="stylesheet" href="../style.css">
+      {{prePaint}}
+      </head>
+      <body class="query">
+      {{skip}}
+      {{header}}
+      <main{{mainAttrs}}>
+      {{main}}
+      </main>
+      {{footer}}
+      {{scripts}}
+      </body>
+      </html>
 
 pages:
   api:
@@ -18,11 +66,20 @@ pages:
       copy:
         - from: index.html
           to: "{{dist}}/index.html"
-        - from: "{{assets}}/style.css"
-          to: "{{dist}}/style.css"
-        - from: "{{assets}}/fonts"
-          to: "{{dist}}/fonts"
-          recursive: true
+    templates:
+      pageMain: |-
+        <div class="api-head">
+          <div class="wrap">
+            <p class="eyebrow">Reference<span class="sep">·</span>@tilia/query<span class="sep">·</span>TypeScript &amp; ReScript signatures</p>
+            <h1>API Reference</h1>
+            <p class="sec-lead">The public surface of @tilia/query. Each entry gives the signature, behavior, and one minimal example.</p>
+          </div>
+        </div>
+    document:
+      title: |-
+        API Reference — @tilia/query
+      description: |-
+        @tilia/query API reference — query state, caching, synchronization, and offline writes on top of tilia.
 
   guide:
     input:
@@ -32,17 +89,17 @@ pages:
       copy:
         - from: index.html
           to: "{{dist}}/index.html"
-        - from: "{{assets}}/style.css"
-          to: "{{dist}}/style.css"
-        - from: "{{assets}}/fonts"
-          to: "{{dist}}/fonts"
-          recursive: true
     templates:
       pageMain: |-
         <div class="docs-head">
           <div class="wrap">
-            <p class="eyebrow">Docs<span class="sep">·</span>@tilia/query<span class="sep">·</span>Guided tour</p>
+            <p class="eyebrow">Guide<span class="sep">·</span>@tilia/query<span class="sep">·</span>Guided tour</p>
             <h1>The Guide</h1>
             <p class="standfirst">A reading path through @tilia/query, in order: remote data that reads like local state, then queries and views, the two-tier read, writing while offline, conflicts, and the adapter boundary. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
           </div>
         </div>
+    document:
+      title: |-
+        The Guide — @tilia/query
+      description: |-
+        The @tilia/query guide — remote data, cached reads, background refresh, offline writes, conflicts, and adapters.

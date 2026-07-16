@@ -16,7 +16,7 @@ tags: []
 
 Reads of Tilia proxies during render become dependencies. When one of those dependencies changes, the component re-renders. `useTilia` is the hook form; [leaf](api.html#leaf) is the preferred wrapper when possible.
 
-See guide chapter [tilia in React](docs.html#tilia-in-react) and related hook [useComputed](api.html#use-computed).
+See guide chapter [tilia in React](guide.html#tilia-in-react) and related hook [useComputed](api.html#use-computed).
 
 ```typescript
 import { useTilia } from "@tilia/react";

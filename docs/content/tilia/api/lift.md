@@ -16,7 +16,7 @@ tags: []
 
 It is equivalent to `computed(() => s.value)`, and is used when an object should expose a signal as a read-only field while keeping mutation through the signal setter.
 
-See [signal](api.html#signal), [computed](api.html#computed), and guide chapter [A small vocabulary](docs.html#a-small-vocabulary).
+See [signal](api.html#signal), [computed](api.html#computed), and guide chapter [A small vocabulary](guide.html#a-small-vocabulary).
 
 ```typescript
 import { lift, signal, tilia } from "tilia";

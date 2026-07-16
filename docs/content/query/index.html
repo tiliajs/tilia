@@ -6,22 +6,26 @@
 <meta name="description" content="@tilia/query — remote data that feels local. Query state on top of tilia: instant cached reads, background refresh, quiet sync, and a durable write outbox.">
 <title>@tilia/query — Remote Data That Feels Local</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232e7d3a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z'/%3E%3Cpath d='M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1' stroke-width='1.1'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="../style.css">
 </head>
 <body class="query">
 
 <header class="top">
   <div class="wrap">
-    <a class="wordmark" href="./index.html" aria-label="tilia — home">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z"/>
-        <path d="M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1" stroke-width="1.1"/>
-      </svg>
-      tilia
-    </a>
-    <nav class="nav" aria-label="Site">
-      <a href="./index.html">Home</a>
-      <a href="./docs.html">Docs</a>
+    <div class="package-mark">
+      <a class="wordmark" href="../index.html" aria-label="tilia — home">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z"/>
+          <path d="M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1" stroke-width="1.1"/>
+        </svg>
+        @tilia
+      </a>
+      <span class="package-sep" aria-hidden="true">/</span>
+      <a class="package-name" href="./index.html">query</a>
+    </div>
+    <nav class="nav" aria-label="@tilia/query">
+      <a href="./index.html" aria-current="page">Home</a>
+      <a href="./guide.html">Guide</a>
       <a href="./api.html">API</a>
       <a href="https://github.com/tiliajs/tilia">GitHub</a>
     </nav>
@@ -37,7 +41,7 @@
         <h1 id="hero-title">Remote Data That Feels&nbsp;Local</h1>
         <p class="lead">A query-state layer on top of tilia. Reads answer instantly from the cache and refresh in the background; writes apply on the spot and sync quietly. No spinners, no loading walls — and offline comes free.</p>
         <div class="cta-row">
-          <a class="btn solid" href="#">Get Started</a>
+          <a class="btn solid" href="./guide.html">Get Started</a>
           <a class="btn" href="https://github.com/tiliajs/tilia">GitHub</a>
         </div>
         <p class="defcard">

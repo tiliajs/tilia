@@ -16,7 +16,7 @@ tags: []
 
 `previous` is the latest value held by the source, and `set` updates it. If `fn` does asynchronous work, dependencies must still be read synchronously before awaiting; only synchronous reads are tracked.
 
-If dependencies change, the current value stays available until `set` is called again — below, the previous cards stay visible while the new deck loads. See [store](api.html#store), [carve](api.html#carve), and guide chapter [Letting the world in](docs.html#letting-the-world-in).
+If dependencies change, the current value stays available until `set` is called again — below, the previous cards stay visible while the new deck loads. See [store](api.html#store), [carve](api.html#carve), and guide chapter [Letting the world in](guide.html#letting-the-world-in).
 
 ```typescript
 import { signal, source, tilia } from "tilia";

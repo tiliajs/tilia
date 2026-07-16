@@ -16,7 +16,7 @@ tags: []
 
 The setup runs on first access and can re-run when tracked dependencies used during setup change. This is suitable for finite-state values where transitions call `set`.
 
-Use [source](api.html#source) when setup needs the previous value. See guide chapter [Letting the world in](docs.html#letting-the-world-in).
+Use [source](api.html#source) when setup needs the previous value. See guide chapter [Letting the world in](guide.html#letting-the-world-in).
 
 ```typescript
 import { store, tilia } from "tilia";

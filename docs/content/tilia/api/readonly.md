@@ -16,7 +16,7 @@ tags: []
 
 Use this to insert large immutable data blocks into a reactive tree while preventing accidental replacement of the wrapped `data` field.
 
-See [tilia](api.html#tilia) and guide chapter [A small vocabulary](docs.html#a-small-vocabulary).
+See [tilia](api.html#tilia) and guide chapter [A small vocabulary](guide.html#a-small-vocabulary).
 
 ```typescript
 import { readonly, tilia } from "tilia";

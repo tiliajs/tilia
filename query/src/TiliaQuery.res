@@ -1,4 +1,4 @@
-// TYPES
+// === PUBLIC TYPES (from .resi file)
 
 @tag("state")
 type loadable<'a> =
@@ -108,74 +108,7 @@ type t<'query, 'a> = {
   _canopy: unit => canopy,
 }
 
-// --------------- IMPLEMENTATION
-
-let sortedStringify: 'a => string = %raw(`
-function sortedStringify(value) {
-  return JSON.stringify(value, function(_key, value) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const sorted = {};
-      for (const key of Object.keys(value).sort()) {
-        sorted[key] = value[key];
-      }
-      return sorted;
-    }
-    return value;
-  });
-}`)
-
-let _expiry = {
-  // 30 seconds
-  refresh: 30_000.0,
-  // 5 minutes
-  memory: 300_000.0,
-  // 30 days
-  local: 2_592_000_000.0,
-}
-
-let _now = () => Date.now()
-let _no_sort = _query => array => array
-
-type entryState = Pristine | LoadedLocal | LoadedRemote | LiveRemote
-
-/** Runtime state for one in-memory query. */
-type entry<'query> = {
-  key: string,
-  query: 'query,
-  mutable lastSeen: float,
-  mutable refreshedAt: float,
-  /** Latest remote fetch attempt, used to throttle refreshes. */
-  mutable fetchedAt: float,
-  mutable state: entryState,
-  /**
-   * Closes the entry's latest fetch: late callbacks become noops and the
-   * registered cleanup runs once. Idempotent.
-   */
-  mutable close: unit => unit,
-}
-
-/** Durable query result used to find rows still reachable during local purge. */
-type queryRecord<'query> = {
-  key: string,
-  // The query itself, so matches can run on disk-only records. None on synthetics.
-  query: option<'query>,
-  mutable ids: array<string>,
-  mutable lastSeen: float,
-}
-
-@scope("JSON") @val external encodeRecord: queryRecord<'query> => string = "stringify"
-
-/** Returns None on malformed kv data: the entry is skipped, not fatal. */
-let parseRecord: string => option<queryRecord<'query>> = %raw(`
-function parseRecord(value) {
-  try {
-    const r = JSON.parse(value);
-    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
-      return r;
-    }
-  } catch (_) {}
-  return undefined;
-}`)
+// === Mutations (outbox)
 
 /** A queued write, ordered by `seq` and guarded from duplicate pushes by `flight`. */
 type outboxOp<'a> = {
@@ -208,6 +141,51 @@ function parseOp(value) {
   } catch (_) {}
   return undefined;
 }`)
+
+// === Query records (registry)
+
+/** Durable query result used to find rows still reachable during local purge. */
+type queryRecord<'query> = {
+  key: string,
+  // The query itself, so matches can run on disk-only records. None on synthetics.
+  query: option<'query>,
+  mutable ids: array<string>,
+  mutable lastSeen: float,
+}
+
+@scope("JSON") @val external encodeRecord: queryRecord<'query> => string = "stringify"
+
+/** Returns None on malformed kv data: the entry is skipped, not fatal. */
+let parseRecord: string => option<queryRecord<'query>> = %raw(`
+function parseRecord(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
+      return r;
+    }
+  } catch (_) {}
+  return undefined;
+}`)
+
+// === Read
+
+type entryState = Pristine | LoadedLocal | LoadedRemote | LiveRemote
+
+/** Runtime state for one in-memory query. */
+type entry<'query> = {
+  key: string,
+  query: 'query,
+  mutable lastSeen: float,
+  mutable refreshedAt: float,
+  /** Latest remote fetch attempt, used to throttle refreshes. */
+  mutable fetchedAt: float,
+  mutable state: entryState,
+  /**
+   * Closes the entry's latest fetch: late callbacks become noops and the
+   * registered cleanup runs once. Idempotent.
+   */
+  mutable close: unit => unit,
+}
 
 /** Keys of the queries whose result is currently observed ("open"). */
 let observedKeys = results => Tilia._canopy(results).live
@@ -261,54 +239,56 @@ let makeFetch = (remote, local, loaded, results, now) =>
         }
       }
 
-      entry.fetchedAt = now()
-      remote.fetch(
-        entry.query,
-        {
-          set: values => {
-            if active.contents {
-              entry.state = LoadedRemote
-              loaded(entry, values, true)
-            }
-          },
-          live: values => {
-            if active.contents {
-              entry.state = LiveRemote
-              loaded(entry, values, true)
-            }
-          },
-          fail: message => {
-            if active.contents {
-              results->Dict.set(entry.key, Failed({message: message}))
-            }
-          },
-          end: () => {
-            if active.contents {
-              // Only a live entry is demoted: `end` on a fetch that never
-              // delivered must not stamp LoadedRemote on a Loading result.
-              if entry.state === LiveRemote {
+      if remote.online.value {
+        entry.fetchedAt = now()
+        remote.fetch(
+          entry.query,
+          {
+            set: values => {
+              if active.contents {
                 entry.state = LoadedRemote
+                loaded(entry, values, true)
               }
+            },
+            live: values => {
+              if active.contents {
+                entry.state = LiveRemote
+                loaded(entry, values, true)
+              }
+            },
+            fail: message => {
+              if active.contents {
+                results->Dict.set(entry.key, Failed({message: message}))
+              }
+            },
+            end: () => {
+              if active.contents {
+                // Only a live entry is demoted: `end` on a fetch that never
+                // delivered must not stamp LoadedRemote on a Loading result.
+                if entry.state === LiveRemote {
+                  entry.state = LoadedRemote
+                }
 
-              // Free the refresh slot, like going offline does.
-              entry.fetchedAt = 0.0
+                // Free the refresh slot, like going offline does.
+                entry.fetchedAt = 0.0
 
-              // Teardown runs last: a throwing cleanup must not block the
-              // return to periodic refresh.
-              close()
-            }
+                // Teardown runs last: a throwing cleanup must not block the
+                // return to periodic refresh.
+                close()
+              }
+            },
+            finally: fn => {
+              if active.contents {
+                // Single slot, last write wins.
+                cleanup := fn
+              } else {
+                // The fetch is already closed: run the teardown right away.
+                fn()
+              }
+            },
           },
-          finally: fn => {
-            if active.contents {
-              // Single slot, last write wins.
-              cleanup := fn
-            } else {
-              // The fetch is already closed: run the teardown right away.
-              fn()
-            }
-          },
-        },
-      )
+        )
+      }
     }
   }
 
@@ -350,6 +330,34 @@ let makeOne = (getEntry, results) =>
 
 let makeArray = (getEntry, results) => query => getResult(results, getEntry(query))
 
+// === make (factory)
+
+let sortedStringify: 'a => string = %raw(`
+function sortedStringify(value) {
+  return JSON.stringify(value, function(_key, value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const sorted = {};
+      for (const key of Object.keys(value).sort()) {
+        sorted[key] = value[key];
+      }
+      return sorted;
+    }
+    return value;
+  });
+}`)
+
+let _expiry = {
+  // 30 seconds
+  refresh: 30_000.0,
+  // 5 minutes
+  memory: 300_000.0,
+  // 30 days
+  local: 2_592_000_000.0,
+}
+
+let _now = () => Date.now()
+let _no_sort = _query => array => array
+
 let make = (
   {id, matches, remote, ?local, ?expiry, ?now, ?key, ?sort, ?merge}: config<'query, 'a>,
 ) => {
@@ -367,7 +375,7 @@ let make = (
   let queryTag = "query"
   let syntheticPrefix = "__id:"
   let registry: dict<queryRecord<'query>> = Dict.make()
-  let persistRecord = record =>
+  let persistRecord = (record: queryRecord<'query>) =>
     switch local {
     | None => ()
     | Some(local) => local.set(~tag=queryTag, ~key=record.key, Some(encodeRecord(record)))
@@ -861,11 +869,15 @@ let make = (
     })
   }
 
+  let fetch = makeFetch(remote, local, loaded, results, now)
+  let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now)
+
   let clearOnline = Tilia.watch(
     () => remote.online.value,
     online => {
       if online {
-        // Reconnect: replay the outbox.
+        // Reconnect every query that does not still have a live source.
+        entries->Dict.forEach(entry => fetch(entry))
         pushPending()
       } else {
         entries->Dict.forEach(entry => {
@@ -879,9 +891,6 @@ let make = (
       }
     },
   )
-
-  let fetch = makeFetch(remote, local, loaded, results, now)
-  let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now)
 
   let dismiss = rejection => {
     let i = status.rejected->Array.indexOf(rejection)

@@ -3,7 +3,7 @@ import type { Repo } from "../../repo";
 import type { User } from "../../user";
 import type { ClaimsFeature, Tab } from "./type";
 
-const query = (tab: Tab, user: User): ClaimQuery => {
+export const query = (tab: Tab, user: User): ClaimQuery => {
   switch (tab) {
     case "mine":
       return { adjuster: user.name };

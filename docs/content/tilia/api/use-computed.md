@@ -16,7 +16,7 @@ tags: []
 
 The hook compares computed results and re-renders when the result value changes. This differs from plain render reads, which depend on every tracked key read during render.
 
-Use with [useTilia](api.html#use-tilia) or [leaf](api.html#leaf) in React components. See guide chapter [tilia in React](docs.html#tilia-in-react).
+Use with [useTilia](api.html#use-tilia) or [leaf](api.html#leaf) in React components. See guide chapter [tilia in React](guide.html#tilia-in-react).
 
 ```typescript
 import { useComputed, useTilia } from "@tilia/react";

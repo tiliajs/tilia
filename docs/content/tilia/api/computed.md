@@ -16,7 +16,7 @@ tags: []
 
 If no observer depends on the computed key, Tilia can clear its internal observer and keep the dynamic definition for later reads. Replacing or deleting the property removes the previous computed behavior.
 
-Using a computed value outside insertion context raises an orphan-computation error. Define it directly where it is inserted. See [tilia](api.html#tilia), [carve](api.html#carve), and guide chapter [Values that follow](docs.html#values-that-follow).
+Using a computed value outside insertion context raises an orphan-computation error. Define it directly where it is inserted. See [tilia](api.html#tilia), [carve](api.html#carve), and guide chapter [Values that follow](guide.html#values-that-follow).
 
 ```typescript
 import { computed, tilia } from "tilia";

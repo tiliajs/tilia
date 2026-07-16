@@ -1,4 +1,5 @@
-import { clone, type Claim } from "../../claim";
+import { clone, fields, type Claim } from "../../claim";
+import type { Rejection } from "@tilia/query";
 import type { Repo } from "../../repo";
 import type { User } from "../../user";
 import type { ClaimsFeature, Tab } from "./type";
@@ -44,9 +45,44 @@ export const cancel = (self: ClaimsFeature) => () => {
 };
 
 export const remove = (repo: Repo) => (claim: Claim) => {
-  repo.claims.remove(clone(claim));
+  repo.claims.remove(claim.id);
 };
 
-export const dismiss = (repo: Repo) => () => {
-  repo.claims.dismiss();
+export const dismiss = (repo: Repo) => (rejection: Rejection<Claim>) => {
+  repo.claims.dismiss(rejection);
+};
+
+export const resolve = (self: ClaimsFeature) => (rejection: Rejection<Claim>, theirs: Claim) => {
+  if (rejection.TAG !== "UpdateConflict") return;
+  const base = clone(rejection._0);
+  const mine = clone(rejection._1);
+  const current = clone(theirs);
+  const draft = clone(theirs);
+  const changed = fields.filter((field) => mine[field] !== base[field]);
+  for (const field of changed) {
+    if (current[field] === base[field]) Object.assign(draft, { [field]: mine[field] });
+  }
+  self.resolution = {
+    rejection,
+    base,
+    mine,
+    theirs: current,
+    draft,
+    fields: changed.filter(
+      (field) => current[field] !== base[field] && mine[field] !== current[field]
+    ),
+  };
+};
+
+export const saveResolution = (repo: Repo) => (self: ClaimsFeature) => () => {
+  if (!self.resolution) return;
+  repo.claims.dismiss(self.resolution.rejection);
+  repo.claims.upsert(clone(self.resolution.draft));
+  self.resolution = null;
+};
+
+export const discardResolution = (repo: Repo) => (self: ClaimsFeature) => () => {
+  if (!self.resolution) return;
+  repo.claims.dismiss(self.resolution.rejection);
+  self.resolution = null;
 };

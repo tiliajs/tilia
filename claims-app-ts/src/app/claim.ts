@@ -14,6 +14,18 @@ export type Claim = {
   version: number;
 };
 
+export type ClaimField = keyof Omit<Claim, "id" | "version">;
+
+export const fields: ClaimField[] = [
+  "claimant",
+  "peril",
+  "city",
+  "status",
+  "adjuster",
+  "estimate",
+  "notes",
+];
+
 // Empty query = all claims. Both the local store and the simulated server
 // interpret queries through `match`, as required by the adapter contract.
 export type ClaimQuery = {

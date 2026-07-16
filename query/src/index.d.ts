@@ -27,15 +27,28 @@ export type Loadable<T> =
 export type Op<T> = { op: "upsert"; value: T } | { op: "remove"; id: string };
 
 /**
- * An op the remote definitively refused. Keyed by `id`: at most one
- * rejection per id, a newer rejection replaces the older.
+ * Local context presented when a remote value arrives.
+ *
+ * `Updated` carries the original base and latest local edit. This is the
+ * three-way merge input together with the remote value.
  */
-export type Rejection<T> = {
-  /** The op's value id — the key `retry` / `discard` match on. */
-  id: string;
-  op: Op<T>;
-  message: string;
-};
+export type Change<T> =
+  | { TAG: "Clean"; _0: T }
+  | { TAG: "Created"; _0: T }
+  | { TAG: "Updated"; _0: T; _1: T }
+  | { TAG: "Removed"; _0: T };
+
+/**
+ * Context for an optimistic operation reverted by a conflict or definitive
+ * failure. At most one rejection is retained per value id.
+ */
+export type Rejection<T> =
+  | { TAG: "CreateConflict"; _0: T }
+  | { TAG: "CreateFailed"; _0: T; _1: string }
+  | { TAG: "UpdateConflict"; _0: T; _1: T }
+  | { TAG: "UpdateFailed"; _0: T; _1: T; _2: string }
+  | { TAG: "RemoveConflict"; _0: T }
+  | { TAG: "RemoveFailed"; _0: T; _1: string };
 
 /**
  * Read channel, handed to `remote.fetch`.
@@ -117,7 +130,7 @@ export type Expiry = {
 export type Status<T> = {
   /** Number of ops waiting in the outbox. */
   pending: number;
-  /** Ops the remote definitively refused. Handle with `retry` / `discard`. */
+  /** Contexts for reverted conflicts and definitively rejected writes. */
   rejected: Rejection<T>[];
 };
 
@@ -169,13 +182,19 @@ export type Config<T, Q> = {
   expiry?: Expiry;
   now?: () => number;
   key?: (query: Q) => string;
-  sort?: (values: T[]) => T[];
+  /** Return a sorter for a query. */
+  sort?: (query: Q) => (values: T[]) => T[];
+  /**
+   * Merge a remote value into the local value in place. Return `false` to
+   * keep remote truth and record a conflict.
+   */
+  merge?: (change: Change<T>, remote: T) => boolean;
 };
 
 /**
  * Inbound push from the remote (e.g. a websocket subscription), past
- * tense: facts about the server, not commands. The outbox overlay wins
- * over deliveries; deliveries do not touch freshness.
+ * tense: facts about the server, not commands. Deliveries merge with
+ * pending changes and do not touch freshness.
  */
 export type Receive<T> = {
   /** These values changed on the server; they replace local clean copies. */
@@ -203,14 +222,8 @@ export type TiliaQuery<T, Q> = {
   receive: Receive<T>;
   /** Reactive sync state (tilia object). */
   status: Status<T>;
-  /** Re-queue a rejected op. An id with no rejected entry raises. */
-  retry: (rejection: Rejection<T>) => void;
-  /**
-   * Drop a rejected op for good; local state reverts to the remote's by
-   * refetching the queries that held the value. On a live query the refetch
-   * tears down the subscription (its `finally` runs) and re-creates it.
-   */
-  discard: (rejection: Rejection<T>) => void;
+  /** Remove a resolved or ignored rejection context. */
+  dismiss: (rejection: Rejection<T>) => void;
   /**
    * Time heartbeat. The engine owns no timers: refresh, expiry, gc and push
    * retries happen only inside `tick` (and on `remote.online` transitions).

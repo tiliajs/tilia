@@ -26,7 +26,7 @@ An instance is deliberately cheap. For a logout or a user switch: dispose the ol
 
 The [API reference](api.html) is the flat, complete surface — every function and type with signatures in both TypeScript and ReScript. This guide chose the readable rule; the reference has the precise one.
 
-Everything here runs on tilia reactivity: results, `status`, the reconnect watcher are ordinary reactive values. If any of that felt like magic, [the tilia guide](../tilia/docs.html) is the missing floor — this guide is its promised sequel, the "synchronizing collections with a server" its last chapter deferred.
+Everything here runs on tilia reactivity: results, `status`, the reconnect watcher are ordinary reactive values. If any of that felt like magic, [the tilia guide](../guide.html) is the missing floor — this guide is its promised sequel, the "synchronizing collections with a server" its last chapter deferred.
 
 And the behaviors this guide narrated — the tunnel edits, the restart replay, the rejection that resurfaces until someone decides — exist as a Gherkin specification that runs against the implementation under [vitest-bdd](https://www.npmjs.com/package/vitest-bdd). Specification first, in plain language, kept true by the test runner: the [épure](https://epuremethod.com) method, applied to the library that carries its data.
 

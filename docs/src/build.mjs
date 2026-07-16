@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir, writeFile, copyFile, cp } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile, copyFile, cp, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
@@ -370,7 +370,7 @@ async function runConfigBuild(configPath, highlighter, md) {
   const apiDir = resolvePath(apiInput.markdownDir || "api", configDir);
   const guideDir = resolvePath(guideInput.markdownDir || "guide", configDir);
   const apiFile = resolvePath(apiPage.output || "../../dist/api.html", configDir);
-  const docsFile = resolvePath(guidePage.output || "../../dist/docs.html", configDir);
+  const guideFile = resolvePath(guidePage.output || "../../dist/guide.html", configDir);
 
   const errors = [];
   const [apiFiles, guideFiles] = await Promise.all([
@@ -393,9 +393,9 @@ async function runConfigBuild(configPath, highlighter, md) {
   const docsHtml = renderDocsPage({ chapters, config });
 
   await mkdir(path.dirname(apiFile), { recursive: true });
-  await mkdir(path.dirname(docsFile), { recursive: true });
+  await mkdir(path.dirname(guideFile), { recursive: true });
   await writeFile(apiFile, apiHtml);
-  await writeFile(docsFile, docsHtml);
+  await writeFile(guideFile, docsHtml);
   await copyAssetsForConfig(config, configPath);
 
   const bytes = Buffer.byteLength(apiHtml) + Buffer.byteLength(docsHtml);
@@ -412,6 +412,7 @@ export async function runBuild() {
     return { ok: false };
   }
 
+  await rm(path.join(root, "dist"), { recursive: true, force: true });
   const highlighter = await createPrismHighlighter();
   const md = createMarkdown(highlighter);
 

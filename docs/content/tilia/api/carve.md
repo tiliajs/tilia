@@ -16,7 +16,7 @@ tags: []
 
 `derived` is evaluated with the carved object as input. This allows cross-field derivation and methods that depend on sibling fields. The returned object is then proxied like [tilia](api.html#tilia).
 
-Use `carve` when derivation needs `self`; use [computed](api.html#computed) when a standalone closure is enough. See guide chapter [Carving a feature](docs.html#carving-a-feature).
+Use `carve` when derivation needs `self`; use [computed](api.html#computed) when a standalone closure is enough. See guide chapter [Carving a feature](guide.html#carving-a-feature).
 
 ```typescript
 import { carve } from "tilia";

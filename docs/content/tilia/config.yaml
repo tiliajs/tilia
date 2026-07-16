@@ -1,7 +1,7 @@
 var:
   project: tilia
   assets: ../../assets
-  dist: ../../dist/tilia
+  dist: ../../dist
 
 shared:
   literals:
@@ -53,8 +53,9 @@ shared:
           <a class="wordmark" href="./index.html" aria-label="tilia — home">{{wordmarkSvg}}tilia</a>
           <nav class="nav" aria-label="Site">
             <a href="./index.html">Home</a>
-            <a href="./docs.html"{{docsCurrentAttr}}>Docs</a>
+            <a href="./guide.html"{{guideCurrentAttr}}>Guide</a>
             <a href="./api.html"{{apiCurrentAttr}}>API</a>
+            <a href="./query/index.html">Query</a>
             <a href="https://github.com/tiliajs/tilia">GitHub</a>
           </nav>
         </div>
@@ -167,7 +168,7 @@ pages:
       glob: "*.md"
       parser: parseGuideChapter
       sourceLabel: content/guide/{{file}}
-    output: "{{dist}}/docs.html"
+    output: "{{dist}}/guide.html"
     templates:
       tocItem: |-
         <li><a href="#{{slug}}">{{title}}</a></li>
@@ -183,7 +184,7 @@ pages:
       pageMain: |-
         <div class="docs-head">
           <div class="wrap">
-            <p class="eyebrow">Docs<span class="sep">·</span>v1.x<span class="sep">·</span>Guided tour</p>
+            <p class="eyebrow">Guide<span class="sep">·</span>v1.x<span class="sep">·</span>Guided tour</p>
             <h1>The Guide</h1>
             <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and React. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
           </div>
@@ -205,7 +206,7 @@ pages:
         The Guide — tilia
       description: |-
         The tilia guide — a reading path through the mental model, tracking, computed values, observers, and React integration.
-      activeNav: docs
+      activeNav: guide
       htmlAttrs: |-
         lang="en" data-lang="ts"
       includePrePaint: true

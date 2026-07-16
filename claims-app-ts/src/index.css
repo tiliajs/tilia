@@ -17,6 +17,7 @@
   --color-faint: #8b8172;
   --color-line: #e3ded5;
   --color-shade: #efece6;
+  --color-off: #d8cbbb;
 
   /* Adjuster identities: cyan (Ana) and pink (Ben) */
   --color-ana: #0d7797;
@@ -94,6 +95,61 @@ body {
 
 .dot-write {
   animation: dot-flash 1.8s ease-out both;
+}
+
+@keyframes restart-animal-open {
+  0%,
+  14%,
+  31%,
+  54%,
+  72%,
+  100% {
+    opacity: 1;
+  }
+  15%,
+  30%,
+  55%,
+  71% {
+    opacity: 0;
+  }
+}
+
+@keyframes restart-animal-closed {
+  0%,
+  14%,
+  31%,
+  54%,
+  72%,
+  100% {
+    opacity: 0;
+  }
+  15%,
+  30%,
+  55%,
+  71% {
+    opacity: 1;
+  }
+}
+
+.restart-animal {
+  display: grid;
+  place-items: center;
+}
+
+.restart-animal-open,
+.restart-animal-closed {
+  grid-area: 1 / 1;
+  animation-duration: 500ms;
+  animation-iteration-count: infinite;
+  animation-timing-function: steps(1, end);
+}
+
+.restart-animal-open {
+  animation-name: restart-animal-open;
+}
+
+.restart-animal-closed {
+  animation-name: restart-animal-closed;
 }
 
 .settings-slider {

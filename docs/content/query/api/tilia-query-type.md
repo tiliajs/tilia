@@ -19,8 +19,7 @@ signature:
       discard: (rejection: Rejection<T>) => void,
       tick: () => void,
       dispose: () => void,
-      _canopy: () => Canopy,
-      _ids: (query: Q) => string[] | undefined
+      _canopy: () => Canopy
     }
   res: |-
     type t<'a, 'query> = {
@@ -35,7 +34,6 @@ signature:
       tick: unit => unit,
       dispose: unit => unit,
       _canopy: unit => canopy,
-      _ids: 'query => option<array<string>>,
     }
 tags: []
 ---
@@ -47,7 +45,7 @@ tags: []
 - Inbound push: [receive.changed](api.html#receive-changed), [receive.removed](api.html#receive-removed).
 - Sync state: [status](api.html#status), with [retry](api.html#retry) and [discard](api.html#discard) for rejections.
 - Lifecycle: [tick](api.html#tick), [dispose](api.html#dispose).
-- Tooling: [_canopy](api.html#canopy), [_ids](api.html#ids).
+- Tooling: [_canopy](api.html#canopy).
 
 Feature modules typically wrap this object in domain-specific helpers rather than exposing it raw, so application code keeps reading in the language of the business.
 

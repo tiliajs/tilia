@@ -4,6 +4,7 @@ import { clone, limit, match, type Claim, type ClaimQuery } from "../app/claim";
 export type Outcome =
   | { kind: "saved"; claim: Claim }
   | { kind: "conflict"; claim: Claim }
+  | { kind: "removed"; id: string }
   | { kind: "rejected"; message: string };
 
 // Last operation per claim id, drives the server pane animations.
@@ -32,8 +33,18 @@ export type Server = {
   fetch(by: string, query: ClaimQuery, reply: (rows: Claim[]) => void): void;
   subscribe(by: string, query: ClaimQuery, push: (rows: Claim[]) => void): () => void;
   upsert(by: string, claim: Claim, reply: (outcome: Outcome) => void): void;
-  remove(by: string, claim: Claim, reply: (outcome: Outcome) => void): void;
+  remove(by: string, id: string, reply: (outcome: Outcome) => void): void;
 };
+
+const fields: (keyof Omit<Claim, "id" | "version">)[] = [
+  "claimant",
+  "peril",
+  "city",
+  "status",
+  "adjuster",
+  "estimate",
+  "notes",
+];
 
 const sig = (rows: Claim[]) =>
   rows
@@ -45,7 +56,12 @@ export function makeServer(seed: Claim[]): Server {
   let seq = 0;
   let subId = 0;
   const rows: Record<string, Claim> = {};
-  for (const claim of seed) rows[claim.id] = { ...claim, version: 1 };
+  const history: Record<string, Map<number, Claim>> = {};
+  for (const claim of seed) {
+    const saved = { ...clone(claim), version: 1 };
+    rows[claim.id] = saved;
+    history[claim.id] = new Map([[saved.version, clone(saved)]]);
+  }
 
   // The core calls the adapters (and through them this server) inside a
   // tracked scope: reactive reads there would refetch queries whenever the
@@ -127,13 +143,34 @@ export function makeServer(seed: Claim[]): Server {
     upsert(by, claim, reply) {
       later(() => {
         const current = server.rows[claim.id];
+        let next = clone(claim);
         if (current && current.version !== claim.version) {
-          reply({ kind: "conflict", claim: clone(current) });
-        } else if (claim.estimate > limit) {
+          const base = history[claim.id]?.get(claim.version);
+          const conflict =
+            !base ||
+            fields.some(
+              (field) =>
+                claim[field] !== base[field] &&
+                current[field] !== base[field] &&
+                claim[field] !== current[field]
+            );
+          if (conflict) {
+            reply({ kind: "conflict", claim: clone(current) });
+            return;
+          }
+          next = clone(current);
+          for (const field of fields) {
+            if (claim[field] !== base[field]) {
+              Object.assign(next, { [field]: claim[field] });
+            }
+          }
+        }
+        if (next.estimate > limit) {
           reply({ kind: "rejected", message: "estimate above authority limit" });
         } else {
-          const saved = { ...clone(claim), version: claim.version + 1 };
+          const saved = { ...next, version: (current?.version ?? 0) + 1 };
           server.rows[claim.id] = saved;
+          (history[claim.id] ??= new Map()).set(saved.version, clone(saved));
           const written = { id: claim.id, by, seq: touchWrite(claim.id, by) };
           reply({ kind: "saved", claim: clone(saved) });
           broadcast(written);
@@ -141,17 +178,13 @@ export function makeServer(seed: Claim[]): Server {
       });
     },
 
-    remove(_by, claim, reply) {
+    remove(_by, id, reply) {
       later(() => {
-        const current = server.rows[claim.id];
-        if (current && current.version !== claim.version) {
-          reply({ kind: "conflict", claim: clone(current) });
-        } else {
-          delete server.rows[claim.id];
-          delete server.touches[claim.id];
-          reply({ kind: "saved", claim: clone(claim) });
-          broadcast();
-        }
+        delete server.rows[id];
+        delete server.touches[id];
+        delete history[id];
+        reply({ kind: "removed", id });
+        broadcast();
       });
     },
   });

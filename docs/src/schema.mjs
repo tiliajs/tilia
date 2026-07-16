@@ -41,7 +41,7 @@ const pageInputSchema = S.schema({
 const pageDocumentSchema = S.schema({
   title: S.string,
   description: S.string,
-  activeNav: S.union(["api", "docs"]),
+  activeNav: S.union(["api", "guide"]),
   htmlAttrs: S.string,
   includePrePaint: S.boolean,
   includeToggleScript: S.boolean,

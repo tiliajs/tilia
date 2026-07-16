@@ -40,7 +40,8 @@ test("loads tilia config from content folder", async () => {
   assert.equal(config.var.project, "tilia");
   assert.equal(config.pages.api.input.markdownDir, path.resolve(process.cwd(), "content/tilia/api"));
   assert.equal(config.pages.guide.input.markdownDir, path.resolve(process.cwd(), "content/tilia/guide"));
-  assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/tilia/api.html"));
+  assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/api.html"));
+  assert.equal(config.pages.guide.output, path.resolve(process.cwd(), "dist/guide.html"));
 });
 
 test("rejects invalid config format", async () => {
@@ -65,7 +66,7 @@ test("resolves variables before paths", async () => {
     await writeFile(
       base,
       [
-        `base: "${path.resolve(process.cwd(), "content/base-config.yaml")}"`,
+        `base: "${path.resolve(process.cwd(), "content/tilia/config.yaml")}"`,
         "var:",
         `  shared: "${shared}"`,
       ].join("\n"),
@@ -110,6 +111,7 @@ test("loads query config via base", async () => {
   assert.equal(config.pages.guide.input.markdownDir, path.resolve(process.cwd(), "content/query/guide"));
   assert.equal(config.pages.api.input.glob, "*.md");
   assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/query/api.html"));
+  assert.equal(config.pages.guide.output, path.resolve(process.cwd(), "dist/query/guide.html"));
 });
 
 test("deep merges literals over base", async () => {
@@ -212,4 +214,18 @@ test("renders guide body when pageMain omits slots", async () => {
   assert.match(html, /<section class="chapter" id="remote-data">/);
   assert.match(html, /<li><a href="#remote-data">Remote Data<\/a><\/li>/);
   assert.match(html, /Reference: <a href="\.\/api\.html#make">make<\/a>/);
+  assert.match(html, /<title>The Guide — @tilia\/query<\/title>/);
+  assert.match(html, /<link rel="stylesheet" href="\.\.\/style\.css">/);
+  assert.match(html, /<body class="query">/);
+  assert.match(html, /href="\.\.\/index\.html" aria-label="tilia — home"/);
+  assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
+  assert.match(html, /@tilia\/query on npm/);
+});
+
+test("renders tilia guide navigation", async () => {
+  const config = await loadConfig();
+  const html = renderDocsPage({ config, chapters: [] });
+
+  assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
+  assert.match(html, /href="\.\/query\/index\.html">Query<\/a>/);
 });

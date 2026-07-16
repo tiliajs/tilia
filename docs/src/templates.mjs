@@ -96,7 +96,7 @@ function moduleLabel(literals) {
 function header(active, literals) {
   return inject(literals.header, {
     wordmarkSvg: literals.wordmarkSvg,
-    docsCurrentAttr: active === "docs" ? ' aria-current="page"' : "",
+    guideCurrentAttr: active === "guide" ? ' aria-current="page"' : "",
     apiCurrentAttr: active === "api" ? ' aria-current="page"' : "",
   });
 }
