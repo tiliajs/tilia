@@ -224,8 +224,6 @@ export type TiliaQuery<T, Q> = {
   dispose: () => void;
   /** Internal/debug: observed vs idle query keys. */
   _canopy: () => Canopy;
-  /** Testing hook: ids held by an in-memory query. Returns a copy. */
-  _ids: (query: Q) => string[] | undefined;
 };
 
 /**

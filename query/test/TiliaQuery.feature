@@ -18,6 +18,16 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
 
+  Scenario: filter a deck by seen
+    Given the remote is updated with
+      | id     | deck    | english | translation | seen |
+      | dog.es | spanish | dog     | perro       | 1    |
+    When I open the "Spanish" deck filtered by seen "1"
+    And time passes
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 1    |
+
   Scenario: fetch a deck while offline
     When deck "Spanish" is in local db
     And I go "offline"
@@ -46,8 +56,8 @@ Feature: Language training app
       | cat.es | spanish | cat     | gato        | 1    |
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
 
   Scenario: a subscription adds a card to its deck
     When I open the "Spanish" deck
@@ -69,6 +79,56 @@ Feature: Language training app
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
 
+  Scenario: remote values merge with every local state
+    When I open the "Spanish" deck
+    And time passes
+    And merge calls are cleared
+    And the subscription changes
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    And I go "offline"
+    And I upsert
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And the subscription changes
+      | id      | deck    | english | translation | seen |
+      | rain.es | spanish | rain    | lluvia      | 1    |
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | dog.es | spanish | dog     | perro       | 1    |
+    And the subscription changes
+      | id     | deck    | english | translation | seen |
+      | dog.es | spanish | dog     | perro       | 2    |
+    And I remove "cat.es"
+    And the subscription changes
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 2    |
+    Then merge should have received
+      | context | id      | base | edited | remote |
+      | clean   | cat.es  | 0    |        | 1      |
+      | created | rain.es |      | 0      | 1      |
+      | updated | dog.es  | 0    | 1      | 2      |
+      | removed | cat.es  | 1    |        | 2      |
+
+  Scenario: remote truth wins when merge rejects an update
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And the merge rejects remote values
+    And the subscription changes
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 2    |
+    Then I should see "remote" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 2    |
+    And status should have rejection
+      | kind            | id     | base | edited | message |
+      | update conflict | cat.es | 0    | 9      |         |
+
   Scenario: update a card while online
     When I open the "Spanish" deck
     And time passes
@@ -88,8 +148,8 @@ Feature: Language training app
       | cat.es | cat     | gato        | 1    |
     And I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
 
   Scenario: update a card while offline
     When I open the "Spanish" deck
@@ -100,8 +160,8 @@ Feature: Language training app
       | cat.es | spanish | cat     | gato        | 1    |
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
 
   Scenario: remote data becomes local after refresh timeout
     When I open the "Spanish" deck
@@ -176,8 +236,8 @@ Feature: Language training app
     And time passes
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
 
   Scenario: a closed deck is dropped from memory after the memory timeout
     When I open the "Spanish" deck
@@ -295,7 +355,7 @@ Feature: Language training app
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
-    And memory and local query "Spanish" should have ids
+    And local query "Spanish" should have ids
       | id     |
       | dog.es |
     And time passes
@@ -313,13 +373,13 @@ Feature: Language training app
       | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
       | rain.es | rain    | lluvia      | 0    |
-    And memory and local query "Spanish" should have ids
+    And local query "Spanish" should have ids
       | id      |
       | cat.es  |
       | dog.es  |
       | rain.es |
 
-  Scenario: a rejected write lands in status.rejected
+  Scenario: a failed write reverts to remote truth and can be dismissed
     When I open the "Spanish" deck
     And time passes
     And I upsert
@@ -327,35 +387,15 @@ Feature: Language training app
       | cat.es | spanish | cat     | gato        | 9    | 5       |
     And time passes
     Then status should have 0 pending
-    And status should have 1 rejected
-
-  Scenario: retrying a rejection re-queues the op
-    When I open the "Spanish" deck
-    And time passes
-    And I upsert
-      | id     | deck    | english | translation | seen | version |
-      | cat.es | spanish | cat     | gato        | 9    | 5       |
-    And time passes
-    And I retry the rejection for "cat.es"
-    Then status should have 0 rejected
-    And status should have 1 pending
-    And time passes
-    Then status should have 1 rejected
-
-  Scenario: discarding a rejection reverts to remote truth
-    When I open the "Spanish" deck
-    And time passes
-    And I upsert
-      | id     | deck    | english | translation | seen | version |
-      | cat.es | spanish | cat     | gato        | 9    | 5       |
-    And time passes
-    And I discard the rejection for "cat.es"
-    Then status should have 0 rejected
-    And time passes
-    Then I should see "remote" loaded with data
+    And status should have rejection
+      | kind          | id     | base | edited | message                      |
+      | update failed | cat.es | 0    | 9      | version conflict on "cat.es" |
+    And I should see "remote" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
+    When I dismiss the rejection for "cat.es"
+    Then status should have 0 rejected
 
   Scenario: the local purge spares rows with pending writes
     When deck "Spanish" is in local db
@@ -394,10 +434,10 @@ Feature: Language training app
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
-    And memory and local query "Spanish" should have ids
+    And local query "Spanish" should have ids
       | id     |
       | dog.es |
-    And memory and local query "Spanglish" should have ids
+    And local query "Spanglish" should have ids
       | id     |
       | cat.es |
 
@@ -473,16 +513,16 @@ Feature: Language training app
       | dog.es | spanish | dog     | perro       | 0    |
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
     And 35 seconds pass
     And tick is called
     And time passes
     Then the remote fetch should have run 1 time
     And I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
 
   Scenario: a live source that ends re-enters periodic refresh
     When the remote supports live queries
@@ -514,11 +554,11 @@ Feature: Language training app
     When 3 minutes pass
     And tick is called
     Then the source teardown should have run 1 time
-    And memory query "Spanish" should be dropped
+    And query "Spanish" should be dropped from memory
     When the live source delivers
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    Then memory query "Spanish" should be dropped
+    Then query "Spanish" should be dropped from memory
     And the source teardown should have run 1 time
 
   Scenario: deliveries from an ended source are ignored
@@ -556,29 +596,6 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
 
-  # `discard` restores server truth by refetching. On a live query this
-  # tears down the subscription (its `finally` runs) and re-creates it: the
-  # fresh source's first delivery replaces the discarded optimistic value.
-
-  Scenario: discarding a rejection on a live query resubscribes for truth
-    When the remote supports live queries
-    And I open the "Spanish" deck
-    And time passes
-    And I upsert
-      | id     | deck    | english | translation | seen | version |
-      | cat.es | spanish | cat     | gato        | 9    | 5       |
-    And time passes
-    Then status should have 1 rejected
-    When I discard the rejection for "cat.es"
-    Then status should have 0 rejected
-    And the source teardown should have run 1 time
-    And the remote fetch should have run 2 times
-    When time passes
-    Then I should see "remote" loaded with data
-      | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 0    |
-      | dog.es | dog     | perro       | 0    |
-
   Scenario: a late reply from a superseded fetch is ignored
     When I open the "Spanish" deck
     And time passes
@@ -612,8 +629,8 @@ Feature: Language training app
       | dog.es | spanish | dog     | perro       | 0    |
     Then I should see "remote" loaded with data
       | id     | english | translation | seen |
-      | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
     And the source teardown should have run 0 times
 
   Scenario: a teardown registered after a synchronous end runs immediately

@@ -1,5 +1,16 @@
 # TODO
 
+- [ ] Rewrite the tilia/query guide.
+
+      FOCUSSING ON THE STORY, not the technical details which belong in the Reference.
+
+      The goal of the guide is to inspire and give a FEELING of how things work. The guide should be a recreative read out of curiosity, not a highly engaging intellectual challenge.
+- [ ] Add TypeScript type guards for loadable states such as `loading` and
+      `loaded`, so narrowing preserves the data type:
+      ```ts
+      if (loading(spanish)) render(skeleton)
+      else if (loaded(spanish)) render(spanish.data) // Card[] — an empty deck included
+      ```
 - [ ] Orchestrate sync and pruning across multiple collections so they do not
       flood the app on boot or all run at the same time.
 - [ ] State the query-language constraint explicitly in the `.resi`: queries

@@ -2,6 +2,20 @@ open VitestBdd
 open MakeWorld
 
 type queryRecord = {ids: array<string>}
+type rejectionRecord = {
+  kind: string,
+  id: string,
+  base: string,
+  edited: string,
+  message: string,
+}
+type mergeRecord = {
+  context: string,
+  id: string,
+  base: string,
+  edited: string,
+  remote: string,
+}
 
 @scope("JSON") @val external parseRecord: string => queryRecord = "parse"
 
@@ -20,8 +34,9 @@ given("an {string} training app", ({step}, status: string) => {
   let papabase = Papabase.make(network)
   let dexme = Dexme.make()
   let live = Live.make(network)
+  let merge = Merge.make()
   // A ref so "I restart the app" can rebuild the engine on the same stores.
-  let cards = ref(make(~dexme, ~live, papabase, () => now_.value, online_))
+  let cards = ref(make(~dexme, ~live, ~merge, papabase, () => now_.value, online_))
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
   let closeDeck: ref<unit => unit> = ref(() => ())
 
@@ -50,6 +65,10 @@ given("an {string} training app", ({step}, status: string) => {
   // Waiting one macrotask drains the whole queue, so every pending local
   // answer has landed before the next step runs.
   let settled = () => Promise.make((resolve, _) => setTimeout(() => resolve(), 0)->ignore)
+  let query = (~seen=None, deck: string): query => {
+    deck: deck->String.toLowerCase,
+    seen,
+  }
 
   // Advance the clock and deliver every pending network response.
   let advanceClock = (ms: float) => {
@@ -71,15 +90,14 @@ given("an {string} training app", ({step}, status: string) => {
   // local and remote stores, like the app coming back after a reload.
   step("I restart the app", () => {
     cards.contents.dispose()
-    cards := make(~dexme, ~live, papabase, () => now_.value, online_)
+    cards := make(~dexme, ~live, ~merge, papabase, () => now_.value, online_)
     // Boot reloads the outbox from the kv, answering on the microtask queue.
     settled()
   })
 
   step("deck {string} is in local db", (deck: string) => {
     let app = make(~dexme, papabase, () => now_.value, online_)
-    let query = {deck: deck->String.toLowerCase}
-    let close = Tilia.observe(() => app.array(query)->ignore)
+    let close = Tilia.observe(() => app.array(query(deck))->ignore)
     network.flush()
     settled()->Promise.thenResolve(
       () => {
@@ -91,27 +109,28 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("I go {string}", (status: string) => setOnline(status === "online"))
 
-  step("the remote is failing with {string}", (message: string) =>
-    papabase._failing(Some(message))
-  )
+  step("the remote is failing with {string}", (message: string) => papabase._failing(Some(message)))
 
   step("the remote recovers", () => papabase._failing(None))
 
   // Observe like a UI binding would: the callback re-runs whenever the
   // query result changes, keeping `view` in sync.
-  step("I open the {string} deck", (deck: string) => {
-    let query = {deck: deck->String.toLowerCase}
+  let openDeck = query => {
     closeDeck :=
-      Tilia.observe(
-        () => {
-          view := cards.contents.array(query)
-          switch view.contents {
-          | TiliaQuery.Loaded({data}) => Console.log(data)
-          | _ => Console.log("not loaded")
-          }
-        },
-      )
-  })
+      Tilia.observe(() => {
+        view := cards.contents.array(query)
+        switch view.contents {
+        | TiliaQuery.Loaded({data}) => Console.log(data)
+        | _ => Console.log("not loaded")
+        }
+      })
+  }
+
+  step("I open the {string} deck", (deck: string) => openDeck(query(deck)))
+
+  step("I open the {string} deck filtered by seen {string}", (deck: string, seen: string) =>
+    openDeck(query(~seen=Some(seen), deck))
+  )
 
   // Stop observing, like a UI unmount: the query is no longer "seen".
   step("I close the deck", () => closeDeck.contents())
@@ -149,18 +168,123 @@ given("an {string} training app", ({step}, status: string) => {
     expect(cards.contents.status.rejected->Array.length).toBe(count->Float.toInt)
   )
 
+  let rejectionId = (rejection: TiliaQuery.rejection<card>) =>
+    switch rejection {
+    | TiliaQuery.CreateConflict(edited)
+    | TiliaQuery.CreateFailed(edited, _) =>
+      edited.id
+    | TiliaQuery.UpdateConflict(_, edited)
+    | TiliaQuery.UpdateFailed(_, edited, _) =>
+      edited.id
+    | TiliaQuery.RemoveConflict(base)
+    | TiliaQuery.RemoveFailed(base, _) =>
+      base.id
+    }
+
   let findRejection = (id: string) =>
     cards.contents.status.rejected
-    ->Array.find(rejection => rejection.id === id)
+    ->Array.find(rejection => rejectionId(rejection) === id)
     ->Option.getOrThrow(~message=`no rejection for "${id}"`)
 
-  step("I retry the rejection for {string}", (id: string) =>
-    cards.contents.retry(findRejection(id))
+  step("status should have rejection", (table: array<array<string>>) => {
+    let actual: array<rejectionRecord> = cards.contents.status.rejected->Array.map(
+      rejection =>
+        switch rejection {
+        | TiliaQuery.CreateConflict(edited) => {
+            kind: "create conflict",
+            id: edited.id,
+            base: "",
+            edited: edited.seen,
+            message: "",
+          }
+        | TiliaQuery.CreateFailed(edited, message) => {
+            kind: "create failed",
+            id: edited.id,
+            base: "",
+            edited: edited.seen,
+            message,
+          }
+        | TiliaQuery.UpdateConflict(base, edited) => {
+            kind: "update conflict",
+            id: edited.id,
+            base: base.seen,
+            edited: edited.seen,
+            message: "",
+          }
+        | TiliaQuery.UpdateFailed(base, edited, message) => {
+            kind: "update failed",
+            id: edited.id,
+            base: base.seen,
+            edited: edited.seen,
+            message,
+          }
+        | TiliaQuery.RemoveConflict(base) => {
+            kind: "remove conflict",
+            id: base.id,
+            base: base.seen,
+            edited: "",
+            message: "",
+          }
+        | TiliaQuery.RemoveFailed(base, message) => {
+            kind: "remove failed",
+            id: base.id,
+            base: base.seen,
+            edited: "",
+            message,
+          }
+        },
+    )
+    let expected: array<rejectionRecord> = toRecords(table)
+    expect(actual).toEqual(expected)
+  })
+
+  step("I dismiss the rejection for {string}", (id: string) =>
+    cards.contents.dismiss(findRejection(id))
   )
 
-  step("I discard the rejection for {string}", (id: string) =>
-    cards.contents.discard(findRejection(id))
+  step("merge calls are cleared", () =>
+    merge.calls->Array.splice(~start=0, ~remove=merge.calls->Array.length, ~insert=[])->ignore
   )
+
+  step("the merge rejects remote values", () => merge.accepted = false)
+
+  step("merge should have received", (table: array<array<string>>) => {
+    let actual: array<mergeRecord> = merge.calls->Array.map(
+      call =>
+        switch call.change {
+        | TiliaQuery.Clean(card) => {
+            context: "clean",
+            id: card.id,
+            base: card.seen,
+            edited: "",
+            remote: call.remote.seen,
+          }
+        | TiliaQuery.Created(edited) => {
+            context: "created",
+            id: edited.id,
+            base: "",
+            edited: edited.seen,
+            remote: call.remote.seen,
+          }
+        | TiliaQuery.Updated(base, edited) => {
+            context: "updated",
+            id: edited.id,
+            base: base.seen,
+            edited: edited.seen,
+            remote: call.remote.seen,
+          }
+        | TiliaQuery.Removed(base) => {
+            context: "removed",
+            id: base.id,
+            base: base.seen,
+            edited: "",
+            remote: call.remote.seen,
+          }
+        },
+    )
+    let expected: array<mergeRecord> = toRecords(table)
+    expect(actual).toEqual(expected)
+  })
 
   step("remote should not have {string}", (id: string) => {
     expect(papabase._select(c => c.id === id)->Array.length).toBe(0)
@@ -196,16 +320,9 @@ given("an {string} training app", ({step}, status: string) => {
     )
   )
 
-  let expectMemory = (deck, table) => {
-    let query = {deck: deck->String.toLowerCase}
-    let ids = toRecords(table)->Array.map(row => row.id)
-    expect(cards.contents._ids(query)).toEqual(Some(ids))
-  }
-
   let expectLocal = (deck, table) => {
-    let query = {deck: deck->String.toLowerCase}
     let ids = toRecords(table)->Array.map(row => row.id)
-    let key = DexmeAdaptor.kvKey(~tag="query", ~key=TiliaQuery.sortedStringify(query))
+    let key = DexmeAdaptor.kvKey(~tag="query", ~key=TiliaQuery.sortedStringify(query(deck)))
     let entry =
       dexme.kv._select(entry => entry.key === key)
       ->Array.get(0)
@@ -213,18 +330,12 @@ given("an {string} training app", ({step}, status: string) => {
     expect(parseRecord(entry.value).ids).toEqual(ids)
   }
 
-  step("memory query {string} should have ids", expectMemory)
-
   step("local query {string} should have ids", expectLocal)
 
-  step("memory and local query {string} should have ids", (deck, table) => {
-    expectMemory(deck, table)
-    expectLocal(deck, table)
-  })
-
-  step("memory query {string} should be dropped", (deck: string) => {
-    let query = {deck: deck->String.toLowerCase}
-    expect(cards.contents._ids(query)).toEqual(None)
+  step("query {string} should be dropped from memory", (deck: string) => {
+    let key = TiliaQuery.sortedStringify(query(deck))
+    let canopy = cards.contents._canopy()
+    expect(canopy.live->Array.includes(key) || canopy.idle->Array.includes(key)).toBe(false)
   })
 
   // ================ Live source controls

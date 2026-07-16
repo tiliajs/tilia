@@ -404,8 +404,7 @@ where the bet holds and where it would break.
 - [llms.txt](llms.txt) — entry point for AI coding assistants
 - [tiliajs.com](https://tiliajs.com) — Tilia documentation
 
-Debug hooks: `_canopy()` lists observed vs idle query keys; `_ids(query)`
-returns a copy of the ids an in-memory query holds (testing).
+Debug hook: `_canopy()` lists observed vs idle query keys.
 
 ## License
 

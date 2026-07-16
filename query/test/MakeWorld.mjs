@@ -25,17 +25,17 @@ function id(card) {
   return card.id;
 }
 
-function matches(query, card) {
-  return card.deck === query.deck;
+function clone(card) {
+  let newrecord = {...card};
+  newrecord.id = card.id;
+  return newrecord;
 }
 
-function sort(a, b) {
-  if (a.id < b.id) {
-    return -1.0;
-  } else if (a.id > b.id) {
-    return 1.0;
+function matches(query, card) {
+  if (card.deck === query.deck) {
+    return Stdlib_Option.mapOr(query.seen, true, seen => card.seen === seen);
   } else {
-    return 0.0;
+    return false;
   }
 }
 
@@ -69,7 +69,7 @@ function make$1(network) {
   let failing = {
     contents: undefined
   };
-  let _select = filter => Object.values(data).filter(filter);
+  let _select = filter => Object.values(data).filter(filter).map(clone);
   let select = filter => {
     let message = failing.contents;
     if (message !== undefined) {
@@ -80,7 +80,7 @@ function make$1(network) {
     } else {
       return respond({
         TAG: "Ok",
-        _0: Object.values(data).filter(filter)
+        _0: _select(filter)
       });
     }
   };
@@ -264,8 +264,70 @@ let Live = {
   wrap: wrap
 };
 
-function sortByEnglish(a, b) {
-  if (a.english < b.english) {
+function make$6() {
+  return {
+    accepted: true,
+    calls: []
+  };
+}
+
+function run(merge, change, remote) {
+  let local;
+  local = change.TAG === "Updated" ? change._1 : change._0;
+  let snapshot;
+  switch (change.TAG) {
+    case "Clean" :
+      snapshot = {
+        TAG: "Clean",
+        _0: clone(change._0)
+      };
+      break;
+    case "Created" :
+      snapshot = {
+        TAG: "Created",
+        _0: clone(change._0)
+      };
+      break;
+    case "Updated" :
+      snapshot = {
+        TAG: "Updated",
+        _0: clone(change._0),
+        _1: clone(change._1)
+      };
+      break;
+    case "Removed" :
+      snapshot = {
+        TAG: "Removed",
+        _0: clone(change._0)
+      };
+      break;
+  }
+  merge.calls.push({
+    change: snapshot,
+    remote: clone(remote)
+  });
+  if (merge.accepted) {
+    local.deck = remote.deck;
+    local.english = remote.english;
+    local.translation = remote.translation;
+    if (change.TAG === "Clean") {
+      local.seen = remote.seen;
+    }
+  }
+  return merge.accepted;
+}
+
+let Merge = {
+  make: make$6,
+  run: run
+};
+
+function sortBySeen(a, b) {
+  if (a.seen < b.seen) {
+    return -1.0;
+  } else if (a.seen > b.seen) {
+    return 1.0;
+  } else if (a.english < b.english) {
     return -1.0;
   } else if (a.english > b.english) {
     return 1.0;
@@ -274,17 +336,23 @@ function sortByEnglish(a, b) {
   }
 }
 
-function make$6(dexme, live, papabase, now, online_) {
+function make$7(dexme, live, mergeOpt, papabase, now, online_) {
+  let merge = mergeOpt !== undefined ? mergeOpt : ({
+      accepted: true,
+      calls: []
+    });
   let remote = make$3(papabase, online_);
   let remote$1 = live !== undefined ? wrap(live, papabase, remote) : remote;
-  let sort = array => array.toSorted(sortByEnglish);
+  let sort = _query => (array => array.toSorted(sortBySeen));
+  let mergeValues = (change, remote) => run(merge, change, remote);
   if (dexme === undefined) {
     return TiliaQuery.make({
       id: id,
       matches: matches,
       remote: remote$1,
       now: now,
-      sort: sort
+      sort: sort,
+      merge: mergeValues
     });
   }
   let local = make$4(dexme);
@@ -294,21 +362,23 @@ function make$6(dexme, live, papabase, now, online_) {
     remote: remote$1,
     local: local,
     now: now,
-    sort: sort
+    sort: sort,
+    merge: mergeValues
   });
 }
 
 export {
   Network,
   id,
+  clone,
   matches,
-  sort,
   Papabase,
   Dexme,
   PapabaseAdaptor,
   DexmeAdaptor,
   Live,
-  sortByEnglish,
-  make$6 as make,
+  Merge,
+  sortBySeen,
+  make$7 as make,
 }
 /* TiliaQuery Not a pure module */

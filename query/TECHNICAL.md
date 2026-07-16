@@ -43,6 +43,23 @@ When the remote result arrives, it becomes the visible result. If local storage
 is configured, the rows are also upserted there so a later offline read can
 reuse them.
 
+If the app is offline and local storage cannot answer, the query settles as
+`NotLocal`. This is an answer rather than a progress state. While online, the
+same empty local answer leaves the query `Loading` until the remote responds.
+A local adaptor that can construct a partial answer may instead filter its
+cache with `matches` and return those rows.
+
+### Connectivity transitions
+
+The application owns `remote.online` and updates its value as connectivity
+changes. Going offline settles queries still waiting without a local answer as
+`NotLocal`. It does not cancel an in-flight fetch; a remote response that still
+arrives is accepted, and later ticks correct its freshness.
+
+Going online pushes pending outbox operations. Going offline does not end a
+live query because the engine cannot know whether its transport survived; the
+adaptor ends that source through its read channel.
+
 ### Writing a row
 
 Every write follows an **optimistic** flow: local state changes before the
@@ -129,6 +146,23 @@ local row ids     -> [cat, dog]
 
 The query record no longer references `cat`, but its local row remains until a
 purge proves that no retained query references it.
+
+### Inbound remote deliveries
+
+`receive.changed` and `receive.removed` describe facts pushed by the remote,
+such as websocket deliveries. A changed value is matched against every
+in-memory query: it joins results whose `matches` accepts it and leaves results
+that no longer match. A removed id leaves every result and its local row is
+deleted.
+
+The optimistic overlay wins over these deliveries. An id with a pending or
+rejected operation is skipped, so memory and the local row keep the optimistic
+value until the operation confirms or is discarded.
+
+A changed value stays in memory only while an in-memory query matches it, and
+is persisted only while a query record lists it. A value matching nothing is
+dropped. Inbound deliveries do not affect freshness; freshness and refresh
+scheduling belong to each query's read channel.
 
 ## Failed fetches
 
@@ -258,6 +292,10 @@ prevents another push from sending the same operations concurrently.
 
 If the remote asks for a retry, the batch returns to the pending state. A later
 push can then send it again.
+
+The write channel accepts individual confirmations until `retry` or `fail`
+settles the batch. The first terminal call wins; every later callback on that
+channel is ignored.
 
 ### Definitive failures
 

@@ -49,18 +49,22 @@ module Network = {
 // app never carry one.
 type card = {
   id: string,
-  deck: string,
-  english: string,
-  translation: string,
-  seen: string,
+  mutable deck: string,
+  mutable english: string,
+  mutable translation: string,
+  mutable seen: string,
   version?: float,
 }
 
-type query = {deck: string}
+type query = {
+  deck: string,
+  seen: option<string>,
+}
 
 let id = card => card.id
-let matches = (query: query, card: card) => card.deck === query.deck
-let sort = (a: card, b: card) => a.id < b.id ? -1.0 : a.id > b.id ? 1.0 : 0.0
+let clone = card => {...card, id: card.id}
+let matches = (query: query, card: card) =>
+  card.deck === query.deck && query.seen->Option.mapOr(true, seen => card.seen === seen)
 
 // Simulate the api of a remote like Supabase, with version based rejection
 // (incoming version must be 0 or match the actual version of the record;
@@ -97,7 +101,7 @@ module Papabase = {
       respond(Ok())
     }
     let failing = ref(None)
-    let _select = filter => data->Dict.valuesToArray->Array.filter(filter)
+    let _select = filter => data->Dict.valuesToArray->Array.filter(filter)->Array.map(clone)
     let select = filter =>
       switch failing.contents {
       | Some(message) => respond(Error(message))
@@ -162,8 +166,8 @@ module Dexme = {
 // `channel.finally` — so the engine refreshes periodically.
 module PapabaseAdaptor = {
   let make = (papabase: Papabase.t, online_: Tilia.signal<bool>): TiliaQuery.remote<
-    card,
     query,
+    card,
   > => {
     online: online_,
     fetch: (query, channel) => {
@@ -208,7 +212,7 @@ module PapabaseAdaptor = {
 module DexmeAdaptor = {
   let kvKey = (~tag, ~key) => `${tag}/${key}`
 
-  let make = (dexme: Dexme.t): TiliaQuery.local<card, query> => {
+  let make = (dexme: Dexme.t): TiliaQuery.local<query, card> => {
     fetch: (query, channel) => {
       dexme.cards.filter(card => matches(query, card))
       ->Promise.thenResolve(result => {
@@ -290,8 +294,8 @@ module Live = {
   let wrap = (
     live: t,
     papabase: Papabase.t,
-    remote: TiliaQuery.remote<card, query>,
-  ): TiliaQuery.remote<card, query> => {
+    remote: TiliaQuery.remote<query, card>,
+  ): TiliaQuery.remote<query, card> => {
     ...remote,
     fetch: (query, channel) => {
       live.fetches = live.fetches + 1
@@ -314,8 +318,63 @@ module Live = {
   }
 }
 
-let sortByEnglish = (a: card, b: card) =>
-  a.english < b.english ? -1.0 : a.english > b.english ? 1.0 : 0.0
+module Merge = {
+  type call = {
+    change: TiliaQuery.change<card>,
+    remote: card,
+  }
+
+  type t = {
+    mutable accepted: bool,
+    calls: array<call>,
+  }
+
+  let make = (): t => {
+    accepted: true,
+    calls: [],
+  }
+
+  let run = (merge: t, ~change, ~remote) => {
+    let local = switch change {
+    | TiliaQuery.Clean(card)
+    | TiliaQuery.Created(card)
+    | TiliaQuery.Updated(_, card)
+    | TiliaQuery.Removed(card) => card
+    }
+    let snapshot = switch change {
+    | TiliaQuery.Clean(card) => TiliaQuery.Clean(clone(card))
+    | TiliaQuery.Created(edited) => TiliaQuery.Created(clone(edited))
+    | TiliaQuery.Updated(base, edited) => TiliaQuery.Updated(clone(base), clone(edited))
+    | TiliaQuery.Removed(base) => TiliaQuery.Removed(clone(base))
+    }
+    merge.calls->Array.push({change: snapshot, remote: clone(remote)})->ignore
+    if merge.accepted {
+      local.deck = remote.deck
+      local.english = remote.english
+      local.translation = remote.translation
+      switch change {
+      | TiliaQuery.Clean(_) => local.seen = remote.seen
+      | TiliaQuery.Created(_)
+      | TiliaQuery.Updated(_, _)
+      | TiliaQuery.Removed(_) => ()
+      }
+    }
+    merge.accepted
+  }
+}
+
+let sortBySeen = (a: card, b: card) =>
+  if a.seen < b.seen {
+    -1.0
+  } else if a.seen > b.seen {
+    1.0
+  } else if a.english < b.english {
+    -1.0
+  } else if a.english > b.english {
+    1.0
+  } else {
+    0.0
+  }
 
 // Convention: signals end with an underscore (now_, online_).
 // The engine's default expiry applies (refresh 30s, memory 5min, local
@@ -323,20 +382,22 @@ let sortByEnglish = (a: card, b: card) =>
 let make = (
   ~dexme: option<Dexme.t>=?,
   ~live: option<Live.t>=?,
+  ~merge: Merge.t=Merge.make(),
   papabase: Papabase.t,
   now: unit => float,
   online_: Tilia.signal<bool>,
-): TiliaQuery.t<card, query> => {
+): TiliaQuery.t<query, card> => {
   let remote = PapabaseAdaptor.make(papabase, online_)
   let remote = switch live {
   | Some(live) => Live.wrap(live, papabase, remote)
   | None => remote
   }
-  let sort = array => array->Array.toSorted(sortByEnglish)
+  let sort = _query => array => array->Array.toSorted(sortBySeen)
+  let mergeValues = (~change, ~remote) => Merge.run(merge, ~change, ~remote)
   switch dexme {
   | Some(dexme) =>
     let local = DexmeAdaptor.make(dexme)
-    TiliaQuery.make({id, matches, sort, remote, local, now})
-  | None => TiliaQuery.make({id, matches, sort, remote, now})
+    TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, local, now})
+  | None => TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, now})
   }
 }
