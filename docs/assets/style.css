@@ -773,7 +773,9 @@ pre[class*=" language-"] {
   margin-top: 34px;
 }
 
-.chapter p.body {
+.chapter p.body,
+.chapter ul,
+.chapter ol {
   margin-top: 16px;
   font-size: 15.5px;
   color: var(--muted);
@@ -783,6 +785,8 @@ pre[class*=" language-"] {
   font-weight: 600;
 }
 .chapter p.body code,
+.chapter ul code,
+.chapter ol code,
 .story code,
 .pro code {
   font-family: var(--mono);
@@ -816,7 +820,7 @@ pre[class*=" language-"] {
   padding: 16px 18px;
   overflow-x: auto;
   font-family: var(--mono);
-  font-size: 13.5px;
+  font-size: 13px;
   line-height: 1.65;
   color: var(--ink);
 }
@@ -828,6 +832,9 @@ pre[class*=" language-"] {
   font-style: italic;
   font-size: 15px;
   color: var(--muted);
+}
+.story em {
+  font-weight: 500;
 }
 .story .k {
   display: block;
@@ -1012,6 +1019,7 @@ pre.sig {
   white-space: pre-wrap;
 }
 .entry .prose > p,
+.entry .prose > ol,
 .entry .prose > ul {
   margin-top: 18px;
   font-size: 15px;
@@ -1020,6 +1028,7 @@ pre.sig {
 }
 .entry .prose > p code,
 .entry .prose > ul code,
+.entry .prose > ol code,
 .entry .summary code {
   font-family: var(--mono);
   font-size: 0.92em;

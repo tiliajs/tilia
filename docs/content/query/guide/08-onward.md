@@ -2,34 +2,40 @@
 title: Onward
 slug: onward
 sort: 8
-refs: [dispose]
+refs: []
 ---
 
-Step back and look at what Alice's cards travel through now. A query is a question asked once and kept fresh. An edit is applied everywhere at once and owed to the server until confirmed. Disagreements arrive as named outcomes, not exceptions. Adapters translate; closed channels absorb late answers; a tick the app controls decides when anything happens at all. Nowhere in the feature code is there a retry loop, a reconciliation pass, or an `isLoading` flag someone forgot to reset.
+Step back and look at what Alice's app is made of now. The components still read `cards.array({deck: "spanish"})` and render what comes back. The review action still writes a card. Nothing in the feature code mentions tunnels, buses, outboxes, or Spain. One `make()` call, two small adaptors, and a `tick()` on the app's own clock carry the entire trip — and the mental model compresses well:
 
-The mental model compresses well:
+- **Reads answer twice.** The device answers now, the network confirms later, and `fresh` says which answer you are looking at.
+- **Offline is a state, not an error.** Every loadable state is a complete sentence; `NotLocal` is an answer, not an apology.
+- **A mutation accepted is a mutation kept.** Applied to memory and disk immediately, queued in order, pushed at reconnection, safe across restarts — and never garbage-collected while unsent.
+- **The server is the meeting point.** Devices are just places where the data is remembered; changing hands costs nothing because no cache pretends to be the owner.
+- **Disagreement is data.** Base, yours, theirs: merge what merges, and hold the rest — verbatim — for a human, with no version silently lost.
 
-- **Two caches, no copies.** Values live once, by id; queries hold id lists. An update lands everywhere because there is only one everywhere.
-- **Reads answer twice.** Local answers now; the remote answers with authority and is written through. `fresh` is trust, not location.
-- **Writes are held sap.** Applied at once, persisted under a sequence number, pushed as ordered batches — reconnect and restart replay through the same flow.
-- **Disagreement is vocabulary.** `retry` is weather, `fail` is a verdict; a rejection stays visible until `retry` or `discard` settles it; `receive` lets inbound truth in — and keeps it — without an echo.
-- **The boundary is channels.** Adapters own transport and storage; a closed channel turns their late answers into silence.
-- **Time is external.** One `tick` refreshes the watched, evicts the idle and sweeps the disk — three clocks, three tiers of forgetting — and liveness is read from the observer graph, not counted by hand.
+None of these required @tilia/query. They required *deciding* that a spinner in front of cached data is a small unkindness, that an edit accepted is a promise, that a conflict is two people caring about the same thing. The library is one careful implementation of those decisions; the decisions travel to any stack. If you build this lifecycle yourself, build it to these rules — your users will not know the words, but they will feel the difference on every train.
 
-### The exit
+### Kept honest
 
-`dispose()` tears an instance down: it stops watching connectivity and closes every open fetch, so live subscriptions run their teardowns. Cached data is left to normal expiry, and calling it twice is safe. The engine never owned your interval, so stop your own timer beside it.
+Behavior like "a mutation made offline survives a restart" is exactly the kind of claim that rots in prose. In the épure toolset it doesn't stay prose — the engine's behavior is pinned by an executable specification, scenarios first, in the shape [vitest-bdd](https://vitest-bdd.dev) runs:
 
-An instance is deliberately cheap. For a logout or a user switch: dispose the old instance, wipe the local store with your own code — the library never learned your storage, so only your adapter knows how to erase it, and forgetting that pairing is a privacy bug — then `make` a fresh one.
+```gherkin
+Scenario: A mutation made offline survives a restart
+  Given the remote is offline
+  When Alice upserts the card "gato"
+  And the application restarts
+  Then 1 operation is pending
+  And the card "gato" is in the "spanish" deck
+```
+
+Specification-first is how the offline promises stay promises while the implementation moves.
 
 ### Where to go from here
 
-The [API reference](api.html) is the flat, complete surface — every function and type with signatures in both TypeScript and ReScript. This guide chose the readable rule; the reference has the precise one.
+The [API reference](api.html) documents the complete public surface — every function and type with its signature in both TypeScript and ReScript. It is the place for the precise rule wherever this guide chose the readable one.
 
-Everything here runs on tilia reactivity: results, `status`, the reconnect watcher are ordinary reactive values. If any of that felt like magic, [the tilia guide](../guide.html) is the missing floor — this guide is its promised sequel, the "synchronizing collections with a server" its last chapter deferred.
-
-And the behaviors this guide narrated — the tunnel edits, the restart replay, the rejection that resurfaces until someone decides — exist as a Gherkin specification that runs against the implementation under [vitest-bdd](https://www.npmjs.com/package/vitest-bdd). Specification first, in plain language, kept true by the test runner: the [épure](https://epuremethod.com) method, applied to the library that carries its data.
+The reactivity underneath — why reading is subscribing, why identity means no wasted repaints — is the [tilia guide](../tilia/docs.html); this guide leaned on it in every chapter. Both libraries are open source at [github.com/tiliajs](https://github.com/tiliajs), and the method they serve — software drawn before it is built — is the [épure](https://epuremethod.com) project.
 
 ::: story
-The train comes out of the third tunnel and Alice's phone syncs three reviews without telling her. In Madrid, Nora's copy of the deck quietly gains them. A tunnel and a country turn out to be the same problem at different lengths — and Alice never once thought about the server, which was the point all along.
+The train home. Tunnels again — Alice doesn't look up. Somewhere under her thumbs a queue is holding her words like sap through winter, and she has no idea, and that is the highest compliment an architecture ever gets.
 :::
