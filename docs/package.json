@@ -7,7 +7,8 @@
   },
   "scripts": {
     "build": "node src/build.mjs",
-    "dev": "node src/dev.mjs",
+    "build:dev": "node src/dev.mjs",
+    "dev": "pnpm build:dev & live-server dist --watch=../content,../assets --host=127.0.0.1 --port=4175 --no-browser --wait=500",
     "check": "node src/build.mjs"
   },
   "dependencies": {
