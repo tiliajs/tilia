@@ -25,27 +25,29 @@ type op<'a> =
 /**
  * Context for an optimistic operation that was reverted.
  *
- * Create variants carry `edited`; update variants carry `base, edited`;
- * remove variants carry `base`. Failed variants end with `message`.
+ * `edited` is the latest local edit, `base` the value it started from
+ * (or the removed value). Failed variants carry the remote's `message`.
  * The current remote value is already in memory.
  */
+@tag("rejection")
 type rejection<'a> =
-  | CreateConflict('a)
-  | CreateFailed('a, string)
-  | UpdateConflict('a, 'a)
-  | UpdateFailed('a, 'a, string)
-  | RemoveConflict('a)
-  | RemoveFailed('a, string)
+  | @as("createConflict") CreateConflict({edited: 'a})
+  | @as("createFailed") CreateFailed({edited: 'a, message: string})
+  | @as("updateConflict") UpdateConflict({base: 'a, edited: 'a})
+  | @as("updateFailed") UpdateFailed({base: 'a, edited: 'a, message: string})
+  | @as("removeConflict") RemoveConflict({base: 'a})
+  | @as("removeFailed") RemoveFailed({base: 'a, message: string})
 
 /**
  * Local context presented when a remote value arrives. `Clean` carries the
- * current value; the other variants use the same tuple order as `rejection`.
+ * current value; the other variants name their payloads like `rejection`.
  */
+@tag("change")
 type change<'a> =
-  | Clean('a)
-  | Created('a)
-  | Updated('a, 'a)
-  | Removed('a)
+  | @as("clean") Clean({value: 'a})
+  | @as("created") Created({edited: 'a})
+  | @as("updated") Updated({base: 'a, edited: 'a})
+  | @as("removed") Removed({base: 'a})
 
 module Channel: {
   /**

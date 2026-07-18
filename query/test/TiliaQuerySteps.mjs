@@ -126,23 +126,24 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("status should have {number} pending", count => Vitest.expect(cards.contents.status.pending).toBe(count | 0));
   step("status should have {number} rejected", count => Vitest.expect(cards.contents.status.rejected.length).toBe(count | 0));
   let rejectionId = rejection => {
-    switch (rejection.TAG) {
-      case "UpdateConflict" :
-      case "UpdateFailed" :
-        return rejection._1.id;
-      case "CreateConflict" :
-      case "CreateFailed" :
-      case "RemoveConflict" :
-      case "RemoveFailed" :
-        return rejection._0.id;
+    switch (rejection.rejection) {
+      case "createConflict" :
+      case "createFailed" :
+        return rejection.edited.id;
+      case "updateConflict" :
+      case "updateFailed" :
+        return rejection.edited.id;
+      case "removeConflict" :
+      case "removeFailed" :
+        return rejection.base.id;
     }
   };
   let findRejection = id => Stdlib_Option.getOrThrow(cards.contents.status.rejected.find(rejection => rejectionId(rejection) === id), `no rejection for "` + id + `"`);
   step("status should have rejection", table => {
     let actual = cards.contents.status.rejected.map(rejection => {
-      switch (rejection.TAG) {
-        case "CreateConflict" :
-          let edited = rejection._0;
+      switch (rejection.rejection) {
+        case "createConflict" :
+          let edited = rejection.edited;
           return {
             kind: "create conflict",
             id: edited.id,
@@ -150,35 +151,35 @@ VitestBdd.Given("an {string} training app", (param, status) => {
             edited: edited.seen,
             message: ""
           };
-        case "CreateFailed" :
-          let edited$1 = rejection._0;
+        case "createFailed" :
+          let edited$1 = rejection.edited;
           return {
             kind: "create failed",
             id: edited$1.id,
             base: "",
             edited: edited$1.seen,
-            message: rejection._1
+            message: rejection.message
           };
-        case "UpdateConflict" :
-          let edited$2 = rejection._1;
+        case "updateConflict" :
+          let edited$2 = rejection.edited;
           return {
             kind: "update conflict",
             id: edited$2.id,
-            base: rejection._0.seen,
+            base: rejection.base.seen,
             edited: edited$2.seen,
             message: ""
           };
-        case "UpdateFailed" :
-          let edited$3 = rejection._1;
+        case "updateFailed" :
+          let edited$3 = rejection.edited;
           return {
             kind: "update failed",
             id: edited$3.id,
-            base: rejection._0.seen,
+            base: rejection.base.seen,
             edited: edited$3.seen,
-            message: rejection._2
+            message: rejection.message
           };
-        case "RemoveConflict" :
-          let base = rejection._0;
+        case "removeConflict" :
+          let base = rejection.base;
           return {
             kind: "remove conflict",
             id: base.id,
@@ -186,14 +187,14 @@ VitestBdd.Given("an {string} training app", (param, status) => {
             edited: "",
             message: ""
           };
-        case "RemoveFailed" :
-          let base$1 = rejection._0;
+        case "removeFailed" :
+          let base$1 = rejection.base;
           return {
             kind: "remove failed",
             id: base$1.id,
             base: base$1.seen,
             edited: "",
-            message: rejection._1
+            message: rejection.message
           };
       }
     });
@@ -208,19 +209,19 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("merge should have received", table => {
     let actual = merge.calls.map(call => {
-      let card = call.change;
-      switch (card.TAG) {
-        case "Clean" :
-          let card$1 = card._0;
+      let match = call.change;
+      switch (match.change) {
+        case "clean" :
+          let card = match.value;
           return {
             context: "clean",
-            id: card$1.id,
-            base: card$1.seen,
+            id: card.id,
+            base: card.seen,
             edited: "",
             remote: call.remote.seen
           };
-        case "Created" :
-          let edited = card._0;
+        case "created" :
+          let edited = match.edited;
           return {
             context: "created",
             id: edited.id,
@@ -228,17 +229,17 @@ VitestBdd.Given("an {string} training app", (param, status) => {
             edited: edited.seen,
             remote: call.remote.seen
           };
-        case "Updated" :
-          let edited$1 = card._1;
+        case "updated" :
+          let edited$1 = match.edited;
           return {
             context: "updated",
             id: edited$1.id,
-            base: card._0.seen,
+            base: match.base.seen,
             edited: edited$1.seen,
             remote: call.remote.seen
           };
-        case "Removed" :
-          let base = card._0;
+        case "removed" :
+          let base = match.base;
           return {
             context: "removed",
             id: base.id,

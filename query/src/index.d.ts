@@ -29,26 +29,28 @@ export type Op<T> = { op: "upsert"; value: T } | { op: "remove"; id: string };
 /**
  * Local context presented when a remote value arrives.
  *
- * `Updated` carries the original base and latest local edit. This is the
- * three-way merge input together with the remote value.
+ * `edited` is the latest local edit, `base` the value it started from (or
+ * the removed value). `updated` carries both: together with the remote
+ * value this is the three-way merge input.
  */
 export type Change<T> =
-  | { TAG: "Clean"; _0: T }
-  | { TAG: "Created"; _0: T }
-  | { TAG: "Updated"; _0: T; _1: T }
-  | { TAG: "Removed"; _0: T };
+  | { change: "clean"; value: T }
+  | { change: "created"; edited: T }
+  | { change: "updated"; base: T; edited: T }
+  | { change: "removed"; base: T };
 
 /**
  * Context for an optimistic operation reverted by a conflict or definitive
- * failure. At most one rejection is retained per value id.
+ * failure. Payloads are named like `Change`; failed variants carry the
+ * remote's `message`. At most one rejection is retained per value id.
  */
 export type Rejection<T> =
-  | { TAG: "CreateConflict"; _0: T }
-  | { TAG: "CreateFailed"; _0: T; _1: string }
-  | { TAG: "UpdateConflict"; _0: T; _1: T }
-  | { TAG: "UpdateFailed"; _0: T; _1: T; _2: string }
-  | { TAG: "RemoveConflict"; _0: T }
-  | { TAG: "RemoveFailed"; _0: T; _1: string };
+  | { rejection: "createConflict"; edited: T }
+  | { rejection: "createFailed"; edited: T; message: string }
+  | { rejection: "updateConflict"; base: T; edited: T }
+  | { rejection: "updateFailed"; base: T; edited: T; message: string }
+  | { rejection: "removeConflict"; base: T }
+  | { rejection: "removeFailed"; base: T; message: string };
 
 /**
  * Read channel, handed to `remote.fetch`.

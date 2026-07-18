@@ -21,7 +21,7 @@ let parseOp = (function parseOp(value) {
       typeof r.seq === "number" &&
       r.op &&
       (r.op.op === "upsert" || r.op.op === "remove") &&
-      (r.change || r.op.op === "remove")
+      (r.change ? typeof r.change.change === "string" : r.op.op === "remove")
     ) {
       return {seq: r.seq, op: r.op, change: r.change, flight: false};
     }
@@ -276,12 +276,16 @@ function make(param) {
     }
   };
   let rejectionId = rejection => {
-    switch (rejection.TAG) {
-      case "UpdateConflict" :
-      case "UpdateFailed" :
-        return id(rejection._1);
-      default:
-        return id(rejection._0);
+    switch (rejection.rejection) {
+      case "createConflict" :
+      case "createFailed" :
+        return id(rejection.edited);
+      case "updateConflict" :
+      case "updateFailed" :
+        return id(rejection.edited);
+      case "removeConflict" :
+      case "removeFailed" :
+        return id(rejection.base);
     }
   };
   let addRejection = rejection => {
@@ -406,57 +410,57 @@ function make(param) {
     return joined;
   };
   let conflict = change => {
-    switch (change.TAG) {
-      case "Clean" :
+    switch (change.change) {
+      case "clean" :
         throw {
           RE_EXN_ID: "Invalid_argument",
           _1: "clean values cannot conflict",
           Error: new Error()
         };
-      case "Created" :
+      case "created" :
         return {
-          TAG: "CreateConflict",
-          _0: change._0
+          rejection: "createConflict",
+          edited: change.edited
         };
-      case "Updated" :
+      case "updated" :
         return {
-          TAG: "UpdateConflict",
-          _0: change._0,
-          _1: change._1
+          rejection: "updateConflict",
+          base: change.base,
+          edited: change.edited
         };
-      case "Removed" :
+      case "removed" :
         return {
-          TAG: "RemoveConflict",
-          _0: change._0
+          rejection: "removeConflict",
+          base: change.base
         };
     }
   };
   let failed = (change, message) => {
-    switch (change.TAG) {
-      case "Clean" :
+    switch (change.change) {
+      case "clean" :
         throw {
           RE_EXN_ID: "Invalid_argument",
           _1: "clean values cannot fail",
           Error: new Error()
         };
-      case "Created" :
+      case "created" :
         return {
-          TAG: "CreateFailed",
-          _0: change._0,
-          _1: message
+          rejection: "createFailed",
+          edited: change.edited,
+          message: message
         };
-      case "Updated" :
+      case "updated" :
         return {
-          TAG: "UpdateFailed",
-          _0: change._0,
-          _1: change._1,
-          _2: message
+          rejection: "updateFailed",
+          base: change.base,
+          edited: change.edited,
+          message: message
         };
-      case "Removed" :
+      case "removed" :
         return {
-          TAG: "RemoveFailed",
-          _0: change._0,
-          _1: message
+          rejection: "removeFailed",
+          base: change.base,
+          message: message
         };
     }
   };
@@ -480,45 +484,45 @@ function make(param) {
       if (change !== undefined) {
         if (merged(change, remoteValue)) {
           let match;
-          switch (change.TAG) {
-            case "Clean" :
-              let value = change._0;
+          switch (change.change) {
+            case "clean" :
+              let value = change.value;
               match = [
                 {
-                  TAG: "Clean",
-                  _0: value
+                  change: "clean",
+                  value: value
                 },
                 value
               ];
               break;
-            case "Created" :
-              let edited = change._0;
+            case "created" :
+              let edited = change.edited;
               match = [
                 {
-                  TAG: "Updated",
-                  _0: remoteValue,
-                  _1: edited
+                  change: "updated",
+                  base: remoteValue,
+                  edited: edited
                 },
                 edited
               ];
               break;
-            case "Updated" :
-              let edited$1 = change._1;
+            case "updated" :
+              let edited$1 = change.edited;
               match = [
                 {
-                  TAG: "Updated",
-                  _0: remoteValue,
-                  _1: edited$1
+                  change: "updated",
+                  base: remoteValue,
+                  edited: edited$1
                 },
                 edited$1
               ];
               break;
-            case "Removed" :
-              let base = change._0;
+            case "removed" :
+              let base = change.base;
               match = [
                 {
-                  TAG: "Removed",
-                  _0: base
+                  change: "removed",
+                  base: base
                 },
                 base
               ];
@@ -526,10 +530,10 @@ function make(param) {
           }
           let next = match[0];
           entry.change = next;
-          if (next.TAG === "Updated") {
+          if (next.change === "updated") {
             entry.op = {
               op: "upsert",
-              value: next._1
+              value: next.edited
             };
           }
           persistOp(entry);
@@ -548,8 +552,8 @@ function make(param) {
     }
     let current$1 = Primitive_option.valFromOption(current);
     if (merged({
-        TAG: "Clean",
-        _0: current$1
+        change: "clean",
+        value: current$1
       }, remoteValue)) {
       return current$1;
     } else {
@@ -661,15 +665,15 @@ function make(param) {
                 let change = entry.change;
                 confirmed(entry);
                 if (change !== undefined) {
-                  switch (change.TAG) {
-                    case "Clean" :
+                  switch (change.change) {
+                    case "clean" :
                       break;
-                    case "Created" :
-                      forget(id(change._0));
+                    case "created" :
+                      forget(id(change.edited));
                       break;
-                    case "Updated" :
-                    case "Removed" :
-                      place(change._0);
+                    case "updated" :
+                    case "removed" :
+                      place(change.base);
                       break;
                   }
                 }
@@ -719,38 +723,44 @@ function make(param) {
     if (match !== undefined) {
       let match$1 = match.change;
       if (match$1 !== undefined) {
-        switch (match$1.TAG) {
-          case "Created" :
+        switch (match$1.change) {
+          case "clean" :
             change = {
-              TAG: "Created",
-              _0: value
+              change: "updated",
+              base: match$1.value,
+              edited: value
             };
             break;
-          case "Clean" :
-          case "Updated" :
-          case "Removed" :
+          case "created" :
             change = {
-              TAG: "Updated",
-              _0: match$1._0,
-              _1: value
+              change: "created",
+              edited: value
+            };
+            break;
+          case "updated" :
+          case "removed" :
+            change = {
+              change: "updated",
+              base: match$1.base,
+              edited: value
             };
             break;
         }
       } else {
         change = {
-          TAG: "Created",
-          _0: value
+          change: "created",
+          edited: value
         };
       }
     } else {
       let base = itemById[vid];
       change = base !== undefined ? ({
-          TAG: "Updated",
-          _0: Primitive_option.valFromOption(base),
-          _1: value
+          change: "updated",
+          base: Primitive_option.valFromOption(base),
+          edited: value
         }) : ({
-          TAG: "Created",
-          _0: value
+          change: "created",
+          edited: value
         });
     }
     itemById[vid] = value;
@@ -789,9 +799,13 @@ function make(param) {
     let entry = pending(rid);
     if (entry !== undefined) {
       let match = entry.change;
+      let base;
       if (match !== undefined) {
-        switch (match.TAG) {
-          case "Created" :
+        switch (match.change) {
+          case "clean" :
+            base = match.value;
+            break;
+          case "created" :
             if (entry.flight) {
               forget(rid);
               return enqueue(undefined, {
@@ -802,30 +816,31 @@ function make(param) {
               confirmed(entry);
               return forget(rid);
             }
-          case "Clean" :
-          case "Updated" :
+          case "updated" :
+            base = match.base;
             break;
-          case "Removed" :
+          case "removed" :
             return;
         }
+      } else {
         forget(rid);
-        return enqueue({
-          TAG: "Removed",
-          _0: match._0
-        }, {
+        return enqueue(undefined, {
           op: "remove",
           id: rid
         });
       }
       forget(rid);
-      return enqueue(undefined, {
+      return enqueue({
+        change: "removed",
+        base: base
+      }, {
         op: "remove",
         id: rid
       });
     }
     let change = Stdlib_Option.map(itemById[rid], base => ({
-      TAG: "Removed",
-      _0: base
+      change: "removed",
+      base: base
     }));
     forget(rid);
     enqueue(change, {
@@ -875,22 +890,22 @@ function make(param) {
         let change = entry.change;
         confirmed(entry);
         if (change !== undefined) {
-          switch (change.TAG) {
-            case "Created" :
+          switch (change.change) {
+            case "created" :
               addRejection({
-                TAG: "CreateConflict",
-                _0: change._0
+                rejection: "createConflict",
+                edited: change.edited
               });
               break;
-            case "Updated" :
+            case "updated" :
               addRejection({
-                TAG: "UpdateConflict",
-                _0: change._0,
-                _1: change._1
+                rejection: "updateConflict",
+                base: change.base,
+                edited: change.edited
               });
               break;
-            case "Clean" :
-            case "Removed" :
+            case "clean" :
+            case "removed" :
               break;
           }
         }

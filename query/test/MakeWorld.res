@@ -336,16 +336,17 @@ module Merge = {
 
   let run = (merge: t, ~change, ~remote) => {
     let local = switch change {
-    | TiliaQuery.Clean(card)
-    | TiliaQuery.Created(card)
-    | TiliaQuery.Updated(_, card)
-    | TiliaQuery.Removed(card) => card
+    | TiliaQuery.Clean({value: card})
+    | TiliaQuery.Created({edited: card})
+    | TiliaQuery.Updated({edited: card})
+    | TiliaQuery.Removed({base: card}) => card
     }
     let snapshot = switch change {
-    | TiliaQuery.Clean(card) => TiliaQuery.Clean(clone(card))
-    | TiliaQuery.Created(edited) => TiliaQuery.Created(clone(edited))
-    | TiliaQuery.Updated(base, edited) => TiliaQuery.Updated(clone(base), clone(edited))
-    | TiliaQuery.Removed(base) => TiliaQuery.Removed(clone(base))
+    | TiliaQuery.Clean({value}) => TiliaQuery.Clean({value: clone(value)})
+    | TiliaQuery.Created({edited}) => TiliaQuery.Created({edited: clone(edited)})
+    | TiliaQuery.Updated({base, edited}) =>
+      TiliaQuery.Updated({base: clone(base), edited: clone(edited)})
+    | TiliaQuery.Removed({base}) => TiliaQuery.Removed({base: clone(base)})
     }
     merge.calls->Array.push({change: snapshot, remote: clone(remote)})->ignore
     if merge.accepted {
@@ -355,7 +356,7 @@ module Merge = {
       switch change {
       | TiliaQuery.Clean(_) => local.seen = remote.seen
       | TiliaQuery.Created(_)
-      | TiliaQuery.Updated(_, _)
+      | TiliaQuery.Updated(_)
       | TiliaQuery.Removed(_) => ()
       }
     }

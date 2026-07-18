@@ -13,19 +13,21 @@ type op<'a> =
   | @as("upsert") Upsert({value: 'a})
   | @as("remove") Remove({id: string})
 
+@tag("rejection")
 type rejection<'a> =
-  | CreateConflict('a)
-  | CreateFailed('a, string)
-  | UpdateConflict('a, 'a)
-  | UpdateFailed('a, 'a, string)
-  | RemoveConflict('a)
-  | RemoveFailed('a, string)
+  | @as("createConflict") CreateConflict({edited: 'a})
+  | @as("createFailed") CreateFailed({edited: 'a, message: string})
+  | @as("updateConflict") UpdateConflict({base: 'a, edited: 'a})
+  | @as("updateFailed") UpdateFailed({base: 'a, edited: 'a, message: string})
+  | @as("removeConflict") RemoveConflict({base: 'a})
+  | @as("removeFailed") RemoveFailed({base: 'a, message: string})
 
+@tag("change")
 type change<'a> =
-  | Clean('a)
-  | Created('a)
-  | Updated('a, 'a)
-  | Removed('a)
+  | @as("clean") Clean({value: 'a})
+  | @as("created") Created({edited: 'a})
+  | @as("updated") Updated({base: 'a, edited: 'a})
+  | @as("removed") Removed({base: 'a})
 module Channel = {
   type read<'a> = {
     set: array<'a> => unit,
@@ -134,7 +136,7 @@ function parseOp(value) {
       typeof r.seq === "number" &&
       r.op &&
       (r.op.op === "upsert" || r.op.op === "remove") &&
-      (r.change || r.op.op === "remove")
+      (r.change ? typeof r.change.change === "string" : r.op.op === "remove")
     ) {
       return {seq: r.seq, op: r.op, change: r.change, flight: false};
     }
@@ -413,12 +415,12 @@ let make = (
 
   let rejectionId = rejection =>
     switch rejection {
-    | CreateConflict(record)
-    | CreateFailed(record, _)
-    | UpdateConflict(_, record)
-    | UpdateFailed(_, record, _)
-    | RemoveConflict(record)
-    | RemoveFailed(record, _) =>
+    | CreateConflict({edited: record})
+    | CreateFailed({edited: record})
+    | UpdateConflict({edited: record})
+    | UpdateFailed({edited: record})
+    | RemoveConflict({base: record})
+    | RemoveFailed({base: record}) =>
       id(record)
     }
 
@@ -536,17 +538,17 @@ let make = (
 
   let conflict = change =>
     switch change {
-    | Created(edited) => CreateConflict(edited)
-    | Updated(base, edited) => UpdateConflict(base, edited)
-    | Removed(base) => RemoveConflict(base)
+    | Created({edited}) => CreateConflict({edited: edited})
+    | Updated({base, edited}) => UpdateConflict({base, edited})
+    | Removed({base}) => RemoveConflict({base: base})
     | Clean(_) => throw(Invalid_argument("clean values cannot conflict"))
     }
 
   let failed = (change, message) =>
     switch change {
-    | Created(edited) => CreateFailed(edited, message)
-    | Updated(base, edited) => UpdateFailed(base, edited, message)
-    | Removed(base) => RemoveFailed(base, message)
+    | Created({edited}) => CreateFailed({edited, message})
+    | Updated({base, edited}) => UpdateFailed({base, edited, message})
+    | Removed({base}) => RemoveFailed({base, message})
     | Clean(_) => throw(Invalid_argument("clean values cannot fail"))
     }
 
@@ -570,14 +572,14 @@ let make = (
       | Some(change) =>
         if merged(change, remoteValue) {
           let (next, value) = switch change {
-          | Created(edited)
-          | Updated(_, edited) => (Updated(remoteValue, edited), edited)
-          | Removed(base) => (Removed(base), base)
-          | Clean(value) => (Clean(value), value)
+          | Created({edited})
+          | Updated({edited}) => (Updated({base: remoteValue, edited}), edited)
+          | Removed({base}) => (Removed({base: base}), base)
+          | Clean({value}) => (Clean({value: value}), value)
           }
           entry.change = Some(next)
           switch next {
-          | Updated(_, edited) => entry.op = Upsert({value: edited})
+          | Updated({edited}) => entry.op = Upsert({value: edited})
           | _ => ()
           }
           persistOp(entry)
@@ -590,7 +592,7 @@ let make = (
       }
     | None =>
       switch itemById->Dict.get(rid) {
-      | Some(current) if merged(Clean(current), remoteValue) => current
+      | Some(current) if merged(Clean({value: current}), remoteValue) => current
       | _ => remoteValue
       }
     }
@@ -695,9 +697,9 @@ let make = (
                       let change = entry.change
                       confirmed(entry)
                       switch change {
-                      | Some(Created(edited)) => forget(id(edited))
-                      | Some(Updated(base, _))
-                      | Some(Removed(base)) =>
+                      | Some(Created({edited})) => forget(id(edited))
+                      | Some(Updated({base}))
+                      | Some(Removed({base})) =>
                         place(base)->ignore
                       | Some(Clean(_))
                       | None => ()
@@ -740,16 +742,16 @@ let make = (
   let upsert = value => {
     let vid = id(value)
     let change = switch pending(vid) {
-    | Some({change: Some(Created(_))}) => Created(value)
-    | Some({change: Some(Updated(base, _))})
-    | Some({change: Some(Removed(base))}) =>
-      Updated(base, value)
-    | Some({change: Some(Clean(base))}) => Updated(base, value)
-    | Some({change: None}) => Created(value)
+    | Some({change: Some(Created(_))}) => Created({edited: value})
+    | Some({change: Some(Updated({base}))})
+    | Some({change: Some(Removed({base}))}) =>
+      Updated({base, edited: value})
+    | Some({change: Some(Clean({value: base}))}) => Updated({base, edited: value})
+    | Some({change: None}) => Created({edited: value})
     | None =>
       switch itemById->Dict.get(vid) {
-      | Some(base) => Updated(base, value)
-      | None => Created(value)
+      | Some(base) => Updated({base, edited: value})
+      | None => Created({edited: value})
       }
     }
     itemById->Dict.set(vid, value)
@@ -786,14 +788,14 @@ let make = (
       | None =>
         forget(rid)
         enqueue(None, Remove({id: rid}))
-      | Some(Updated(base, _))
-      | Some(Clean(base)) =>
+      | Some(Updated({base}))
+      | Some(Clean({value: base})) =>
         forget(rid)
-        enqueue(Some(Removed(base)), Remove({id: rid}))
+        enqueue(Some(Removed({base: base})), Remove({id: rid}))
       | Some(Removed(_)) => ()
       }
     | None =>
-      let change = itemById->Dict.get(rid)->Option.map(base => Removed(base))
+      let change = itemById->Dict.get(rid)->Option.map(base => Removed({base: base}))
       forget(rid)
       enqueue(change, Remove({id: rid}))
     }
@@ -838,8 +840,8 @@ let make = (
           let change = entry.change
           confirmed(entry)
           switch change {
-          | Some(Created(edited)) => addRejection(CreateConflict(edited))
-          | Some(Updated(base, edited)) => addRejection(UpdateConflict(base, edited))
+          | Some(Created({edited})) => addRejection(CreateConflict({edited: edited}))
+          | Some(Updated({base, edited})) => addRejection(UpdateConflict({base, edited}))
           | Some(Removed(_))
           | Some(Clean(_))
           | None => ()

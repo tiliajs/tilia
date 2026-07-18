@@ -413,7 +413,7 @@ Feature: Language training app
     And I upsert
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    And 31 days pass
+    And 50 days pass
     And tick is called
     Then status should have 1 pending
     And local should have

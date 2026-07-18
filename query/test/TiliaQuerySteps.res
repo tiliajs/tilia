@@ -170,14 +170,14 @@ given("an {string} training app", ({step}, status: string) => {
 
   let rejectionId = (rejection: TiliaQuery.rejection<card>) =>
     switch rejection {
-    | TiliaQuery.CreateConflict(edited)
-    | TiliaQuery.CreateFailed(edited, _) =>
+    | TiliaQuery.CreateConflict({edited})
+    | TiliaQuery.CreateFailed({edited}) =>
       edited.id
-    | TiliaQuery.UpdateConflict(_, edited)
-    | TiliaQuery.UpdateFailed(_, edited, _) =>
+    | TiliaQuery.UpdateConflict({edited})
+    | TiliaQuery.UpdateFailed({edited}) =>
       edited.id
-    | TiliaQuery.RemoveConflict(base)
-    | TiliaQuery.RemoveFailed(base, _) =>
+    | TiliaQuery.RemoveConflict({base})
+    | TiliaQuery.RemoveFailed({base}) =>
       base.id
     }
 
@@ -190,42 +190,42 @@ given("an {string} training app", ({step}, status: string) => {
     let actual: array<rejectionRecord> = cards.contents.status.rejected->Array.map(
       rejection =>
         switch rejection {
-        | TiliaQuery.CreateConflict(edited) => {
+        | TiliaQuery.CreateConflict({edited}) => {
             kind: "create conflict",
             id: edited.id,
             base: "",
             edited: edited.seen,
             message: "",
           }
-        | TiliaQuery.CreateFailed(edited, message) => {
+        | TiliaQuery.CreateFailed({edited, message}) => {
             kind: "create failed",
             id: edited.id,
             base: "",
             edited: edited.seen,
             message,
           }
-        | TiliaQuery.UpdateConflict(base, edited) => {
+        | TiliaQuery.UpdateConflict({base, edited}) => {
             kind: "update conflict",
             id: edited.id,
             base: base.seen,
             edited: edited.seen,
             message: "",
           }
-        | TiliaQuery.UpdateFailed(base, edited, message) => {
+        | TiliaQuery.UpdateFailed({base, edited, message}) => {
             kind: "update failed",
             id: edited.id,
             base: base.seen,
             edited: edited.seen,
             message,
           }
-        | TiliaQuery.RemoveConflict(base) => {
+        | TiliaQuery.RemoveConflict({base}) => {
             kind: "remove conflict",
             id: base.id,
             base: base.seen,
             edited: "",
             message: "",
           }
-        | TiliaQuery.RemoveFailed(base, message) => {
+        | TiliaQuery.RemoveFailed({base, message}) => {
             kind: "remove failed",
             id: base.id,
             base: base.seen,
@@ -252,28 +252,28 @@ given("an {string} training app", ({step}, status: string) => {
     let actual: array<mergeRecord> = merge.calls->Array.map(
       call =>
         switch call.change {
-        | TiliaQuery.Clean(card) => {
+        | TiliaQuery.Clean({value: card}) => {
             context: "clean",
             id: card.id,
             base: card.seen,
             edited: "",
             remote: call.remote.seen,
           }
-        | TiliaQuery.Created(edited) => {
+        | TiliaQuery.Created({edited}) => {
             context: "created",
             id: edited.id,
             base: "",
             edited: edited.seen,
             remote: call.remote.seen,
           }
-        | TiliaQuery.Updated(base, edited) => {
+        | TiliaQuery.Updated({base, edited}) => {
             context: "updated",
             id: edited.id,
             base: base.seen,
             edited: edited.seen,
             remote: call.remote.seen,
           }
-        | TiliaQuery.Removed(base) => {
+        | TiliaQuery.Removed({base}) => {
             context: "removed",
             id: base.id,
             base: base.seen,

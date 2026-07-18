@@ -273,32 +273,45 @@ function make$6() {
 
 function run(merge, change, remote) {
   let local;
-  local = change.TAG === "Updated" ? change._1 : change._0;
+  switch (change.change) {
+    case "clean" :
+      local = change.value;
+      break;
+    case "created" :
+      local = change.edited;
+      break;
+    case "updated" :
+      local = change.edited;
+      break;
+    case "removed" :
+      local = change.base;
+      break;
+  }
   let snapshot;
-  switch (change.TAG) {
-    case "Clean" :
+  switch (change.change) {
+    case "clean" :
       snapshot = {
-        TAG: "Clean",
-        _0: clone(change._0)
+        change: "clean",
+        value: clone(change.value)
       };
       break;
-    case "Created" :
+    case "created" :
       snapshot = {
-        TAG: "Created",
-        _0: clone(change._0)
+        change: "created",
+        edited: clone(change.edited)
       };
       break;
-    case "Updated" :
+    case "updated" :
       snapshot = {
-        TAG: "Updated",
-        _0: clone(change._0),
-        _1: clone(change._1)
+        change: "updated",
+        base: clone(change.base),
+        edited: clone(change.edited)
       };
       break;
-    case "Removed" :
+    case "removed" :
       snapshot = {
-        TAG: "Removed",
-        _0: clone(change._0)
+        change: "removed",
+        base: clone(change.base)
       };
       break;
   }
@@ -310,7 +323,7 @@ function run(merge, change, remote) {
     local.deck = remote.deck;
     local.english = remote.english;
     local.translation = remote.translation;
-    if (change.TAG === "Clean") {
+    if (change.change === "clean") {
       local.seen = remote.seen;
     }
   }

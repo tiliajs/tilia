@@ -42,3 +42,8 @@
       source teardown, run once when the fetch closes (end, superseded,
       evicted, disposed). Late callbacks from a closed fetch are suppressed
       by the engine.
+
+
+# BEFORE RELEASE !!! IMPORTANT
+
+- [ ] Fix guide 07 "when the world returns" with the new type for TiliaQuery's `change`.
