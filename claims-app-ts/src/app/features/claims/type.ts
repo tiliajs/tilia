@@ -4,7 +4,7 @@ import type { Claim, ClaimField, Status } from "../../claim";
 export type Tab = Status | "mine" | "all";
 
 export type ConflictResolution = {
-  rejection: Extract<Rejection<Claim>, { TAG: "UpdateConflict" }>;
+  rejection: Extract<Rejection<Claim>, { rejection: "updateConflict" }>;
   base: Claim;
   mine: Claim;
   theirs: Claim;

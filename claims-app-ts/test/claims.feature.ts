@@ -328,9 +328,9 @@ Given(
     Then("{string} has an update conflict for claim {string}", (name: string, id: string) => {
       const rejected = pane(name).app.claims.rejected;
       expect(rejected).toHaveLength(1);
-      expect(rejected[0].TAG).toBe("UpdateConflict");
-      if (rejected[0].TAG === "UpdateConflict") {
-        expect(rejected[0]._1.id).toBe(id);
+      expect(rejected[0].rejection).toBe("updateConflict");
+      if (rejected[0].rejection === "updateConflict") {
+        expect(rejected[0].edited.id).toBe(id);
       }
     });
 
@@ -338,16 +338,14 @@ Given(
       const rejected = pane(name).app.claims.rejected;
       expect(rejected.length).toBe(1);
       const first: Rejection<Claim> = rejected[0];
-      switch (first.TAG) {
-        case "CreateFailed":
-        case "RemoveFailed":
-          expect(first._1).toBe(message);
-          break;
-        case "UpdateFailed":
-          expect(first._2).toBe(message);
+      switch (first.rejection) {
+        case "createFailed":
+        case "removeFailed":
+        case "updateFailed":
+          expect(first.message).toBe(message);
           break;
         default:
-          throw new Error(`Expected a failed write, got ${first.TAG}`);
+          throw new Error(`Expected a failed write, got ${first.rejection}`);
       }
     });
 

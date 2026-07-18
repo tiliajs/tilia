@@ -53,9 +53,9 @@ export const dismiss = (repo: Repo) => (rejection: Rejection<Claim>) => {
 };
 
 export const resolve = (self: ClaimsFeature) => (rejection: Rejection<Claim>, theirs: Claim) => {
-  if (rejection.TAG !== "UpdateConflict") return;
-  const base = clone(rejection._0);
-  const mine = clone(rejection._1);
+  if (rejection.rejection !== "updateConflict") return;
+  const base = clone(rejection.base);
+  const mine = clone(rejection.edited);
   const current = clone(theirs);
   const draft = clone(theirs);
   const changed = fields.filter((field) => mine[field] !== base[field]);

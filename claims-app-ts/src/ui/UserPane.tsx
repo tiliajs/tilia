@@ -6,33 +6,33 @@ import { fields, statuses, type Claim, type ClaimField, type Status } from "../a
 import type { ClaimsFeature, Tab } from "../app/features/claims/type";
 import type { Pane } from "../world";
 import { Button, Field, inputStyle, money, StatusBadge, Switch, tones } from "./kit";
+import { hover, leave, toggle, type Preview } from "./preview";
 
 const tabs: Tab[] = ["mine", "all", ...statuses];
 type Canopy = { live: string[]; idle: string[] };
 
 const rejectionMessage = (rejection: Rejection<Claim>) => {
-  switch (rejection.TAG) {
-    case "CreateConflict":
+  switch (rejection.rejection) {
+    case "createConflict":
       return "Create conflicted with an office claim. The office value was restored.";
-    case "UpdateConflict":
+    case "updateConflict":
       return "Conflict: same field edit.";
-    case "RemoveConflict":
+    case "removeConflict":
       return "Remove conflicted with an office change. The office value was restored.";
-    case "CreateFailed":
-    case "RemoveFailed":
-      return `Sync refused: ${rejection._1}. The office value was restored.`;
-    case "UpdateFailed":
-      return `Sync refused: ${rejection._2}. The office value was restored.`;
+    case "createFailed":
+    case "removeFailed":
+    case "updateFailed":
+      return `Sync refused: ${rejection.message}. The office value was restored.`;
   }
 };
 
 const rejectionId = (rejection: Rejection<Claim>) => {
-  switch (rejection.TAG) {
-    case "UpdateConflict":
-    case "UpdateFailed":
-      return rejection._1.id;
+  switch (rejection.rejection) {
+    case "removeConflict":
+    case "removeFailed":
+      return rejection.base.id;
     default:
-      return rejection._0.id;
+      return rejection.edited.id;
   }
 };
 
@@ -40,7 +40,7 @@ export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
   const tone = tones[pane.user.id];
   const claims = pane.app.claims;
   const online = pane.network.online.value;
-  const previewOutbox = () => {
+  const previewOutbox = (): Preview => {
     const values = [...(pane.local.entries.get("outbox")?.values() ?? [])].map(
       (value) =>
         JSON.parse(value) as {
@@ -55,8 +55,11 @@ export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
           : `#${seq} upsert ${op.value.id} · ${op.value.status}${op.value.adjuster ? ` · ${op.value.adjuster}` : ""}`
       )
       .join("\n");
-    pane.preview = { title: `Outbox · ${claims.pending} pending`, value: values, text };
+    return { key: "outbox", title: `Outbox · ${claims.pending} pending`, value: values, text };
   };
+  useEffect(() => {
+    if (claims.pending === 0 && pane.preview?.key === "outbox") pane.preview = undefined;
+  }, [claims.pending, pane]);
   if (pane.reloading) {
     return (
       <section
@@ -88,17 +91,19 @@ export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
         </div>
         <div className="ml-auto flex items-center gap-3">
           {claims.pending > 0 && (
-            <span
+            <button
+              type="button"
               className="inline-flex cursor-help items-center gap-1 rounded-md bg-warn-bg px-1.5 py-0.5 text-[11px] font-medium text-warn-fg"
-              tabIndex={0}
-              onPointerEnter={previewOutbox}
-              onPointerLeave={() => (pane.preview = undefined)}
-              onFocus={previewOutbox}
-              onBlur={() => (pane.preview = undefined)}
+              aria-pressed={pane.preview?.pinned === true && pane.preview.key === "outbox"}
+              onPointerEnter={() => (pane.preview = hover(pane.preview, previewOutbox()))}
+              onPointerLeave={() => (pane.preview = leave(pane.preview))}
+              onFocus={() => (pane.preview = hover(pane.preview, previewOutbox()))}
+              onBlur={() => (pane.preview = leave(pane.preview))}
+              onClick={() => (pane.preview = toggle(pane.preview, previewOutbox()))}
             >
               <CloudUpload size={12} strokeWidth={2.2} />
               {claims.pending} pending
-            </span>
+            </button>
           )}
           {!online && (
             <span className="inline-flex items-center gap-1 text-[12px] font-medium text-warn-fg">
@@ -119,16 +124,16 @@ export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
 
       {claims.rejected.slice(0, 1).map((rejection) => (
         <div
-          key={`${rejection.TAG}:${rejectionId(rejection)}`}
+          key={`${rejection.rejection}:${rejectionId(rejection)}`}
           className="flex items-center gap-2 border-b border-line bg-warn-bg px-4 py-2 text-[12px] text-warn-fg"
         >
           <TriangleAlert size={13} strokeWidth={2.2} />
           <span className="min-w-0 flex-1">{rejectionMessage(rejection)}</span>
-          {rejection.TAG === "UpdateConflict" ? (
+          {rejection.rejection === "updateConflict" ? (
             <Button
               kind="quiet"
               onClick={() => {
-                const theirs = pane.local.rows.get(rejection._1.id);
+                const theirs = pane.local.rows.get(rejection.edited.id);
                 if (theirs) claims.resolve(rejection, theirs);
               }}
             >
@@ -195,7 +200,7 @@ const callLabel = (label: string | undefined) => {
   return label;
 };
 
-function CallValue({ pane, title, value }: { pane: Pane; title: string; value: unknown }) {
+function CallValue({ pane, previewKey, title, value }: { pane: Pane; previewKey: string; title: string; value: unknown }) {
   if (value === undefined) {
     return (
       <span className="ml-1 inline-block align-middle font-mono text-[14px] leading-none text-faint" title="No value">
@@ -203,18 +208,21 @@ function CallValue({ pane, title, value }: { pane: Pane; title: string; value: u
       </span>
     );
   }
+  const preview = { key: previewKey, title, value };
   return (
-    <span
+    <button
+      type="button"
       className="ml-1 inline-block h-4 w-5 cursor-help rounded border border-line bg-card text-center font-mono text-[13px] leading-[13px] align-middle text-muted hover:border-faint hover:text-ink"
-      tabIndex={0}
       aria-label={`Preview ${title} value`}
-      onPointerEnter={() => (pane.preview = { title, value })}
-      onPointerLeave={() => (pane.preview = undefined)}
-      onFocus={() => (pane.preview = { title, value })}
-      onBlur={() => (pane.preview = undefined)}
+      aria-pressed={pane.preview?.pinned === true && pane.preview.key === previewKey}
+      onPointerEnter={() => (pane.preview = hover(pane.preview, preview))}
+      onPointerLeave={() => (pane.preview = leave(pane.preview))}
+      onFocus={() => (pane.preview = hover(pane.preview, preview))}
+      onBlur={() => (pane.preview = leave(pane.preview))}
+      onClick={() => (pane.preview = toggle(pane.preview, preview))}
     >
       ·
-    </span>
+    </button>
   );
 }
 
@@ -326,7 +334,7 @@ export function DebugPane({ pane }: { pane: Pane }) {
                       )}
                     </>
                   )}
-                  <CallValue pane={pane} title={title} value={call.value} />
+                  <CallValue pane={pane} previewKey={`call:${call.seq}`} title={title} value={call.value} />
                 </div>
               );
             })

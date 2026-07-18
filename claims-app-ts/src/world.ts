@@ -12,6 +12,7 @@ import { createApp, type App } from "./app/createApp";
 import type { User } from "./app/user";
 import { seed } from "./server/seed";
 import { makeServer, type Server } from "./server/server";
+import type { Preview } from "./ui/preview";
 
 export type Pane = {
   user: User;
@@ -19,7 +20,7 @@ export type Pane = {
   log: AdaptorLog;
   local: Local;
   app: App;
-  preview?: { title: string; value: unknown; text?: string };
+  preview?: Preview;
   reloading: boolean;
   reload(): Promise<void>;
   rebuild(): void;

@@ -6,20 +6,22 @@ export type Repo = {
 };
 
 const merge = (change: Change<Claim>, remote: Claim): boolean => {
-  switch (change.TAG) {
-    case "Clean":
-      if (change._0.id !== remote.id) return false;
-      Object.assign(change._0, remote);
+  switch (change.change) {
+    case "clean":
+      if (change.value.id !== remote.id) return false;
+      Object.assign(change.value, remote);
       return true;
-    case "Created":
-      if (change._0.id !== remote.id || fields.some((field) => change._0[field] !== remote[field])) {
+    case "created":
+      if (
+        change.edited.id !== remote.id ||
+        fields.some((field) => change.edited[field] !== remote[field])
+      ) {
         return false;
       }
-      change._0.version = remote.version;
+      change.edited.version = remote.version;
       return true;
-    case "Updated": {
-      const base = change._0;
-      const edited = change._1;
+    case "updated": {
+      const { base, edited } = change;
       if (base.id !== edited.id || edited.id !== remote.id) return false;
       const conflict = fields.some(
         (field) =>
@@ -32,9 +34,9 @@ const merge = (change: Change<Claim>, remote: Claim): boolean => {
       edited.version = remote.version;
       return true;
     }
-    case "Removed":
-      if (change._0.id !== remote.id) return false;
-      Object.assign(change._0, remote);
+    case "removed":
+      if (change.base.id !== remote.id) return false;
+      Object.assign(change.base, remote);
       return true;
   }
 };

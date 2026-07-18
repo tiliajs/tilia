@@ -143,14 +143,14 @@ function Time({ world }: { world: World }) {
       <time className="mr-1 font-mono text-[11px] text-muted" dateTime={new Date(now).toISOString()}>
         Fake time {timestamp.format(now)}
       </time>
-      <Button kind="quiet" title="Advance fake time by 10 seconds" onClick={() => world.advance(10 * 1000)}>
-        +10 s
+      <Button kind="quiet" title="Advance fake time by 30 seconds" onClick={() => world.advance(30 * 1000)}>
+        +30 s
       </Button>
-      <Button kind="quiet" title="Advance fake time by 10 minutes" onClick={() => world.advance(10 * 60 * 1000)}>
-        +10 m
+      <Button kind="quiet" title="Advance fake time by 5 minutes" onClick={() => world.advance(5 * 60 * 1000)}>
+        +5 m
       </Button>
-      <Button kind="quiet" title="Advance fake time by 10 days" onClick={() => world.advance(10 * 24 * 60 * 60 * 1000)}>
-        +10 d
+      <Button kind="quiet" title="Advance fake time by 30 days" onClick={() => world.advance(30 * 24 * 60 * 60 * 1000)}>
+        +30 d
       </Button>
     </div>
   );
