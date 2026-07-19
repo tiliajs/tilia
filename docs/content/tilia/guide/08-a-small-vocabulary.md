@@ -7,11 +7,11 @@ refs: [signal, derived, lift, readonly]
 
 Alice wants a streak — days in a row with every due card reviewed. It is one number, and it raises a question Claudine asks before writing anything: *who may change it?* Anyone should read it; only the review logic should bump it. The question is about ownership, and tilia answers it the way this guide answers everything — with a word.
 
-Four small words complete tilia's vocabulary: `signal`, standalone `derived`, `lift`, and `readonly`. Three are one-liners over what you already know. They earn their place not by adding power but by **naming intentions** — and knowing they are thin keeps the mental model honest: there is still only one mechanism underneath.
+Four small words round out tilia's vocabulary: `signal`, standalone `derived`, `lift`, and `readonly`. Three are one-liners over what you already know. They earn their place not by adding power but by **naming intentions** — and knowing they are thin keeps the mental model lean: there is still only one mechanism underneath.
 
 ### signal, lift: reading is public, writing is owned
 
-A [`signal`](api.html#signal) is a single changing value with its setter split off — a tilia object with one `value` field, plus the only function allowed to write it. [`lift`](api.html#lift) inserts the signal's current value into another object as a computed. Together they answer Claudine's question in two lines:
+You have already seen [`signal`](api.html#signal) and [`lift`](api.html#lift) work together to carry today's date into the deck. A signal is a mutable record with one `value` field, returned together with a setter; `lift` inserts its current value into another object as a computed. The steps owned `setToday`, while the deck received a public `today` that it could only read. Alice's streak uses the same split:
 
 ```typescript
 import { signal, lift, tilia } from "tilia";
@@ -35,7 +35,7 @@ let stats = tilia({
 })
 ```
 
-The domain exposes `stats.streak` in domain language; the setter never leaves the module with the right to use it. A whole class of "who owns this value" bugs cannot be written — the ownership is not a convention in a comment, it is the shape of the code.
+The domain exposes `stats.streak` in domain language; neither the signal nor its setter leaves the module. A whole class of "who owns this value" bugs cannot be written — the ownership is not a convention in a comment, it is the shape of the code.
 
 ::: story
 Seven days in a row. The number on Alice's screen and the number the session logic increments are the same value — there is no copy to drift.

@@ -75,7 +75,7 @@ Use `tilia` when you want a quick reactive object. Designing a *feature* — sta
 
 ### Green
 
-Adèle wires the scenario's words to these two functions — a small file whose workings [chapter 6](#a-clock-you-can-set) opens up — and runs the suite.
+Adèle wires the scenario's words to these two functions — a small file whose workings [chapter 6](#a-date-you-can-set) opens up — and runs the suite.
 
 ::: story
 One line turns green: *a passed card waits longer*. Alice tries it that evening — taps **Pass**, and *gato* answers: six days. The first sentence she said at the kitchen table is now something the machine checks forever.

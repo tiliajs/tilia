@@ -47,3 +47,37 @@ let app = tilia({
 
 setDeckId("french") // setup re-runs, cards reload
 ```
+
+**Loading sentinel**
+
+When an empty result is valid, use a stable empty tilia value to distinguish the initial loading state without changing the value's type. Compare by identity:
+
+```typescript
+const loading = tilia<Card[]>([]);
+
+const app = tilia({
+  cards: source(loading, (_previous, set) => {
+    fetchCards("spanish").then(set);
+  }),
+});
+
+if (app.cards === loading) {
+  // No result has arrived yet.
+}
+```
+
+```rescript
+let loading = tilia([])
+
+let app = tilia({
+  cards: source(loading, (_previous, set) => {
+    fetchCards("spanish")->Promise.thenResolve(set)->ignore
+  }),
+})
+
+if app.cards === loading {
+  // No result has arrived yet.
+}
+```
+
+The sentinel marks only the initial load. On a dependency change, `source` keeps its previous value until the next call to `set`; call `set(loading)` synchronously if a reload should return to the loading state.

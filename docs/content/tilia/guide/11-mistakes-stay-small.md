@@ -5,7 +5,7 @@ sort: 11
 refs: [computed, make]
 ---
 
-Trust needs a floor. Adèle signs Claudine's diffs; Alice signs the scenarios; the suite guards the behavior. But somebody — human or AI — will eventually get it wrong anyway, and what happens *then* decides whether collaboration stays a joy or turns cautious. tilia's answers are specific, and they are the reason the rest of this guide could be so confident.
+Trust needs a floor. Adèle signs Claudine's diffs; Alice signs the scenarios; the suite guards the behavior. But somebody — human or AI — will eventually get it wrong anyway, and what happens *then* decides whether collaboration stays convivial or turns cautious. tilia's answers are specific, and they are the reason the rest of this guide could be so confident.
 
 ::: story
 Sunday's nightly import delivers a card with no interval — a malformed row from the shared deck. Somewhere inside, a computed throws. On Alice's phone: the queue still turns, the streak still counts. One card is quietly absent, and one line of red has appeared in the log, pointing at the exact function that choked.

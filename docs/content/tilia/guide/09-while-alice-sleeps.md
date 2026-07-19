@@ -16,15 +16,15 @@ The immediate half keeps simple code simple: write a value, watch the screen cha
 ```typescript
 card.interval = 6;
 // ⚠️ an observer running now sees the new interval with the
-// OLD lastReview — a dueDate that was never true
-card.lastReview = clock.today;
+// OLD lastReview: a dueDate that was never true
+card.lastReview = deck.today;
 ```
 
 ```rescript
 card.interval = 6
 // ⚠️ an observer running now sees the new interval with the
-// OLD lastReview — a dueDate that was never true
-card.lastReview = clock.today
+// OLD lastReview: a dueDate that was never true
+card.lastReview = deck.today
 ```
 
 ### batch: atomic by declaration
@@ -35,7 +35,8 @@ card.lastReview = clock.today
 import { batch } from "tilia";
 
 batch(() => {
-  for (const card of imported) deck.cards.push(card);
+  card.interval = 6;
+  card.lastReview = deck.today;
 });
 // ✨ one coherent notification here
 ```
@@ -44,10 +45,13 @@ batch(() => {
 open Tilia
 
 batch(() => {
-  imported->Array.forEach(card => deck.cards->Array.push(card))
+  card.interval = 6
+  card.lastReview = deck.today
 })
 // ✨ one coherent notification here
 ```
+
+The review now moves from one true state to the next. Around the nightly import, the same boundary turns forty-one pushes into one coherent change:
 
 ::: story
 Three in the morning. Forty-one new cards slide into the deck — one notification, one repaint that nobody sees. When Alice wakes, the queue is simply longer, and *el desayuno* is waiting.

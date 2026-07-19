@@ -2,7 +2,7 @@
 title: Values that follow
 slug: values-that-follow
 sort: 4
-refs: [computed]
+refs: [computed, signal]
 ---
 
 *Cards come due on their own.* Alice's second scenario contains a small philosophical demand: nobody moves the cards, yet at midnight they are due. `observe` reacts to change by *doing* something. What this scenario needs is a value that simply *is* something — always correct, derived from other values, never manually refreshed. That is [`computed`](api.html#computed).
@@ -11,26 +11,26 @@ refs: [computed]
 
 A computed value is the mirror image of an observer. Where `observe` uses push — changes push the callback to run — `computed` uses **pull**: the value is calculated when the key is read, cached, and invalidated when a dependency changes. Until someone reads it again, no work happens.
 
-Due-ness depends on the last review, the interval, and today's date — so let today's date be a reactive value too:
+Due-ness depends on the last review, the interval, and today's date — so let today's date be a reactive value too. A [`signal`](api.html#signal) gives that standalone value a home; its setter will matter when midnight arrives:
 
 ```typescript
-import { tilia, computed } from "tilia";
+import { tilia, computed, signal } from "tilia";
 
-const clock = tilia({ today: "2026-07-15" });
+const [today] = signal("2026-07-15");
 
 const card = tilia({
   front: "gato",
   interval: 3,
   lastReview: "2026-07-12",
   dueDate: computed(() => addDays(card.lastReview, card.interval)),
-  due: computed(() => card.dueDate <= clock.today),
+  due: computed(() => card.dueDate <= today.value),
 });
 ```
 
 ```rescript
 open Tilia
 
-let clock = tilia({today: "2026-07-15"})
+let (today, _) = signal("2026-07-15")
 
 let card = tilia({
   front: "gato",
@@ -40,7 +40,7 @@ let card = tilia({
   due: false,
 })
 card.dueDate = computed(() => addDays(card.lastReview, card.interval))
-card.due = computed(() => card.dueDate <= clock.today)
+card.due = computed(() => card.dueDate <= today.value)
 ```
 
 Consider what did not have to be written: no `refreshDueDate()` after every review, no midnight job that walks the cards, no risk of a stale `dueDate` because some code path forgot. The relationship was declared once, in two lines that read like the sentence Alice said; tilia keeps it true. And computed values chain — change `interval` and `dueDate` expires, which expires `due`, and anything watching `due` reacts. Each step of the derivation is its own small function; the graph assembles itself.
@@ -53,14 +53,14 @@ Claudine's first draft did something reasonable-looking:
 
 ```typescript
 // ❌ a definition, stranded in a variable
-const due = computed(() => card.dueDate <= clock.today);
+const due = computed(() => card.dueDate <= today.value);
 if (due) { ... }
 // 💥 Error: orphan computation detected
 ```
 
 ```rescript
 // ❌ a definition, stranded in a variable
-let due = computed(() => card.dueDate <= clock.today)
+let due = computed(() => card.dueDate <= today.value)
 if due { ... }
 // 💥 Error: orphan computation detected
 ```
@@ -76,7 +76,7 @@ The golden rule: never assign a `computed` (or `source`, or `store`) to an inter
 Adèle runs the suite: *cards come due on their own* turns green.
 
 ::: story
-The scenario said "When midnight comes" — and midnight came, on a Tuesday afternoon, in eleven milliseconds. Nobody in the kitchen finds this remarkable. It should be: it means the app's time belongs to the app.
+The scenario said "When midnight comes" — and midnight came, on a Tuesday afternoon, in eleven milliseconds. Nobody in the kitchen finds this remarkable. It should be: it means the app owns its idea of today.
 :::
 
-How midnight can come on command is a trick worth its own chapter — [chapter 6](#a-clock-you-can-set). But first: one card knowing its schedule is not an app. Alice has a boxful, and a box with an order to it, an action to review, a place to keep everything — that is not a value. It is a *feature*.
+How midnight can come on command is a trick worth its own chapter — [chapter 6](#a-date-you-can-set). But first: one card knowing its schedule is not an app. Alice has a boxful, and a box with an order to it, an action to review, a place to keep everything — that is not a value. It is a *feature*.

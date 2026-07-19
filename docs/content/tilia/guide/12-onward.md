@@ -5,18 +5,18 @@ sort: 12
 refs: []
 ---
 
-Step back and look at what got built, and how. A card is a plain object. A deck is a carved feature: state, derived queue, review action, injected repo and clock. The session is a state machine that only offers legal moves. The views read the domain and repaint exactly when their answer changes. Above it all sits a file of scenarios that Alice — who writes no code — has read, corrected, and signed. Nowhere is there a store, a reducer, an action type, or a subscription list.
+Step back and look at what got built, and how. A card is a plain object. A deck is a carved feature: state, derived queue, review action, injected repo and current date. The session is a state machine that only offers legal moves. The views read the domain and repaint exactly when their answer changes. Above it all sits a file of scenarios that Alice — who writes no code — has read, corrected, and signed. Nowhere is there a store, a reducer, an action type, or a subscription list.
 
 The mental model compresses well:
 
 - **The scenarios are the design.** Behavior is decided in the domain's words, and the running program is checked against them for life.
 - **Objects live.** `tilia` makes a plain object reactive without changing its shape; separate objects share one forest.
 - **Values follow.** `computed` and `derived` keep declared relationships true — pull, cached, nearly free to read.
-- **The world is asked for, and flows in.** Services arrive injected — a clock you can set, a repo in memory — and `source` and `store` place external, self-managing values inside the same objects, under the same rules.
+- **The world is asked for, and flows in.** Dependencies arrive injected — a date you can set, a repo in memory — and `source` and `store` place external, self-managing values inside the same objects, under the same rules.
 - **Time is coherent.** Writes notify immediately, except inside reactive callbacks and batches; `watch` separates cause from effect.
 - **Mistakes stay small.** Definitions fail loudly at the source; a throwing observer is cleared, reported, and quarantined; every bug becomes a scenario.
 
-And the deeper habit the library rewards is the one named in the first chapter's title: draw before building. It is what let three very different minds — a domain owner, a designer, and an AI who forgets everything between sessions — build one coherent thing without fear. The words carried; the suite verified; the joy stayed.
+And the deeper habit the library rewards is the one named in the first chapter's title: draw before building. It is what let three very different minds — a domain owner, a designer, and an AI who forgets everything between sessions — build one coherent thing without fear. The words carried; the suite verified; the table stayed convivial.
 
 ### Where to go from here
 

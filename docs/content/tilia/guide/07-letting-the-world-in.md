@@ -2,7 +2,7 @@
 title: Letting the world in
 slug: letting-the-world-in
 sort: 7
-refs: [source, store]
+refs: [source, store, lift]
 ---
 
 Everything so far was synchronous and self-contained. Real applications load data, wait for storage, and move through states over time. Two new wants make it concrete:
@@ -25,7 +25,7 @@ tilia's answer is two primitives that put external and asynchronous values *insi
 A [`source`](api.html#source) is like a computed, but instead of returning a value, its setup function receives a **setter** and calls it — now, later, or repeatedly. The setup runs on first read, and again whenever a reactive value it read synchronously has changed. That re-run rule turns a plain loader into a *reactive* loader:
 
 ```typescript
-import { carve, source } from "tilia";
+import { carve, lift, source, type Signal } from "tilia";
 
 const loader =
   (deck: Deck) =>
@@ -34,7 +34,7 @@ const loader =
     deck.repo.fetchCards(id).then(set); // async work: delegated
   };
 
-const makeDeck = (repo: Repo, clock: Clock) =>
+const makeDeck = (repo: Repo, today: Signal<string>) =>
   carve<Deck>(({ derived }) => ({
     deckId: "spanish",
     cards: source([], derived(loader)),
@@ -42,7 +42,7 @@ const makeDeck = (repo: Repo, clock: Clock) =>
     review: derived(review),
     selectDeck: derived((deck) => (id: string) => (deck.deckId = id)),
     repo,
-    clock,
+    today: lift(today),
   }));
 ```
 
@@ -52,7 +52,7 @@ let loader = deck => (_previous, set) => {
   deck.repo.fetchCards(id)->Promise.thenResolve(set)->ignore // async: delegated
 }
 
-let makeDeck = (repo, clock) =>
+let makeDeck = (repo, today) =>
   carve(({derived}) => {
     deckId: "spanish",
     cards: source([], derived(loader)),
@@ -60,7 +60,7 @@ let makeDeck = (repo, clock) =>
     review: derived(review),
     selectDeck: derived(deck => id => deck.deckId = id),
     repo,
-    today: computed(() => clock.today),
+    today: today->lift,
   })
 ```
 

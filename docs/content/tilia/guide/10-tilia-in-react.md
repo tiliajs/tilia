@@ -5,7 +5,7 @@ sort: 10
 refs: [leaf, use-tilia, use-computed]
 ---
 
-This chapter adds no scenario — and that is its finest feature. The deck, the session, the clock, the streak: all of it was built and verified without a pixel. Now the views arrive, the whole suite stays green and untouched, and the separation the bootstrap promised — business in features, no logic in views — stops being a promise and becomes an observable fact.
+This chapter adds no scenario — and that is its finest feature. The deck, the session, today's date, the streak: all of it was built and verified without a pixel. Now the views arrive, the whole suite stays green and untouched, and the separation the bootstrap promised — business in features, no logic in views — stops being a promise and becomes an observable fact.
 
 Views are observers. That one idea is the entire React integration: a component reads reactive values while rendering, and it should re-render exactly when one of those values changes. The `@tilia/react` package (installed separately) offers three tools, in a deliberate order of preference.
 
@@ -93,4 +93,4 @@ let current = useComputed(() =>
 
 Two rows repaint per advance, no matter how long the list.
 
-Every piece of the scheduler — deck, session, clock, streak, views — is now an object or a function that could be read aloud at the kitchen table. One question remains, and it is the one that decides whether the trust holds for years: what happens when someone gets it wrong?
+Every piece of the scheduler — deck, session, today's date, streak, views — is now an object or a function that could be read aloud at the kitchen table. One question remains, and it is the one that decides whether the trust holds for years: what happens when someone gets it wrong?

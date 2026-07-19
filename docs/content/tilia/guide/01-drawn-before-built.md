@@ -9,14 +9,20 @@ This chapter is for the person deciding whether tilia belongs in their stack. Th
 
 tilia is a state management library for TypeScript and ReScript applications. Its goal is deliberately narrow: provide a minimal, fast reactive layer that supports domain-oriented development — Clean Architecture, Diagonal Architecture, or any style where the business domain leads. tilia is not a framework, and that is a design decision, not a limitation.
 
-### Joy, written as structure
+### Conviviality, methodically supported
 
-Underneath the API sits a conviction: building software together — with colleagues, with a cousin, with an AI assistant — should stay a joy for as long as the software lives. Joy does not die by accident; it dies in specific, preventable ways. Each one is answered by a rule of the architecture:
+Underneath the API sits a conviction: building software together — with colleagues, with a cousin, with an AI assistant — should stay convivial for as long as the software lives. The word comes from the Latin *convivium*, the shared table — *con-*, together, *vivere*, to live — and Ivan Illich made it a standard that tools can be held to:
+
+> Convivial tools are those which give each person who uses them the greatest opportunity to enrich the environment with the fruits of his or her vision.
+>
+> — Ivan Illich, *Tools for Conviviality*, 1973
+
+Conviviality does not die by accident; it dies in specific, preventable ways. Each one is answered by a rule of the architecture:
 
 - **Fear of change.** A feature is a bounded, carved thing: its state, its logic and its actions live together, and touching one feature ripples nowhere else.
 - **The translation tax.** The domain's words survive into the running code. No reader converts "the queue" back into business meaning, because the code never left the business's language.
 - **Glue work.** The wiring between state, derivation and action is the library's job. People write only things worth reading.
-- **The world in the way.** Features ask for the world — clock, storage, network — and receive it injected. Every test runs on a world you control.
+- **The world in the way.** Features ask for the world — current date, storage, network — and receive it injected. Every test runs on a world you control.
 - **The onboarding wall.** A new mind — cousin, colleague, or AI — reads the shape and knows where everything lives.
 - **Logic you can't hold.** Every rule of the domain is a pure function you can read, test, and hand over whole.
 
@@ -34,7 +40,7 @@ The recommended structure separates an application into a few categories:
 
 - **features** — the business logic, one self-contained object per feature, holding its state, its derived values and its actions.
 - **repo** — the persistence layer, one self-contained object per data type that is saved.
-- **services** — technical connectors to the outside world (clock, storage, translations, audio), injected into the feature or repo that needs them.
+- **services** — technical connectors to the outside world (current date, storage, translations, audio), injected into the feature or repo that needs them.
 - **views** — the face. Views read features and render; they hold no business logic.
 
 Behavior itself is decided before it is built, in scenarios written in the domain's own words — executable specifications that the running program is checked against for the life of the project. This working method is called [épure](https://epuremethod.com), after the full-scale drawing a builder traces before cutting, and tilia is its state layer: the way of making sure the drawing and the program never drift apart.

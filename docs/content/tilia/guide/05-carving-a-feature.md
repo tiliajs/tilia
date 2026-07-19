@@ -2,7 +2,7 @@
 title: Carving a feature
 slug: carving-a-feature
 sort: 5
-refs: [carve, computed]
+refs: [carve, computed, lift]
 ---
 
 Alice's whole shoebox arrives, and with it the first scenarios that talk about the deck as a thing: which cards line up, in what order, what happens when one is reviewed. Adèle writes them with a table — Alice's actual cards, straight from the box:
@@ -69,9 +69,9 @@ These are ordinary functions: data in, data out. You can test `queue` with a pla
 `carve` builds the reactive object and hands the functions the object itself, through `derived`:
 
 ```typescript
-import { carve } from "tilia";
+import { carve, lift, type Signal } from "tilia";
 
-const makeDeck = (repo: Repo, clock: Clock) =>
+const makeDeck = (repo: Repo, today: Signal<string>) =>
   carve<Deck>(({ derived }) => ({
     // state
     cards: [],
@@ -79,16 +79,16 @@ const makeDeck = (repo: Repo, clock: Clock) =>
     queue: derived(queue),
     // actions
     review: derived(review),
-    // injected services
+    // injected dependencies
     repo,
-    clock,
+    today: lift(today),
   }));
 ```
 
 ```rescript
 open Tilia
 
-let makeDeck = (repo, clock) =>
+let makeDeck = (repo, today) =>
   carve(({derived}) => {
     // state
     cards: [],
@@ -96,9 +96,9 @@ let makeDeck = (repo, clock) =>
     queue: derived(queue),
     // actions
     review: derived(review),
-    // injected services
+    // injected dependencies
     repo,
-    today: computed(() => clock.today),
+    today: today->lift,
   })
 ```
 
@@ -110,6 +110,6 @@ Adèle reads Claudine's diff before running anything. `queue`. `review`. `due`. 
 
 That is the handoff working. A feature written in the domain's words can be reviewed by reading, extended by a newcomer, and explained to Alice with the screen turned around. Two more lines turn green.
 
-A word on the distinction inside the carve: use `computed` for a value that stands alone — it closes over whatever it needs, as `card.due` did. Use `derived` when the logic needs the carved object itself: cross-property values like `queue`, actions like `review` that read and write siblings.
+A word on the distinction inside the carve: use `computed` for a value that stands alone — it closes over whatever it needs, as `card.due` did. Use `derived` when the logic needs the carved object itself: cross-property values like `queue`, actions like `review` that read and write siblings. And when a standalone value already lives in a signal, `lift` inserts its current value directly.
 
-The last two fields of the deck are the quiet heroes: `repo` arrived as an *argument*, while `today` was lifted with `computed` from the `clock` argument. The deck knows *that* cards are saved and *that* days pass — never how. That one move is the subject of the next chapter, and it is the reason everything in this guide runs green in milliseconds.
+The last two fields of the deck are the quiet heroes: `repo` arrives directly as an *argument*, while `today` is lifted from the signal beside it. The deck knows *that* cards are saved and *that* the date advances — never how. Those two arguments are the subject of the next chapter, and the reason everything in this guide runs green in milliseconds.
