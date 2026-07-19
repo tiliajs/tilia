@@ -353,6 +353,18 @@ section + section {
   font-style: italic;
   color: var(--faint);
 }
+/* defcard as a guide callout (markdown "::: def") */
+.chapter .defcard {
+  margin-top: 22px;
+}
+.defcard p {
+  margin: 0;
+}
+.defcard p strong {
+  font-family: var(--mono);
+  font-weight: 500;
+  color: var(--ink);
+}
 
 /* ---------- code figure ---------- */
 .codefig {

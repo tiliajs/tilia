@@ -39,9 +39,9 @@ function markCallouts(file, body) {
   while ((m = re.exec(body))) {
     const name = m[1];
     if (!name) continue; // bare ":::" is a closing marker
-    if (name !== "story" && name !== "pro") {
+    if (name !== "story" && name !== "pro" && name !== "def") {
       throw new Error(
-        `${file}: unknown callout container ":::${name}" (expected "story" or "pro")`
+        `${file}: unknown callout container ":::${name}" (expected "story", "pro" or "def")`
       );
     }
   }
@@ -108,6 +108,11 @@ export function createMarkdown(highlighter) {
       return tokens[idx].nesting === 1
         ? '<div class="pro">\n<span class="k">Pro tip</span>\n'
         : "</div>\n";
+    },
+  });
+  md.use(container, "def", {
+    render(tokens, idx) {
+      return tokens[idx].nesting === 1 ? '<div class="defcard">\n' : "</div>\n";
     },
   });
 

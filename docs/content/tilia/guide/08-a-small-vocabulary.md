@@ -5,9 +5,9 @@ sort: 8
 refs: [signal, derived, lift, readonly]
 ---
 
-Alice wants a streak — days in a row with every due card reviewed. It is one number, and it raises a question Claudine asks before writing anything: *who may change it?* Anyone should read it; only the review logic should bump it. The question is about ownership, and tilia answers it the way this guide answers everything — with a word.
+Alice wants a streak — days in a row with every due card reviewed. It is one number, and it raises a question Claudine asks before writing anything: *who may change it?* Anyone should read it; only the review logic should bump it. The question is about ownership.
 
-Four small words round out tilia's vocabulary: `signal`, standalone `derived`, `lift`, and `readonly`. Three are one-liners over what you already know. They earn their place not by adding power but by **naming intentions** — and knowing they are thin keeps the mental model lean: there is still only one mechanism underneath.
+The four words are `signal`, standalone `derived`, `lift`, and `readonly`. Three are one-liners over what you already know; they add no power, only names — there is still one mechanism underneath.
 
 ### signal, lift: reading is public, writing is owned
 
@@ -63,4 +63,4 @@ let app = tilia({
 })
 ```
 
-That is the whole vocabulary — small enough that this guide has now shown every word of it. What remains is subtler than any single function: *when*, exactly, do reactions run? The answer involves midnight again, and this time for real.
+That is the whole vocabulary. What remains: *when*, exactly, do reactions run? The answer involves midnight again — this time for real.

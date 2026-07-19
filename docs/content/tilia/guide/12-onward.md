@@ -24,7 +24,7 @@ The [API reference](api.html) documents the complete public surface — every fu
 
 The scheduler's repo was injected and politely ignored; synchronizing collections with a server — loading, caching, going offline and coming back — is its own discipline, with its own convictions. **[@tilia/query](query/index.html)** builds that lifecycle on the reactivity you now understand, and [its guide](query/guide.html) takes Alice somewhere with very bad reception.
 
-The scenarios that ran green through every chapter were executed by **épure**, published as [@epure/vitest](https://www.npmjs.com/package/@epure/vitest) — the same project whose `bootstrap.md` started the empty directory in chapter 2. The method — software drawn before it is built — lives at [epuremethod.com](https://epuremethod.com), and its guide is this trilogy's prequel: where the drawings come from.
+The scenarios that ran green through every chapter were executed by **épure**, published as [@epure/vitest](https://www.npmjs.com/package/@epure/vitest) — the same project whose `CONTRIBUTING.md` started the empty directory in chapter 2. The method — software drawn before it is built — lives at [epuremethod.com](https://epuremethod.com), and its guide is this trilogy's prequel: where the drawings come from.
 
 tilia itself is open source, at [github.com/tiliajs/tilia](https://github.com/tiliajs/tilia).
 

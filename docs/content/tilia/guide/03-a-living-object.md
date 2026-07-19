@@ -37,7 +37,7 @@ let card = tilia({
 let pass = card => card.interval = card.interval * 2
 ```
 
-Notice what `pass` is: an ordinary function, mutating an ordinary-looking object, named with Alice's word. There is no store to register, no wrapper type to unwrap, no action to dispatch. The card is still a card. This matters more than it seems: the domain model *is* the state layer, so nothing in the code needs to know that tilia exists — except the glue, which comes next.
+`pass` is an ordinary function, mutating an ordinary-looking object, named with Alice's word. There is no store to register, no wrapper type to unwrap, no action to dispatch. The card is still a card: the domain model *is* the state layer, and nothing else in the code needs to know that tilia exists — except the glue, which comes next.
 
 ### Reacting: observe
 
@@ -63,7 +63,7 @@ observe(() => {
 pass(card) // ✨ "gato" comes back in 6 day(s)
 ```
 
-The mechanism is worth holding onto, because all of tilia rests on it. While the callback runs, tilia records which properties are read on which reactive objects — those exact properties, no more, become its dependencies. You never wrote a subscription, an event name, or an unsubscribe: you declared what the reaction needs by simply using it, and tilia drew the wiring from that. Writing a value equal to the current one notifies nobody; when a reaction should end, `observe` returns a function that stops it.
+This is the mechanism all of tilia rests on. While the callback runs, tilia records which properties are read on which reactive objects — those exact properties, no more, become its dependencies. You never wrote a subscription, an event name, or an unsubscribe: you declared what the reaction needs by simply using it, and tilia drew the wiring from that. Writing a value equal to the current one notifies nobody; when a reaction should end, `observe` returns a function that stops it.
 
 ### A forest, not a tree
 

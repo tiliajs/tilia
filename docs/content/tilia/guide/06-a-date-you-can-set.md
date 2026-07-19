@@ -80,11 +80,9 @@ let (testToday, _) = Tilia.signal("2026-07-15")
 let testDeck = Deck.make(MemoryRepo.make(cards), testToday)
 ```
 
-Same feature, same code, two worlds. The connectors — real storage, the system date, the network someday — live in `services/`, and they are the *only* place the outside world is touched. This is dependency injection, and in this architecture it is not a testing technique bolted on afterward: it is one of the most important structural decisions in the whole design, the reason a feature is a complete, self-contained unit of meaning.
+Same feature, same code, two worlds. The connectors — real storage, the system date, the network someday — live in `services/`, and they are the *only* place the outside world is touched. This is dependency injection — not a testing technique bolted on afterward, but the structural decision that makes a feature a complete, self-contained unit of meaning.
 
 ### What it buys
-
-Everything this guide has been enjoying quietly:
 
 - **The suite is fast** — no database to start, no midnight to wait for. Alice's scenarios run in milliseconds, so they run constantly, so green stays current.
 - **Green is trustworthy** — every scenario runs on a world under total control, so a red line means the behavior changed, never that the network hiccuped.

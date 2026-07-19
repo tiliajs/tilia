@@ -11,7 +11,13 @@ tilia is a state management library for TypeScript and ReScript applications. It
 
 ### Conviviality, methodically supported
 
-Underneath the API sits a conviction: building software together — with colleagues, with a cousin, with an AI assistant — should stay convivial for as long as the software lives. The word comes from the Latin *convivium*, the shared table — *con-*, together, *vivere*, to live — and Ivan Illich made it a standard that tools can be held to:
+Underneath the API sits a conviction: building software together — with colleagues, with a cousin, with an AI assistant — should stay convivial for as long as the software lives.
+
+::: def
+**convivial** /con·vi·vi·al/ *adj., Latin* — of the shared table (*convivium*): *con-*, together, *vivere*, to live.
+:::
+
+Ivan Illich made the word a standard that tools can be held to:
 
 > Convivial tools are those which give each person who uses them the greatest opportunity to enrich the environment with the fruits of his or her vision.
 >

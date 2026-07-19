@@ -5,7 +5,7 @@ sort: 9
 refs: [batch, watch, observe]
 ---
 
-Every night at three, the app imports the day's new cards — Adèle subscribed Alice to a shared Spanish deck. Dozens of writes land at once, and they raise this guide's most technical question: *when*, exactly, does a reaction run? tilia has one clear rule, one tool for the exception, and one function for separating cause from effect. This chapter pays off longest.
+Every night at three, the app imports the day's new cards — Adèle subscribed Alice to a shared Spanish deck. Dozens of writes land at once, and they force the question: *when*, exactly, does a reaction run? tilia has one clear rule, one tool for the exception, and one function for separating cause from effect.
 
 ### The flush rule
 

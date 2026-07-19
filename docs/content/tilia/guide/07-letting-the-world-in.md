@@ -70,14 +70,14 @@ The cards now come from the injected repo — so *cards survive a restart* goes 
 Alice taps *French* on a whim. The deck notices its own `deckId` change, fetches the right cards, and the queue follows. She taps back to *Spanish* before dinner. Nobody wrote a refresh.
 :::
 
-Without this, selecting a deck means: call the fetch, guard against races, store the result, invalidate the queue, notify the views. Here, `selectDeck` writes one field; everything downstream follows because it always does.
+Without this, selecting a deck means: call the fetch, guard against races, store the result, invalidate the queue, notify the views. Here, `selectDeck` writes one field and everything downstream follows.
 
 ::: pro
 Keep the `source` callback synchronous: tilia tracks reads during synchronous execution only. Read your dependencies first, then delegate the async work, as `loader` does.
 :::
 
 ::: pro
-This loader reads from injected *local* storage. When the cards one day live on a server — with caching, refresh, offline — that whole lifecycle is [@tilia/query](query/index.html)'s job. The loader then gives way to a loadable list, read with `cards.array(...)`, while the surrounding feature keeps the same vocabulary. That is what evolvability looks like here: the drawing remains as the provider grows up.
+This loader reads from injected *local* storage. When the cards one day live on a server — with caching, refresh, offline — that whole lifecycle is [@tilia/query](query/index.html)'s job. The loader then gives way to a loadable list, read with `cards.array(...)`, while the surrounding feature keeps the same vocabulary.
 :::
 
 ### store: a value that manages itself
@@ -119,10 +119,10 @@ let app = tilia({
 })
 ```
 
-Illegal transitions are not rejected at runtime — they are *unrepresentable*. `app.session` in the `Idle` state has a `start` and nothing else, which is precisely what the scenario asserts. The type system and the reactive system tell the same story: the shape was drawn first.
+Illegal transitions are not rejected at runtime — they are *unrepresentable*. `app.session` in the `Idle` state has a `start` and nothing else, which is what the scenario asserts.
 
 ::: pro
 `store` also makes tests pleasant to start anywhere: hand it `reviewing` instead of `idle` and a scenario begins mid-session, no clicking through.
 :::
 
-The deck now lives, loads, switches, and runs sessions — three more green lines. Before composing anything larger, it is worth meeting four small words that round out tilia's vocabulary; fittingly for this guide, their whole job is naming intentions.
+The deck now lives, loads, switches, and runs sessions — three more green lines. Four small words remain in tilia's vocabulary, and their whole job is naming intentions.

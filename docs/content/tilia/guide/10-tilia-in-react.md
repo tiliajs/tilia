@@ -5,7 +5,7 @@ sort: 10
 refs: [leaf, use-tilia, use-computed]
 ---
 
-This chapter adds no scenario — and that is its finest feature. The deck, the session, today's date, the streak: all of it was built and verified without a pixel. Now the views arrive, the whole suite stays green and untouched, and the separation the bootstrap promised — business in features, no logic in views — stops being a promise and becomes an observable fact.
+This chapter adds no scenario. The deck, the session, today's date, the streak: all of it was built and verified without a pixel. Now the views arrive, and the suite stays green, untouched — business in features, no logic in views, exactly as `CONTRIBUTING.md` promised.
 
 Views are observers. That one idea is the entire React integration: a component reads reactive values while rendering, and it should re-render exactly when one of those values changes. The `@tilia/react` package (installed separately) offers three tools, in a deliberate order of preference.
 
@@ -36,7 +36,7 @@ let make = leaf(() => {
 })
 ```
 
-Because tracking happens during the render, the dependencies are *exact*: this component re-renders when `deck.queue` changes and not otherwise. No dependency array, no memoized selector, no `memo` wrapper. The component reads the domain; the subscription is the reading. And notice the component's vocabulary — `deck`, `queue`, `front`: a view Alice could read over Adèle's shoulder.
+Because tracking happens during the render, the dependencies are *exact*: this component re-renders when `deck.queue` changes and not otherwise. No dependency array, no memoized selector, no `memo` wrapper. The component reads the domain; the subscription is the reading. And its vocabulary is still the domain's — `deck`, `queue`, `front`: a view Alice could read over Adèle's shoulder.
 
 `useApp` is an architectural suggestion, not an API: provide the app object through an ordinary React context and let components pull the feature they need. Because tracking is fine-grained, one context for the whole app works seamlessly — and a test provides a mock app the same way. The world stays injected, even here.
 
@@ -93,4 +93,4 @@ let current = useComputed(() =>
 
 Two rows repaint per advance, no matter how long the list.
 
-Every piece of the scheduler — deck, session, today's date, streak, views — is now an object or a function that could be read aloud at the kitchen table. One question remains, and it is the one that decides whether the trust holds for years: what happens when someone gets it wrong?
+Every piece of the scheduler — deck, session, today's date, streak, views — is now an object or a function that could be read aloud at the kitchen table. One question remains: what happens when someone gets it wrong?

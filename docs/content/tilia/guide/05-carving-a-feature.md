@@ -25,7 +25,7 @@ Feature: The deck
     Then the queue is "gato"
 ```
 
-A feature is more than a bag of values: the deck has state (the cards), derived state (the queue), and actions (review). These belong together, speak the same language, and should be testable as a unit. [`carve`](api.html#carve) is tilia's way of building exactly that — and it is where tilia truly shines.
+The deck has state (the cards), derived state (the queue) and actions (review). They belong together and should be testable as one unit. Building that unit is [`carve`](api.html#carve)'s job.
 
 ### Logic as pure functions
 
@@ -62,7 +62,7 @@ let review = deck => (id, result) =>
   }
 ```
 
-These are ordinary functions: data in, data out. You can test `queue` with a plain object and an assertion — no reactive system to mock, because they do not know one exists.
+These are ordinary functions: data in, data out. You can test `queue` with a plain object and an assertion — there is no reactive system to mock.
 
 ### Assembling the feature
 
@@ -102,14 +102,16 @@ let makeDeck = (repo, today) =>
   })
 ```
 
-`derived(queue)` means: call `queue` with the carved object, track what it reads, and keep the result current. When `review` doubles a card's interval, that card's `dueDate` moves, the queue's dependencies fire, and `deck.queue` is fresh at the next read. The feature's whole behavior was declared in its shape — the wiring between state, derivation and action is tilia's problem, not anyone's.
+`derived(queue)` means: call `queue` with the carved object, track what it reads, and keep the result current. When `review` doubles a card's interval, its `dueDate` moves and the queue follows at the next read. Nobody wired these together; the shape of the object is the wiring.
 
 ::: story
-Adèle reads Claudine's diff before running anything. `queue`. `review`. `due`. She realizes she is not translating: the code is the kitchen-table conversation, typed. She signs it the way Alice signed the scenarios.
+Adèle reads Claudine's diff before running anything. `queue`. `review`. `due`. She is not translating: the code is the kitchen-table conversation, typed. She signs it, and two more lines turn green.
 :::
 
-That is the handoff working. A feature written in the domain's words can be reviewed by reading, extended by a newcomer, and explained to Alice with the screen turned around. Two more lines turn green.
+Three words fill a carved object:
 
-A word on the distinction inside the carve: use `computed` for a value that stands alone — it closes over whatever it needs, as `card.due` did. Use `derived` when the logic needs the carved object itself: cross-property values like `queue`, actions like `review` that read and write siblings. And when a standalone value already lives in a signal, `lift` inserts its current value directly.
+- `computed` — a value that stands alone, closing over whatever it needs, as `card.due` did.
+- `derived` — logic that needs the carved object itself: cross-property values like `queue`, actions like `review` that read and write siblings.
+- `lift` — inserts the current value of an existing signal.
 
-The last two fields of the deck are the quiet heroes: `repo` arrives directly as an *argument*, while `today` is lifted from the signal beside it. The deck knows *that* cards are saved and *that* the date advances — never how. Those two arguments are the subject of the next chapter, and the reason everything in this guide runs green in milliseconds.
+That leaves `repo` and `today`, which are not built here at all — they arrive as arguments. The deck knows *that* cards are saved and *that* the date advances, never how. The next chapter is about those two arguments, and about how midnight came on a Tuesday afternoon.
