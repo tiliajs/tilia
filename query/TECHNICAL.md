@@ -44,10 +44,10 @@ is configured, the rows are also upserted there so a later offline read can
 reuse them.
 
 If the app is offline and local storage cannot answer, the query settles as
-`NotLocal`. This is an answer rather than a progress state. While online, the
-same empty local answer leaves the query `Loading` until the remote responds.
-A local adaptor that can construct a partial answer may instead filter its
-cache with `matches` and return those rows.
+`NotLocal`. This is an answer rather than a progress state. While online,
+`unknown` leaves the query `Loading` until the remote responds. A known empty
+answer is `set([])`: `array` returns a loaded empty array and `one` returns
+`NotFound`.
 
 ### Connectivity transitions
 
@@ -75,15 +75,12 @@ The flow is:
 The **outbox** is an ordered queue that connects optimistic local writes to
 eventual remote confirmation. Its detailed behavior is described below.
 
-A remote query result represents the server before these optimistic writes.
-Before displaying that result, the query reapplies unresolved rejections and
-then pending outbox operations. An upsert replaces the server's copy of the row
-or joins a matching result — and leaves a result the new value no longer
-matches, so a moved row cannot flicker back into its old query while the write
-is unconfirmed. A remove filters the row out. Applying
-pending operations last means a newer write wins over an older rejection. It
-also prevents optimistic changes from briefly disappearing when a remote
-result arrives.
+A remote query result is reconciled with pending local changes before display.
+For each row with a pending operation, `merge` receives the local `Change` and
+remote value. A successful merge rebases the pending operation on remote truth;
+a rejected merge clears the operation, shows remote truth, and records a
+conflict. Pending upserts then join matching results and pending removes filter
+rows out, preventing optimistic changes from briefly disappearing.
 
 ## Cache lifecycle
 
@@ -155,9 +152,11 @@ in-memory query: it joins results whose `matches` accepts it and leaves results
 that no longer match. A removed id leaves every result and its local row is
 deleted.
 
-The optimistic overlay wins over these deliveries. An id with a pending or
-rejected operation is skipped, so memory and the local row keep the optimistic
-value until the operation confirms or is discarded.
+A changed delivery reconciles with a pending create, update, or remove through
+`merge`. A successful merge keeps and rebases the pending change; a rejected
+merge clears it, shows remote truth, and records a conflict. A removed delivery
+confirms a pending remove. Against a pending create or update it clears the
+operation, records a conflict, and keeps the server deletion visible.
 
 A changed value stays in memory only while an in-memory query matches it, and
 is persisted only while a query record lists it. A value matching nothing is
@@ -248,11 +247,11 @@ garbage collector:
 5. Enumerate the rows in local storage.
 6. Remove every unmarked row.
 
-Pending and rejected operations are additional roots. Both survive a restart
-and replay, so their optimistic rows must survive too — even after every query
-record listing them has expired. The ids come from the in-memory outbox and
-rejection table; those mirror the persisted entries, so marking them costs no
-extra I/O.
+Pending operations are additional roots. They survive a restart and replay, so
+their optimistic rows must survive too — even after every query record listing
+them has expired. Their ids come from the in-memory outbox, which mirrors the
+persisted entries, so marking them costs no extra I/O. Rejections are not
+operations, are not persisted, and do not root rows.
 
 For example:
 
@@ -299,46 +298,22 @@ channel is ignored.
 
 ### Definitive failures
 
-A definitive failure moves every unconfirmed operation in the batch from the
-outbox to `status.rejected`. Rejections are keyed by row id, so a newer
+A definitive failure removes every unconfirmed operation in the batch from the
+outbox and deletes its persisted entry. A created value is forgotten; an update
+or remove restores its base value. Each local `Change` becomes a contextual
+rejection in `status.rejected`. Rejections are keyed by row id, so a newer
 rejection replaces an older one for the same row. Operations confirmed before
 the failure have already left the outbox and are not rejected.
 
-The rejected operation remains part of the optimistic overlay, keeping the
-refused edit visible. Its persisted outbox entry is also retained. After a
-restart it loads as pending, is sent again, and can surface the same rejection.
+Remote truth is visible immediately after the revert. The rejection preserves
+the local side of the story: `edited`, `base`, and the remote message where
+applicable. It is not part of the optimistic overlay and is not persisted.
 
-Retrying a rejection removes it from `status.rejected` and returns the
-operation to the outbox under its original sequence number. Keeping the
-sequence preserves edit order: an edit made after the rejection still pushes
-later and wins. The persisted entry never left local storage, so retry writes
-nothing to disk. When online, the push happens immediately, like any fresh
-write. Retrying an id that has no rejection raises.
-
-Discarding a rejection drops it for good. The rejection leaves
-`status.rejected` and its persisted outbox entry is deleted, so a restart can
-no longer replay and re-fail the operation. Discarding an id that has no
-rejection raises.
-
-The client cannot rebuild remote truth on its own: the optimistic write
-replaced both the in-memory value and the local row. Discard therefore
-refetches.
-
-For a discarded upsert, every in-memory query that lists the row is
-refetched. The remote result restores the value in memory and, through
-write-through, in local storage. A rejected new row disappears the same way:
-the remote result does not contain it, so it leaves the query's id list.
-
-For a discarded remove, no in-memory result lists the row anymore, so every
-observed query is refetched instead. The row returns with those results.
-
-A live query holds a subscription instead of a refresh slot, and discard
-still refetches it. The subscription is torn down — its registered teardown
-runs — and a new fetch re-subscribes. The fresh source's first delivery
-restores remote truth.
-
-While offline, the refetch cannot answer and the optimistic value stays
-visible; the next online refresh restores remote truth.
+Keeping the local version is an ordinary `upsert`, creating a new operation.
+Keeping remote truth requires no data change. Once the application has
+resolved or intentionally ignored the context, `dismiss(rejection)` removes
+that exact object from `status.rejected`; dismissing an absent object is a
+noop.
 
 ### Upsert trace
 
@@ -373,8 +348,9 @@ after offline upsert:
 ```
 
 A remote `set` confirmation is matched to an in-flight upsert by row id. The
-confirmed value is authoritative because the server may have corrected it.
-Memory and local storage are replaced with that value.
+confirmed value is authoritative because the server may have corrected it. It
+is reconciled through `merge` when configured, then written to memory and local
+storage.
 
 After confirmation, the matching operation is deleted from the persisted
 outbox. `status.pending` then decreases.
@@ -418,8 +394,7 @@ membership question is answered by a scan:
 - A remove walks every in-memory id list and every registry record to drop
   the id.
 - A remote delivery rebuilds the optimistic overlay from scratch: every
-  rejected operation and every pending outbox operation is re-applied over
-  the delivered rows, one pass per operation.
+  pending outbox operation is re-applied over the delivered rows.
 - A tick visits every in-memory query. A purge marks every id of every
   record.
 

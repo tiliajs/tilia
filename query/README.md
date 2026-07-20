@@ -1,6 +1,6 @@
 # @tilia/query
 
-Offline-first query and cache layer for [Tilia](https://tiliajs.com) apps.
+Offline-first query and cache layer for [Tilia](https://tiliajs.dev) apps.
 
 `@tilia/query` keeps a reactive in-memory view of your collections, backed by
 two pluggable tiers: a **local store** (e.g. IndexedDB/Dexie) that answers
@@ -27,14 +27,15 @@ reconnect — including after an app restart.
 - optimistic writes and removes: applied to memory and local storage first,
   queued as ops in a durable, ordered outbox
 - batch push with per-op confirmation; transient failures stay queued,
-  definitive failures become per-op rejections you `retry` or `discard`
+  definitive failures revert to remote truth and become rejection contexts
+  that the app resolves and `dismiss`es
 - boot replay: the persisted outbox reloads and pushes, so closing the app
   mid-sync loses nothing
 - live queries: an adaptor that keeps a result fresh on its own (server
   subscription) is exempt from periodic refresh; the engine owns running its
   teardown
 - inbound server pushes: `receive.changed` / `receive.removed` update memory,
-  membership, and local storage — the optimistic overlay wins
+  membership, and local storage, reconciling any pending local change
 - membership by predicate: a written or delivered value joins and leaves
   in-memory query results in place, without refetching
 - bounded local retention: a mark-and-sweep purge removes rows no retained
@@ -60,11 +61,11 @@ flowchart LR
 The first read of a query fetches the local store (instant, works offline)
 and, in parallel, the remote. The local answer only materializes the query:
 once a remote result has landed, a late local answer is ignored. Remote
-deliveries are overlaid with the pending and rejected ops — an optimistic
-edit never flickers out of a result — then written through to the local
-store, and the query's id-list is persisted as a **query record**. Records
-are the retention truth: a periodic mark-and-sweep purge removes local rows
-no record (and no queued op) references anymore.
+deliveries are reconciled with pending ops — an optimistic edit either merges
+or becomes a rejection instead of flickering out — then written through to
+the local store, and the query's id-list is persisted as a **query record**.
+Records are the retention truth: a periodic mark-and-sweep purge removes local
+rows no record (and no queued op) references anymore.
 
 ## Read states
 
@@ -123,11 +124,10 @@ todos.receive.removed(["t2"]);
 
 // Sync status (reactive tilia object)
 todos.status.pending; // ops waiting in the outbox
-todos.status.rejected; // ops the remote definitively refused
+todos.status.rejected; // reverted conflicts and definitive failures
 
-// A rejected op stays visible until the app decides:
-todos.retry(rejection); // re-queue it under its original order
-todos.discard(rejection); // drop it; a refetch restores server truth
+// Remote truth is already visible. Resolve or ignore the context, then:
+todos.dismiss(rejection);
 
 // Heartbeat: refresh, expiry, gc and push retries all happen here
 setInterval(() => todos.tick(), 10_000); // anything ≤ expiry.refresh / 2
@@ -153,7 +153,7 @@ switch todos.array({done: false}) {
 `make` takes a configuration object:
 
 ```typescript
-make({ id, matches, remote, local?, expiry?, now?, key?, sort? })
+make({ id, matches, remote, local?, expiry?, now?, key?, sort?, merge? })
 ```
 
 - `expiry` — timing tiers in milliseconds, defaults
@@ -162,9 +162,12 @@ make({ id, matches, remote, local?, expiry?, now?, key?, sort? })
   durable superset on disk.
 - `key` — query to cache key; defaults to `sortedStringify` (deterministic
   JSON with sorted keys), so equivalent object filters map to the same query.
-- `sort` — transforms the whole result array
-  (e.g. `(rows) => rows.toSorted(byTitle)`). It runs inside a computed, so an
-  edit to a sort key reorders the list reactively.
+- `sort` — returns a result sorter for the query
+  (e.g. `(query) => (rows) => rows.toSorted(byTitle)`). It runs inside a
+  computed, so an edit to a sort key reorders the list reactively.
+- `merge` — receives the local `Change` and remote value. Mutate the local
+  value in place and return `true` when they reconcile; return `false` to show
+  remote truth and record a conflict.
 
 ## The adaptor contracts
 
@@ -201,7 +204,7 @@ type WriteChannel<T> = {
   set(value: T): void; // confirm one upsert with the authoritative value
   removed(id: string): void; // confirm one remove, by id
   retry(): void; // transient: unconfirmed ops stay pending for a later push
-  fail(message: string): void; // definitive: unconfirmed ops become rejections
+  fail(message: string): void; // definitive: revert unconfirmed ops and record rejections
 };
 ```
 
@@ -351,20 +354,19 @@ While online, one push carries every pending op not already in flight, in
 order. Settlement per the write channel:
 
 - `set(value)` — the op leaves the outbox; the authoritative value replaces
-  memory and the local row
+  or merges into memory and the local row
 - `removed(id)` — the op leaves the outbox
 - `retry()` — unconfirmed ops stay pending; pushed again on a later `tick` or
   reconnect
-- `fail(message)` — unconfirmed ops move to `status.rejected`, keyed by id (a
-  newer rejection replaces an older one for the same id)
+- `fail(message)` — unconfirmed ops leave the outbox, their optimistic changes
+  revert to remote truth, and contexts enter `status.rejected`, keyed by id
+  (a newer rejection replaces an older one for the same id)
 
-A rejected op keeps overlaying remote deliveries like a pending one: the
-refused edit stays visible until the app calls `retry(rejection)` (re-queues
-it under its original order, so a later edit still wins) or
-`discard(rejection)` (drops the persisted op and refetches the queries that
-held the value, restoring server truth). Rejections also survive a restart on
-their own: the persisted op reloads as pending, the re-push fails again, and
-the rejection resurfaces.
+A rejection is context, not an operation or overlay. The failed op and its
+persisted outbox entry are already gone. Keeping the local version is an
+ordinary `upsert`; keeping remote truth needs no data change. In either case,
+call `dismiss(rejection)` after the application has resolved or ignored the
+context. Rejection contexts are not persisted across restarts.
 
 ## Scheduling
 
@@ -385,13 +387,13 @@ On each tick:
   the query re-materializes it
 - the local purge (first tick after boot, then at most once per
   `expiry.local / 8`) mark-and-sweeps rows no retained query record lists;
-  pending and rejected ops always root their rows
+  pending ops always root their rows
 
 ## Scale
 
 The engine bets on linear scans instead of indexes: a write offers the value
 to every in-memory query, and every remote delivery re-applies the whole
-outbox overlay. This is deliberate at client-cache scale — dozens of active
+pending outbox overlay. This is deliberate at client-cache scale — dozens of active
 queries and an outbox that drains on reconnect. See
 [the linear-scan bet](TECHNICAL.md#the-linear-scan-bet) in TECHNICAL.md for
 where the bet holds and where it would break.
@@ -401,8 +403,8 @@ where the bet holds and where it would break.
 - [TECHNICAL.md](TECHNICAL.md) — the engine model: freshness, live queries,
   outbox and rejections, local purge, the linear-scan bet
 - [docs/vision.md](docs/vision.md) — why this exists and where it is going
-- [llms.txt](llms.txt) — entry point for AI coding assistants
-- [tiliajs.com](https://tiliajs.com) — Tilia documentation
+- [llms.txt](llms.txt) — compact guide and exact-contract pointers for coding assistants
+- [tiliajs.dev/query](https://tiliajs.dev/query) — published @tilia/query documentation
 
 Debug hook: `_canopy()` lists observed vs idle query keys.
 

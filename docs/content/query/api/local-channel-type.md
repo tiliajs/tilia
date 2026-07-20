@@ -30,27 +30,25 @@ What the engine does with `unknown` depends on connectivity:
 - Online, the query stays `Loading` until the remote responds.
 - Offline, it settles to `NotLocal` — an answer, not progress. See [Loadable](api.html#loadable-type).
 
-A local adaptor that can filter its cache with the collection's `matches` may prefer building partial results and calling `set` — a partial answer beats `NotLocal` for the user standing in a tunnel.
+Call `set([])` when the store knows the result is empty. Reserve `unknown` for a store that cannot distinguish an empty result from a query it has never cached.
 
 See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
 
 ```typescript
-// Answer from an id-keyed cache, or admit ignorance.
+// This indexed table can answer the query, including with an empty result.
 fetch: (query: Query, channel: LocalChannel<Card>) => {
   db.cards
     .where("deck")
     .equals(query.deck)
     .toArray()
-    .then((rows) => (rows.length > 0 ? channel.set(rows) : channel.unknown()));
+    .then(channel.set);
 }
 ```
 
 ```rescript
-// Answer from an id-keyed cache, or admit ignorance.
+// This indexed table can answer the query, including with an empty result.
 let fetch = (query: query, channel: TiliaQuery.Channel.local<card>) =>
   db.cards.filter(card => card.deck === query.deck)
-  ->Promise.thenResolve(rows =>
-    rows->Array.length > 0 ? channel.set(rows) : channel.unknown()
-  )
+  ->Promise.thenResolve(channel.set)
   ->ignore
 ```

@@ -2,10 +2,10 @@
 title: Tunnels
 slug: tunnels
 sort: 4
-refs: []
+refs: [upsert, remove, op-type, status-type, status, write-channel-type]
 ---
 
-The engine never guesses about connectivity. The application owns a tilia signal and tells the state as it changes:
+The engine never guesses about connectivity. The application owns a tilia [`signal`](../api.html#signal) and tells the state as it changes:
 
 ```typescript
 import { signal } from "tilia";
@@ -63,9 +63,9 @@ cards.status.pending; // operations waiting for the remote — reactive
 cards.status.pending // operations waiting for the remote — reactive
 ```
 
-When the connection returns, the signal flips to `true` and pending operations are pushed as one ordered batch. The remote confirms each one; a confirmed upsert comes back with the authoritative value, because the server may have corrected it, and that value replaces memory and local storage.
+When the connection returns, the signal flips to `true` and pending operations are pushed as one ordered batch. The remote confirms each one; a confirmed upsert comes back with the authoritative value, because the server may have corrected it, and that value is merged into memory and local storage.
 
-Confirmed operations leave the outbox, `pending` counts down, and the app is exactly where it would be if the network had never left. A transient failure just returns the batch to pending for a later try. A failure that is *not* transient (when the server says "no") is explained in [chapter 7](#when-the-world-returns).
+Confirmed operations leave the outbox, `pending` counts down, and the app is exactly where it would be if the network had never left. A transient failure just returns the unconfirmed part of the batch to pending for a later try. A failure that is *not* transient reverts each unconfirmed optimistic change to remote truth and records its context; [chapter 7](#when-the-world-returns) explains what the application does with it.
 
 ::: story
 Twenty minutes in, the train drops into the first tunnel mid-review. Alice taps *Pass*; the card reschedules; the queue advances. In the corner of the screen, a small "3 pending" appears, then the mountain ends and it fades away. She notices none of it — which is the entire review criterion for this chapter.

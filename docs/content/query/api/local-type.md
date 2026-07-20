@@ -16,7 +16,7 @@ signature:
       ids: (set: (ids: string[]) => void) => void
     }
   res: |-
-    type local<'a, 'query> = {
+    type local<'query, 'a> = {
       fetch: ('query, Channel.local<'a>) => unit,
       push: array<op<'a>> => unit,
       set: (~tag: string, ~key: string, option<string>) => unit,
@@ -36,7 +36,7 @@ Local persistence is **command-only** — there is no write channel. Confirmatio
 - `get` — read one entry by key, or every entry for the tag when the key is omitted. Reply through the given `set` — synchronously or later, like everything else.
 - `ids` — reply with the id of every row in the values table. The purge sweep enumerates rows through this.
 
-See guide chapter [The channel boundary](guide.html#the-channel-boundary).
+See guide chapter [A week at Nora's](guide.html#a-week-at-noras).
 
 ```typescript
 import type { Local } from "@tilia/query";
@@ -47,7 +47,7 @@ const local: Local<Card, Query> = {
       .where("deck")
       .equals(query.deck)
       .toArray()
-      .then((rows) => (rows.length > 0 ? channel.set(rows) : channel.unknown())),
+      .then(channel.set),
   push: (ops) =>
     ops.forEach((op) =>
       op.op === "upsert" ? db.cards.put(op.value) : db.cards.delete(op.id)
@@ -67,12 +67,10 @@ const local: Local<Card, Query> = {
 ```rescript
 let kvKey = (~tag, ~key) => `${tag}/${key}`
 
-let local: TiliaQuery.local<card, query> = {
+let local: TiliaQuery.local<query, card> = {
   fetch: (query, channel) =>
     db.cards.filter(card => card.deck === query.deck)
-    ->Promise.thenResolve(rows =>
-      rows->Array.length > 0 ? channel.set(rows) : channel.unknown()
-    )
+    ->Promise.thenResolve(channel.set)
     ->ignore,
   push: ops =>
     ops->Array.forEach(op =>

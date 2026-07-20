@@ -14,7 +14,7 @@ signature:
       push: (ops: Op<T>[], channel: WriteChannel<T>) => void
     }
   res: |-
-    type remote<'a, 'query> = {
+    type remote<'query, 'a> = {
       online: Tilia.signal<bool>,
       fetch: ('query, Channel.read<'a>) => unit,
       push: (array<op<'a>>, Channel.write<'a>) => unit,
@@ -24,7 +24,7 @@ tags: []
 
 `Remote` wires the authoritative store into [make](api.html#make). The library owns the lifecycle; the adaptor owns the transport.
 
-`online` is the connectivity signal, owned by the app: set `online.value` as connectivity changes. The engine reacts to transitions:
+`online` is a [tilia signal](../api.html#signal-type), owned by the app: set `online.value` as connectivity changes. The engine reacts to transitions:
 
 - Flipping to `false` settles queries still `Loading` to `NotLocal`. An in-flight remote response may still land and is taken as-is; its freshness self-corrects on later ticks.
 - Flipping to `true` pushes pending ops.
@@ -39,7 +39,7 @@ tags: []
 - Confirm each op individually via `channel.set` / `channel.removed`.
 - End with nothing (all confirmed), `channel.retry` (transient failure) or `channel.fail` (definitive).
 
-See guide chapter [The channel boundary](guide.html#the-channel-boundary).
+See guide chapters [Tunnels](guide.html#tunnels) and [Two devices, one deck](guide.html#two-devices-one-deck).
 
 ```typescript
 import { signal } from "tilia";
@@ -65,7 +65,7 @@ const remote: Remote<Card, Query> = {
 ```rescript
 let (online, setOnline) = Tilia.signal(true)
 
-let remote: TiliaQuery.remote<card, query> = {
+let remote: TiliaQuery.remote<query, card> = {
   online,
   fetch: (query, channel) =>
     api.select(query)

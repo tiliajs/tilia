@@ -31,7 +31,7 @@ shared:
           <div class="fcell"><span class="lbl">Source</span><span class="val"><a href="https://github.com/tiliajs/tilia">github.com/tiliajs/tilia</a></span></div>
           <div class="fcell"><span class="lbl">License</span><span class="val">MIT</span></div>
           <div class="fcell"><span class="lbl">Method</span><span class="val"><a href="https://epuremethod.com">épure</a></span></div>
-          <div class="fcell"><span class="lbl">Site</span><span class="val">tiliajs.com</span></div>
+          <div class="fcell"><span class="lbl">Site</span><span class="val">tiliajs.dev</span></div>
         </div>
       </footer>
     shell: |-
@@ -44,6 +44,7 @@ shared:
       <title>{{title}}</title>
       <link rel="icon" href="{{faviconUrl}}">
       <link rel="stylesheet" href="../style.css">
+      <link rel="alternate" type="text/plain" href="./llms.txt" title="@tilia/query LLM documentation">
       {{prePaint}}
       </head>
       <body class="query">
@@ -66,6 +67,8 @@ pages:
       copy:
         - from: index.html
           to: "{{dist}}/index.html"
+        - from: ../../../query/llms.txt
+          to: "{{dist}}/llms.txt"
     templates:
       pageMain: |-
         <div class="api-head">

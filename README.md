@@ -4,13 +4,18 @@ Simple and fast state management library.
 
 The library supports **TypeScript** and **ReScript** (it is actually written in ReScript for improved type safety and performance).
 
-<a href="https://tiliajs.com">
+<a href="https://tiliajs.dev">
   <img width="834" height="705" alt="image" src="https://github.com/user-attachments/assets/56dd163a-65a0-4900-9280-aab2a0d7d92a" />
 </a>
 
-Check the [**website**](https://tiliajs.com) for documentation and examples.
+Check the [documentation](https://tiliajs.dev) for guides and API references.
 
 Simple documentation on the [README](./tilia/README.md).
+
+Machine-oriented guides:
+
+- [tilia](./tilia/llms.txt)
+- [@tilia/query](./query/llms.txt)
 
 ### Changelog
 

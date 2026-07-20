@@ -29,7 +29,7 @@ tags: []
 
 - `Loading` — no source has answered yet. A progress state: show a spinner.
 - `Loaded` — data, with a `fresh` flag (see below).
-- `NotFound` — the fetch completed empty. Only `one` answers it; `array` answers an empty `Loaded`.
+- `NotFound` — a source answered with an empty result. Only `one` answers it; `array` answers an empty `Loaded`.
 - `NotLocal` — the offline dead end: nothing cached locally and the remote unreachable. Unlike `Loading` it is an answer, not progress — show "not available offline", not a spinner.
 - `Failed` — the fetch error, carried to the place where the value is read. There is no global error slot to join against.
 
@@ -40,7 +40,7 @@ tags: []
 
 More edge cases:
 
-- `NotLocal` only appears while offline. Online, an empty local answer keeps the query `Loading` until the remote responds.
+- `NotLocal` only appears while offline. While online, `local.unknown()` leaves the query `Loading` until the remote responds. `local.set([])` is a known empty answer: `one` returns `NotFound` and `array` returns `Loaded` with an empty array.
 - A `Failed` non-live query is not stuck: it re-enters the refresh loop and is retried once per refresh window.
 
 See guide chapter [Reads answer twice](guide.html#reads-answer-twice).

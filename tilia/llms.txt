@@ -1,60 +1,127 @@
-# Tilia LLM Docs
+# tilia
 
-This index is optimized for AI agents and coding assistants.
+Compact machine guide for tilia, the reactive state core for TypeScript and
+ReScript.
 
-## Table of Contents
+## Exact API contracts
 
-1. [ReScript guide](./llms-rescript.md)
-2. [TypeScript guide](./llms-typescript.md)
+These files are authoritative. If prose differs, follow the contracts.
 
-## How AI Should Use These Docs
+Repository:
 
-1. Read this file first.
-2. Load the language-specific guide.
-3. Follow the carve-first rules strictly.
-4. Prefer simple, testable composition over inline reactive complexity.
+- TypeScript: `./src/index.d.ts`
+- ReScript: `./src/Tilia.resi`
 
-## Non-Negotiable Rules
+Installed npm package:
 
-- Use `carve` as the default way to build feature modules.
-- `carve` must bind parts into one reactive object, not contain business logic.
-- Keep `carve(({ derived }) => ({ ... }))` glue-only.
-- Move logic into standalone functions, then inject `self` via `derived`.
-- Prefer `name: derived(name)` where `name` takes `self` as first parameter.
-- In TypeScript examples, prefer arrow functions to keep dependency injection paths clean.
+- TypeScript: `./dist/index.d.ts`
+- ReScript: `./src/Tilia.resi`
 
-## API Anchors
+Published documentation:
 
-- `carve: (deriver<'a> => 'a) => 'a`
-- `deriver.derived: ('p => 'a) => 'a`
-- `computed: (unit => 'a) => 'a`
-- `source: ('a, ('a, 'a => unit) => 'ignored) => 'a`
-- `store: (('a => unit) => 'a) => 'a`
-- `tilia: 'a => 'a`
-- `changing: (unit => dict<'a>, ~guard: (unit => bool)=?) => { changes: unit => { upsert: array<'a>, remove: array<string> }, mute: (unit => unit) => unit }`
+- Guide: <https://tiliajs.dev/guide>
+- API: <https://tiliajs.dev/api>
+- TypeScript contract: <https://github.com/tiliajs/tilia/blob/main/tilia/src/index.d.ts>
+- ReScript contract: <https://github.com/tiliajs/tilia/blob/main/tilia/src/Tilia.resi>
 
-## Coverage Requirement for AI
+## Mental model
 
-- Treat `llms-rescript.md` and `llms-typescript.md` as full API references.
-- Cover: `tilia`, `carve`, `observe`, `watch`, `batch`, `signal`, `derived`, `lift`, `readonly`, `computed`, `source`, `store`, `changing`, `make`.
-- For `source`, always explain:
-  - setup runs on first read
-  - setup re-runs when tracked dependencies change
-  - `set` emits the next value imperatively
-  - `previous` is the last emitted value
-  - recommended example: `source(empty(), derived(loader(service)))` where loader sets `stale(previous)` before async fetch
-  - when used with `carve` + `derived(loader)`, `previous` should be used to keep stale UI data visible during reload (no blink)
-  - the `derived(loader)` pattern enables conditional loader strategies based on sibling feature fields
-  - loading state sentinel pattern: use `tilia({})` as initial value; check with `===` identity comparison to distinguish "loading" from "loaded but empty"
-- For `changing`, always explain:
-  - takes an accessor `() => dict` so the tracker can follow source swaps
-  - tracks key-level writes on a tilia-proxied dict
-  - returns `{ changes, mute }`: `changes` is a capture function for `watch` that drains accumulated changes as `{ upsert: T[], remove: string[] }`; `mute` runs a callback with tracking suppressed
-  - `upsert` contains objects captured at write time, `remove` contains keys of deleted entries
-  - last write wins for same-key overwrites within a batch
-  - each call creates an independent accumulator
-  - optional `guard` gates accumulation: when falsy, changes accumulate silently; when truthy, all accumulated changes drain
-  - `mute` is for inbound sync writes: writes inside `mute` are still reactive but not tracked, preventing feedback loops
-  - the accessor pattern enables use with `source`-backed data: when `source` replaces the dict, the tracker re-registers on the new object
-  - `source` handles inbound (loading into reactive data), `changing` + `watch` handles outbound (pushing writes to external)
+- `tilia` proxies plain objects and arrays without changing their public shape.
+- Reads inside reactive callbacks are dependencies; writes notify only readers
+  of the affected keys.
+- `observe` is a tracked effect. It runs immediately and again after tracked
+  values change.
+- `watch` separates a tracked capture function from an untracked effect. The
+  capture runs initially; the effect starts only after a dependency changes.
+- `computed`, `source`, and `store` define dynamic values for insertion into a
+  `tilia` or `carve` object.
+- `signal` is a standalone reactive value. Write through its returned setter.
+- `make` creates an isolated reactive context; top-level functions use the
+  default context.
+
+## Choosing the API
+
+- Use `tilia(object)` for a plain reactive object or array.
+- Use `carve(({derived}) => object)` when fields or methods need the complete
+  object as `self`. Keep the factory declarative; move domain logic into
+  focused functions and bind them with `derived`.
+- Use `computed(fn)` for a pull-based cached field.
+- Use `observe(fn)` for one tracked effect.
+- Use `watch(capture, effect)` when reads and side effects should be separate.
+- Use `signal(value)` for standalone mutable state, `derived(fn)` for a
+  standalone derived signal, and `lift(signal)` to insert its value.
+- Use `source(initial, setup)` when external or asynchronous work emits values.
+- Use `store(setup)` when setup both constructs the initial value and owns later
+  updates.
+- Use `readonly(data)` to keep immutable or foreign data unproxied.
+- Use `batch(fn)` to group writes made outside a tilia callback.
+
+## Critical rules
+
+- Insert `computed`, `source`, and `store` directly into a reactive object.
+  Reading an orphan computed value raises.
+- `source` tracks only synchronous reads made by `setup(previous, set)`. Read
+  dependencies before starting promises or other asynchronous work.
+- `previous` is the latest emitted source value. It remains visible until
+  `set(next)` runs, enabling stale-while-revalidate behavior.
+- `observe` and `watch` return cancellation functions.
+- A `watch` effect is untracked and may read unrelated reactive state.
+- Tilia callbacks already defer notification flushing; an extra `batch` is
+  normally unnecessary inside them.
+- `readonly(data)` returns a holder whose `data` field is non-writable and not
+  tracked or proxied.
+
+## Minimal TypeScript
+
+```typescript
+import { carve, observe } from "tilia";
+
+type Counter = {
+  value: number;
+  double: number;
+  increment: () => void;
+};
+
+const counter = carve<Counter>(({ derived }) => ({
+  value: 1,
+  double: derived((self) => self.value * 2),
+  increment: derived((self) => () => {
+    self.value++;
+  }),
+}));
+
+const cancel = observe(() => console.log(counter.double));
+counter.increment();
+cancel();
+```
+
+## Minimal ReScript
+
+```rescript
+open Tilia
+
+type counter = {
+  mutable value: int,
+  double: int,
+  increment: unit => unit,
+}
+
+let counter: counter = carve(({derived}) => {
+  value: 1,
+  double: derived(self => self.value * 2),
+  increment: derived(self => () => self.value = self.value + 1),
+})
+
+let cancel = observe(() => Console.log(counter.double))
+counter.increment()
+cancel()
+```
+
+## React
+
+React integration lives in `@tilia/react`.
+
+- TypeScript contract: `../react/src/index.d.ts`
+- ReScript contract: `../react/src/TiliaReact.resi`
+- API: <https://tiliajs.dev/api>
 

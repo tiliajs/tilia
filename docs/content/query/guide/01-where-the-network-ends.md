@@ -2,7 +2,7 @@
 title: Where the network ends
 slug: where-the-network-ends
 sort: 1
-refs: []
+refs: [make, tilia-query-type]
 ---
 
 This chapter is for the person deciding whether @tilia/query belongs in their stack. There is no code in it.
@@ -33,7 +33,7 @@ The library is small and adds no dependencies beyond tilia. Every result it retu
 
 ### How this guide works
 
-Readers of the [tilia guide](../tilia/guide.html) left Alice with a working spaced-repetition scheduler and one politely ignored question: what happens when the cards must live on a server? This guide answers it, while on a trip.
+Readers of the [tilia guide](../guide.html) left Alice with a working spaced-repetition scheduler and one politely ignored question: what happens when the cards must live on a server? This guide answers it, while on a trip.
 
 ::: story
 Alice is going to spend a week with her friend Nora, in a village in the Spanish hills where the network is a rumor. Between here and there: a train with tunnels, a bus with curves, a laptop, a phone — and a deck of flashcards that had better not care about any of it.

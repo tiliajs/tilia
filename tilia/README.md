@@ -13,13 +13,16 @@ and easier to evolve as your domain grows.
 
 In short: Tilia helps you write code that matches your business, not your framework.
 
-For more information, check out the [**DDD section**](https://tiliajs.com/docs#ddd) of the website.
+For more information, read the [tilia guide](https://tiliajs.dev/guide).
 
-<a href="https://tiliajs.com">
+<a href="https://tiliajs.dev">
   <img width="834" height="705" alt="image" src="https://github.com/user-attachments/assets/56dd163a-65a0-4900-9280-aab2a0d7d92a" />
 </a>
 
-Check the [**website**](https://tiliajs.com) for full documentation and more examples for both TypeScript and ReScript.
+See the [API reference](https://tiliajs.dev/api) for the complete public surface.
+Coding assistants can start with [`llms.txt`](./llms.txt), then use
+[`src/index.d.ts`](./src/index.d.ts) or
+[`src/Tilia.resi`](./src/Tilia.resi) for exact signatures.
 
 For core runtime behavior decisions (including computed pruning), see
 [`TRADE_OFFS.md`](./TRADE_OFFS.md).

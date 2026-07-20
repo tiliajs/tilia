@@ -26,16 +26,16 @@ TiliaQuery provides one shared way to handle this lifecycle.
 - Feature screens that read filtered lists and related items.
 - Apps that need both cached reads and occasional refetch.
 - Systems with local writes plus remote persistence.
-- Real-time or inbound updates that should refresh matching queries.
+- Real-time or inbound updates that should update matching queries in place.
 - Multi-view experiences where shared objects should stay consistent.
 - Fully offline-capable apps with two sync layers:
   - local database sync for immediate durable updates
   - remote database sync for slower network-dependent persistence
 - In this model, TiliaQuery owns in-memory liveness:
   - keep actively viewed data hot in memory
-  - purge memory data when it is no longer viewed
-  - keep local database and memory view aligned as the fast source
-  - treat remote as eventual persistence when network is available
+  - evict memory data after it is no longer viewed
+  - keep local storage as a durable cache and outbox
+  - treat the remote as authoritative when network is available
 
 ## How It Works (High Level)
 
@@ -43,9 +43,11 @@ TiliaQuery keeps two connected caches:
 - an object cache by id
 - a query-result cache by filter
 
-When data changes, matching queries are marked stale.  
-Live queries refresh in the background.  
-Idle queries can be cleaned up later.  
+When data changes, `matches` updates in-memory query membership immediately.
+Observed non-live queries refresh on the application's `tick`; subscription
+sources can declare themselves live and keep their own results fresh.
+Idle queries leave memory after their expiry, while retained local data stays
+available offline.
 Objects still used by active queries stay available.
 
 ## Product Direction

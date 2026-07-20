@@ -20,9 +20,6 @@ const build = {
   packages: "external",
   plugins: [
     copyFile("./src/index.d.ts", "./dist/index.d.ts"),
-    copyFile("../website/public/llms.txt", "./llms.txt"),
-    copyFile("../website/public/llms-rescript.md", "./llms-rescript.md"),
-    copyFile("../website/public/llms-typescript.md", "./llms-typescript.md"),
   ],
 };
 

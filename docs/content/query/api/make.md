@@ -10,7 +10,7 @@ signature:
   ts: |-
     function make<T, Q>(config: Config<T, Q>): TiliaQuery<T, Q>
   res: |-
-    let make: config<'a, 'query> => t<'a, 'query>
+    let make: config<'query, 'a> => t<'query, 'a>
 tags: []
 ---
 
@@ -23,7 +23,8 @@ tags: []
 - `expiry` — timing configuration. See [Expiry](api.html#expiry-type). Defaults: 30 s refresh, 5 min memory, 30 days local.
 - `now` — clock in milliseconds. Default: `Date.now`. Inject a fake clock in tests.
 - `key` — query identity as a string. Default: [sortedStringify](api.html#sorted-stringify).
-- `sort` — result order. [one](api.html#one) returns the first value per this order. Default: delivery order.
+- `sort` — return the result sorter for a query. [one](api.html#one) returns the first value per this order. Default: delivery order.
+- `merge` — merge a remote value into its local value in place using the local [Change](api.html#change-type). Return `false` to keep remote truth and record a conflict.
 
 Queries should be plain data that survives a JSON round trip. The default `key` needs it, and so does the local purge: persisted query records store the query itself, so `matches` can run against records whose query is no longer in memory.
 

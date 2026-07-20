@@ -2,7 +2,7 @@
 title: Reads answer twice
 slug: reads-answer-twice
 sort: 3
-refs: []
+refs: [loadable-type, local-channel-type, expiry-type, tick, canopy-type, canopy]
 ---
 
 Open a query and two reads start at once: the local store answers from what the device already holds, and the remote answers from the truth. The local answer arrives in milliseconds; the remote takes whatever the network takes. The user sees the first and is quietly upgraded to the second:
@@ -25,7 +25,7 @@ That is the whole trick, and it is the first rule from [chapter 1](#where-the-ne
 
 The `fresh` field does not say where the rows are stored. It says whether the value is known to be current. A UI can whisper that distinction — dim the deck a shade, show a small dot. When a fresh remote result lands, it becomes the visible one, and its rows are written through to the local store, so tomorrow's cold start answers from today's truth.
 
-There is one exception: while online, a local answer that is *empty* keeps the query `Loading` rather than flashing an empty screen. Empty-and-checking and empty-for-sure are different facts, and the user should only see the second.
+When local storage cannot answer a query, it calls `unknown`. While online, that leaves the query `Loading` until the remote responds; offline it becomes `NotLocal`. A local `set([])` is different: it is a known empty cached result, so `array` answers `Loaded` and `one` answers `NotFound`.
 
 ### Five answers, each a sentence
 
@@ -34,7 +34,7 @@ A `loadable` never makes the reader guess. Each state is a complete sentence:
 - `Loading` — an answer may still be coming. Shown only when there is truly nothing to show yet.
 - `Loaded, fresh: false` — here is what we know; we are checking.
 - `Loaded, fresh: true` — this is current.
-- `NotFound` — the fetch completed, and there is nothing. An answer, from `one`.
+- `NotFound` — a source answered with an empty result. An answer, from `one`.
 - `NotLocal` — the device is offline and holds nothing for this query. Also an answer, not a progress state: the app can say "not available offline" instead of spinning forever.
 - `Failed` — the remote fetch broke, and the message surfaces *at the read site*, where the value is used. There is no global error slot, and the query is not stuck: it re-enters the refresh cycle and retries.
 

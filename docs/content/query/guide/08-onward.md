@@ -2,7 +2,7 @@
 title: Onward
 slug: onward
 sort: 8
-refs: []
+refs: [tilia-query-type, make]
 ---
 
 Step back and look at what Alice's app is made of now. The components still read `cards.array({deck: "spanish"})` and render what comes back. The review action still writes a card. Nothing in the feature code mentions tunnels, buses, outboxes, or Spain. One `make()` call, two small adaptors, and a `tick()` on the app's own clock carry the entire trip — and the mental model compresses well:
@@ -32,9 +32,9 @@ Specification-first is how the offline promises stay promises while the implemen
 
 ### Where to go from here
 
-The [API reference](api.html) documents the complete public surface — every function and type with its signature in both TypeScript and ReScript. It is the place for the precise rule wherever this guide chose the readable one.
+The [@tilia/query API reference](./api.html) documents the complete public surface — every function and type with its signature in both TypeScript and ReScript. It is the place for the precise rule wherever this guide chose the readable one.
 
-The reactivity underneath — why reading is subscribing, why identity means no wasted repaints — is the [tilia guide](../tilia/docs.html); this guide leaned on it in every chapter. Both libraries are open source at [github.com/tiliajs](https://github.com/tiliajs), and the method they serve — software drawn before it is built — is the [épure](https://epuremethod.com) project.
+The reactivity underneath — why reading is subscribing, why identity means no wasted repaints — is the [tilia guide](../guide.html), and its complete surface is in the [tilia API reference](../api.html). This guide leaned on it in every chapter. Both libraries are open source at [github.com/tiliajs](https://github.com/tiliajs), and the method they serve — software drawn before it is built — is the [épure](https://epuremethod.com) project.
 
 ::: story
 The train home. Tunnels again — Alice doesn't look up. Somewhere under her thumbs a queue is holding her words like sap through winter, and she has no idea, and that is the highest compliment an architecture ever gets.

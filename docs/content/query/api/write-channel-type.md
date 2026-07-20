@@ -39,7 +39,7 @@ Batch endings:
 
 The first definitive call wins; everything on the channel is a noop afterwards. Ops confirmed before a `fail` have already left the outbox and are not rejected.
 
-See guide chapter [Writing without waiting](guide.html#writing-without-waiting).
+See guide chapters [Tunnels](guide.html#tunnels) and [When the world returns](guide.html#when-the-world-returns).
 
 ```typescript
 // Confirm op by op; report the first server error as definitive.

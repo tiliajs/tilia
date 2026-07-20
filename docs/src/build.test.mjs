@@ -42,6 +42,14 @@ test("loads tilia config from content folder", async () => {
   assert.equal(config.pages.guide.input.markdownDir, path.resolve(process.cwd(), "content/tilia/guide"));
   assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/api.html"));
   assert.equal(config.pages.guide.output, path.resolve(process.cwd(), "dist/guide.html"));
+  assert.deepEqual(
+    config.pages.api.assets.copy.find((item) => item.to.endsWith("llms.txt")),
+    {
+      from: path.resolve(process.cwd(), "../tilia/llms.txt"),
+      to: path.resolve(process.cwd(), "dist/llms.txt"),
+      recursive: false,
+    },
+  );
 });
 
 test("rejects invalid config format", async () => {
@@ -112,6 +120,14 @@ test("loads query config via base", async () => {
   assert.equal(config.pages.api.input.glob, "*.md");
   assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/query/api.html"));
   assert.equal(config.pages.guide.output, path.resolve(process.cwd(), "dist/query/guide.html"));
+  assert.deepEqual(
+    config.pages.api.assets.copy.find((item) => item.to.endsWith("llms.txt")),
+    {
+      from: path.resolve(process.cwd(), "../query/llms.txt"),
+      to: path.resolve(process.cwd(), "dist/query/llms.txt"),
+      recursive: false,
+    },
+  );
 });
 
 test("deep merges literals over base", async () => {
@@ -216,6 +232,10 @@ test("renders guide body when pageMain omits slots", async () => {
   assert.match(html, /Reference: <a href="\.\/api\.html#make">make<\/a>/);
   assert.match(html, /<title>The Guide — @tilia\/query<\/title>/);
   assert.match(html, /<link rel="stylesheet" href="\.\.\/style\.css">/);
+  assert.match(
+    html,
+    /<link rel="alternate" type="text\/plain" href="\.\/llms\.txt" title="@tilia\/query LLM documentation">/,
+  );
   assert.match(html, /<body class="query">/);
   assert.match(html, /href="\.\.\/index\.html" aria-label="tilia — home"/);
   assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
@@ -228,4 +248,8 @@ test("renders tilia guide navigation", async () => {
 
   assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
   assert.match(html, /href="\.\/query\/index\.html">Query<\/a>/);
+  assert.match(
+    html,
+    /<link rel="alternate" type="text\/plain" href="\.\/llms\.txt" title="tilia LLM documentation">/,
+  );
 });

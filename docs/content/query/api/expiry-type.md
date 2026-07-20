@@ -30,7 +30,7 @@ tags: []
 
 All timing takes effect only when [tick](api.html#tick) runs — the engine owns no timers.
 
-See guide chapter [The pulse and the canopy](guide.html#the-pulse-and-the-canopy).
+See guide chapters [Reads answer twice](guide.html#reads-answer-twice) and [A week at Nora's](guide.html#a-week-at-noras).
 
 ```typescript
 import type { Expiry } from "@tilia/query";

@@ -15,22 +15,20 @@ signature:
       remove: (id: string) => void,
       receive: Receive<T>,
       status: Status<T>,
-      retry: (rejection: Rejection<T>) => void,
-      discard: (rejection: Rejection<T>) => void,
+      dismiss: (rejection: Rejection<T>) => void,
       tick: () => void,
       dispose: () => void,
       _canopy: () => Canopy
     }
   res: |-
-    type t<'a, 'query> = {
+    type t<'query, 'a> = {
       one: 'query => loadable<'a>,
       array: 'query => loadable<array<'a>>,
       upsert: 'a => unit,
       remove: string => unit,
       receive: receive<'a>,
       status: status<'a>,
-      retry: rejection<'a> => unit,
-      discard: rejection<'a> => unit,
+      dismiss: rejection<'a> => unit,
       tick: unit => unit,
       dispose: unit => unit,
       _canopy: unit => canopy,
@@ -38,12 +36,12 @@ signature:
 tags: []
 ---
 
-`TiliaQuery<T, Q>`/`t<'a, 'query>` is the collection object returned by [make](api.html#make): one value per collection, holding everything the application touches.
+`TiliaQuery<T, Q>`/`t<'query, 'a>` is the collection object returned by [make](api.html#make): one value per collection, holding everything the application touches.
 
 - Reads: [one](api.html#one), [array](api.html#array) — reactive, answering a [Loadable](api.html#loadable-type).
 - Writes: [upsert](api.html#upsert), [remove](api.html#remove) — optimistic, queued in the outbox.
 - Inbound push: [receive.changed](api.html#receive-changed), [receive.removed](api.html#receive-removed).
-- Sync state: [status](api.html#status), with [retry](api.html#retry) and [discard](api.html#discard) for rejections.
+- Sync state: [status](api.html#status), with [dismiss](api.html#dismiss) for resolved or ignored rejections.
 - Lifecycle: [tick](api.html#tick), [dispose](api.html#dispose).
 - Tooling: [_canopy](api.html#canopy).
 
@@ -57,6 +55,6 @@ const openDeck = (cards: TiliaQuery<Card, Query>, deck: string) =>
 ```
 
 ```rescript
-let openDeck = (cards: TiliaQuery.t<card, query>, deck: string) =>
+let openDeck = (cards: TiliaQuery.t<query, card>, deck: string) =>
   cards.array({deck: deck})
 ```

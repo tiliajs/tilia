@@ -2,7 +2,7 @@
 title: A week at Nora's
 slug: a-week-at-noras
 sort: 6
-refs: []
+refs: [local-type, local-channel-type, expiry-type, tick]
 ---
 
 A tunnel tests whether offline *works*. A week tests whether offline was *designed*. Seven days without a signal means restarts, storage limits, and a growing pile of unsent writes — and the app code, notably, does nothing special about any of it. Nothing in Alice's features branches on connectivity. The engine and one adaptor absorb the whole week.
@@ -35,7 +35,7 @@ With it configured, the week holds together by construction. Reads answer from t
 
 ### Three clocks
 
-Retention is governed by three independent expiries, each answering a different questions:
+Retention is governed by three independent expiries, each answering a different question:
 
 ```typescript
 expiry: {

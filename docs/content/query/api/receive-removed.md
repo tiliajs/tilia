@@ -12,16 +12,17 @@ signature:
 tags: []
 ---
 
-`receive.removed` reports ids that were deleted on the server. It takes ids, never full values.
+`receive.removed` is part of [Receive](api.html#receive-type). It reports ids that were deleted on the server. It takes ids, never full values.
 
 For each delivered id:
 
 - The id leaves every in-memory query result, and its local row is deleted.
-- The outbox overlay wins: an id with a pending or rejected op is skipped entirely — memory and the local row keep the optimistic value until the op confirms or is discarded.
+- A pending create or update is cleared and becomes a conflict in `status.rejected`; the server deletion remains visible.
+- A pending remove is confirmed and cleared without a rejection.
 
 Like [receive.changed](api.html#receive-changed), deliveries do not touch freshness: the `fresh` flag and refresh scheduling stay owned by the per-query read channel.
 
-See guide chapter [The channel boundary](guide.html#the-channel-boundary). `cards` is the collection from [make](api.html#make).
+See guide chapters [Two devices, one deck](guide.html#two-devices-one-deck) and [When the world returns](guide.html#when-the-world-returns). `cards` is the collection from [make](api.html#make).
 
 ```typescript
 socket.on("cards-removed", (ids: string[]) => {

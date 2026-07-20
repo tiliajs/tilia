@@ -2,17 +2,42 @@
 
 > Offline-first query and cache layer for Tilia apps: normalized object
 > cache, two-tier reads (local store + remote), durable optimistic outbox
-> with batch push and reconnect replay, per-op rejections with retry/discard,
+> with batch push and reconnect replay, merge-aware rejection contexts,
 > live queries, inbound server pushes, and mark-and-sweep local retention.
 
-Key facts for code generation:
+## Exact API contracts
 
-- Create an instance with positional arguments:
-  `make(id, matches, remote, local?, expiry?, now?, key?, sort?)`.
+These files are authoritative. If prose differs, follow the contracts.
+
+Repository:
+
+- TypeScript: `./src/index.d.ts`
+- ReScript: `./src/TiliaQuery.resi`
+
+Installed npm package:
+
+- TypeScript: `./dist/index.d.ts`
+- ReScript: `./src/TiliaQuery.resi`
+
+Published documentation:
+
+- Guide: <https://tiliajs.dev/query/guide>
+- API: <https://tiliajs.dev/query/api>
+- TypeScript contract: <https://github.com/tiliajs/tilia/blob/main/query/src/index.d.ts>
+- ReScript contract: <https://github.com/tiliajs/tilia/blob/main/query/src/TiliaQuery.resi>
+
+## Key facts
+
+- Create an instance with a configuration object:
+  `make({id, matches, remote, local?, expiry?, now?, key?, sort?, merge?})`.
 - Queries are plain data and pure per-row predicates: `matches(query, value)`
   decides membership one row at a time and a fetch answers with the full
-  result set — no limits, no pagination, no aggregates. `sort(values)`
-  transforms the whole result array. `key` defaults to `sortedStringify`.
+  result set — no limits, no pagination, no aggregates. `sort(query)(values)`
+  orders the whole result array. `key` defaults to `sortedStringify`.
+- `merge(change, remote)` mutates the local value in place and returns `true`
+  when it reconciles. `Change` is tagged `clean`, `created`, `updated`, or
+  `removed`; update carries `base` and `edited`. Returning `false` keeps
+  remote truth and records a conflict.
 - Reads: `one(query)` and `array(query)` return a loadable: the strings
   `"loading"`, `"notFound"` (never for `array` — empty results are loaded),
   `"notLocal"` (offline and nothing cached: an answer, not a progress state),
@@ -21,9 +46,8 @@ Key facts for code generation:
   no global error slot.
 - Writes: `upsert(value)` and `remove(id)` are optimistic — they update
   memory, join and leave in-memory query results through `matches`, write to
-  the local store, and queue an op in a durable, ordered outbox. Pending and
-  rejected ops overlay every remote delivery, so optimistic edits never
-  flicker out of a result.
+  the local store, and queue an op in a durable, ordered outbox. Pending ops
+  are reconciled with remote deliveries.
 - `remote` is `{online, fetch, push}`. `online` is a tilia `Signal<boolean>`
   the app owns; flipping to true replays the outbox, flipping to false
   settles loading queries to `"notLocal"`.
@@ -37,8 +61,8 @@ Key facts for code generation:
 - `remote.push(ops, channel)` receives the ordered batch of pending ops.
   Confirm per op with `channel.set(value)` (authoritative upsert value) and
   `channel.removed(id)`; `channel.retry()` keeps unconfirmed ops pending;
-  `channel.fail(message)` turns them into rejections in `status.rejected`,
-  handled with `retry(rejection)` / `discard(rejection)`.
+  `channel.fail(message)` removes unconfirmed ops, reverts their optimistic
+  changes to remote truth, and adds contexts to `status.rejected`.
 - `local` is command-only (storage errors are the adaptor's business):
   `fetch(query, {set, unknown})` materializes a query, `push(ops)` applies
   value changes in order, `set(tag, key, value|undefined)` and
@@ -47,9 +71,13 @@ Key facts for code generation:
   sweep. No dirty flags or tombstones: the values table holds the current
   optimistic state.
 - Inbound pushes: `receive.changed(values)` / `receive.removed(ids)` are
-  facts about the server. The outbox overlay wins over deliveries, and
-  deliveries do not touch freshness.
-- `status` is reactive: `{pending, rejected}`.
+  facts about the server. Changed values merge with pending local changes;
+  a server removal against a pending create/update records a conflict.
+  Deliveries do not touch freshness.
+- `status` is reactive: `{pending, rejected}`. Rejections are in-memory
+  contexts, not persisted ops or optimistic overlays. Keep the local version
+  with an ordinary `upsert`, or keep remote truth as shown, then call
+  `dismiss(rejection)`.
 - The engine owns no timers: call `tick()` on an interval ≤
   `expiry.refresh / 2`. Expiry tiers in ms: `refresh` 30 s (background
   refetch and `fresh` flag), `memory` 5 min (RAM eviction), `local` 30 days
@@ -63,6 +91,4 @@ Key facts for code generation:
 - [README](README.md): API tour with REST remote and Dexie local recipes (TypeScript)
 - [TECHNICAL.md](TECHNICAL.md): the engine model — freshness, live queries, outbox, rejections, local purge, the linear-scan bet
 - [Vision](docs/vision.md): why TiliaQuery exists
-- [ReScript contract](src/TiliaQuery.resi): source of truth for the API
-- [TypeScript types](src/index.d.ts): TS mirror of the contract
-- [Tilia docs](https://tiliajs.com): the reactive core this builds on
+- [tilia machine guide](../tilia/llms.txt): the reactive core this builds on

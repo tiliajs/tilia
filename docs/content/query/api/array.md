@@ -17,7 +17,7 @@ tags: []
 The read is reactive: inside `observe`, `watch` or a component, the caller re-runs when the result changes.
 
 - `array` never answers `NotFound`: an empty result is `Loaded` with an empty array.
-- Results include the optimistic overlay — pending and rejected writes are re-applied on top of every remote delivery, so an unconfirmed write never flickers out of a result.
+- Results include the optimistic overlay — pending writes are reconciled with every remote delivery, so an unconfirmed write never flickers out without either merging or producing a rejection.
 - All states and the `fresh` flag behave as described in [Loadable](api.html#loadable-type).
 
 `cards` below is the collection from [make](api.html#make). See guide chapter [Reads answer twice](guide.html#reads-answer-twice).

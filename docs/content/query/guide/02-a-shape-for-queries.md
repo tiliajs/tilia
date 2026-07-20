@@ -2,12 +2,12 @@
 title: A shape for queries
 slug: a-shape-for-queries
 sort: 2
-refs: []
+refs: [make, config-type, sorted-stringify, loadable-type, one, array]
 ---
 
 In tilia's domain-driven guide, the scheduler's repository was injected... and politely ignored for nine chapters. Now it is connected to a remote server, and the first question is what the engine needs to know about your domain to manage it.
 
-The answer is deliberately short: two functions.
+The domain-specific answer is deliberately short: two functions. The remote adaptor is required too, but it describes transport rather than the domain.
 
 ### Identity and membership
 
@@ -52,9 +52,9 @@ let cards = make({
 })
 ```
 
-A query is plain data — `{deck: "spanish"}` — and its serialized form is its cache key. Ask the same question anywhere in the application and you get the same living result: one fetch, one cached id list, one identity. There is nothing to register and nothing to name; the question *is* the key.
+A query is plain data — `{deck: "spanish"}` — and its deterministically serialized form is its cache key by default. A custom `key` can replace that rule. Ask the same question anywhere in the application and you get the same living result: one fetch, one cached id list, one identity. There is nothing to register and nothing to name; the question *is* the key.
 
-Notice what `matches` is: a pure predicate over **one row**. That restriction is the cornerstone of the library. Because membership can be decided by looking at a single value, the engine can update query results locally — when a write arrives, when a live update lands — without asking the server which lists changed. A query that cannot be expressed this way (a limit, a page, an aggregate) belongs in a domain adaptor of its own, not in this shape.
+Notice what `matches` is: a pure predicate over **one row**. That restriction is the cornerstone of the library. Because membership can be decided by looking at a single value, the engine can update query results locally — when a write arrives, when a live update lands — without asking the server which lists changed. Ordering can still depend on the query because `sort`, when supplied, returns a sorter for that query. A query whose membership cannot be expressed per row (a limit, a page, an aggregate) belongs in a domain adaptor of its own, not in this shape.
 
 ### Reading is asking
 

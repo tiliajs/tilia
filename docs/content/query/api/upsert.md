@@ -25,9 +25,9 @@ Edge cases:
 
 - If no persisted query record lists the id after the join, a synthetic record keeps the row alive through the local purge. The next purge offers such a row to every persisted query; a match adopts it.
 - Confirmation replaces the local value with the authoritative one from [WriteChannel](api.html#write-channel-type)`.set` — the server may have corrected it.
-- A definitive push failure moves the op to `status.rejected`; see [retry](api.html#retry) and [discard](api.html#discard).
+- A definitive push failure reverts the optimistic value to remote truth and adds a context to `status.rejected`; resolve or ignore it, then [dismiss](api.html#dismiss) it.
 
-`cards` below is the collection from [make](api.html#make). See guide chapter [Writing without waiting](guide.html#writing-without-waiting).
+`cards` below is the collection from [make](api.html#make). See guide chapter [Tunnels](guide.html#tunnels).
 
 ```typescript
 cards.upsert({ id: "cat", deck: "es", english: "cat", translation: "gato" });

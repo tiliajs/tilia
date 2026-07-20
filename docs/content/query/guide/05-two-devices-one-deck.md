@@ -2,7 +2,7 @@
 title: Two devices, one deck
 slug: two-devices-one-deck
 sort: 5
-refs: []
+refs: [receive-type, receive-changed, receive-removed, read-channel-type, remote-type, dispose]
 ---
 
 Changing devices is where hand-rolled sync layers usually crack, so it is worth saying plainly: in this design, "continue on your phone" is not a feature anyone built. It is the result of two rules applied consistently: the server is authoritative, and every cache admits it is a cache.
@@ -33,7 +33,7 @@ Socket.on(socket, "cards.changed", cards.receive.changed)
 Socket.on(socket, "cards.removed", cards.receive.removed)
 ```
 
-Deliveries are past tense on purpose: facts about the server, not commands to it. A changed value is offered to every in-memory query through `matches` — it joins the results it now belongs to and leaves the ones it no longer does, the same membership logic mutations use. A removed id leaves every result. And a delivery that lands on a row with an unconfirmed local edit goes through the same merge machinery as any other remote arrival, so a pending write is never silently clobbered by an incoming one. [Chapter 7](#when-the-world-returns) owns that story.
+Deliveries are past tense on purpose: facts about the server, not commands to it. A changed value is offered to every in-memory query through `matches` — it joins the results it now belongs to and leaves the ones it no longer does, the same membership logic mutations use. A removed id leaves every result. A changed value that lands on a row with an unconfirmed local edit goes through the merge machinery, while a server removal against a pending create or update records a conflict and keeps the removal visible. A pending write is never silently clobbered by an incoming fact. [Chapter 7](#when-the-world-returns) owns that story.
 
 ### Queries that stay fresh on their own
 

@@ -16,3 +16,10 @@
 - Follow existing package patterns and public API shape.
 - Keep generated files in sync when the project build regenerates them.
 - Do not introduce dependencies unless they are necessary for the current task.
+
+## API Discovery
+
+- Read [`tilia/llms.txt`](tilia/llms.txt) for the compact tilia model.
+- Read [`query/llms.txt`](query/llms.txt) for the compact @tilia/query model.
+- For exact APIs, use `tilia/src/index.d.ts` or `tilia/src/Tilia.resi`, and
+  `query/src/index.d.ts` or `query/src/TiliaQuery.resi`.

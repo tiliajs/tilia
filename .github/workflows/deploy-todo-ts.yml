@@ -40,9 +40,9 @@ jobs:
           mkdir -p dist/todo-app-ts
           cp -r todo-app-ts/dist/* dist/todo-app-ts/
 
-      - name: Copy website to root dist
+      - name: Copy documentation to root dist
         run: |
-          cp -r website/dist/* dist/
+          cp -r docs/dist/* dist/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

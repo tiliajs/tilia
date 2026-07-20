@@ -46,16 +46,11 @@ Tilia was built to help your projects grow while staying maintainable and readab
 
 ```md
 Use the official Tilia LLM docs index:
-- https://tiliajs.com/llms.txt
+- https://tiliajs.dev/llms.txt
 
-It links to:
-- ReScript patterns
-- TypeScript patterns
-- carve to build self-contained features
-- derived to build reactivity from pure functions
+It summarizes the machine-relevant model and points to the TypeScript and
+ReScript contracts for the exact API.
 ```
-
-You can also directly copy [llms-rescript.md](/llms-rescript.md) or [llms-typescript.md](/llms-typescript.md) into your project or workspace rules (**Knowledge** tab on Lovable for example).
 
 </section>
 
@@ -145,7 +140,8 @@ export const update =
 // Please switch to typescript for the example.
 ```
 
-All the advice I gave the AI on how to use tilia for state management are in the [llms.txt](/llms.txt) documentation.
+The compact machine guide is published at
+[tiliajs.dev/llms.txt](https://tiliajs.dev/llms.txt).
 
 ## API Reference {.api}
 

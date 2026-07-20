@@ -2,7 +2,7 @@
 title: When the world returns
 slug: when-the-world-returns
 sort: 7
-refs: []
+refs: [change-type, rejection-type, status-type, status, dismiss]
 ---
 
 Halfway down the valley the phone finds a bar of signal, the connectivity signal flips, and two things happen at once: forty-one operations push to the server in the order Alice made them, and a week of the server's own history comes back the other way. Most of it passes without a ripple — confirmed writes leave the outbox, changed rows slot into their queries. This chapter is about the handful that collide.
@@ -80,7 +80,7 @@ Return `true` and the merged value stands: Nadia fixed the article on one card w
 
 ### When a human must choose
 
-Recorded disagreements — and mutations the server definitively refuses at push time — land in `status.rejected`, each carrying its whole story: what the row was, what was written, and the server's message when there is one. The reactive list is the app's cue to ask, gently, with both versions on screen:
+Recorded disagreements — and mutations the server definitively refuses at push time — land in `status.rejected`, each carrying the local side of its story: what the row was, what was written, and the server's message when there is one. Remote truth is already visible in the collection. The reactive list is the app's cue to ask, gently, with both versions on screen:
 
 ```typescript
 const keepTheirs = (r: Rejection<Card>) => cards.dismiss(r);
@@ -100,7 +100,7 @@ let keepMine = (r, edited) => {
 }
 ```
 
-There is no special conflict-resolution mode: keeping your version is an ordinary write, pushed like any other, and the ordering rules already guarantee it wins. `dismiss` retires the context once a human has seen it. The invariant underneath is the one from chapter 1 — **no version is ever silently lost**. The server's week is in the deck; Alice's week is either merged in or held, verbatim, in a context waiting for her eyes.
+There is no special conflict-resolution mode: keeping your version is an ordinary write, pushed like any other. `dismiss` only retires the context once a human has resolved or ignored it; it neither retries nor changes data. The invariant underneath is the one from chapter 1 — **no version is ever silently lost**. The server's week is in the deck; Alice's week is either merged in or held, verbatim, in a context waiting for her eyes.
 
 ::: story
 One card interrupts the bus ride: *echar de menos*, her sentence and Nadia's, side by side. Nadia's verb is better; Alice's ending is funnier. She takes thirty seconds to weave them into one sentence neither of them wrote, taps keep, and the deck moves on — one question asked, out of forty-one writes and a week apart.

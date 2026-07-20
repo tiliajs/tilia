@@ -7,20 +7,12 @@ since: "0.1"
 sort: 140
 summary: Debug view — observed vs cached query keys.
 signature:
-  ts: |-
-    _canopy: () => {
-      live: string[],
-      idle: string[]
-    }
-  res: |-
-    _canopy: unit => {
-      live: array<string>,
-      idle: array<string>,
-    }
+  ts: "_canopy: () => Canopy"
+  res: "_canopy: unit => canopy"
 tags: []
 ---
 
-`_canopy` answers which queries the engine currently holds in memory, by key:
+`_canopy` returns a [Canopy](api.html#canopy-type) showing which queries the engine currently holds in memory, by key:
 
 - `live` — observed right now: something is reading the query's result inside an observer.
 - `idle` — cached but unobserved: still in memory, waiting for `expiry.memory` to evict it.
@@ -29,7 +21,7 @@ There is no registration API behind this. Reading a result inside an observer is
 
 The underscore marks a tooling entry point — meant for debugging, devtools and library authors, not everyday application code.
 
-`cards` is the collection from [make](api.html#make). See guide chapter [The pulse and the canopy](guide.html#the-pulse-and-the-canopy).
+`cards` is the collection from [make](api.html#make). See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
 
 ```typescript
 const { live, idle } = cards._canopy();
