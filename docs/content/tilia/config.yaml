@@ -99,6 +99,47 @@ shared:
       React
 
 pages:
+  errors:
+    enabled: true
+    input:
+      markdownFile: errors.md
+      sourceLabel: content/errors.md
+    output: "{{dist}}/errors.html"
+    templates:
+      pageMain: |-
+        <div class="docs-head">
+          <div class="wrap">
+            <p class="eyebrow">Troubleshooting<span class="sep">·</span>Fail near the cause</p>
+            <h1>Orphan computation error</h1>
+            <p class="standfirst">A <code>computed</code> definition was used before it was inserted into a reactive object.</p>
+          </div>
+        </div>
+
+        <div class="wrap docs-layout">
+          <div class="chapters">
+            <section class="chapter">
+              <span id="1" aria-hidden="true"></span>
+              <span id="orphan" aria-hidden="true"></span>
+              {{bodyHtml}}
+            </section>
+          </div>
+        </div>
+    document:
+      title: |-
+        Orphan computation error — tilia
+      description: |-
+        Fix tilia's orphan computation error by inserting computed definitions directly into tilia or carve objects.
+      activeNav: ""
+      htmlAttrs: |-
+        lang="en" data-lang="ts"
+      includePrePaint: true
+      includeToggleScript: true
+      includeSkip: true
+      mainAttrs: |2-
+         id="content"
+    assets:
+      copy: []
+
   api:
     input:
       markdownDir: api
@@ -127,7 +168,7 @@ pages:
       pageMain: |-
         <div class="api-head">
           <div class="wrap">
-            <p class="eyebrow">Reference<span class="sep">·</span>v1.x<span class="sep">·</span>TypeScript &amp; ReScript signatures</p>
+            <p class="eyebrow">Reference<span class="sep">·</span>v6.x<span class="sep">·</span>TypeScript &amp; ReScript signatures</p>
             <h1>API Reference</h1>
             <p class="sec-lead">The public surface of tilia. Each entry gives the signature, behavior, and one minimal example.</p>
           </div>
@@ -187,7 +228,7 @@ pages:
       pageMain: |-
         <div class="docs-head">
           <div class="wrap">
-            <p class="eyebrow">Guide<span class="sep">·</span>v1.x<span class="sep">·</span>Guided tour</p>
+            <p class="eyebrow">Guide<span class="sep">·</span>v6.x<span class="sep">·</span>Guided tour</p>
             <h1>The Guide</h1>
             <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and React. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
           </div>

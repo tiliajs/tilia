@@ -1,53 +1,69 @@
-name: Deploy All Apps to GitHub Pages
+name: Deploy documentation to GitHub Pages
+
 on:
   push:
     branches: [main]
+  workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  deploy-all-apps:
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10.17.1
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Create root dist directory
-        run: mkdir -p dist
-
-      - name: Build all apps
+      - name: Build workspace
         run: pnpm build
         env:
           VITE_TODO_APP_TS: /todo-app-ts/
 
-      - name: Test all
+      - name: Test workspace
         run: pnpm test
 
-      - name: Copy todo-app-ts to root dist
+      - name: Stage Pages artifact
         run: |
           mkdir -p dist/todo-app-ts
-          cp -r todo-app-ts/dist/* dist/todo-app-ts/
+          cp -R docs/dist/. dist/
+          cp -R todo-app-ts/dist/. dist/todo-app-ts/
 
-      - name: Copy documentation to root dist
-        run: |
-          cp -r docs/dist/* dist/
-
-      - name: Upload artifact
+      - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4

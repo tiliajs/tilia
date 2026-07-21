@@ -45,7 +45,7 @@ This roadmap tracks TiliaQuery in sequential phases so contributors can see what
 - [x] Create package-level `query/README.md` for npm/repo entry-point onboarding with REST and Dexie adapter recipes.
 - [x] Add complete TypeScript type declarations (`src/index.d.ts`).
 - [x] Create `query/llms.txt` for AI coding assistants.
-- [ ] Ensure one canonical navigation path between root README, query docs, and website docs.
+- [ ] Ensure one canonical navigation path between root README, query docs, and published docs.
 
 ## Phase 5 - Adoption And Ecosystem Docs (Pending)
 
@@ -53,7 +53,7 @@ This roadmap tracks TiliaQuery in sequential phases so contributors can see what
 - [ ] Add ReScript app-level integration tests in `tests/app...`.
 - [ ] Add TypeScript app-level integration tests in `tests/app...`.
 - [ ] Validate documented usage pattern in at least one real feature module.
-- [ ] Add TiliaQuery section to `website/src/pages/docs.md`.
+- [x] Add TiliaQuery documentation under `docs/content/query`.
 - [ ] Document recommended feature-wrapper API (domain-shaped helpers over raw query object).
 - [ ] Update broader Tilia docs to direct remote fetching toward TiliaQuery over ad hoc patterns.
 - [ ] Publish a short migration note for teams currently using custom `watch` / `changing` flows.

@@ -35,7 +35,7 @@ Handle *expected* failures inside the computed itself — catch and return a fal
 
 ### Failing near the cause
 
-The other half of the floor you have already met: in [chapter 4](#values-that-follow), Claudine stranded a `computed` in a variable and the mistake failed loudly *at that line* — not three files away as a wrong value. Every definition (`computed`, `source`, `store`) is wrapped in a safety proxy: inside a `tilia` or `carve` object it unwraps transparently; anywhere else, it throws a descriptive error the moment it is used. Mistakes surface where they are made, which is exactly where a new collaborator — permanently new, in Claudine's case — needs them to surface.
+The other half of the floor you have already met: in [chapter 4](#values-that-follow), Claudine stranded a `computed` in a variable and the mistake failed loudly *at that line* — not three files away as a wrong value. A `computed` definition is wrapped in a safety proxy: inside a `tilia` or `carve` object it unwraps transparently; anywhere else, it throws a descriptive error the moment it is used. Mistakes surface where they are made, which is exactly where a new collaborator — permanently new, in Claudine's case — needs them to surface.
 
 ### Growth and cleanup
 

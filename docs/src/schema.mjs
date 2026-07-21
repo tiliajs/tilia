@@ -41,7 +41,7 @@ const pageInputSchema = S.schema({
 const pageDocumentSchema = S.schema({
   title: S.string,
   description: S.string,
-  activeNav: S.union(["api", "guide"]),
+  activeNav: S.union(["api", "guide", ""]),
   htmlAttrs: S.string,
   includePrePaint: S.boolean,
   includeToggleScript: S.boolean,
@@ -69,6 +69,15 @@ const guideTemplatesSchema = S.schema({
   pageMain: S.string,
 });
 
+const contentInputSchema = S.schema({
+  markdownFile: S.string,
+  sourceLabel: S.string,
+});
+
+const contentTemplatesSchema = S.schema({
+  pageMain: S.string,
+});
+
 const pageApiSchema = S.schema({
   input: pageInputSchema,
   output: S.string,
@@ -81,6 +90,15 @@ const pageGuideSchema = S.schema({
   input: pageInputSchema,
   output: S.string,
   templates: guideTemplatesSchema,
+  document: pageDocumentSchema,
+  assets: pageAssetsSchema,
+});
+
+const pageContentSchema = S.schema({
+  enabled: S.boolean,
+  input: contentInputSchema,
+  output: S.string,
+  templates: contentTemplatesSchema,
   document: pageDocumentSchema,
   assets: pageAssetsSchema,
 });
@@ -106,6 +124,7 @@ const buildConfigSchema = S.schema({
   pages: S.schema({
     api: pageApiSchema,
     guide: pageGuideSchema,
+    errors: pageContentSchema,
   }),
 });
 

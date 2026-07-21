@@ -16,7 +16,7 @@ tags: []
 
 Nested batches are supported. While inside a batch, writes update state immediately but observers are notified only after unlock. This prevents transient intermediate notifications.
 
-`observe`, `watch` effects, and computed rebuilds already run under deferred flushing. Use `batch` for grouped writes from non-reactive callbacks. See [watch](api.html#watch) and guide chapter [Time and consistency](guide.html#time-and-consistency).
+`observe`, `watch` effects, and computed rebuilds already run under deferred flushing. Use `batch` for grouped writes from non-reactive callbacks. See [watch](api.html#watch) and guide chapter [While Alice sleeps](guide.html#while-alice-sleeps).
 
 ```typescript
 import { batch, tilia } from "tilia";

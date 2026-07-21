@@ -31,7 +31,7 @@ function make() {
 }
 
 function observeCounter(counter, callback) {
-  Tilia.observe(() => callback(counter.value));
+  return Tilia.observe(() => callback(counter.value));
 }
 
 export {

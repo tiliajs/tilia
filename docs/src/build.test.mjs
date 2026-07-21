@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { crossValidate, findConfigs, loadConfig } from "./build.mjs";
-import { renderDocsPage } from "./templates.mjs";
+import { renderContentPage, renderDocsPage } from "./templates.mjs";
 
 function entry(file, module, name, slug) {
   return { file, module, name, slug };
@@ -42,6 +42,9 @@ test("loads tilia config from content folder", async () => {
   assert.equal(config.pages.guide.input.markdownDir, path.resolve(process.cwd(), "content/tilia/guide"));
   assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/api.html"));
   assert.equal(config.pages.guide.output, path.resolve(process.cwd(), "dist/guide.html"));
+  assert.equal(config.pages.errors.enabled, true);
+  assert.equal(config.pages.errors.input.markdownFile, path.resolve(process.cwd(), "content/tilia/errors.md"));
+  assert.equal(config.pages.errors.output, path.resolve(process.cwd(), "dist/errors.html"));
   assert.deepEqual(
     config.pages.api.assets.copy.find((item) => item.to.endsWith("llms.txt")),
     {
@@ -120,6 +123,7 @@ test("loads query config via base", async () => {
   assert.equal(config.pages.api.input.glob, "*.md");
   assert.equal(config.pages.api.output, path.resolve(process.cwd(), "dist/query/api.html"));
   assert.equal(config.pages.guide.output, path.resolve(process.cwd(), "dist/query/guide.html"));
+  assert.equal(config.pages.errors.enabled, false);
   assert.deepEqual(
     config.pages.api.assets.copy.find((item) => item.to.endsWith("llms.txt")),
     {
@@ -252,4 +256,19 @@ test("renders tilia guide navigation", async () => {
     html,
     /<link rel="alternate" type="text\/plain" href="\.\/llms\.txt" title="tilia LLM documentation">/,
   );
+});
+
+test("renders a configured content page", async () => {
+  const config = await loadConfig();
+  const html = renderContentPage({
+    config,
+    page: "errors",
+    bodyHtml: '<h2 id="orphan">Orphan computation</h2><p class="body">Define it where it is inserted.</p>',
+  });
+
+  assert.match(html, /<title>Orphan computation error — tilia<\/title>/);
+  assert.match(html, /<main id="content">/);
+  assert.match(html, /<h2 id="orphan">Orphan computation<\/h2>/);
+  assert.match(html, /href="\.\/style\.css"/);
+  assert.doesNotMatch(html, /aria-current="page"/);
 });

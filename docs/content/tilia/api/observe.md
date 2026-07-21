@@ -16,7 +16,7 @@ tags: []
 
 Writes performed inside `fn` are deferred while `fn` is running. If `fn` writes to keys it also tracks, it is scheduled to run again after the current run finishes. This makes `observe` suitable for state-machine style transitions.
 
-`observe` returns a function that cancels the observation: once called, the callback never runs again. Ignore it for observers that should live as long as the context. For two-phase capture/effect behavior, use [watch](api.html#watch). For pull reactivity, use [computed](api.html#computed). See guide chapters [A living object](guide.html#a-living-object) and [Time and consistency](guide.html#time-and-consistency).
+`observe` returns a function that cancels the observation: once called, the callback never runs again. Ignore it for observers that should live as long as the context. For two-phase capture/effect behavior, use [watch](api.html#watch). For pull reactivity, use [computed](api.html#computed). See guide chapters [A living object](guide.html#a-living-object) and [While Alice sleeps](guide.html#while-alice-sleeps).
 
 ```typescript
 import { observe, tilia } from "tilia";

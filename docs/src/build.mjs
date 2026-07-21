@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { parseApiEntry, parseBuildConfig, parseGuideChapter } from "./schema.mjs";
 import { createPrismHighlighter, createMarkdown, renderBody } from "./markdown.mjs";
-import { renderApiPage, renderDocsPage } from "./templates.mjs";
+import { renderApiPage, renderContentPage, renderDocsPage } from "./templates.mjs";
+import { guideRedirectScript, renderRedirects } from "./redirects.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
@@ -24,10 +25,14 @@ export const configPathKeys = [
   "pages.api.output",
   "pages.guide.input.markdownDir",
   "pages.guide.output",
+  "pages.errors.input.markdownFile",
+  "pages.errors.output",
   "pages.api.assets.copy[].from",
   "pages.api.assets.copy[].to",
   "pages.guide.assets.copy[].from",
   "pages.guide.assets.copy[].to",
+  "pages.errors.assets.copy[].from",
+  "pages.errors.assets.copy[].to",
 ];
 const simplePathKeys = [
   ["base"],
@@ -35,6 +40,8 @@ const simplePathKeys = [
   ["pages", "api", "output"],
   ["pages", "guide", "input", "markdownDir"],
   ["pages", "guide", "output"],
+  ["pages", "errors", "input", "markdownFile"],
+  ["pages", "errors", "output"],
 ];
 
 function inject(template, values) {
@@ -86,6 +93,7 @@ function resolveConfigPaths(config, baseDir) {
   for (const keys of simplePathKeys) resolveSimplePath(config, keys, baseDir);
   resolveCopyPaths(config, "api", baseDir);
   resolveCopyPaths(config, "guide", baseDir);
+  resolveCopyPaths(config, "errors", baseDir);
   return config;
 }
 
@@ -360,6 +368,7 @@ async function runConfigBuild(configPath, highlighter, md) {
   const pages = config.pages || {};
   const apiPage = pages.api || {};
   const guidePage = pages.guide || {};
+  const contentPage = pages.errors || {};
   const apiInput = apiPage.input || {};
   const guideInput = guidePage.input || {};
   const labels = {
@@ -371,6 +380,7 @@ async function runConfigBuild(configPath, highlighter, md) {
   const guideDir = resolvePath(guideInput.markdownDir || "guide", configDir);
   const apiFile = resolvePath(apiPage.output || "../../dist/api.html", configDir);
   const guideFile = resolvePath(guidePage.output || "../../dist/guide.html", configDir);
+  const contentFile = contentPage.enabled ? contentPage.output : null;
 
   const errors = [];
   const [apiFiles, guideFiles] = await Promise.all([
@@ -382,6 +392,18 @@ async function runConfigBuild(configPath, highlighter, md) {
   crossValidate(entries, chapters, errors, labels);
 
   renderBodies(md, entries, chapters, errors, labels);
+  let contentBody = "";
+  if (contentPage.enabled) {
+    const raw = await readFile(contentPage.input.markdownFile, "utf8");
+    try {
+      contentBody = renderBody(md, contentPage.input.sourceLabel, raw, {
+        allowHeadings: true,
+        page: "docs",
+      });
+    } catch (err) {
+      errors.push(err.message);
+    }
+  }
 
   if (errors.length > 0) {
     console.error(`Build failed for ${configPath} with ${errors.length} error(s):\n`);
@@ -390,15 +412,26 @@ async function runConfigBuild(configPath, highlighter, md) {
   }
 
   const apiHtml = renderApiPage({ entries, highlighter, config });
-  const docsHtml = renderDocsPage({ chapters, config });
+  const docsHtml = renderDocsPage({
+    chapters,
+    config,
+    scripts: config.var.project === "tilia" ? [guideRedirectScript] : [],
+  });
+  const contentHtml = contentPage.enabled
+    ? renderContentPage({ config, page: "errors", bodyHtml: contentBody })
+    : "";
 
   await mkdir(path.dirname(apiFile), { recursive: true });
   await mkdir(path.dirname(guideFile), { recursive: true });
   await writeFile(apiFile, apiHtml);
   await writeFile(guideFile, docsHtml);
+  if (contentFile) {
+    await mkdir(path.dirname(contentFile), { recursive: true });
+    await writeFile(contentFile, contentHtml);
+  }
   await copyAssetsForConfig(config, configPath);
 
-  const bytes = Buffer.byteLength(apiHtml) + Buffer.byteLength(docsHtml);
+  const bytes = Buffer.byteLength(apiHtml) + Buffer.byteLength(docsHtml) + Buffer.byteLength(contentHtml);
   console.log(
     `[${config.var.project}] Built ${entries.length} API entries, ${chapters.length} guide chapters — ${bytes} bytes written to dist/`
   );
@@ -439,6 +472,7 @@ export async function runBuild() {
   }
 
   if (!ok) return { ok: false };
+  await renderRedirects(path.join(root, "dist"));
   console.log(
     `Built ${configs.length} project config(s) — ${totalEntries} API entries, ${totalChapters} guide chapters, ${totalBytes} bytes`
   );

@@ -67,7 +67,7 @@ function Layout({ children }: { children: React.ReactNode }) {
         {/* Header */}
         <div className="flex justify-between items-center mb-1">
           <h1 className="text-3xl font-bold flex items-center">
-            <a href="http://tiliajs.com">
+            <a href="https://tiliajs.dev">
               <span
                 className={`${darkMode ? "text-pink-300" : "text-pink-500"}`}
               >
@@ -121,7 +121,7 @@ function Layout({ children }: { children: React.ReactNode }) {
               <span className="opacity-70">demo app using</span>
               &nbsp;
               <a
-                href="https://tiliajs.com"
+                href="https://tiliajs.dev"
                 className="underline text-blue-200 cursor-pointer opacity-70 hover:opacity-100"
               >
                 tilia

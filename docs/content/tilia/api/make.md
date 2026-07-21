@@ -16,7 +16,7 @@ tags: []
 
 Each context is isolated: observers and proxies from one context do not share tracking with another context. Use this for uncorrelated reactive worlds.
 
-`gc` sets the cleared-watcher garbage-collection threshold. Default is `50`. See [tilia](api.html#tilia), [Tilia](api.html#tilia-type), and guide chapter [What keeps it honest](guide.html#what-keeps-it-honest).
+`gc` sets the cleared-watcher garbage-collection threshold. Default is `50`. See [tilia](api.html#tilia), [Tilia](api.html#tilia-type), and guide chapter [Mistakes stay small](guide.html#mistakes-stay-small).
 
 ```typescript
 import { make } from "tilia";

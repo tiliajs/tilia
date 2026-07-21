@@ -68,7 +68,7 @@ if due { ... }
 `computed` returns a *definition*, not a value — it only comes to life once it is inserted into a tilia object. Used anywhere else, it fails immediately, loudly, at the line that broke the rule. Claudine reads the error, moves the computed into the card, and the moment passes — no silent wrong value, no bug surfacing three files away, no human needed to be watching. The library holds the rule, so no collaborator — however new — can drift far from it.
 
 ::: pro
-The golden rule: never assign a `computed` (or `source`, or `store`) to an intermediate variable — define it directly inside a `tilia` or `carve` object. [Chapter 11](#mistakes-stay-small) tells the rest of the safety story.
+The golden rule: never assign a `computed` to an intermediate variable — define it directly inside a `tilia` or `carve` object. [Chapter 11](#mistakes-stay-small) tells the rest of the safety story.
 :::
 
 ### Green, at midnight

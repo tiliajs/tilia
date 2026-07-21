@@ -254,7 +254,7 @@ function renderApiEntry(entry, highlighter, context) {
   });
 }
 
-export function renderDocsPage({ chapters, config }) {
+export function renderDocsPage({ chapters, config, scripts: extraScripts = [] }) {
   const literals = literalsFromConfig(config);
   const page = pageFromConfig(config, "guide");
   const sorted = [...chapters].sort((a, b) => a.sort - b.sort);
@@ -268,6 +268,30 @@ export function renderDocsPage({ chapters, config }) {
     .join("\n");
   const body = sorted.map((c, i) => renderChapter(c, i, page.templates)).join("\n");
   const main = guideMain(page.templates.pageMain, toc, body);
+  const scripts = [
+    ...(page.document.scripts || []).map((code) => inject(code, literals)),
+    ...extraScripts,
+  ];
+
+  return shell({
+    title: page.document.title,
+    description: page.document.description,
+    active: page.document.activeNav,
+    main,
+    includePrePaint: page.document.includePrePaint,
+    includeToggleScript: page.document.includeToggleScript,
+    includeSkip: page.document.includeSkip,
+    htmlAttrs: page.document.htmlAttrs,
+    mainAttrs: page.document.mainAttrs,
+    scripts,
+    literals,
+  });
+}
+
+export function renderContentPage({ config, page: name, bodyHtml }) {
+  const literals = literalsFromConfig(config);
+  const page = pageFromConfig(config, name);
+  const main = inject(page.templates.pageMain, { bodyHtml });
   const scripts = (page.document.scripts || []).map((code) => inject(code, literals));
 
   return shell({

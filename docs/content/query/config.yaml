@@ -59,6 +59,9 @@ shared:
       </html>
 
 pages:
+  errors:
+    enabled: false
+
   api:
     input:
       markdownDir: api

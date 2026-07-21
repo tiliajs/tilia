@@ -1886,7 +1886,7 @@ describe("Tilia", () => {
         x.contents = c *. 2.
       },
     ).toThrow(
-      ~message="Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan",
+      ~message="Cannot modify or access the value of an orphan computation. See https://tiliajs.dev/errors#orphan",
     )
   })
 

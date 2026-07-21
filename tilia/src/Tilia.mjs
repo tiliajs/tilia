@@ -667,7 +667,7 @@ function makeBatch(root) {
   };
 }
 
-let orphanError = "Cannot modify or access the value of an orphan computation. See https://tiliajs.com/errors#orphan";
+let orphanError = "Cannot modify or access the value of an orphan computation. See https://tiliajs.dev/errors#orphan";
 
 function warningHandler() {
   return {

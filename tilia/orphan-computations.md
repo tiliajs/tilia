@@ -1,9 +1,5 @@
 # Orphan computations
 
-This documentation has moved to the website:
+This documentation is available on the tilia site:
 
-- <https://tiliajs.com/errors#1>
-
-Source in this repo:
-
-- `website/src/pages/errors.md`
+- <https://tiliajs.dev/errors#orphan>

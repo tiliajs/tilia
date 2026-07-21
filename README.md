@@ -39,7 +39,7 @@ Machine-oriented guides:
 - 2025-12-18 **4.0.0**
   - Changed @tilia/react dependency to track MAJOR.MINOR version of tilia.
   - Add apps to test different project setup.
-  - Improve error reporting for "Orphan Computation Error". See https://tiliajs.com/errors.
+  - Improve error reporting for "Orphan Computation Error". See https://tiliajs.dev/errors.
   - Remove explicit 'exports' from package.json to support any suffix in ReScript setup.
   - Add previous value to `source` as first parameter.
   - Move parameter order in source, starting with initial value.
