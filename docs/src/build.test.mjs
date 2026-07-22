@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { crossValidate, findConfigs, loadConfig } from "./build.mjs";
 import { renderContentPage, renderDocsPage } from "./templates.mjs";
 
@@ -244,6 +244,7 @@ test("renders guide body when pageMain omits slots", async () => {
   assert.match(html, /href="\.\.\/index\.html" aria-label="tilia — home"/);
   assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
   assert.match(html, /@tilia\/query on npm/);
+  assert.match(html, /<p class="eyebrow">Guide<span class="sep">·<\/span>v0\.x<\/p>/);
 });
 
 test("renders tilia guide navigation", async () => {
@@ -252,6 +253,7 @@ test("renders tilia guide navigation", async () => {
 
   assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
   assert.match(html, /href="\.\/query\/index\.html">Query<\/a>/);
+  assert.match(html, /<p class="eyebrow">Guide<span class="sep">·<\/span>v6\.x<\/p>/);
   assert.match(
     html,
     /<link rel="alternate" type="text\/plain" href="\.\/llms\.txt" title="tilia LLM documentation">/,
@@ -271,4 +273,15 @@ test("renders a configured content page", async () => {
   assert.match(html, /<h2 id="orphan">Orphan computation<\/h2>/);
   assert.match(html, /href="\.\/style\.css"/);
   assert.doesNotMatch(html, /aria-current="page"/);
+});
+
+test("uses shared heading spacing with a larger hero title", async () => {
+  const css = await readFile(path.resolve(process.cwd(), "assets/style.css"), "utf8");
+  const spacing = css.match(/\.hero,\s*\.docs-head,\s*\.api-head\s*\{([^}]*)\}/)?.[1];
+  const heroTitle = css.match(/\.hero h1\s*\{([^}]*)\}/)?.[1];
+
+  assert.match(spacing, /padding-top: clamp\(40px, 6vw, 64px\)/);
+  assert.match(spacing, /padding-bottom: clamp\(28px, 4vw, 40px\)/);
+  assert.match(heroTitle, /font-size: clamp\(34px, 5\.2vw, 52px\)/);
+  assert.match(heroTitle, /margin: 2rem 0 1rem/);
 });

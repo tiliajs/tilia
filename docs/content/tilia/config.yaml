@@ -228,7 +228,7 @@ pages:
       pageMain: |-
         <div class="docs-head">
           <div class="wrap">
-            <p class="eyebrow">Guide<span class="sep">·</span>v6.x<span class="sep">·</span>Guided tour</p>
+            <p class="eyebrow">Guide<span class="sep">·</span>v6.x</p>
             <h1>The Guide</h1>
             <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and React. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
           </div>
