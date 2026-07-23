@@ -12,9 +12,9 @@ shared:
       <header class="top">
         <div class="wrap">
           <div class="package-mark">
-            <a class="wordmark" href="../index.html" aria-label="tilia — home">{{wordmarkSvg}}@tilia</a>
-            <span class="package-sep" aria-hidden="true">/</span>
-            <a class="package-name" href="./index.html">query</a>
+            <a class="wordmark" href="../index.html" aria-label="tilia — home">{{wordmarkSvg}}tilia</a>
+            <span class="package-sep" aria-hidden="true">|</span>
+            <a class="package-name" href="./index.html" aria-current="true">@tilia/<span class="package-label">query</span></a>
           </div>
           <nav class="nav" aria-label="@tilia/query">
             <a href="./index.html">Home</a>

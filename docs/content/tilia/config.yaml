@@ -50,12 +50,15 @@ shared:
     header: |-
       <header class="top">
         <div class="wrap">
-          <a class="wordmark" href="./index.html" aria-label="tilia — home">{{wordmarkSvg}}tilia</a>
+          <div class="package-mark">
+            <a class="wordmark" href="./index.html" aria-label="tilia — home" aria-current="true">{{wordmarkSvg}}tilia</a>
+            <span class="package-sep" aria-hidden="true">|</span>
+            <a class="package-name" href="./query/index.html">@tilia/<span class="package-label">query</span></a>
+          </div>
           <nav class="nav" aria-label="Site">
             <a href="./index.html">Home</a>
             <a href="./guide.html"{{guideCurrentAttr}}>Guide</a>
             <a href="./api.html"{{apiCurrentAttr}}>API</a>
-            <a href="./query/index.html">Query</a>
             <a href="https://github.com/tiliajs/tilia">GitHub</a>
           </nav>
         </div>

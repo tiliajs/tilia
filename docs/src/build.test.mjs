@@ -230,6 +230,7 @@ test("renders guide body when pageMain omits slots", async () => {
       },
     ],
   });
+  const landing = await readFile(path.resolve(process.cwd(), "content/query/index.html"), "utf8");
 
   assert.match(html, /<section class="chapter" id="remote-data">/);
   assert.match(html, /<li><a href="#remote-data">Remote Data<\/a><\/li>/);
@@ -241,7 +242,18 @@ test("renders guide body when pageMain omits slots", async () => {
     /<link rel="alternate" type="text\/plain" href="\.\/llms\.txt" title="@tilia\/query LLM documentation">/,
   );
   assert.match(html, /<body class="query">/);
-  assert.match(html, /href="\.\.\/index\.html" aria-label="tilia — home"/);
+  assert.match(html, /class="wordmark" href="\.\.\/index\.html" aria-label="tilia — home">[\s\S]*?tilia<\/a>/);
+  assert.match(html, /class="package-sep" aria-hidden="true">\|<\/span>/);
+  assert.match(
+    html,
+    /class="package-name" href="\.\/index\.html" aria-current="true">@tilia\/<span class="package-label">query<\/span><\/a>/,
+  );
+  assert.match(landing, /class="wordmark" href="\.\.\/index\.html" aria-label="tilia — home">[\s\S]*?tilia<\/a>/);
+  assert.match(landing, /class="package-sep" aria-hidden="true">\|<\/span>/);
+  assert.match(
+    landing,
+    /class="package-name" href="\.\/index\.html" aria-current="true">@tilia\/<span class="package-label">query<\/span><\/a>/,
+  );
   assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
   assert.match(html, /@tilia\/query on npm/);
   assert.match(html, /<p class="eyebrow">Guide<span class="sep">·<\/span>v0\.x<\/p>/);
@@ -250,9 +262,24 @@ test("renders guide body when pageMain omits slots", async () => {
 test("renders tilia guide navigation", async () => {
   const config = await loadConfig();
   const html = renderDocsPage({ config, chapters: [] });
+  const landing = await readFile(path.resolve(process.cwd(), "content/tilia/index.html"), "utf8");
+  const css = await readFile(path.resolve(process.cwd(), "assets/style.css"), "utf8");
 
   assert.match(html, /href="\.\/guide\.html" aria-current="page">Guide<\/a>/);
-  assert.match(html, /href="\.\/query\/index\.html">Query<\/a>/);
+  assert.match(html, /class="wordmark" href="\.\/index\.html" aria-label="tilia — home" aria-current="true">/);
+  assert.match(html, /class="package-sep" aria-hidden="true">\|<\/span>/);
+  assert.match(html, /class="package-name" href="\.\/query\/index\.html">@tilia\/<span class="package-label">query<\/span><\/a>/);
+  assert.match(landing, /class="wordmark" href="\.\/index\.html" aria-label="tilia — home" aria-current="true">/);
+  assert.match(landing, /class="package-sep" aria-hidden="true">\|<\/span>/);
+  assert.match(
+    landing,
+    /class="package-name" href="\.\/query\/index\.html">@tilia\/<span class="package-label">query<\/span><\/a>/,
+  );
+  assert.doesNotMatch(html, /<nav class="nav"[\s\S]*?>Query<\/a>[\s\S]*?<\/nav>/);
+  assert.doesNotMatch(landing, /<nav class="nav"[\s\S]*?>Query<\/a>[\s\S]*?<\/nav>/);
+  assert.match(css, /\.package-mark \{[\s\S]*?grid-template-columns: 72px 61px max-content;[\s\S]*?\}/);
+  assert.match(css, /\.package-name\[aria-current="true"\] \.package-label \{[\s\S]*?font-size: 20px;[\s\S]*?font-weight: 600;/);
+  assert.match(css, /\.package-mark \.package-name\[aria-current="true"\] \{[\s\S]*?color: var\(--accent-ink\);/);
   assert.match(html, /<p class="eyebrow">Guide<span class="sep">·<\/span>v6\.x<\/p>/);
   assert.match(
     html,

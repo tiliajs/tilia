@@ -178,18 +178,46 @@ button:focus-visible {
   color: var(--leaf);
 }
 .package-mark {
-  display: flex;
+  display: grid;
+  grid-template-columns: 72px 61px max-content;
   align-items: center;
-  gap: 8px;
 }
 .package-sep {
   color: var(--faint);
+  text-align: center;
 }
 .package-name {
-  color: var(--accent-ink);
+  color: var(--muted);
   font-family: var(--mono);
   font-size: 13px;
+  font-weight: 400;
   text-decoration: none;
+}
+.package-mark .wordmark {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.package-mark .wordmark svg {
+  color: var(--faint);
+}
+.package-mark .wordmark[aria-current="true"] {
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 600;
+}
+.package-mark .wordmark[aria-current="true"] svg {
+  color: var(--leaf);
+}
+.package-mark .package-name[aria-current="true"] {
+  color: var(--accent-ink);
+}
+.package-name[aria-current="true"] .package-label {
+  font-size: 20px;
+  font-weight: 600;
+}
+.package-mark a:hover {
+  color: var(--accent-ink);
 }
 .nav {
   display: flex;
