@@ -16,6 +16,10 @@ let reraise: 'a => 'b = %raw(`function (e) {
   throw e
 }`)
 
+let rethrow: 'a => 'b = %raw(`function (e) {
+  throw e
+}`)
+
 %%raw(`
 function cleanTrace(stack) {
   if (typeof stack !== "string") return stack;
@@ -591,13 +595,15 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
       callback()
     } catch {
     | _e => {
-        setError(node.root, %raw(`_e`))
         _clear(o)
-        switch previous {
-        | Value(previous) => _clear(previous)
-        | _ => ()
-        }
-        lastValue.v
+        node.root.observer = previous
+        // A blown computed must never run again: replace its rebuild with a
+        // stub rethrowing the original error and keep the compiled marker in
+        // the slot so every read surfaces the error (writing the key clears
+        // the failure along with the compute).
+        compute.rebuild = () => rethrow(%raw(`_e`))
+        ignore(Reflect.set(target, key, compiled))
+        rethrow(%raw(`_e`))
       }
     }
 

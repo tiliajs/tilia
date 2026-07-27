@@ -3,6 +3,7 @@ title: Tunnels
 slug: tunnels
 sort: 4
 refs: [upsert, remove, op-type, status-type, status, write-channel-type]
+chapter: "04"
 ---
 
 The engine never guesses about connectivity. The application owns a tilia [`signal`](../api.html#signal) and tells the state as it changes:

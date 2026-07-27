@@ -3,6 +3,7 @@ title: A small vocabulary
 slug: a-small-vocabulary
 sort: 8
 refs: [signal, derived, lift, readonly]
+chapter: "08"
 ---
 
 Alice wants a streak — days in a row with every due card reviewed. It is one number, and it raises a question Claudine asks before writing anything: *who may change it?* Anyone should read it; only the review logic should bump it. The question is about ownership.

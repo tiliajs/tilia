@@ -3,6 +3,7 @@ title: A week at Nora's
 slug: a-week-at-noras
 sort: 6
 refs: [local-type, local-channel-type, expiry-type, tick]
+chapter: "06"
 ---
 
 A tunnel tests whether offline *works*. A week tests whether offline was *designed*. Seven days without a signal means restarts, storage limits, and a growing pile of unsent writes — and the app code, notably, does nothing special about any of it. Nothing in Alice's features branches on connectivity. The engine and one adaptor absorb the whole week.

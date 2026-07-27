@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const site = "https://tiliajs.dev";
 
@@ -64,16 +65,6 @@ export const redirects = [
   { file: "compare.html", target: "./guide.html#drawn-before-built", hashes: {} },
 ];
 
-const guideRoutes = { ...api, ...guide };
-
-export const guideRedirectScript = `/* Legacy guide anchors. */
-(function () {
-  if (location.pathname.indexOf("/query/") !== -1) return;
-  var routes = ${JSON.stringify(guideRoutes)};
-  var target = routes[location.hash];
-  if (target) window.location.replace(target);
-})();`;
-
 function absolute(target) {
   return new URL(target.replace(/^\.\//, "/"), `${site}/`).href;
 }
@@ -116,4 +107,9 @@ export async function renderRedirects(dir) {
   await Promise.all(
     redirects.map((redirect) => writeFile(path.join(dir, redirect.file), document(redirect))),
   );
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  await renderRedirects(path.join(root, "dist"));
 }

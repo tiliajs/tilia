@@ -1,0 +1,34 @@
+---
+name: _canopy
+slug: canopy
+kind: function
+module: core
+since: "0.1"
+sort: 140
+summary: Debug view — observed vs cached query keys.
+tags: []
+signature.ts: "_canopy: () => Canopy"
+signature.res: "_canopy: unit => canopy"
+label: _canopy
+---
+
+`_canopy` returns a [Canopy](api.html#canopy-type) showing which queries the engine currently holds in memory, by key:
+
+- `live` — observed right now: something is reading the query's result inside an observer.
+- `idle` — cached but unobserved: still in memory, waiting for `expiry.memory` to evict it.
+
+There is no registration API behind this. Reading a result inside an observer is what keeps a query live; the engine asks tilia's observer graph. This is the same signal `tick` uses to decide what to refresh and what to evict.
+
+The underscore marks a tooling entry point — meant for debugging, devtools and library authors, not everyday application code.
+
+`cards` is the collection from [make](api.html#make). See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
+
+```typescript
+const { live, idle } = cards._canopy();
+console.log("observed:", live, "cached:", idle);
+```
+
+```rescript
+let {live, idle} = cards._canopy()
+Console.log4("observed:", live, "cached:", idle)
+```

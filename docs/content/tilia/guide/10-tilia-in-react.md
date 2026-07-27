@@ -3,6 +3,7 @@ title: tilia in React
 slug: tilia-in-react
 sort: 10
 refs: [leaf, use-tilia, use-computed]
+chapter: "10"
 ---
 
 This chapter adds no scenario. The deck, the session, today's date, the streak: all of it was built and verified without a pixel. Now the views arrive, and the suite stays green, untouched — business in features, no logic in views, exactly as `CONTRIBUTING.md` promised.

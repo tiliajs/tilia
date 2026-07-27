@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { guideRedirectScript, redirects, renderRedirects } from "./redirects.mjs";
+import { redirects, renderRedirects } from "./redirects.mjs";
 
 test("maps legacy pages and fragments", () => {
   const docs = redirects.find((redirect) => redirect.file === "docs.html");
@@ -13,12 +13,6 @@ test("maps legacy pages and fragments", () => {
   assert.equal(docs.hashes["#tilia"], "./api.html#tilia");
   assert.equal(docs.hashes["#ddd"], "./guide.html#drawn-before-built");
   assert.equal(compare.target, "./guide.html#drawn-before-built");
-});
-
-test("maps legacy guide fragments on the current guide", () => {
-  assert.match(guideRedirectScript, /#react/);
-  assert.match(guideRedirectScript, /\.\/guide\.html#tilia-in-react/);
-  assert.match(guideRedirectScript, /\/query\//);
 });
 
 test("writes accessible static redirect documents", async () => {

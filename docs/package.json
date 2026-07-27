@@ -3,23 +3,21 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "build": "node src/build.mjs",
     "build:dev": "node src/dev.mjs",
-    "dev": "pnpm build:dev & live-server dist --watch=../content,../assets --host=127.0.0.1 --port=4175 --no-browser --wait=500",
-    "check": "node src/build.mjs",
-    "test": "node src/build.mjs && node --test src/*.test.mjs"
+    "dev": "pnpm build:dev & live-server dist --watch=dist --host=127.0.0.1 --port=4175 --no-browser --wait=100",
+    "check": "pnpm build",
+    "test": "pnpm build && node --test src/*.test.mjs"
   },
   "dependencies": {
+    "@epure/minidoc": "0.1.0-beta.20260726T234354",
     "chokidar": "^4.0.3",
-    "gray-matter": "^4.0.3",
     "live-server": "^1.2.2",
-    "markdown-it": "^14.1.0",
+    "markdown-it": "^14.3.0",
     "markdown-it-container": "^4.0.0",
-    "prismjs": "^1.30.0",
-    "sury": "11.0.0-alpha.9",
-    "yaml": "^2.9.0"
+    "prismjs": "^1.30.0"
   }
 }

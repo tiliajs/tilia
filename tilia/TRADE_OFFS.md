@@ -46,3 +46,21 @@ default because it changes core behavior in ways that are costly and riskier:
 - Use default `computed` for general derivations.
 - If strict liveness is required make sure to use `_canopy` on the exposed
   object, not on a shared internal object (see how @tilia/query solves this).
+
+## No `exports` field in package.json
+
+tilia is consumed two ways: as a JS/TS library (through the bundled `dist`,
+via `main`/`module`/`types`) and as a ReScript dependency (the compiler reads
+`rescript.json` and `src/*.res` directly, and the *consumer's* build emits
+runtime imports of compiled files inside `tilia/src/`).
+
+An `exports` map cannot express the second case: it would block deep imports,
+and the compiled filenames cannot be enumerated at publish time because the
+suffix of emitted imports follows the **consumer's** `rescript.json` suffix,
+not tilia's. So `package.json` deliberately has no `exports` field.
+
+Known cost: without `exports`, plain Node ESM resolves `import "tilia"`
+through `main` (`dist/index.cjs`), where CJS interop can hide named exports
+(`carve` lands on `default`). Bundlers honor `module` and are unaffected;
+pure-Node JS consumers should import a bundler-processed build or use the
+default export.

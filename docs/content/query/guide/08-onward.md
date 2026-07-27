@@ -3,6 +3,7 @@ title: Onward
 slug: onward
 sort: 8
 refs: [tilia-query-type, make]
+chapter: "08"
 ---
 
 Step back and look at what Alice's app is made of now. The components still read `cards.array({deck: "spanish"})` and render what comes back. The review action still writes a card. Nothing in the feature code mentions tunnels, buses, outboxes, or Spain. One `make()` call, two small adaptors, and a `tick()` on the app's own clock carry the entire trip — and the mental model compresses well:

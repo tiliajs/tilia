@@ -3,6 +3,7 @@ title: Mistakes stay small
 slug: mistakes-stay-small
 sort: 11
 refs: [computed, make]
+chapter: "11"
 ---
 
 Trust needs a floor. Adèle signs Claudine's diffs; Alice signs the scenarios; the suite guards the behavior. But somebody — human or AI — will eventually get it wrong anyway, and what happens *then* decides whether collaboration stays convivial or turns cautious. tilia's answers are specific.

@@ -3,6 +3,7 @@ title: Drawn before built
 slug: drawn-before-built
 sort: 1
 refs: []
+chapter: "01"
 ---
 
 This chapter is for the person deciding whether tilia belongs in their stack. There is no code in it.

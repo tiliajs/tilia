@@ -3,6 +3,7 @@ title: Values that follow
 slug: values-that-follow
 sort: 4
 refs: [computed, signal]
+chapter: "04"
 ---
 
 *Cards come due on their own.* Alice's second scenario makes an odd demand: nobody moves the cards, yet at midnight they are due. `observe` reacts to change by *doing* something. What this scenario needs is a value that simply *is* something — always correct, derived from other values, never manually refreshed. That is [`computed`](api.html#computed).

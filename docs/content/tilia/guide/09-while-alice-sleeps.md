@@ -3,6 +3,7 @@ title: While Alice sleeps
 slug: while-alice-sleeps
 sort: 9
 refs: [batch, watch, observe]
+chapter: "09"
 ---
 
 Every night at three, the app imports the day's new cards — Adèle subscribed Alice to a shared Spanish deck. Dozens of writes land at once, and they force the question: *when*, exactly, does a reaction run? tilia has one clear rule, one tool for the exception, and one function for separating cause from effect.

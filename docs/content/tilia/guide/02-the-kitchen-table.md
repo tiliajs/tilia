@@ -3,6 +3,7 @@ title: The kitchen table
 slug: the-kitchen-table
 sort: 2
 refs: []
+chapter: "02"
 ---
 
 There is no tilia in this chapter either. There is the first artifact of the project — and the only person who can approve it writes no code.

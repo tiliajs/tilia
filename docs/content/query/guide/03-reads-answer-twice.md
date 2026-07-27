@@ -3,6 +3,7 @@ title: Reads answer twice
 slug: reads-answer-twice
 sort: 3
 refs: [loadable-type, local-channel-type, expiry-type, tick, canopy-type, canopy]
+chapter: "03"
 ---
 
 Open a query and two reads start at once: the local store answers from what the device already holds, and the remote answers from the truth. The local answer arrives in milliseconds; the remote takes whatever the network takes. The user sees the first and is quietly upgraded to the second:

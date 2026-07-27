@@ -3,6 +3,7 @@ title: Letting the world in
 slug: letting-the-world-in
 sort: 7
 refs: [source, store, lift]
+chapter: "07"
 ---
 
 Everything so far was synchronous and self-contained. Real applications load data, wait for storage, and move through states over time. Two new wants make it concrete:

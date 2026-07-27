@@ -3,6 +3,7 @@ title: Onward
 slug: onward
 sort: 12
 refs: []
+chapter: "12"
 ---
 
 Step back and look at what got built, and how. A card is a plain object. A deck is a carved feature: state, derived queue, review action, injected repo and current date. The session is a state machine that only offers legal moves. The views read the domain and repaint exactly when their answer changes. Above it all sits a file of scenarios that Alice — who writes no code — has read, corrected, and signed. Nowhere is there a store, a reducer, an action type, or a subscription list.

@@ -3,6 +3,7 @@ title: Where the network ends
 slug: where-the-network-ends
 sort: 1
 refs: [make, tilia-query-type]
+chapter: "01"
 ---
 
 This chapter is for the person deciding whether @tilia/query belongs in their stack. There is no code in it.

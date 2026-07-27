@@ -3,6 +3,7 @@ title: A living object
 slug: a-living-object
 sort: 3
 refs: [tilia, observe]
+chapter: "03"
 ---
 
 Claudine's first task is the first scenario: *a passed card waits longer*. Everything in tilia starts with two moves — make an object reactive, and react to it — and both fit in her first commit.

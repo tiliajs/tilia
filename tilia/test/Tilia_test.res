@@ -152,6 +152,9 @@ type obj_with_int = {
   nb2: int,
 }
 
+type blown = {boom: string, twice: string}
+type counter = {mutable count: int}
+
 describe("Tilia", () => {
   it("Should observe leaf changes", () => {
     let m = {called: false}
@@ -2035,5 +2038,23 @@ describe("Tilia", () => {
     expect(Set.size(c.idle)).toBe(1)
     expect(c.idle->Set.has("todo-1")).toBe(true)
     expect(c.idle->Set.has("todo-2")).toBe(false)
+  })
+
+  // A failed computed must not be called again: it is replaced by a stub that
+  // rethrows the original error, so the error surfaces to every reader
+  // (writing the key replaces the stub and clears the failure).
+  it("Should not re-run a failing computed and surface the error", () => {
+    let m: counter = {count: 0}
+    let p = carve(({derived}) => {
+      boom: derived((_: blown) => {
+        m.count = m.count + 1
+        throw("boom")
+      }),
+      twice: derived((p: blown) => p.boom ++ p.boom),
+    })
+    let read: (blown, string) => string = %raw(`(o, k) => o[k]`)
+    expect(() => read(p, "twice")).toThrow(~message="boom")
+    expect(() => read(p, "boom")).toThrow(~message="boom")
+    expect(m.count).toBe(1)
   })
 })

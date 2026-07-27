@@ -3,6 +3,7 @@ title: Carving a feature
 slug: carving-a-feature
 sort: 5
 refs: [carve, computed, lift]
+chapter: "05"
 ---
 
 Alice's whole shoebox arrives, and with it the first scenarios that talk about the deck as a thing: which cards line up, in what order, what happens when one is reviewed. Adèle writes them with a table — Alice's actual cards, straight from the box:

@@ -3,6 +3,7 @@ title: A date you can set
 slug: a-date-you-can-set
 sort: 6
 refs: [signal]
+chapter: "06"
 ---
 
 This chapter adds no scenario. It answers a question two chapters old: in [chapter 4](#values-that-follow), the suite said "When midnight comes" — and midnight came, on command, in milliseconds. Nobody waited. How?

@@ -3,6 +3,7 @@ title: When the world returns
 slug: when-the-world-returns
 sort: 7
 refs: [change-type, rejection-type, status-type, status, dismiss]
+chapter: "07"
 ---
 
 Halfway down the valley the phone finds a bar of signal, the connectivity signal flips, and two things happen at once: forty-one operations push to the server in the order Alice made them, and a week of the server's own history comes back the other way. Most of it passes without a ripple — confirmed writes leave the outbox, changed rows slot into their queries. This chapter is about the handful that collide.

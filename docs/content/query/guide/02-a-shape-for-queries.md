@@ -3,6 +3,7 @@ title: A shape for queries
 slug: a-shape-for-queries
 sort: 2
 refs: [make, config-type, sorted-stringify, loadable-type, one, array]
+chapter: "02"
 ---
 
 In tilia's domain-driven guide, the scheduler's repository was injected... and politely ignored for nine chapters. Now it is connected to a remote server, and the first question is what the engine needs to know about your domain to manage it.

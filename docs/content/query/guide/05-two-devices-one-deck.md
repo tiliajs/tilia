@@ -3,6 +3,7 @@ title: Two devices, one deck
 slug: two-devices-one-deck
 sort: 5
 refs: [receive-type, receive-changed, receive-removed, read-channel-type, remote-type, dispose]
+chapter: "05"
 ---
 
 Changing devices is where hand-rolled sync layers usually crack, so it is worth saying plainly: in this design, "continue on your phone" is not a feature anyone built. It is the result of two rules applied consistently: the server is authoritative, and every cache admits it is a cache.

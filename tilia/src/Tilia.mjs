@@ -10,6 +10,10 @@ let reraise = (function (e) {
   throw e
 });
 
+let rethrow = (function (e) {
+  throw e
+});
+
 function cleanTrace(stack) {
   if (typeof stack !== "string") return stack;
 
@@ -377,14 +381,11 @@ function compile(node, isArray, target, key, callback) {
     try {
       v = callback();
     } catch (_e) {
-      setError(node.root, _e);
       _clear(o);
-      if (previous == null) {
-        previous === null;
-      } else {
-        _clear(previous);
-      }
-      v = lastValue.v;
+      node.root.observer = previous;
+      compute.rebuild = () => rethrow(_e);
+      Reflect.set(target, key, compiled);
+      v = rethrow(_e);
     }
     node.root.observer = previous;
     if (o_observing.length === 0) {
