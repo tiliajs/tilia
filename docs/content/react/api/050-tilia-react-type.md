@@ -4,7 +4,7 @@ slug: tilia-react-type
 kind: type
 module: react
 since: "2.0"
-sort: 300
+sort: 50
 summary: Context-bound React integration surface for Tilia.
 tags: []
 signature.ts: |-

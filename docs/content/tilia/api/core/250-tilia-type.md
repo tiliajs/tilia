@@ -43,7 +43,7 @@ label: Tilia
 
 It packages a full API set bound to one reactive root context. Proxies and observers from different contexts are isolated.
 
-Use this type when passing a context explicitly (for example into [react make](api.html#react-make)).
+Use this type when passing a context explicitly (for example into [react make](react/api.html#react-make)).
 
 ```typescript
 import { make } from "tilia";

@@ -118,6 +118,10 @@ var:
     dir: ../packages
     each: |-
       <li role="presentation"><a class="pkg-option" role="option" href="{{rootHref}}{{href}}" aria-selected="{{pkgSelected}}"><span class="pkg-option__text"><span class="pkg-option__name">{{scopedName}}</span><span class="pkg-option__desc">{{tagline}}</span></span>{{checkSvg}}</a></li>
+  navLinks: |-
+    <a href="./index.html"{{homeCurrentAttr}}>Home</a>
+          <a href="./guide.html"{{guideCurrentAttr}}>Guide</a>
+          <a href="./api.html"{{apiCurrentAttr}}>API</a>
   prePaint: ""
   skip: ""
   mainAttrs: ""
@@ -139,9 +143,7 @@ var:
           </div>
         </div>
         <nav class="nav" aria-label="{{currentName}}">
-          <a href="./index.html"{{homeCurrentAttr}}>Home</a>
-          <a href="./guide.html"{{guideCurrentAttr}}>Guide</a>
-          <a href="./api.html"{{apiCurrentAttr}}>API</a>
+          {{navLinks}}
           <a class="nav__icon" href="https://github.com/tiliajs/tilia" aria-label="Source on GitHub">{{githubSvg}}</a>
         </nav>
       </div>
@@ -198,22 +200,6 @@ var:
         <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
         <div class="prose">{{body}}</div>
       </article>
-  reactIndex:
-    dir: api/react
-    each: '        <a href="#{{slug}}">{{label}}</a>'
-  reactEntries:
-    dir: api/react
-    transform: apiMd
-    each: |-
-      <article class="entry" id="{{slug}}">
-        <header class="entry-head">
-          <h2><a href="#{{slug}}">{{label}}</a></h2>
-          <p class="tags"><span class="{{module}}">React</span>{{tagSpans}}<span>Since {{since}}</span></p>
-        </header>
-        <p class="summary">{{summary}}</p>
-        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
-        <div class="prose">{{body}}</div>
-      </article>
   apiMain: |-
     <div class="api-head">
       <div class="wrap">
@@ -227,12 +213,9 @@ var:
       <nav class="api-index" aria-label="API index">
     <p class="k idx-group">Core</p>
         {{coreIndex}}
-        <p class="k idx-group">React</p>
-        {{reactIndex}}
       </nav>
       <div class="api-entries">
     {{coreEntries}}
-        {{reactEntries}}
       </div>
     </div>
   toc:
@@ -253,7 +236,7 @@ var:
       <div class="wrap">
         <p class="eyebrow">Guide<span class="sep">·</span>v6.x</p>
         <h1>The Guide</h1>
-        <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and React. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
+        <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and the views that read them. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
       </div>
     </div>
 
@@ -331,12 +314,25 @@ build:
       apiCurrentAttr: ' aria-current="page"'
       prePaint: <script>{{prePaintScript}}</script>
       main: "{{apiMain}}"
-      scripts: <script>{{toggleListenerScript}}</script>
+      scripts: |-
+        <script>{{toggleListenerScript}}</script>
+        <script>/* React entries moved to their own package page. */
+        (function () {
+          var routes = {
+            "#leaf": "./react/api.html#leaf",
+            "#use-tilia": "./react/api.html#use-tilia",
+            "#use-computed": "./react/api.html#use-computed",
+            "#react-make": "./react/api.html#react-make",
+            "#tilia-react-type": "./react/api.html#tilia-react-type"
+          };
+          var target = routes[location.hash];
+          if (target) window.location.replace(target);
+        })();</script>
   - output: "{{output}}/guide.html"
     input: "{{shell}}"
     var:
       title: The Guide — tilia
-      description: The tilia guide — a reading path through the mental model, tracking, computed values, observers, and React integration.
+      description: The tilia guide — a reading path through the mental model, tracking, computed values, observers, and the views that read them.
       htmlAttrs: lang="en" data-lang="ts"
       guideCurrentAttr: ' aria-current="page"'
       prePaint: <script>{{prePaintScript}}</script>
@@ -361,11 +357,11 @@ build:
             "#signal": "./api.html#signal",
             "#derived": "./api.html#derived",
             "#lift": "./api.html#lift",
-            "#leaf": "./api.html#leaf",
-            "#usetilia": "./api.html#use-tilia",
-            "#useTilia": "./api.html#use-tilia",
-            "#usecomputed": "./api.html#use-computed",
-            "#useComputed": "./api.html#use-computed",
+            "#leaf": "./react/api.html#leaf",
+            "#usetilia": "./react/api.html#use-tilia",
+            "#useTilia": "./react/api.html#use-tilia",
+            "#usecomputed": "./react/api.html#use-computed",
+            "#useComputed": "./react/api.html#use-computed",
             "#installation": "./guide.html#the-kitchen-table",
             "#goals-and-non-goals": "./guide.html#drawn-before-built",
             "#goals": "./guide.html#drawn-before-built",
@@ -387,8 +383,9 @@ build:
             "#flush-strategy-and-batching": "./guide.html#while-alice-sleeps",
             "#mutations-computed": "./guide.html#while-alice-sleeps",
             "#mutations-in-computed-infinite-loop-risk": "./guide.html#while-alice-sleeps",
-            "#react": "./guide.html#tilia-in-react",
-            "#react-integration": "./guide.html#tilia-in-react",
+            "#react": "./react/index.html",
+            "#react-integration": "./react/index.html",
+            "#tilia-in-react": "./react/index.html",
             "#glue-zone": "./errors.html#orphan",
             "#the-glue-zone-and-security": "./errors.html#orphan",
             "#orphan-computations-problem": "./errors.html#orphan",

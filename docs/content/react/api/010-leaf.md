@@ -4,7 +4,7 @@ slug: leaf
 kind: function
 module: react
 since: "3.0"
-sort: 140
+sort: 10
 summary: Wrap a React component with exact render dependency tracking.
 tags: []
 signature.ts: "function leaf<T, U>(fn: (p: T) => U): (p: T) => U"
@@ -16,7 +16,7 @@ label: leaf(fn)
 
 When tracked keys change, the wrapped component re-renders. The API is equivalent to a higher-order component and is the preferred React integration over [useTilia](api.html#use-tilia).
 
-See guide chapter [tilia in React](guide.html#tilia-in-react) and [useComputed](api.html#use-computed).
+See the [React overview](index.html) and [useComputed](api.html#use-computed).
 
 ```typescript
 import { leaf } from "@tilia/react";

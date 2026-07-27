@@ -4,7 +4,7 @@ slug: react-make
 kind: function
 module: react
 since: "1.0"
-sort: 170
+sort: 40
 summary: Create a React API bound to a specific Tilia context.
 tags: []
 signature.ts: "function make(tilia: Tilia): TiliaReact"
@@ -12,9 +12,9 @@ signature.res: "let make: tilia => tilia_react"
 label: make(tilia)
 ---
 
-`@tilia/react` `make` builds a React integration object (`useTilia`, `useComputed`, `leaf`) from a provided core [Tilia](api.html#tilia-type) context.
+`@tilia/react` `make` builds a React integration object (`useTilia`, `useComputed`, `leaf`) from a provided core [Tilia](../api.html#tilia-type) context.
 
-Use this with core [make](api.html#make) when an application needs isolated, uncorrelated reactive worlds.
+Use this with core [make](../api.html#make) when an application needs isolated, uncorrelated reactive worlds.
 
 The package-level exports are the default-context version; this function is the context-bound version.
 

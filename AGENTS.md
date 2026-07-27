@@ -21,5 +21,6 @@
 
 - Read [`tilia/llms.txt`](tilia/llms.txt) for the compact tilia model.
 - Read [`query/llms.txt`](query/llms.txt) for the compact @tilia/query model.
+- Read [`react/llms.txt`](react/llms.txt) for the compact @tilia/react model.
 - For exact APIs, use `tilia/src/index.d.ts` or `tilia/src/Tilia.resi`, and
   `query/src/index.d.ts` or `query/src/TiliaQuery.resi`.

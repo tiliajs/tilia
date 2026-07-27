@@ -1,0 +1,209 @@
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">@tilia/react<span class="sep">·</span>React &amp; React Native<span class="sep">·</span>MIT</p>
+        <h1 id="hero-title">Views That Observe the&nbsp;Domain</h1>
+        <p class="lead">The view adapter for tilia. A component reads the domain while it renders, and repaints exactly when one of those reads changes — no selectors, no dependency arrays, no memo rituals. The same three tools serve React and React Native.</p>
+        <div class="cta-row">
+          <a class="btn solid" href="./api.html">API Reference</a>
+          <a class="btn" href="../guide.html">The tilia Guide</a>
+        </div>
+        <p class="defcard">
+          <span class="term">feuille</span> <span class="ipa">/fœj/</span> <span class="gram">n., f.</span> —
+          the leaf. Where the wood meets the light; it turns with the season, the trunk does not.
+        </p>
+      </div>
+
+      <div class="code-slot">
+        <!-- the linden leaf once more: the same wood, behind the view -->
+        <svg class="leaf-mark" viewBox="0 0 300 420" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false">
+          <path d="M70 50C58 32 50 18 46 6"/>
+          <path d="M70 50C175 85 255 235 240 380C130 330 55 190 70 50Z"/>
+          <path d="M70 50C125 160 190 280 240 380"/>
+          <path d="M108 128C140 128 172 142 196 166M140 194C168 196 196 212 216 236M172 258C194 262 214 278 228 300M202 318C216 322 228 334 236 350"/>
+          <path d="M108 128C102 160 104 194 114 226M140 194C136 224 142 256 154 284M172 258C170 286 178 312 190 334M202 318C202 338 210 356 220 370"/>
+        </svg>
+        <figure class="codefig" data-lang="ts" id="hero-code">
+          <figcaption class="codebar">
+            <span class="k figlabel">A reactive view</span>
+            <div class="langswitch" role="group" aria-label="Example language">
+              <button type="button" data-lang="ts" aria-pressed="true">ts</button>
+              <button type="button" data-lang="res" aria-pressed="false">res</button>
+            </div>
+          </figcaption>
+          <pre class="code code-ts"><code><span class="tk">const</span> CardView = <span class="tf">leaf</span>(() =&gt; {
+  <span class="tk">const</span> { deck } = <span class="tf">useApp</span>()
+  <span class="tk">const</span> card = deck.queue[0]
+
+  <span class="tc">// repaints when deck.queue changes,</span>
+  <span class="tc">// and not otherwise</span>
+  <span class="tk">return</span> card
+    ? &lt;div&gt;{card.front}&lt;/div&gt;
+    : &lt;AllDone /&gt;
+})</code></pre>
+          <pre class="code code-res"><code><span class="tk">let</span> <span class="tf">make</span> = <span class="tf">leaf</span>(() =&gt; {
+  <span class="tk">let</span> {deck} = <span class="tf">useApp</span>()
+
+  <span class="tc">// repaints when deck.queue changes,</span>
+  <span class="tc">// and not otherwise</span>
+  <span class="tk">switch</span> deck.queue[0] {
+  | <span class="tk">Some</span>(card) =&gt; &lt;div&gt; {card.front-&gt;React.string} &lt;/div&gt;
+  | <span class="tk">None</span> =&gt; &lt;AllDone /&gt;
+  }
+})</code></pre>
+          <div class="codefoot"><code><span class="ps1">$</span> npm install tilia @tilia/react</code></div>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="observers-title">
+    <div class="wrap">
+      <header class="sec-head">
+        <h2 id="observers-title">Views are observers</h2>
+        <p class="sec-lead">That one idea is the entire adapter: a component reads reactive values while rendering, and it should re-render exactly when one of those values changes. Three tools, in a deliberate order of preference.</p>
+      </header>
+
+      <div class="chapters">
+        <div class="chapter">
+          <h3>leaf: the favored way</h3>
+          <p class="body"><a href="./api.html#leaf">leaf</a> wraps a component so that tilia tracks the reads of the render itself:</p>
+          <figure class="example" data-pair>
+            <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
+            <pre class="language-typescript"><code><span class="tk">import</span> { leaf } <span class="tk">from</span> <span class="ts">"@tilia/react"</span>;
+
+<span class="tk">const</span> CardView = <span class="tf">leaf</span>(() =&gt; {
+  <span class="tk">const</span> { deck } = <span class="tf">useApp</span>();
+  <span class="tk">const</span> card = deck.queue[0];
+  <span class="tk">return</span> card ? &lt;div&gt;{card.front}&lt;/div&gt; : &lt;AllDone /&gt;;
+});</code></pre>
+            <pre class="language-rescript"><code><span class="tk">open</span> TiliaReact
+
+@react.component
+<span class="tk">let</span> <span class="tf">make</span> = <span class="tf">leaf</span>(() =&gt; {
+  <span class="tk">let</span> {deck} = <span class="tf">useApp</span>()
+  <span class="tk">switch</span> deck.queue[0] {
+  | <span class="tk">Some</span>(card) =&gt; &lt;div&gt; {card.front-&gt;React.string} &lt;/div&gt;
+  | <span class="tk">None</span> =&gt; &lt;AllDone /&gt;
+  }
+})</code></pre>
+          </figure>
+          <p class="body">Because tracking happens during the render, the dependencies are <em>exact</em>: this component re-renders when <code>deck.queue</code> changes and not otherwise. No dependency array, no memoized selector, no <code>memo</code> wrapper. The component reads the domain; the subscription is the reading. And its vocabulary is still the domain's — <code>deck</code>, <code>queue</code>, <code>front</code>: a view the domain owner could read over the developer's shoulder.</p>
+          <p class="body"><code>useApp</code> is an architectural suggestion, not an API: provide the app object through an ordinary React context and let components pull the feature they need. Because tracking is fine-grained, one context for the whole app works seamlessly — and a test provides a mock app the same way. The world stays injected, even here.</p>
+          <div class="story">
+            <span class="k">Story</span>
+            <p>The scheduler gets its face on a Saturday. Alice answers, the queue advances, and only the card on screen repaints — the streak counter, the deck list, the settings panel never notice. It feels less like a program updating and more like a page turning.</p>
+          </div>
+          <div class="pro">
+            <span class="k">Pro tip</span>
+            <p>Take features from the context, not deep values: <code>const { deck } = useApp()</code>, then read <code>deck.queue</code> in the JSX where it is used. Destructuring everything at the top defeats the granularity of the tracking.</p>
+          </div>
+        </div>
+
+        <div class="chapter">
+          <h3>useTilia: the easy retrofit</h3>
+          <p class="body"><a href="./api.html#use-tilia">useTilia</a> is a hook called at the top of a component that makes the reads below it reactive:</p>
+          <figure class="example" data-pair>
+            <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
+            <pre class="language-typescript"><code><span class="tk">import</span> { useTilia } <span class="tk">from</span> <span class="ts">"@tilia/react"</span>;
+
+<span class="tk">const</span> CardView = () =&gt; {
+  <span class="tf">useTilia</span>();
+  <span class="tk">const</span> card = app.deck.queue[0];
+  <span class="tk">return</span> card ? &lt;div&gt;{card.front}&lt;/div&gt; : &lt;AllDone /&gt;;
+};</code></pre>
+            <pre class="language-rescript"><code><span class="tk">open</span> TiliaReact
+
+@react.component
+<span class="tk">let</span> <span class="tf">make</span> = () =&gt; {
+  <span class="tf">useTilia</span>()
+  <span class="tk">switch</span> app.deck.queue[0] {
+  | <span class="tk">Some</span>(card) =&gt; &lt;div&gt; {card.front-&gt;React.string} &lt;/div&gt;
+  | <span class="tk">None</span> =&gt; &lt;AllDone /&gt;
+  }
+}</code></pre>
+          </figure>
+          <p class="body">It is the fastest way to make an existing component reactive, and that is its role: a retrofit for gradual adoption. Its tracking is slightly coarser than <code>leaf</code>'s — a hook cannot see the exact end of its own render — so prefer <code>leaf</code> for new code; the <a href="./api.html#use-tilia">API reference</a> has the precise mechanics.</p>
+        </div>
+
+        <div class="chapter">
+          <h3>useComputed: re-render on the answer</h3>
+          <p class="body">Sometimes a component depends on a <em>conclusion</em>, not the values behind it. Each row of a queue wants to know one thing — am I the current card? <a href="./api.html#use-computed">useComputed</a> re-asks the question cheaply and re-renders only when <em>its own answer</em> flips:</p>
+          <figure class="example" data-pair>
+            <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
+            <pre class="language-typescript"><code><span class="tk">const</span> current = <span class="tf">useComputed</span>(() =&gt; app.deck.queue[0]?.id === card.id);</code></pre>
+            <pre class="language-rescript"><code><span class="tk">let</span> current = <span class="tf">useComputed</span>(() =&gt;
+  app.deck.queue[0]-&gt;Option.map(c =&gt; c.id)-&gt;Option.getOr(<span class="ts">""</span>) === card.id
+)</code></pre>
+          </figure>
+          <p class="body">Two rows repaint per advance, no matter how long the list.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="native-title">
+    <div class="wrap">
+      <header class="sec-head">
+        <h2 id="native-title">React Native, unchanged</h2>
+        <p class="sec-lead">Nothing in tilia knows about the DOM, and nothing in @tilia/react knows about a renderer. Install the same two packages, import the same three tools, swap the elements.</p>
+      </header>
+
+      <div class="chapters">
+        <div class="chapter">
+          <figure class="example" data-pair>
+            <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
+            <pre class="language-typescript"><code><span class="tk">import</span> { leaf } <span class="tk">from</span> <span class="ts">"@tilia/react"</span>;
+<span class="tk">import</span> { Text, View } <span class="tk">from</span> <span class="ts">"react-native"</span>;
+
+<span class="tk">const</span> CardView = <span class="tf">leaf</span>(() =&gt; {
+  <span class="tk">const</span> { deck } = <span class="tf">useApp</span>();
+  <span class="tk">const</span> card = deck.queue[0];
+  <span class="tk">return</span> (
+    &lt;View&gt;
+      &lt;Text&gt;{card ? card.front : <span class="ts">"All done"</span>}&lt;/Text&gt;
+    &lt;/View&gt;
+  );
+});</code></pre>
+            <pre class="language-rescript"><code><span class="tk">open</span> TiliaReact
+
+@react.component
+<span class="tk">let</span> <span class="tf">make</span> = <span class="tf">leaf</span>(() =&gt; {
+  <span class="tk">let</span> {deck} = <span class="tf">useApp</span>()
+  <span class="tk">let</span> front = deck.queue[0]-&gt;Option.mapOr(<span class="ts">"All done"</span>, c =&gt; c.front)
+  &lt;View&gt; &lt;Text&gt; {front-&gt;React.string} &lt;/Text&gt; &lt;/View&gt;
+})</code></pre>
+          </figure>
+          <p class="body">The adapter is the same because the reactivity is the same: plain objects, tracked reads, exact repaints. Expo or bare, iOS, Android and web from one domain — no native module, no configuration, no separate package to learn.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="domain-title">
+    <div class="wrap">
+      <header class="sec-head">
+        <h2 id="domain-title">Start with the domain</h2>
+        <p class="sec-lead">Everything above assumes the interesting part is already built and tested without a pixel: the deck, the session, today's date, the streak.</p>
+      </header>
+
+      <div class="chapters">
+        <div class="chapter">
+          <p class="body">If you arrived here first, read <a href="../guide.html">the tilia guide</a> once, top to bottom: it builds a small application in the domain's own words — plain objects, values that follow, a world that is injected — and arrives at <a href="../guide.html#views-are-observers">views are observers</a>, which is where this page picks up. The complete surface of the adapter, both languages, is in the <a href="./api.html">API reference</a>; the core functions live in <a href="../api.html">tilia's</a>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-label="The épure method">
+    <div class="wrap">
+      <aside class="bridge">
+        <span class="reg tl" aria-hidden="true"></span>
+        <span class="reg br" aria-hidden="true"></span>
+        <span class="k">Sheet A-04 · Views</span>
+        <p>@tilia/react is the view sheet of <strong>épure</strong> — a method for AI-assisted development in organizations that cannot afford surprises. Software, drawn before it is built.</p>
+        <a class="bridge-link" href="https://epuremethod.com">Read the method <span class="arrow">↗</span></a>
+      </aside>
+    </div>
+  </section>

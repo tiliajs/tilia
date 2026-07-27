@@ -121,7 +121,8 @@ cancel()
 
 React integration lives in `@tilia/react`.
 
+- Machine guide: `../react/llms.txt`
 - TypeScript contract: `../react/src/index.d.ts`
 - ReScript contract: `../react/src/TiliaReact.resi`
-- API: <https://tiliajs.dev/api>
+- API: <https://tiliajs.dev/react/api>
 

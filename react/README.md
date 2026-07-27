@@ -1,6 +1,6 @@
 # React hooks for tilia
 
-Check the [documentation](https://tiliajs.dev/api) for the React API and examples.
+Check the [documentation](https://tiliajs.dev/react) for the React API and examples.
 
 ## API (in case the website is not available)
 

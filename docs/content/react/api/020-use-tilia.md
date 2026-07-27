@@ -4,7 +4,7 @@ slug: use-tilia
 kind: hook
 module: react
 since: "2.0"
-sort: 150
+sort: 20
 summary: Track reactive reads in a React component render.
 tags: []
 signature.ts: "function useTilia(): void"
@@ -16,7 +16,7 @@ label: useTilia()
 
 Reads of Tilia proxies during render become dependencies. When one of those dependencies changes, the component re-renders. `useTilia` is the hook form; [leaf](api.html#leaf) is the preferred wrapper when possible.
 
-See guide chapter [tilia in React](guide.html#tilia-in-react) and related hook [useComputed](api.html#use-computed).
+See the [React overview](index.html) and related hook [useComputed](api.html#use-computed).
 
 ```typescript
 import { useTilia } from "@tilia/react";

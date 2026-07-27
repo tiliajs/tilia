@@ -17,11 +17,11 @@ const api = {
   "#signal": "./api.html#signal",
   "#derived": "./api.html#derived",
   "#lift": "./api.html#lift",
-  "#leaf": "./api.html#leaf",
-  "#usetilia": "./api.html#use-tilia",
-  "#useTilia": "./api.html#use-tilia",
-  "#usecomputed": "./api.html#use-computed",
-  "#useComputed": "./api.html#use-computed",
+  "#leaf": "./react/api.html#leaf",
+  "#usetilia": "./react/api.html#use-tilia",
+  "#useTilia": "./react/api.html#use-tilia",
+  "#usecomputed": "./react/api.html#use-computed",
+  "#useComputed": "./react/api.html#use-computed",
 };
 
 const guide = {
@@ -46,8 +46,8 @@ const guide = {
   "#flush-strategy-and-batching": "./guide.html#while-alice-sleeps",
   "#mutations-computed": "./guide.html#while-alice-sleeps",
   "#mutations-in-computed-infinite-loop-risk": "./guide.html#while-alice-sleeps",
-  "#react": "./guide.html#tilia-in-react",
-  "#react-integration": "./guide.html#tilia-in-react",
+  "#react": "./react/index.html",
+  "#react-integration": "./react/index.html",
   "#glue-zone": "./errors.html#orphan",
   "#the-glue-zone-and-security": "./errors.html#orphan",
   "#orphan-computations-problem": "./errors.html#orphan",

@@ -23,6 +23,8 @@ And the deeper habit the library rewards is the one named in the first chapter's
 
 The [API reference](api.html) documents the complete public surface — every function, both languages, precise rules wherever this guide chose the readable ones.
 
+The views of chapter 10 were described and never written. **[@tilia/react](react/index.html)** is where they live: `leaf`, `useTilia` and `useComputed`, with the narrative and the reference on [its own pages](react/index.html) — React and React Native alike, since a tracked read is indifferent to what draws it.
+
 The scheduler's repo was injected and politely ignored; synchronizing collections with a server — loading, caching, going offline and coming back — is its own discipline, with its own convictions. **[@tilia/query](query/index.html)** builds that lifecycle on the reactivity you now understand, and [its guide](query/guide.html) takes Alice somewhere with very bad reception.
 
 The scenarios that ran green through every chapter were executed by **épure**, published as [@epure/vitest](https://www.npmjs.com/package/@epure/vitest) — the same project whose `CONTRIBUTING.md` started the empty directory in chapter 2. The method — software drawn before it is built — lives at [epuremethod.com](https://epuremethod.com), and its guide is this trilogy's prequel: where the drawings come from.

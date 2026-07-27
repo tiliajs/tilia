@@ -12,6 +12,9 @@ test("maps legacy pages and fragments", () => {
   assert.equal(docs.target, "./guide.html");
   assert.equal(docs.hashes["#tilia"], "./api.html#tilia");
   assert.equal(docs.hashes["#ddd"], "./guide.html#drawn-before-built");
+  assert.equal(docs.hashes["#leaf"], "./react/api.html#leaf");
+  assert.equal(docs.hashes["#usetilia"], "./react/api.html#use-tilia");
+  assert.equal(docs.hashes["#react"], "./react/index.html");
   assert.equal(compare.target, "./guide.html#drawn-before-built");
 });
 

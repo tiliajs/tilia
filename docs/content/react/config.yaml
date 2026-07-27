@@ -1,0 +1,117 @@
+base: ../tilia/config.yaml
+var:
+  output: ../../dist/react
+  assets: ../../assets
+  model: ../../../react/llms.txt
+  rootHref: "../"
+  currentPkg: react
+  currentName: "@tilia/react"
+  navLinks: |-
+    <a href="./index.html"{{homeCurrentAttr}}>Home</a>
+          <a href="./api.html"{{apiCurrentAttr}}>API</a>
+  footer: |-
+    <footer class="foot">
+      <div class="wrap">
+        <div class="fcell"><span class="lbl">Package</span><span class="val"><a href="https://www.npmjs.com/package/@tilia/react">@tilia/react on npm</a></span></div>
+        <div class="fcell"><span class="lbl">Source</span><span class="val"><a href="https://github.com/tiliajs/tilia">github.com/tiliajs/tilia</a></span></div>
+        <div class="fcell"><span class="lbl">License</span><span class="val">MIT</span></div>
+        <div class="fcell"><span class="lbl">Method</span><span class="val"><a href="https://epuremethod.com">épure</a></span></div>
+        <div class="fcell"><span class="lbl">Site</span><span class="val">tiliajs.dev</span></div>
+      </div>
+    </footer>
+  shell: |-
+    <!doctype html>
+    <html {{htmlAttrs}}>
+    <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="{{description}}">
+    <title>{{title}}</title>
+    <link rel="icon" href="{{faviconUrl}}">
+    <link rel="stylesheet" href="../style.css">
+    <link rel="alternate" type="text/plain" href="./llms.txt" title="@tilia/react LLM documentation">
+    {{prePaint}}
+    </head>
+    <body class="react">
+    {{skip}}
+    {{header}}
+    <main{{mainAttrs}}>
+    {{main}}
+    </main>
+    {{footer}}
+    {{scripts}}
+    </body>
+    </html>
+  homeMain:
+    file: home/index.html
+  reactIndex:
+    dir: api
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  reactEntries:
+    dir: api
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">React</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  apiMain: |-
+    <div class="api-head">
+      <div class="wrap">
+        <p class="eyebrow">Reference<span class="sep">·</span>@tilia/react<span class="sep">·</span>TypeScript &amp; ReScript signatures</p>
+        <h1>API Reference</h1>
+        <p class="sec-lead">The public surface of @tilia/react. Each entry gives the signature, behavior, and one minimal example.</p>
+      </div>
+    </div>
+
+    <div class="wrap api-layout">
+      <nav class="api-index" aria-label="API index">
+        <p class="k idx-group">React</p>
+        {{reactIndex}}
+      </nav>
+      <div class="api-entries">
+        {{reactEntries}}
+      </div>
+    </div>
+build:
+  - output: "{{output}}/index.html"
+    input: "{{shell}}"
+    var:
+      title: "@tilia/react — Views That Observe the Domain"
+      description: "@tilia/react — React and React Native views that observe tilia state directly: exact render tracking with leaf, useTilia and useComputed, no selectors and no memo rituals."
+      htmlAttrs: lang="en" data-lang="ts"
+      homeCurrentAttr: ' aria-current="page"'
+      prePaint: <script>{{prePaintScript}}</script>
+      main: "{{homeMain}}"
+      scripts: |-
+        <script>{{toggleListenerScript}}</script>
+        <script>/* ts | res toggle on the hero code figure. */
+        (function () {
+          var fig = document.getElementById("hero-code");
+          fig.querySelectorAll(".langswitch button").forEach(function (btn) {
+            btn.addEventListener("click", function () {
+              fig.setAttribute("data-lang", btn.dataset.lang);
+              fig.querySelectorAll(".langswitch button").forEach(function (button) {
+                button.setAttribute("aria-pressed", String(button === btn));
+              });
+            });
+          });
+        })();</script>
+  - output: "{{output}}/api.html"
+    input: "{{shell}}"
+    var:
+      title: API Reference — @tilia/react
+      description: "@tilia/react API reference — leaf, useTilia, useComputed, and the context-bound React surface for tilia."
+      htmlAttrs: lang="en" data-lang="ts"
+      apiCurrentAttr: ' aria-current="page"'
+      prePaint: <script>{{prePaintScript}}</script>
+      main: "{{apiMain}}"
+      scripts: <script>{{toggleListenerScript}}</script>
+  - output: "{{output}}/llms.txt"
+    input:
+      copy: "{{model}}"

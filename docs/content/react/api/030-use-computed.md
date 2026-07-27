@@ -4,7 +4,7 @@ slug: use-computed
 kind: hook
 module: react
 since: "2.0"
-sort: 160
+sort: 30
 summary: Compute a React value and re-render only when the result changes.
 tags: []
 signature.ts: "function useComputed<T>(fn: () => T): T"
@@ -16,7 +16,7 @@ label: useComputed(fn)
 
 The hook compares computed results and re-renders when the result value changes. This differs from plain render reads, which depend on every tracked key read during render.
 
-Use with [useTilia](api.html#use-tilia) or [leaf](api.html#leaf) in React components. See guide chapter [tilia in React](guide.html#tilia-in-react).
+Use with [useTilia](api.html#use-tilia) or [leaf](api.html#leaf) in React components. See the [React overview](index.html).
 
 ```typescript
 import { useComputed, useTilia } from "@tilia/react";

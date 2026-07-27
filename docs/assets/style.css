@@ -1338,6 +1338,25 @@ body.query {
   stroke-width: 1.8;
   opacity: 0.2;
 }
+
+/* ============================================================
+   @tilia/react — autumn accent (body.react)
+   The seasons name the layer: spring green is the foundation,
+   summer blue the consolidation, autumn russet the presentation.
+   Every view adapter shares this skin. Redder than --honey, which
+   stays the warm decorative second.
+   ============================================================ */
+body.react {
+  --accent: #a4502a; /* 5.4:1 vs --btn-label — AA */
+  --accent-ink: #8a3f22; /* 6.9:1 on paper */
+  --accent-soft: #f2e5dc;
+  --accent-deep: #7f3c20;
+}
+body.react .tags span.react {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
 /* ---------- print / projection ---------- */
 @media print {
   body {

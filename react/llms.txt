@@ -1,0 +1,75 @@
+# @tilia/react
+
+> View adapter for tilia: React components observe reactive objects by
+> reading them during render. Five entries, no store, no selectors.
+
+## Exact API contracts
+
+These files are authoritative. If prose differs, follow the contracts.
+
+Repository:
+
+- TypeScript: `./src/index.d.ts`
+- ReScript: `./src/TiliaReact.resi`
+
+Installed npm package:
+
+- TypeScript: `./dist/index.d.ts`
+- ReScript: `./src/TiliaReact.resi`
+
+Published documentation:
+
+- Overview: <https://tiliajs.dev/react>
+- API: <https://tiliajs.dev/react/api>
+- TypeScript contract: <https://github.com/tiliajs/tilia/blob/main/react/src/index.d.ts>
+- ReScript contract: <https://github.com/tiliajs/tilia/blob/main/react/src/TiliaReact.resi>
+
+## Key facts
+
+- `leaf(fn)` wraps a component and tracks the reads of its render exactly. It
+  is the preferred integration: the observation closes at the end of the render
+  function.
+- `useTilia()` tracks the reads of the current render from the call site. It is
+  the retrofit for existing components; its boundary is coarser than `leaf`'s
+  because a hook cannot see the end of the render.
+- `useComputed(fn)` evaluates `fn` under tracking and re-renders only when the
+  returned value changes, not when its dependencies do. Use it for a
+  conclusion (`selected`, `due`) instead of the values behind it.
+- `make(tilia)` returns a `TiliaReact`/`tilia_react` record — `useTilia`,
+  `useComputed`, `leaf` — bound to one core context. The package-level exports
+  are the default-context version.
+- Dependencies are the reads themselves: no dependency arrays, no selectors, no
+  `memo` wrapper. Read the feature from a React context and the fields where
+  they are used, so the tracking stays fine-grained.
+- React Native needs nothing extra: the adapter observes tilia objects and is
+  indifferent to what renders them.
+
+## Minimal TypeScript
+
+```typescript
+import { leaf, useComputed } from "@tilia/react";
+
+const CardView = leaf(({ card }: { card: Card }) => {
+  const current = useComputed(() => app.deck.queue[0]?.id === card.id);
+  return <div className={current ? "current" : ""}>{card.front}</div>;
+});
+```
+
+## Minimal ReScript
+
+```rescript
+open TiliaReact
+
+@react.component
+let make = leaf((~card) => {
+  let current = useComputed(() =>
+    app.deck.queue[0]->Option.map(c => c.id)->Option.getOr("") === card.id
+  )
+  <div className={current ? "current" : ""}> {card.front->React.string} </div>
+})
+```
+
+## Docs
+
+- [README](README.md): the API surface in both languages, with examples
+- [tilia machine guide](../tilia/llms.txt): the reactive core this observes

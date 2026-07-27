@@ -12,6 +12,8 @@ const pages = [
   "query/index.html",
   "query/guide.html",
   "query/api.html",
+  "react/index.html",
+  "react/api.html",
 ];
 
 async function generated(file) {
@@ -28,6 +30,7 @@ test("keeps home sources as body fragments", async () => {
   for (const file of [
     "content/tilia/home/index.html",
     "content/query/home/index.html",
+    "content/react/home/index.html",
   ]) {
     const html = await readFile(path.join(root, file), "utf8");
     assert.match(html, /<section class="hero"/);
@@ -81,6 +84,7 @@ test("builds shared assets, LLM files, and redirects", async () => {
     "dist/fonts",
     "dist/llms.txt",
     "dist/query/llms.txt",
+    "dist/react/llms.txt",
     "dist/docs.html",
     "dist/compare.html",
   ]) {
@@ -97,28 +101,53 @@ test("builds shared assets, LLM files, and redirects", async () => {
 test("lists every package in the switcher, from the site root", async () => {
   const tilia = await generated("guide.html");
   const query = await generated("query/guide.html");
+  const react = await generated("react/api.html");
 
-  for (const html of [tilia, query]) {
+  for (const html of [tilia, query, react]) {
     assert.match(html, /<span class="pkg-option__name">tilia<\/span>/);
     assert.match(html, /<span class="pkg-option__name">@tilia\/query<\/span>/);
+    assert.match(html, /<span class="pkg-option__name">@tilia\/react<\/span>/);
     assert.match(html, /<span class="pkg-option__desc">Domain-driven state management<\/span>/);
     assert.match(html, /<span class="pkg-option__desc">Remote data that feels local<\/span>/);
+    assert.match(html, /<span class="pkg-option__desc">Views that observe the domain<\/span>/);
   }
 
   assert.match(tilia, /class="pkg-option" role="option" href="\.\/index\.html"/);
   assert.match(tilia, /class="pkg-option" role="option" href="\.\/query\/index\.html"/);
   assert.match(query, /class="pkg-option" role="option" href="\.\.\/index\.html"/);
   assert.match(query, /class="pkg-option" role="option" href="\.\.\/query\/index\.html"/);
+  assert.match(react, /class="pkg-option" role="option" href="\.\.\/react\/index\.html"/);
+});
+
+test("gives react a home and an API, and no guide", async () => {
+  for (const page of ["react/index.html", "react/api.html"]) {
+    const html = await generated(page);
+    const nav = html.match(/<nav class="nav"[\s\S]*?<\/nav>/)[0];
+
+    assert.match(html, /<body class="react">/, page);
+    assert.match(nav, /href="\.\/index\.html"/, page);
+    assert.match(nav, /href="\.\/api\.html"/, page);
+    assert.doesNotMatch(nav, />Guide</, page);
+  }
+
+  for (const page of ["guide.html", "query/guide.html"]) {
+    const nav = (await generated(page)).match(/<nav class="nav"[\s\S]*?<\/nav>/)[0];
+    assert.match(nav, />Guide</, page);
+  }
 });
 
 test("names the selected package on the trigger and checks it once", async () => {
   for (const page of pages) {
     const html = await generated(page);
-    const name = page.startsWith("query/") ? "@tilia/query" : "tilia";
+    const name = page.startsWith("query/")
+      ? "@tilia/query"
+      : page.startsWith("react/")
+        ? "@tilia/react"
+        : "tilia";
     const options = [...html.matchAll(/<a class="pkg-option"[\s\S]*?<\/a>/g)].map((m) => m[0]);
     const selected = options.filter((option) => option.includes('aria-selected="true"'));
 
-    assert.equal(options.length, 2, page);
+    assert.equal(options.length, 3, page);
     assert.equal(selected.length, 1, page);
     assert.match(selected[0], new RegExp(`<span class="pkg-option__name">${name.replace("/", "\\/")}<`), page);
     assert.ok(html.includes(`<span class="pkg-switcher__current">${name}</span>`), page);
@@ -182,4 +211,8 @@ test("keeps project-specific switcher styling", async () => {
   assert.match(css, /\.nav a\[aria-current="page"\] \{[\s\S]*?background: var\(--shade\);/);
   assert.match(css, /\.nav__icon svg \{[\s\S]*?width: 19px;/);
   assert.doesNotMatch(css, /\.package-mark|\.package-name/);
+
+  assert.match(css, /body\.query \{[\s\S]*?--accent: #2c6d9e;/);
+  assert.match(css, /body\.react \{[\s\S]*?--accent: #a4502a;[\s\S]*?--accent-deep: #7f3c20;/);
+  assert.match(css, /body\.react \.tags span\.react \{[\s\S]*?color: var\(--accent-ink\);/);
 });

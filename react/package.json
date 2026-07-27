@@ -1,7 +1,7 @@
 {
   "name": "@tilia/react",
   "version": "0.0.0",
-  "homepage": "https://tiliajs.dev/api",
+  "homepage": "https://tiliajs.dev/react",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
