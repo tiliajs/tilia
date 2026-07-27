@@ -52,6 +52,7 @@
   --faint: #8d8371;
   --line: #e8e1cc;
   --shade: #f4eedc;
+  --hover: #efe8d2; /* controls under the pointer, one step past --shade */
   --lang-toggle: #fffdf455;
 
   /* tilia's own skin — brand green (wordmark leaf, code keywords) */
@@ -177,69 +178,137 @@ button:focus-visible {
   display: block;
   color: var(--leaf);
 }
-.package-mark {
-  display: grid;
-  grid-template-columns: 72px 61px max-content;
+.header-left {
+  display: flex;
   align-items: center;
+  gap: 12px;
 }
-.package-sep {
+.brand-sep {
   color: var(--faint);
-  text-align: center;
+  font-size: 18px;
+  user-select: none;
 }
-.package-name {
-  color: var(--muted);
+
+/* ---------- package switcher ---------- */
+.pkg-switcher {
+  position: relative;
+}
+.pkg-switcher__trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 12px;
+  line-height: 1;
+  cursor: pointer;
+  background: var(--shade);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   font-family: var(--mono);
   font-size: 13px;
-  font-weight: 400;
+  color: var(--accent-ink);
+}
+.pkg-switcher__trigger:hover {
+  background: var(--hover);
+}
+.pkg-switcher__trigger .chevron {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+.pkg-switcher__trigger[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+.pkg-switcher__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 250px;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(40, 36, 26, 0.1);
+  z-index: 50;
+  display: none;
+}
+.pkg-switcher__menu[data-open="true"] {
+  display: block;
+}
+.pkg-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 7px;
   text-decoration: none;
 }
-.package-mark .wordmark {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 400;
+.pkg-option:hover {
+  background: var(--hover);
 }
-.package-mark .wordmark svg {
+.pkg-option__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.pkg-option__name {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--ink);
+}
+.pkg-option__desc {
+  font-size: 12px;
   color: var(--faint);
 }
-.package-mark .wordmark[aria-current="true"] {
-  color: var(--ink);
-  font-size: 20px;
-  font-weight: 600;
-}
-.package-mark .wordmark[aria-current="true"] svg {
-  color: var(--leaf);
-}
-.package-mark .package-name[aria-current="true"] {
+.pkg-option .check {
+  flex: none;
+  width: 15px;
+  height: 15px;
   color: var(--accent-ink);
 }
-.package-name[aria-current="true"] .package-label {
-  font-size: 20px;
-  font-weight: 600;
+.pkg-option[aria-selected="false"] .check {
+  visibility: hidden;
 }
-.package-mark a:hover {
+.pkg-option[aria-selected="true"],
+.pkg-option[aria-selected="true"]:hover {
+  background: var(--accent-soft);
+}
+.pkg-option[aria-selected="true"] .pkg-option__name {
   color: var(--accent-ink);
+}
+.pkg-option[aria-selected="true"] .pkg-option__desc {
+  color: var(--muted);
 }
 .nav {
   display: flex;
-  gap: clamp(14px, 3vw, 26px);
+  align-items: center;
+  gap: 2px;
 }
 .nav a {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  padding: 6px 12px;
+  border-radius: 7px;
   text-decoration: none;
+  font-size: 14px;
   color: var(--muted);
-  padding: 4px 0;
-  border-bottom: 1px solid transparent;
 }
 .nav a:hover {
-  color: var(--accent-ink);
-  border-bottom-color: var(--accent-ink);
+  background: var(--shade);
+  color: var(--ink);
 }
 .nav a[aria-current="page"] {
-  color: var(--accent-ink);
-  border-bottom-color: var(--accent-ink);
+  background: var(--shade);
+  color: var(--ink);
+}
+.nav__icon {
+  display: inline-flex;
+  padding: 6px 8px;
+}
+.nav__icon svg {
+  width: 19px;
+  height: 19px;
 }
 
 /* ---------- sections ---------- */
@@ -1207,6 +1276,11 @@ html[data-lang="res"] [data-pair] > pre.language-typescript {
   }
   .nav a:not([href$="api.html"]):not([href*="github"]) {
     display: none;
+  }
+  /* brand and switcher take the row; the nav drops below them */
+  .top .wrap {
+    flex-wrap: wrap;
+    row-gap: 12px;
   }
 }
 

@@ -2,12 +2,14 @@ var:
   output: ../../dist
   assets: ../../assets
   model: ../../../tilia/llms.txt
+  # Header marks are Tabler Icons (MIT) — see NOTICE.txt.
   wordmarkSvg: |-
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z"/>
-      <path d="M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1" stroke-width="1.1"/>
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M5 21c.5 -4.5 2.5 -8 7 -10"/>
+      <path d="M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0"/>
     </svg>
-  faviconUrl: data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232e7d3a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3C7.2 4.9 4.6 8.8 5.5 13.3 6.3 17 9 20.1 12 21c3-0.9 5.7-4 6.5-7.7C19.4 8.8 16.8 4.9 12 3Z'/%3E%3Cpath d='M12 7v10M12 11.5 9.2 9.7M12 11.5l2.8-1.8M12 15.5 8.8 13.4M12 15.5l3.2-2.1' stroke-width='1.1'/%3E%3C/svg%3E
+  githubSvg: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5"/></svg>
+  faviconUrl: data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232e7d3a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 21c.5 -4.5 2.5 -8 7 -10'/%3E%3Cpath d='M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0'/%3E%3C/svg%3E
   prePaintScript: |-
     /* Language choice, resolved before first paint.
        Priority: ?lang= query param > localStorage > "ts". */
@@ -27,6 +29,48 @@ var:
       document.documentElement.setAttribute("data-lang", next);
       try { localStorage.setItem("tilia-lang", next); } catch (err) {}
     });
+  pkgSwitcherScript: |-
+    /* Package switcher: a listbox of packages, opened from its trigger. */
+    (function () {
+      var trigger = document.getElementById("pkg-trigger");
+      var menu = document.getElementById("pkg-menu");
+      var options = Array.prototype.slice.call(menu.querySelectorAll(".pkg-option"));
+      function open() {
+        menu.dataset.open = "true";
+        trigger.setAttribute("aria-expanded", "true");
+        (menu.querySelector('[aria-selected="true"]') || options[0]).focus();
+      }
+      function close(back) {
+        delete menu.dataset.open;
+        trigger.setAttribute("aria-expanded", "false");
+        if (back) trigger.focus();
+      }
+      trigger.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (menu.dataset.open === "true") close(false);
+        else open();
+      });
+      trigger.addEventListener("keydown", function (e) {
+        if (e.key !== "ArrowDown" && e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        open();
+      });
+      menu.addEventListener("keydown", function (e) {
+        var i = options.indexOf(document.activeElement);
+        if (e.key === "Escape") close(true);
+        else if (e.key === "ArrowDown") options[Math.min(i + 1, options.length - 1)].focus();
+        else if (e.key === "ArrowUp") options[Math.max(i - 1, 0)].focus();
+        else if (e.key === "Home") options[0].focus();
+        else if (e.key === "End") options[options.length - 1].focus();
+        else if (e.key === "Tab") return close(false);
+        else return;
+        e.preventDefault();
+      });
+      document.addEventListener("click", function (e) {
+        if (menu.dataset.open !== "true") return;
+        if (!menu.contains(e.target) && e.target !== trigger) close(false);
+      });
+    })();
   docsScrollSpyScript: |-
     /* Scroll-spy: highlight the current chapter in the reading path. */
     (function () {
@@ -61,26 +105,48 @@ var:
   homeCurrentAttr: ""
   guideCurrentAttr: ""
   apiCurrentAttr: ""
+  rootHref: "./"
+  currentPkg: tilia
+  currentName: tilia
+  chevronSvg: <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6l6 -6"/></svg>
+  checkSvg: <svg class="check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5l9 -9"/></svg>
+  pkgSelected:
+    value: "{{pkg}}|{{currentPkg}}"
+    transform: same
+  # One file per package in content/packages feeds the switcher menu.
+  pkgOptions:
+    dir: ../packages
+    each: |-
+      <li role="presentation"><a class="pkg-option" role="option" href="{{rootHref}}{{href}}" aria-selected="{{pkgSelected}}"><span class="pkg-option__text"><span class="pkg-option__name">{{scopedName}}</span><span class="pkg-option__desc">{{tagline}}</span></span>{{checkSvg}}</a></li>
   prePaint: ""
   skip: ""
   mainAttrs: ""
   scripts: ""
   header: |-
+    <!-- Leaf, chevron, check and GitHub marks: Tabler Icons (MIT) — see {{rootHref}}notice.txt -->
     <header class="top">
       <div class="wrap">
-        <div class="package-mark">
-          <a class="wordmark" href="./index.html" aria-label="tilia — home" aria-current="true">{{wordmarkSvg}}tilia</a>
-          <span class="package-sep" aria-hidden="true">|</span>
-          <a class="package-name" href="./query/index.html">@tilia/<span class="package-label">query</span></a>
+        <div class="header-left">
+          <a class="wordmark" href="{{rootHref}}index.html" aria-label="tilia — home">{{wordmarkSvg}}tilia</a>
+          <span class="brand-sep" aria-hidden="true">/</span>
+          <div class="pkg-switcher">
+            <button class="pkg-switcher__trigger" id="pkg-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="pkg-menu">
+              <span class="pkg-switcher__current">{{currentName}}</span>{{chevronSvg}}
+            </button>
+            <ul class="pkg-switcher__menu" id="pkg-menu" role="listbox" aria-label="Select package" tabindex="-1">
+              {{pkgOptions}}
+            </ul>
+          </div>
         </div>
-        <nav class="nav" aria-label="Site">
+        <nav class="nav" aria-label="{{currentName}}">
           <a href="./index.html"{{homeCurrentAttr}}>Home</a>
           <a href="./guide.html"{{guideCurrentAttr}}>Guide</a>
           <a href="./api.html"{{apiCurrentAttr}}>API</a>
-          <a href="https://github.com/tiliajs/tilia">GitHub</a>
+          <a class="nav__icon" href="https://github.com/tiliajs/tilia" aria-label="Source on GitHub">{{githubSvg}}</a>
         </nav>
       </div>
     </header>
+    <script>{{pkgSwitcherScript}}</script>
   footer: |-
     <footer class="foot">
       <div class="wrap">
@@ -343,3 +409,6 @@ build:
   - output: "{{output}}/llms.txt"
     input:
       copy: "{{model}}"
+  - output: "{{output}}/notice.txt"
+    input:
+      copy: ../../NOTICE.txt

@@ -7,12 +7,18 @@ import { renderRedirects } from "./redirects.mjs";
 const root = new URL("../", import.meta.url);
 const output = new URL("dist/", root);
 
+/** "a|b" -> "true" when both halves match. Renders aria-selected in loops. */
+function same(text) {
+  const [left, right] = text.split("|");
+  return String(left === right);
+}
+
 export async function build() {
   await rm(output, { recursive: true, force: true });
   await run({
     fs: nodeFs(fileURLToPath(root).replace(/\/$/, "")),
     glob: "content/**/config.yaml",
-    transform: { apiMd, guideMd, rescript, typescript },
+    transform: { apiMd, guideMd, rescript, same, typescript },
   });
   await renderRedirects(fileURLToPath(output));
 }
