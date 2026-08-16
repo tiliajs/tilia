@@ -4,7 +4,7 @@
       <div>
         <p class="eyebrow">@tilia/react<span class="sep">·</span>React &amp; React Native<span class="sep">·</span>MIT</p>
         <h1 id="hero-title">Views That Observe the&nbsp;Domain</h1>
-        <p class="lead">The view adapter for tilia. A component reads the domain while it renders, and repaints exactly when one of those reads changes — no selectors, no dependency arrays, no memo rituals. The same three tools serve React and React Native.</p>
+        <p class="lead">The view adapter for tilia. A component reads the domain while rendering and repaints exactly when one of the values it read changes — no selectors, no dependency arrays, no memo rituals. The same three tools serve React and React Native.</p>
         <div class="cta-row">
           <a class="btn solid" href="./api.html">API Reference</a>
           <a class="btn" href="../guide.html">The tilia Guide</a>
@@ -62,13 +62,13 @@
     <div class="wrap">
       <header class="sec-head">
         <h2 id="observers-title">Views are observers</h2>
-        <p class="sec-lead">That one idea is the entire adapter: a component reads reactive values while rendering, and it should re-render exactly when one of those values changes. Three tools, in a deliberate order of preference.</p>
+        <p class="sec-lead">That one idea is the entire adapter: a component reads reactive values while rendering and should re-render exactly when one of those values changes. Three tools support this, in a deliberate order of preference.</p>
       </header>
 
       <div class="chapters">
         <div class="chapter">
-          <h3>leaf: the favored way</h3>
-          <p class="body"><a href="./api.html#leaf">leaf</a> wraps a component so that tilia tracks the reads of the render itself:</p>
+          <h3>leaf: the preferred way</h3>
+          <p class="body"><a href="./api.html#leaf">leaf</a> wraps a component so that tilia tracks the reads made during rendering:</p>
           <figure class="example" data-pair>
             <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
             <pre class="language-typescript"><code><span class="tk">import</span> { leaf } <span class="tk">from</span> <span class="ts">"@tilia/react"</span>;
@@ -89,11 +89,11 @@
   }
 })</code></pre>
           </figure>
-          <p class="body">Because tracking happens during the render, the dependencies are <em>exact</em>: this component re-renders when <code>deck.queue</code> changes and not otherwise. No dependency array, no memoized selector, no <code>memo</code> wrapper. The component reads the domain; the subscription is the reading. And its vocabulary is still the domain's — <code>deck</code>, <code>queue</code>, <code>front</code>: a view the domain owner could read over the developer's shoulder.</p>
-          <p class="body"><code>useApp</code> is an architectural suggestion, not an API: provide the app object through an ordinary React context and let components pull the feature they need. Because tracking is fine-grained, one context for the whole app works seamlessly — and a test provides a mock app the same way. The world stays injected, even here.</p>
+          <p class="body">Because tracking happens during rendering, the dependencies are <em>exact</em>: this component re-renders when <code>deck.queue</code> changes and not otherwise. No dependency array, no memoized selector, no <code>memo</code> wrapper. The component reads the domain; the subscription is the reading. Its vocabulary remains that of the domain — <code>deck</code>, <code>queue</code>, <code>front</code>: a view the domain owner could read over the developer's shoulder.</p>
+          <p class="body"><code>useApp</code> is an architectural suggestion, not an API: provide the app object through an ordinary React context and let each component pull the feature it needs. Because tracking is fine-grained, one context for the whole app works seamlessly — and tests can provide a mock app in the same way. The world stays injected, even here.</p>
           <div class="story">
             <span class="k">Story</span>
-            <p>The scheduler gets its face on a Saturday. Alice answers, the queue advances, and only the card on screen repaints — the streak counter, the deck list, the settings panel never notice. It feels less like a program updating and more like a page turning.</p>
+            <p>The scheduler gets its face on a Saturday. Alice answers, the queue advances, and only the card on screen repaints; the streak counter, deck list, and settings panel never notice. It feels less like a program updating and more like a page turning.</p>
           </div>
           <div class="pro">
             <span class="k">Pro tip</span>
@@ -103,7 +103,7 @@
 
         <div class="chapter">
           <h3>useTilia: the easy retrofit</h3>
-          <p class="body"><a href="./api.html#use-tilia">useTilia</a> is a hook called at the top of a component that makes the reads below it reactive:</p>
+          <p class="body">Call the <a href="./api.html#use-tilia">useTilia</a> hook at the top of a component to make the reads below it reactive:</p>
           <figure class="example" data-pair>
             <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
             <pre class="language-typescript"><code><span class="tk">import</span> { useTilia } <span class="tk">from</span> <span class="ts">"@tilia/react"</span>;
@@ -124,12 +124,12 @@
   }
 }</code></pre>
           </figure>
-          <p class="body">It is the fastest way to make an existing component reactive, and that is its role: a retrofit for gradual adoption. Its tracking is slightly coarser than <code>leaf</code>'s — a hook cannot see the exact end of its own render — so prefer <code>leaf</code> for new code; the <a href="./api.html#use-tilia">API reference</a> has the precise mechanics.</p>
+          <p class="body">It is the fastest way to make an existing component reactive, and that is its role: a retrofit for gradual adoption. Its tracking is slightly coarser than <code>leaf</code>'s — a hook cannot see the exact end of the component's render — so prefer <code>leaf</code> for new code. The <a href="./api.html#use-tilia">API reference</a> explains the precise mechanics.</p>
         </div>
 
         <div class="chapter">
           <h3>useComputed: re-render on the answer</h3>
-          <p class="body">Sometimes a component depends on a <em>conclusion</em>, not the values behind it. Each row of a queue wants to know one thing — am I the current card? <a href="./api.html#use-computed">useComputed</a> re-asks the question cheaply and re-renders only when <em>its own answer</em> flips:</p>
+          <p class="body">Sometimes a component depends on a <em>conclusion</em>, not the values behind it. Each row of a queue wants to know one thing — am I the current card? <a href="./api.html#use-computed">useComputed</a> re-asks the question cheaply and re-renders only when <em>its own answer</em> changes:</p>
           <figure class="example" data-pair>
             <figcaption class="exbar"><span class="k">Example</span><button class="lang-toggle" type="button" aria-label="Switch example language"><span class="lt lt-ts">TS</span><span class="lt lt-res">RES</span></button></figcaption>
             <pre class="language-typescript"><code><span class="tk">const</span> current = <span class="tf">useComputed</span>(() =&gt; app.deck.queue[0]?.id === card.id);</code></pre>
@@ -175,7 +175,7 @@
   &lt;View&gt; &lt;Text&gt; {front-&gt;React.string} &lt;/Text&gt; &lt;/View&gt;
 })</code></pre>
           </figure>
-          <p class="body">The adapter is the same because the reactivity is the same: plain objects, tracked reads, exact repaints. Expo or bare, iOS, Android and web from one domain — no native module, no configuration, no separate package to learn.</p>
+          <p class="body">The adapter is the same because the reactivity is the same: plain objects, tracked reads, exact repaints. Whether you use Expo or a bare workflow, one domain serves iOS, Android, and the web — with no native module, configuration, or separate package to learn.</p>
         </div>
       </div>
     </div>
@@ -190,7 +190,7 @@
 
       <div class="chapters">
         <div class="chapter">
-          <p class="body">If you arrived here first, read <a href="../guide.html">the tilia guide</a> once, top to bottom: it builds a small application in the domain's own words — plain objects, values that follow, a world that is injected — and arrives at <a href="../guide.html#views-are-observers">views are observers</a>, which is where this page picks up. The complete surface of the adapter, both languages, is in the <a href="./api.html">API reference</a>; the core functions live in <a href="../api.html">tilia's</a>.</p>
+          <p class="body">If you arrived here first, read <a href="../guide.html">the tilia guide</a> once, from top to bottom. It builds a small application in the domain's own words — plain objects, values that follow, a world that is injected — and culminates in <a href="../guide.html#views-are-observers">views are observers</a>, where this page picks up. The <a href="./api.html">API reference</a> covers the adapter's complete surface in both languages; the core functions are in the <a href="../api.html">tilia API reference</a>.</p>
         </div>
       </div>
     </div>

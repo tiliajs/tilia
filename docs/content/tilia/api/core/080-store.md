@@ -12,11 +12,11 @@ signature.res: "let store: (('a => unit) => 'a) => 'a"
 label: store(fn)
 ---
 
-`store` creates a dynamic inserted value from `fn(set)`. The setup returns the current value and receives `set` to update it later.
+`store` creates a dynamic value for insertion into a reactive object. Its `fn(set)` setup returns the current value and receives `set` so that it can update the value later.
 
-The setup runs on first access and can re-run when tracked dependencies used during setup change. This is suitable for finite-state values where transitions call `set`.
+The setup runs on the first access and can run again when dependencies tracked during setup change. This is suitable for finite-state values whose transitions call `set`.
 
-Use [source](api.html#source) when setup needs the previous value. See guide chapter [Letting the world in](guide.html#letting-the-world-in).
+Use [source](api.html#source) when the setup needs the previous value. See the guide chapter [Letting the world in](guide.html#letting-the-world-in).
 
 ```typescript
 import { store, tilia } from "tilia";

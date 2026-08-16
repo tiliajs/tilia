@@ -12,7 +12,7 @@ signature.res: "type signal<'a> = {mutable value: 'a}"
 label: Signal
 ---
 
-`Signal<T>`/`signal<'a>` is the value container returned by [signal](api.html#signal) and [derived](api.html#derived).
+The `Signal<T>`/`signal<'a>` type is the value container returned by [signal](api.html#signal) and [derived](api.html#derived).
 
 Reads from `value` are trackable, and writes through setters update `value`.
 

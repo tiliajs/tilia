@@ -6,7 +6,7 @@ refs: [computed, make]
 chapter: "11"
 ---
 
-Trust needs a floor. Adèle signs Claudine's diffs; Alice signs the scenarios; the suite guards the behavior. But somebody — human or AI — will eventually get it wrong anyway, and what happens *then* decides whether collaboration stays convivial or turns cautious. tilia's answers are specific.
+Trust needs a floor. Adèle signs Claudine's diffs; Alice signs the scenarios; the suite guards the behavior. But somebody — human or AI — will eventually get it wrong anyway, and what happens *then* determines whether collaboration stays convivial or turns cautious. tilia's answers are specific.
 
 ::: story
 Sunday's nightly import delivers a card with no interval — a malformed row from the shared deck. Somewhere inside, a computed throws. On Alice's phone: the queue still turns, the streak still counts. One card is quietly absent, and one line of red has appeared in the log, pointing at the exact function that choked.
@@ -16,7 +16,7 @@ Sunday's nightly import delivers a card with no interval — a malformed row fro
 
 An exception inside a `computed` or `observe` callback could poison the whole reactive graph. Instead, tilia does four things, in order: the exception is **caught** immediately; the error is **logged** with a stack trace cleaned of library internals, so the top frame is *your* code; the faulty observer is **cleared**, so it cannot block the system; and the error is **re-thrown** at the end of the next flush, so it still reaches the application's error handling.
 
-One broken observer, one loud report, everyone else keeps working. The reactive system degrades one callback at a time, never as a whole — an application with a bug stays an application.
+One observer breaks and produces one loud report; everyone else keeps working. The reactive system degrades one callback at a time, never as a whole — an application with a bug stays an application.
 
 ### A bug is a missing scenario
 
@@ -42,4 +42,4 @@ The other half of the floor you have already met: in [chapter 4](#values-that-fo
 
 Long-lived apps accumulate and shed observers by the thousand — components mounting and unmounting, sessions starting and ending. Two garbage collectors share the work: JavaScript's own GC releases any tilia object no longer referenced, dependencies and all; tilia's internal GC sweeps the bookkeeping left by cleared observers after a threshold (50 by default). The knob lives on [`make`](api.html#make), which also builds fully isolated reactive contexts — a niche need for libraries and unusual hosts; one context is right for almost every application.
 
-That is the whole safety story, and it is short on purpose: mistakes fail fast and near their cause, crashes stay local, memory is tended without ceremony — and every lesson learned becomes a scenario, so it is only ever learned once. One chapter remains: a step back, to see what was actually built.
+That is the whole safety story, and it is short on purpose: mistakes fail fast and near their cause, crashes stay local, and memory is tended without ceremony. Every lesson learned becomes a scenario, so it is only ever learned once. One chapter remains: a step back to see what was actually built.

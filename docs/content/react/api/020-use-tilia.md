@@ -12,11 +12,11 @@ signature.res: "let useTilia: unit => unit"
 label: useTilia()
 ---
 
-`useTilia` enables reactive tracking for the current component render. Call it at the top of the component.
+`useTilia` enables reactive tracking for a component's current render. Call it at the top of the component.
 
-Reads of Tilia proxies during render become dependencies. When one of those dependencies changes, the component re-renders. `useTilia` is the hook form; [leaf](api.html#leaf) is the preferred wrapper when possible.
+Reads of Tilia proxies during rendering become dependencies. When one of those dependencies changes, the component re-renders. `useTilia` is the hook form; [leaf](api.html#leaf) is the preferred wrapper when possible.
 
-See the [React overview](index.html) and related hook [useComputed](api.html#use-computed).
+See the [React overview](index.html) and the related [useComputed](api.html#use-computed) hook.
 
 ```typescript
 import { useTilia } from "@tilia/react";

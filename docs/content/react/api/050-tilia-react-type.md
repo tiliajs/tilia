@@ -22,9 +22,9 @@ signature.res: |-
 label: TiliaReact
 ---
 
-`TiliaReact`/`tilia_react` is the React API object shape returned by [react make](api.html#react-make).
+The `TiliaReact` and `tilia_react` types define the shape of the React API object returned by [react make](api.html#react-make).
 
-It groups `useTilia`, `useComputed`, and `leaf` for one core context.
+It groups `useTilia`, `useComputed`, and `leaf` for a single core context.
 
 See [leaf](api.html#leaf), [useTilia](api.html#use-tilia), and [useComputed](api.html#use-computed).
 

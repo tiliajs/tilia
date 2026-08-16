@@ -34,7 +34,7 @@ signature.res: |-
 label: Config
 ---
 
-`Config` collects the required collection logic and adaptors, plus the optional cache, timing, identity, ordering and merge settings passed to [make](api.html#make).
+`Config` collects the required collection logic and adaptors, plus the optional cache, timing, identity, ordering, and merge settings passed to [make](api.html#make).
 
 - `sort` returns the result sorter for a query.
-- `merge` receives the local [Change](api.html#change-type) and remote value. Merge into the local value in place and return `true`, or return `false` to keep remote truth and record a conflict.
+- `merge` receives the local [Change](api.html#change-type) and the remote value. Merge the remote value into the local value in place and return `true`, or return `false` to keep remote truth and record a conflict.

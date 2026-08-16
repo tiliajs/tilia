@@ -42,6 +42,6 @@ When the result must live on its own, use [`derived`](api.html#derived), which r
 
 ## Still seeing the error?
 
-Check the stack frame above tilia's internals. It should point to the first operation that used the definition as a value. Move that `computed` call directly into the object that owns the property.
+Check the stack frame immediately above tilia's internals. It should point to the first operation that used the definition as a value. Move that `computed` call directly into the object that owns the property.
 
 If a definition is already inserted directly and the error still occurs, [open a GitHub issue](https://github.com/tiliajs/tilia/issues) with a minimal reproduction and the complete stack trace.

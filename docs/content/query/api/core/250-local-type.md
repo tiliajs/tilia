@@ -28,13 +28,13 @@ label: Local
 
 `Local` wires durable storage into [make](api.html#make). It is two stores in one adaptor: a typed values table (`fetch`, `push`) and a string KV for engine bookkeeping (`set`, `get`). Values reach the adaptor typed, so it can store them natively and index them.
 
-Local persistence is **command-only** — there is no write channel. Confirmation, retry and rejection are remote concepts; a local storage error is the adaptor's own business (log, retry, surface in app state). The library never sees it.
+Local persistence is **command-only** — there is no write channel. Confirmation, retry, and rejection are remote concepts; handling a local storage error is the adaptor's responsibility (log it, retry, or surface it in app state). The library never sees it.
 
-- `fetch` — answer a query from the values table through a [LocalChannel](api.html#local-channel-type): `set` with results, or `unknown` when the store cannot answer.
+- `fetch` — answer a query from the values table through a [LocalChannel](api.html#local-channel-type): call `set` with results, or `unknown` when the store cannot answer.
 - `push` — apply value changes in order: `Upsert` writes or replaces the row, `Remove` drops it.
 - `set` — store a bookkeeping entry under a tag and key; `None` / `undefined` deletes it.
-- `get` — read one entry by key, or every entry for the tag when the key is omitted. Reply through the given `set` — synchronously or later, like everything else.
-- `ids` — reply with the id of every row in the values table. The purge sweep enumerates rows through this.
+- `get` — read one entry by key, or every entry for the tag when the key is omitted. Reply through the given `set`, either synchronously or later, like everything else.
+- `ids` — reply with the id of each row in the values table. The purge sweep enumerates rows through this.
 
 See guide chapter [A week at Nora's](guide.html#a-week-at-noras).
 

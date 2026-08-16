@@ -26,18 +26,18 @@ label: Remote
 
 `online` is a [tilia signal](../api.html#signal-type), owned by the app: set `online.value` as connectivity changes. The engine reacts to transitions:
 
-- Flipping to `false` settles queries still `Loading` to `NotLocal`. An in-flight remote response may still land and is taken as-is; its freshness self-corrects on later ticks.
+- Flipping to `false` transitions queries from `Loading` to `NotLocal`. An in-flight remote response may still arrive and is taken as is; its freshness self-corrects on later ticks.
 - Flipping to `true` pushes pending ops.
 
 `fetch` answers a query through a [ReadChannel](api.html#read-channel-type):
 
-- `channel.set` with the complete result set (one-shot; the engine refreshes periodically).
-- Or `channel.live` when the adaptor keeps the result fresh itself (a subscription): register the teardown with `channel.finally`, call `channel.end` when the source shuts down. Going offline does not end a live query — the engine cannot know whether the transport survived, so ending is the adaptor's call.
+- Call `channel.set` with the complete result set (one-shot; the engine refreshes periodically).
+- Call `channel.live` when the adaptor keeps the result fresh itself (a subscription): register the teardown with `channel.finally`, and call `channel.end` when the source shuts down. Going offline does not end a live query — the engine cannot know whether the transport survived, so ending is the adaptor's call.
 
-`push` receives one ordered batch of every pending op not already in flight, with a [WriteChannel](api.html#write-channel-type):
+`push` receives one ordered batch containing every pending op not already in flight, along with a [WriteChannel](api.html#write-channel-type):
 
 - Confirm each op individually via `channel.set` / `channel.removed`.
-- End with nothing (all confirmed), `channel.retry` (transient failure) or `channel.fail` (definitive).
+- End with nothing (all confirmed), `channel.retry` (transient failure), or `channel.fail` (definitive).
 
 See guide chapters [Tunnels](guide.html#tunnels) and [Two devices, one deck](guide.html#two-devices-one-deck).
 

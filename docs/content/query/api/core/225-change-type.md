@@ -27,7 +27,7 @@ label: Change
 
 - `Clean` carries the current value when there is no local write.
 - `Created` carries a new local value not yet confirmed remotely.
-- `Updated` carries the `base` value and latest local `edited` value. Together with the remote value, these are the three inputs to a three-way merge.
+- `Updated` carries the `base` value and the latest local `edited` value. Together with the remote value, these are the three inputs to a three-way merge.
 - `Removed` carries the value deleted locally while its remove is pending.
 
 The merge runs inside [`Tilia.batch`](../api.html#batch). Mutate the local value in place and return `true` when the histories reconcile. Return `false` to show remote truth and record the corresponding [Rejection](api.html#rejection-type).

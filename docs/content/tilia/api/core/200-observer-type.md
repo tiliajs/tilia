@@ -12,9 +12,9 @@ signature.res: type observer
 label: Observer
 ---
 
-`Observer`/`observer` is an opaque handle representing a registered observer.
+The `Observer`/`observer` type is an opaque handle representing a registered observer.
 
-Application code using public APIs normally does not create or consume this type directly. It appears in low-level lifecycle helpers (`_observe`, `_done`, `_ready`, `_clear`).
+Application code that uses public APIs does not normally create or consume this type directly. It appears in low-level lifecycle helpers (`_observe`, `_done`, `_ready`, `_clear`).
 
 For ordinary reactive effects, use [observe](api.html#observe) or [watch](api.html#watch).
 

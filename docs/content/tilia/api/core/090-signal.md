@@ -14,7 +14,7 @@ label: signal(value)
 
 `signal` returns a pair: a reactive object `{ value }` and a setter function.
 
-The signal object is a Tilia proxy, so reads of `.value` are tracked and writes through the setter notify dependents. It is a compact form for single mutable values.
+The signal object is a Tilia proxy, so reads of `.value` are tracked, and writes through the setter notify dependents. This provides a compact form for individual mutable values.
 
 Use [derived](api.html#derived) to build a computed signal and [lift](api.html#lift) to expose a signal in a `tilia` object.
 

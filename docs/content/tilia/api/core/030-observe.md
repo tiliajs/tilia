@@ -14,9 +14,9 @@ label: observe(fn)
 
 `observe` runs `fn` once immediately, tracks reactive reads during that run, and re-runs `fn` whenever one of those tracked keys changes. Dependency tracking is rebuilt on each run.
 
-Writes performed inside `fn` are deferred while `fn` is running. If `fn` writes to keys it also tracks, it is scheduled to run again after the current run finishes. This makes `observe` suitable for state-machine style transitions.
+Writes performed inside `fn` are deferred while `fn` is running. If `fn` writes to keys that it also tracks, it is scheduled to run again after the current run finishes. This makes `observe` suitable for state-machine-style transitions.
 
-`observe` returns a function that cancels the observation: once called, the callback never runs again. Ignore it for observers that should live as long as the context. For two-phase capture/effect behavior, use [watch](api.html#watch). For pull reactivity, use [computed](api.html#computed). See guide chapters [A living object](guide.html#a-living-object) and [While Alice sleeps](guide.html#while-alice-sleeps).
+`observe` returns a function that cancels the observation. Once called, the callback never runs again. You can ignore this function for observers that should live as long as the context. For two-phase capture/effect behavior, use [watch](api.html#watch). For pull reactivity, use [computed](api.html#computed). See the guide chapters [A living object](guide.html#a-living-object) and [While Alice sleeps](guide.html#while-alice-sleeps).
 
 ```typescript
 import { observe, tilia } from "tilia";

@@ -26,7 +26,7 @@ Feature: The deck
     Then the queue is "gato"
 ```
 
-The deck has state (the cards), derived state (the queue) and actions (review). They belong together and should be testable as one unit. Building that unit is [`carve`](api.html#carve)'s job.
+The deck has state (the cards), derived state (the queue), and actions (review). They belong together and should be testable as one unit. Building that unit is [`carve`](api.html#carve)'s job.
 
 ### Logic as pure functions
 
@@ -67,7 +67,7 @@ These are ordinary functions: data in, data out. You can test `queue` with a pla
 
 ### Assembling the feature
 
-`carve` builds the reactive object and hands the functions the object itself, through `derived`:
+`carve` builds the reactive object and, through `derived`, hands the object itself to the functions:
 
 ```typescript
 import { carve, lift, type Signal } from "tilia";

@@ -16,7 +16,7 @@ label: sortedStringify(value)
 
 It is the default `key` in [make](api.html#make): the string identifies a query in memory and in the persisted query registry.
 
-Only meaningful on plain data — no functions, no cycles. This is the same constraint the local purge puts on queries anyway: persisted records carry their query through a JSON round trip.
+It is meaningful only for plain data — no functions, no cycles. This is the same constraint the local purge puts on queries: persisted records carry their query through a JSON round trip.
 
 See guide chapter [A shape for queries](guide.html#a-shape-for-queries).
 

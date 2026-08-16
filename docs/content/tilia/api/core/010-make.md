@@ -14,9 +14,9 @@ label: make(gc?)
 
 `make` creates a context object containing the Tilia API (`tilia`, `carve`, `observe`, `watch`, `batch`, `signal`, `derived`, `source`, `store`, `_observe`).
 
-Each context is isolated: observers and proxies from one context do not share tracking with another context. Use this for uncorrelated reactive worlds.
+Each context is isolated: observers and proxies from one context do not share tracking with another context. Use this to create independent reactive worlds.
 
-`gc` sets the cleared-watcher garbage-collection threshold. Default is `50`. See [tilia](api.html#tilia), [Tilia](api.html#tilia-type), and guide chapter [Mistakes stay small](guide.html#mistakes-stay-small).
+`gc` sets the garbage-collection threshold for cleared watchers. The default is `50`. See [tilia](api.html#tilia), [Tilia](api.html#tilia-type), and the guide chapter [Mistakes stay small](guide.html#mistakes-stay-small).
 
 ```typescript
 import { make } from "tilia";

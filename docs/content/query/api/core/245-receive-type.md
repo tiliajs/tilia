@@ -20,7 +20,7 @@ signature.res: |-
 label: Receive
 ---
 
-`Receive` accepts facts volunteered by the server, such as websocket deliveries:
+`Receive` accepts facts sent by the server, such as websocket deliveries:
 
 - [changed](api.html#receive-changed) receives complete changed values.
 - [removed](api.html#receive-removed) receives ids deleted remotely.

@@ -30,13 +30,13 @@ label: Loadable
 - `Loading` — no source has answered yet. A progress state: show a spinner.
 - `Loaded` — data, with a `fresh` flag (see below).
 - `NotFound` — a source answered with an empty result. Only `one` answers it; `array` answers an empty `Loaded`.
-- `NotLocal` — the offline dead end: nothing cached locally and the remote unreachable. Unlike `Loading` it is an answer, not progress — show "not available offline", not a spinner.
+- `NotLocal` — the offline dead end: nothing is cached locally, and the remote is unreachable. Unlike `Loading`, it is an answer, not progress — show "not available offline", not a spinner.
 - `Failed` — the fetch error, carried to the place where the value is read. There is no global error slot to join against.
 
-`fresh` says whether the data is known-fresh from the remote (`true`) or served from cache (`false`). It describes trust, not where the rows physically live.
+`fresh` says whether the data is known to be fresh from the remote (`true`) or served from cache (`false`). It describes trust, not where the rows physically live.
 
-- On [tick](api.html#tick), a non-live remote result with no delivery within `expiry.refresh` flips to `fresh: false`; the next remote delivery flips it back.
-- While online, the flip waits one extra refresh-check period (`expiry.refresh / 8`) so an in-flight refresh can land without a flip/flop. Offline, it flips right at the limit.
+- On [tick](api.html#tick), a non-live remote result that receives no delivery within `expiry.refresh` flips to `fresh: false`; the next remote delivery flips it back.
+- While online, the flip waits one extra refresh-check period (`expiry.refresh / 8`) so an in-flight refresh can land without the flag flipping back and forth. Offline, it flips right at the limit.
 
 More edge cases:
 

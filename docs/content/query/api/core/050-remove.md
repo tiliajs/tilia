@@ -18,7 +18,7 @@ What happens immediately:
 
 - The id leaves every in-memory query result and the persisted query records.
 - The local row is deleted.
-- The op queues in the outbox and counts in [status](api.html#status)`.pending`, like any write.
+- The op is queued in the outbox and counted in [status](api.html#status)`.pending`, like any write.
 
 Edge cases:
 

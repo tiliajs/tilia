@@ -12,9 +12,9 @@ signature.res: "let leaf: ('a => 'b) => 'a => 'b"
 label: leaf(fn)
 ---
 
-`leaf` wraps a component so reads of Tilia proxies during render are tracked with exact render boundaries.
+`leaf` wraps a component and uses exact render boundaries to track reads of Tilia proxies during rendering.
 
-When tracked keys change, the wrapped component re-renders. The API is equivalent to a higher-order component and is the preferred React integration over [useTilia](api.html#use-tilia).
+When tracked keys change, the wrapped component re-renders. The API is equivalent to a higher-order component and is preferred over [useTilia](api.html#use-tilia) for React integration.
 
 See the [React overview](index.html) and [useComputed](api.html#use-computed).
 

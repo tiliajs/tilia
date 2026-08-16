@@ -6,11 +6,11 @@ refs: [change-type, rejection-type, status-type, status, dismiss]
 chapter: "07"
 ---
 
-Halfway down the valley the phone finds a bar of signal, the connectivity signal flips, and two things happen at once: forty-one operations push to the server in the order Alice made them, and a week of the server's own history comes back the other way. Most of it passes without a ripple — confirmed writes leave the outbox, changed rows slot into their queries. This chapter is about the handful that collide.
+Halfway down the valley, the phone finds a bar of signal, the connectivity signal flips, and two things happen at once: forty-one operations push to the server in the order Alice made them, and a week of the server's own history comes back the other way. Most of it passes without a ripple — confirmed writes leave the outbox, changed rows slot into their queries. This chapter is about the handful that collide.
 
 While Alice was in the hills, her study group kept editing the shared deck. Nadia rewrote the example sentence on *echar de menos* — the same card Alice rewrote at Nora's table. Two honest edits, one card. What an app does next shows how much it *cares*.
 
-The common answers are both small betrayals: refetch and let the server's copy silently replace Alice's week, or surface a raw "409 Conflict" and make her problem out of the app's. The design here refuses both, using an old idea from version control: never compare two versions when you can compare three.
+The common answers are both small betrayals: refetch and let the server's copy silently replace Alice's week, or surface a raw "409 Conflict" and make the app's problem hers. The design here refuses both, using an old idea from version control: never compare two versions when you can compare three.
 
 ### Three versions on the table
 
@@ -18,8 +18,8 @@ When a remote value arrives for a row already known locally, the engine calls yo
 
 1. fold remote fields into the existing object in place, preserving its reactive identity, and
 2. decide whether the local and remote histories can be reconciled.
- 
-`change` tells the local story: `Clean` carries the current value with no local edit, `Created` a new local value, `Updated` the **base** and the **edit** made from it, and `Removed` the deleted value; `remote` is the server's version. For a conflict, `Updated` provides the full three-way setup — base, yours, theirs. A conflict only happens when the same field changed from *both* sides, away from each other:
+
+`change` tells the local story: `Clean` carries the current value with no local edit, `Created` a new local value, `Updated` the **base** and the **edit** made from it, and `Removed` the deleted value; `remote` is the server's version. For a conflict, `Updated` provides the full three-way setup — base, yours, theirs. A conflict only happens when the same field changed on *both* sides, in different ways:
 
 ```typescript
 merge: (change, remote) => {
@@ -77,7 +77,7 @@ merge: (~change, ~remote) =>
   },
 ```
 
-Return `true` and the merged value stands: Nadia fixed the article on one card while Alice tuned its interval, and both changes simply coexist — nobody ever knows there was a disagreement, because there wasn't one. Return `false` and the engine keeps remote truth as the visible value and records the disagreement, with nothing thrown away.
+Return `true`, and the merged value stands: Nadia fixed the article on one card while Alice tuned its interval, and both changes simply coexist — nobody ever knows there was a disagreement, because there wasn't one. Return `false`, and the engine keeps remote truth as the visible value and records the disagreement, with nothing thrown away.
 
 ### When a human must choose
 

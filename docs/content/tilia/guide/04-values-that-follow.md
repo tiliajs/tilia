@@ -6,7 +6,7 @@ refs: [computed, signal]
 chapter: "04"
 ---
 
-*Cards come due on their own.* Alice's second scenario makes an odd demand: nobody moves the cards, yet at midnight they are due. `observe` reacts to change by *doing* something. What this scenario needs is a value that simply *is* something — always correct, derived from other values, never manually refreshed. That is [`computed`](api.html#computed).
+*Cards come due on their own.* Alice's second scenario makes an odd demand: nobody moves the cards, yet at midnight they are due. `observe` reacts to change by *doing* something. What this scenario needs is a value that simply *is* — always correct, derived from other values, never manually refreshed. That is [`computed`](api.html#computed).
 
 ### Pull, not push
 
@@ -44,7 +44,7 @@ card.dueDate = computed(() => addDays(card.lastReview, card.interval))
 card.due = computed(() => card.dueDate <= today.value)
 ```
 
-Consider what did not have to be written: no `refreshDueDate()` after every review, no midnight job that walks the cards, no risk of a stale `dueDate` because some code path forgot. The relationship was declared once; tilia keeps it true. And computed values chain — change `interval` and `dueDate` expires, which expires `due`, and anything watching `due` reacts. The graph assembles itself.
+Consider what did not have to be written: no `refreshDueDate()` after every review, no midnight job that walks the cards, no risk of a stale `dueDate` because some code path forgot. The relationship was declared once; tilia keeps it true. Computed values can also chain — change `interval` and `dueDate` expires, which expires `due`, and anything watching `due` reacts. The graph assembles itself.
 
 Reading a computed that has not expired is a cache hit, nearly free. This is why you can model *everything* derivable this way, instead of rationing derived values like expensive selectors.
 
@@ -66,7 +66,7 @@ if due { ... }
 // 💥 Error: orphan computation detected
 ```
 
-`computed` returns a *definition*, not a value — it only comes to life once it is inserted into a tilia object. Used anywhere else, it fails immediately, loudly, at the line that broke the rule. Claudine reads the error, moves the computed into the card, and the moment passes — no silent wrong value, no bug surfacing three files away, no human needed to be watching. The library holds the rule, so no collaborator — however new — can drift far from it.
+`computed` returns a *definition*, not a value — it only comes to life once it is inserted into a tilia object. Used anywhere else, it fails immediately and loudly at the line that broke the rule. Claudine reads the error, moves the computed into the card, and moves on — no silently wrong value, no bug surfacing three files away, no human needed to be watching. The library holds the rule, so no collaborator — however new — can drift far from it.
 
 ::: pro
 The golden rule: never assign a `computed` to an intermediate variable — define it directly inside a `tilia` or `carve` object. [Chapter 11](#mistakes-stay-small) tells the rest of the safety story.
@@ -80,4 +80,4 @@ Adèle runs the suite: *cards come due on their own* turns green.
 The scenario said "When midnight comes" — and midnight came, on a Tuesday afternoon, in eleven milliseconds. The app owns its idea of today.
 :::
 
-How midnight comes on command is [chapter 6](#a-date-you-can-set). But first: one card knowing its schedule is not an app. Alice has a boxful, and a box with an order to it, an action to review, a place to keep everything — that is not a value. It is a *feature*.
+How midnight comes on command is the subject of [chapter 6](#a-date-you-can-set). But first: one card knowing its schedule is not an app. Alice has a boxful. A box with an order, a review action, and a place to keep everything is not a value. It is a *feature*.

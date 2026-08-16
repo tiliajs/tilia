@@ -9,15 +9,15 @@ chapter: "02"
 There is no tilia in this chapter either. There is the first artifact of the project — and the only person who can approve it writes no code.
 
 ::: story
-Alice calls her cousin on a Sunday. "You build things. My shoebox is overflowing and I keep forgetting *perro*." Adèle laughs, and says yes. By the evening she has an empty directory and two small files in it.
+Alice calls her cousin on a Sunday. "You build things. My shoebox is overflowing and I keep forgetting *perro*." Adèle laughs and says yes. By the evening, she has an empty directory with two small files in it.
 :::
 
 ### Two small files
 
-The first is `CONTRIBUTING.md`, copied from the [épure](https://epuremethod.com) project. It is addressed to everyone who will ever build here — humans and AI assistants alike — and it opens with three promises:
+The first is `CONTRIBUTING.md`, copied from the [épure](https://epuremethod.com) project. It is addressed to everyone who will ever work on the project — humans and AI assistants alike — and it opens with three promises:
 
 > 1. **The scenarios are the design.** Every want becomes a scenario — Given, When, Then, in the domain's own words — before it becomes code. The `.feature` files are the project's design contracts and its decision ledger.
-> 2. **Everything else is scaffolding.** Sketches, prose designs, prompts: useful while a want is being turned into scenarios, gone once it has been.
+> 2. **Everything else is scaffolding.** Sketches, prose designs, prompts: useful while a want is being turned into scenarios, discarded once it has been.
 > 3. **Green is the handshake.** A feature is done when its scenarios pass, and it stays done because they keep passing.
 
 The second file is `AGENTS.md` — the file an AI assistant's tooling reads at the start of every session. It says one thing: read `CONTRIBUTING.md`.
@@ -46,13 +46,13 @@ Feature: Spaced repetition
     Then "gato" is due
 ```
 
-She turns the laptop around. Alice reads it out loud, all the way through, and says: "that's exactly it."
+She turns the laptop around. Alice reads it aloud, all the way through, and says: "That's exactly it."
 
 The first artifact of the project is one the domain owner can read, correct, and sign. It is written in her words — *passes*, *waits*, *due*, *midnight* — and those words will appear in the code, in the tests, and in every conversation about the app, unchanged. This file is an épure in the old craft sense — the drawing made at full scale before anything is cut, the one every built piece is laid back onto to check the fit.
 
 ### Enter Claudine
 
-Adèle opens a session with Claudine. There is no tour: Claudine's tooling has already read `AGENTS.md` and followed it to `CONTRIBUTING.md`; she reads the promises, then the `.feature` file. She has never seen this project — that is her permanent condition; every session, she is the newest member of the team. `CONTRIBUTING.md` is written for exactly this reader: it tells her where truth lives (the scenarios), what to ignore (everything else), and to read the installed reference of any library before using it, so that an unknown is a question to ask, never an API to guess.
+Adèle opens a session with Claudine. There is no tour: Claudine's tooling has already read `AGENTS.md` and followed it to `CONTRIBUTING.md`; she reads the promises, then the `.feature` file. She has never seen this project — that is her permanent condition. In every session, she is the newest member of the team. `CONTRIBUTING.md` is written for exactly this reader: it tells her where truth lives (the scenarios), what to ignore (everything else), and that she should read the installed reference for any library before using it, so that an unknown is a question to ask, never an API to guess.
 
 Claudine runs the suite — the scenarios execute directly, under [épure's test runner](https://www.npmjs.com/package/@epure/vitest). Two scenarios, two failures.
 

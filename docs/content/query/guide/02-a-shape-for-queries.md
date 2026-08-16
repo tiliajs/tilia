@@ -59,7 +59,7 @@ Notice what `matches` is: a pure predicate over **one row**. That restriction is
 
 ### Reading is asking
 
-Two readers cover collection data: `array` returns a query's results, `one` returns the first result. Both are reactive tilia values — read them in a component or an observer and the subscription is the reading, exactly as in tilia:
+Two readers cover collection data: `array` returns a query's results; `one` returns the first result. Both are reactive tilia values — read them in a component or an observer and the subscription is the reading, exactly as in tilia:
 
 ```typescript
 import { leaf } from "@tilia/react";
@@ -100,7 +100,7 @@ Alice packs. Her cards became an account last month; the laptop and the phone ar
 :::
 
 ::: pro
-Keep queries in domain vocabulary and wrap the filters and views in feature helpers : `deck.select("spanish")` reads better than a select with a query literal in a component, and it keeps the query shape in one place when it evolves.
+Keep queries in domain vocabulary and wrap the filters and views in feature helpers: `deck.select("spanish")` reads better than selecting with a query literal in a component, and it keeps the query shape in one place as it evolves.
 :::
 
 Two functions, two readers, one config. What that config gives back becomes visible the first time the app opens somewhere slow. Because now a read does not answer once. It answers twice.

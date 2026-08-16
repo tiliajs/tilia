@@ -17,9 +17,9 @@ label: _canopy
 - `live` — observed right now: something is reading the query's result inside an observer.
 - `idle` — cached but unobserved: still in memory, waiting for `expiry.memory` to evict it.
 
-There is no registration API behind this. Reading a result inside an observer is what keeps a query live; the engine asks tilia's observer graph. This is the same signal `tick` uses to decide what to refresh and what to evict.
+There is no registration API behind this. Reading a result inside an observer is what keeps a query live; the engine gets this information from tilia's observer graph. `tick` uses the same signal to decide what to refresh and what to evict.
 
-The underscore marks a tooling entry point — meant for debugging, devtools and library authors, not everyday application code.
+The underscore marks a tooling entry point — meant for debugging, devtools, and library authors, not everyday application code.
 
 `cards` is the collection from [make](api.html#make). See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
 

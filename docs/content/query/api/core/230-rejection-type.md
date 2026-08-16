@@ -29,9 +29,9 @@ label: Rejection
 
 `Rejection` is the context kept when an optimistic operation was reverted — either a *conflict* (the [merge](api.html#config-type) refused a remote value) or a *failure* (the remote definitively refused the push). Rejections live in [status](api.html#status)`.rejected`.
 
-- `edited` is the latest local edit, `base` the value it started from — or the removed value, for remove variants.
+- `edited` is the latest local edit, and `base` is the value it started from — or the removed value, for remove variants.
 - Failed variants carry the remote's `message`.
-- The current remote value is already in memory: remote truth is what the queries show, the rejection holds the local side of the story.
+- The current remote value is already in memory: remote truth is what the queries show, while the rejection holds the local side of the story.
 - At most one rejection is retained per value id: a newer rejection replaces the older.
 
 Keeping your version is an ordinary write — `upsert` the `edited` value and it wins like any other write. [dismiss](api.html#dismiss) retires the context once a human has seen it.

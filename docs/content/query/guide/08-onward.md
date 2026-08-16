@@ -33,7 +33,7 @@ Specification-first is how the offline promises stay promises while the implemen
 
 ### Where to go from here
 
-The [@tilia/query API reference](./api.html) documents the complete public surface — every function and type with its signature in both TypeScript and ReScript. It is the place for the precise rule wherever this guide chose the readable one.
+The [@tilia/query API reference](./api.html) documents the complete public surface — every function and type with its signature in both TypeScript and ReScript. It is the place to find the precise rule wherever this guide chose the more readable one.
 
 The reactivity underneath — why reading is subscribing, why identity means no wasted repaints — is the [tilia guide](../guide.html), and its complete surface is in the [tilia API reference](../api.html). This guide leaned on it in every chapter. Both libraries are open source at [github.com/tiliajs](https://github.com/tiliajs), and the method they serve — software drawn before it is built — is the [épure](https://epuremethod.com) project.
 

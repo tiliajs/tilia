@@ -8,11 +8,11 @@ chapter: "01"
 
 This chapter is for the person deciding whether @tilia/query belongs in their stack. There is no code in it.
 
-@tilia/query is a query-state layer for remote collections, built on tilia reactivity. It exists because every feature that talks to a server ends up reinventing the same lifecycle: load list data, cache it, refresh it when it goes stale, merge live updates, and — if the app must keep working when the network becomes flaky or absent — keep local data safe until it returns. Each hand-rolled copy of that lifecycle is subtly different, and the differences are where the bugs live. @tilia/query makes it one lifecycle, shared by every collection in the application.
+@tilia/query is a query-state layer for remote collections, built on tilia reactivity. It exists because every feature that talks to a server ends up reinventing the same lifecycle: load collection data, cache it, refresh it when it goes stale, merge live updates, and — if the app must keep working when the network becomes flaky or unavailable — keep local data safe until it returns. Each hand-rolled copy of that lifecycle is subtly different, and the differences are where the bugs live. @tilia/query makes it one lifecycle, shared by every collection in the application.
 
 ### Care, written as behavior
 
-Underneath the API sits a conviction: an application should treat its user's time and words as things that matter. Here is how we translate this idea into enforceable rules: 
+Underneath the API sits a conviction: an application should treat its user's time and words as things that matter. Here is how we translate that idea into enforceable rules:
 
 - **Never make the user wait for data the device has already seen.** The cache answers now; the network improves the answer when it can.
 - **Offline is a state, not an error.** A tunnel is not an exceptional condition. Nothing red appears; nothing stops working that could keep working.
@@ -34,10 +34,10 @@ The library is small and adds no dependencies beyond tilia. Every result it retu
 
 ### How this guide works
 
-Readers of the [tilia guide](../guide.html) left Alice with a working spaced-repetition scheduler and one politely ignored question: what happens when the cards must live on a server? This guide answers it, while on a trip.
+Readers of the [tilia guide](../guide.html) left Alice with a working spaced-repetition scheduler and one politely ignored question: what happens when the cards must live on a server? This guide answers it over the course of a trip.
 
 ::: story
 Alice is going to spend a week with her friend Nora, in a village in the Spanish hills where the network is a rumor. Between here and there: a train with tunnels, a bus with curves, a laptop, a phone — and a deck of flashcards that had better not care about any of it.
 :::
 
-Each chapter explains one part of the lifecycle and why it is shaped that way: the shape of a query, the read that answers twice, writes that outlive the connection, changing devices, a week without a signal, and what happens when the server disagrees. If you decide for your team, this chapter and the [last](#onward) may be all you need. The chapters between are for whoever will build. And even a team that never adopts the library can adopt the rules, and the care.
+Each chapter explains one part of the lifecycle and why it is shaped that way: the shape of a query, the read that answers twice, writes that outlive the connection, changing devices, a week without a signal, and what happens when the server disagrees. If you are deciding for your team, this chapter and the [last](#onward) may be all you need. The chapters between are for whoever will build it. And even a team that never adopts the library can adopt the rules and the care.

@@ -28,7 +28,7 @@ label: WriteChannel
 
 Per-op confirmations — call one per op, matched by the value's id:
 
-- `set` — confirms an upsert. Pass the **authoritative** value: echo the input, or the server-corrected / conflict-resolved version. Whatever is set replaces the local value and drops the op from the outbox.
+- `set` — confirms an upsert. Pass the **authoritative** value: echo the input, or pass the server-corrected or conflict-resolved version. Whatever is set replaces the local value and drops the op from the outbox.
 - `removed` — confirms a remove, by id.
 
 Batch endings:
@@ -37,7 +37,7 @@ Batch endings:
 - `retry` — transient failure (offline, timeout). Every op not yet confirmed stays pending and is pushed again on a later [tick](api.html#tick) or when `remote.online` flips back to true.
 - `fail` — definitive refusal. Every op not yet confirmed becomes a [Rejection](api.html#rejection-type) in [status](api.html#status)`.rejected`.
 
-The first definitive call wins; everything on the channel is a noop afterwards. Ops confirmed before a `fail` have already left the outbox and are not rejected.
+The first definitive call wins; everything on the channel is a no-op afterward. Ops confirmed before a `fail` have already left the outbox and are not rejected.
 
 See guide chapters [Tunnels](guide.html#tunnels) and [When the world returns](guide.html#when-the-world-returns).
 

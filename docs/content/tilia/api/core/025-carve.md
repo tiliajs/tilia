@@ -12,11 +12,11 @@ signature.res: "let carve: (deriver<'a> => 'a) => 'a"
 label: carve(fn)
 ---
 
-`carve` builds a proxied object from a factory function and provides a `deriver` argument with `derived(self => ...)`.
+`carve` builds a proxied object from a factory function, providing a `deriver` argument with `derived(self => ...)`.
 
-`derived` is evaluated with the carved object as input. This allows cross-field derivation and methods that depend on sibling fields. The returned object is then proxied like [tilia](api.html#tilia).
+`derived` is evaluated with the carved object as its input. This enables cross-field derivations and methods that depend on sibling fields. The returned object is then proxied like [tilia](api.html#tilia).
 
-Use `carve` when derivation needs `self`; use [computed](api.html#computed) when a standalone closure is enough. See guide chapter [Carving a feature](guide.html#carving-a-feature).
+Use `carve` when a derivation needs `self`; use [computed](api.html#computed) when a standalone closure is enough. See the guide chapter [Carving a feature](guide.html#carving-a-feature).
 
 ```typescript
 import { carve } from "tilia";

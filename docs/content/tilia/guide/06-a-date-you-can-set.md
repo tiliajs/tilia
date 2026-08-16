@@ -10,7 +10,7 @@ This chapter adds no scenario. It answers a question two chapters old: in [chapt
 
 ### Opening the steps file
 
-Between the scenarios and the code sits one small file Adèle wrote: the *steps* file. It is where the drawing's words meet the build — each Given, When and Then bound to a few lines of code. Here is its heart:
+Between the scenarios and the code sits one small file Adèle wrote: the *steps* file. It is where the drawing's words meet the build — each Given, When, and Then is bound to a few lines of code. Here is its heart:
 
 ```typescript
 import { Given, type Context } from "@epure/vitest";
@@ -59,7 +59,7 @@ Read the first two lines inside `Given`. The steps file *builds a world* — a r
 
 ### Asking, not reaching
 
-None of this would be possible if the deck had reached for the world — imported a storage module, read the system date. It never does. Features and repos *ask* for the world and receive it injected, as arguments:
+None of this would be possible if the deck had reached for the world — imported a storage module or read the system date. It never does. Features and repos *ask* for the world and receive it through arguments:
 
 ```typescript
 // the app, for Alice
@@ -85,7 +85,7 @@ Same feature, same code, two worlds. The connectors — real storage, the system
 
 ### What it buys
 
-- **The suite is fast** — no database to start, no midnight to wait for. Alice's scenarios run in milliseconds, so they run constantly, so green stays current.
+- **The suite is fast** — no database to start, no midnight to wait for. Alice's scenarios run in milliseconds, so they can run constantly and their results stay current.
 - **Green is trustworthy** — every scenario runs on a world under total control, so a red line means the behavior changed, never that the network hiccuped.
 - **Claudine builds alone** — no credentials, no test server, no "works on my machine." The world she needs is constructed in the first line of the steps file.
 - **The feature enumerates its needs** — `makeDeck(repo, today)` is a complete list of what the deck touches. Nothing hides in an import.

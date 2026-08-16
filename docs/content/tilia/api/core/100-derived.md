@@ -12,7 +12,7 @@ signature.res: "let derived: (unit => 'a) => signal<'a>"
 label: derived(fn)
 ---
 
-`derived` computes a signal value from reactive reads in `fn`. The returned signal exposes the computed result at `.value`.
+`derived` computes a signal's value from reactive reads in `fn`. The returned signal exposes the computed result at `.value`.
 
 Internally, this is equivalent to creating a signal with a [computed](api.html#computed) value. Consumers track `signal.value` like any other signal.
 

@@ -18,7 +18,7 @@ label: dispose
 - It closes every open fetch: each registered `finally` teardown runs — live subscriptions are unsubscribed.
 - Cached data is left alone; it follows normal expiry.
 
-Safe to call more than once. Remember to also stop the interval driving [tick](api.html#tick) — the engine owns no timers, so it cannot stop them either.
+It is safe to call more than once. Remember to also stop the interval driving [tick](api.html#tick) — the engine owns no timers, so it cannot stop them either.
 
 `cards` is the collection from [make](api.html#make). See guide chapter [Two devices, one deck](guide.html#two-devices-one-deck).
 

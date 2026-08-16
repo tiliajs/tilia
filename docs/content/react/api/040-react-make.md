@@ -12,11 +12,11 @@ signature.res: "let make: tilia => tilia_react"
 label: make(tilia)
 ---
 
-`@tilia/react` `make` builds a React integration object (`useTilia`, `useComputed`, `leaf`) from a provided core [Tilia](../api.html#tilia-type) context.
+`make` from `@tilia/react` builds a React integration object (`useTilia`, `useComputed`, `leaf`) from a provided core [Tilia](../api.html#tilia-type) context.
 
-Use this with core [make](../api.html#make) when an application needs isolated, uncorrelated reactive worlds.
+Use it with core [make](../api.html#make) when an application needs isolated reactive worlds that do not affect one another.
 
-The package-level exports are the default-context version; this function is the context-bound version.
+The package-level exports provide the default-context version; this function provides the context-bound version.
 
 ```typescript
 import { make as makeCore } from "tilia";

@@ -28,7 +28,7 @@ label: ReadChannel
 
 `ReadChannel` is handed to [Remote.fetch](api.html#remote-type). Every delivery is the query's **complete** result set — each call replaces the previous results.
 
-- `set` — publish results. The idiomatic "I am keeping this value fresh" call: invoke it again whenever fresher results arrive. A `set`-only query is refreshed periodically by the engine.
+- `set` — publish results. This is the idiomatic "I am keeping this value fresh" call; invoke it again whenever fresher results arrive. A `set`-only query is refreshed periodically by the engine.
 - `live` — publish results and declare that the adaptor keeps them fresh on its own (e.g. a server subscription). Call it again on every update; `expiry.refresh` skips a live query.
 - `fail` — publish a failed result. It does **not** close the fetch: a live source may recover by delivering again. A failed non-live query re-enters the refresh loop and is retried once per refresh window.
 - `end` — the stream is over. Valid after `set` or `live`; not a substitute for `fail`. It closes the fetch: the registered `finally` runs, and a live query becomes a normal remote result again, re-entering periodic refresh.
@@ -36,10 +36,10 @@ label: ReadChannel
 
 The teardown contract:
 
-- The engine runs the registered `finally` exactly once, when the fetch closes: on `end`, when a newer fetch supersedes this one, when the query is evicted from memory, or on [dispose](api.html#dispose).
+- The engine runs the registered `finally` exactly once when the fetch closes: on `end`, when a newer fetch supersedes this one, when the query is evicted from memory, or on [dispose](api.html#dispose).
 - Registering on an already closed fetch runs the function immediately — a source that ends synchronously inside `fetch` is still torn down.
 
-Every callback on a closed fetch is a noop. The engine suppresses late replies from ended, superseded or evicted fetches — adaptors do not need to.
+Every callback on a closed fetch is a no-op. The engine suppresses late replies from ended, superseded, or evicted fetches — adaptors do not need to.
 
 See guide chapter [Two devices, one deck](guide.html#two-devices-one-deck).
 

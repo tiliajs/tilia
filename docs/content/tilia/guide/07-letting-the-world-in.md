@@ -6,7 +6,7 @@ refs: [source, store, lift]
 chapter: "07"
 ---
 
-Everything so far was synchronous and self-contained. Real applications load data, wait for storage, and move through states over time. Two new wants make it concrete:
+Everything so far was synchronous and self-contained. Real applications load data, wait for storage, and move through states over time. Two new wants make this concrete:
 
 ```gherkin
 Scenario: cards survive a restart
@@ -71,14 +71,14 @@ The cards now come from the injected repo — so *cards survive a restart* goes 
 Alice taps *French* on a whim. The deck notices its own `deckId` change, fetches the right cards, and the queue follows. She taps back to *Spanish* before dinner. Nobody wrote a refresh.
 :::
 
-Without this, selecting a deck means: call the fetch, guard against races, store the result, invalidate the queue, notify the views. Here, `selectDeck` writes one field and everything downstream follows.
+Without this, selecting a deck means calling the fetch, guarding against races, storing the result, invalidating the queue, and notifying the views. Here, `selectDeck` writes one field, and everything downstream follows.
 
 ::: pro
 Keep the `source` callback synchronous: tilia tracks reads during synchronous execution only. Read your dependencies first, then delegate the async work, as `loader` does.
 :::
 
 ::: pro
-This loader reads from injected *local* storage. When the cards one day live on a server — with caching, refresh, offline — that whole lifecycle is [@tilia/query](query/index.html)'s job. The loader then gives way to a loadable list, read with `cards.array(...)`, while the surrounding feature keeps the same vocabulary.
+This loader reads from injected *local* storage. When the cards eventually live on a server — with caching, refresh, and offline support — that whole lifecycle is [@tilia/query](query/index.html)'s job. The loader then gives way to a loadable list, read with `cards.array(...)`, while the surrounding feature keeps the same vocabulary.
 :::
 
 ### store: a value that manages itself

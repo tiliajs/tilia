@@ -12,11 +12,11 @@ signature.res: "let useComputed: (unit => 'a) => 'a"
 label: useComputed(fn)
 ---
 
-`useComputed` evaluates `fn` in reactive tracking and returns its result.
+`useComputed` evaluates `fn` with reactive tracking and returns its result.
 
-The hook compares computed results and re-renders when the result value changes. This differs from plain render reads, which depend on every tracked key read during render.
+The hook compares successive computed results and re-renders when the result changes. This differs from plain render reads, which depend on every tracked key read during rendering.
 
-Use with [useTilia](api.html#use-tilia) or [leaf](api.html#leaf) in React components. See the [React overview](index.html).
+Use it with [useTilia](api.html#use-tilia) or [leaf](api.html#leaf) in React components. See the [React overview](index.html).
 
 ```typescript
 import { useComputed, useTilia } from "@tilia/react";

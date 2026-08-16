@@ -12,7 +12,7 @@ signature.res: type setter<'a> = 'a => unit
 label: Setter
 ---
 
-`Setter<T>`/`setter<'a>` is the callback shape used by [signal](api.html#signal), [source](api.html#source), and [store](api.html#store).
+The `Setter<T>`/`setter<'a>` type defines the callback shape used by [signal](api.html#signal), [source](api.html#source), and [store](api.html#store).
 
 It accepts the next value and returns `void`/`unit`.
 

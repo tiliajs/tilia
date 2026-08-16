@@ -18,7 +18,7 @@ Each delivered value is matched against every in-memory query, like an optimisti
 
 - It joins the results it `matches` and leaves the results it no longer matches.
 - With no pending write, `merge` receives `Clean` and the current local value keeps its identity when the merge succeeds.
-- With a pending create, update or remove, `merge` receives the matching [Change](api.html#change-type). A successful merge rebases the pending operation on the remote value. A rejected merge clears the pending operation, shows remote truth and records a conflict in `status.rejected`.
+- With a pending create, update, or remove, `merge` receives the matching [Change](api.html#change-type). A successful merge rebases the pending operation on the remote value. A rejected merge clears the pending operation, shows remote truth, and records a conflict in `status.rejected`.
 
 Retention and freshness:
 

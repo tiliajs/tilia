@@ -10,7 +10,7 @@ Every night at three, the app imports the day's new cards — Adèle subscribed 
 
 ### The flush rule
 
-When you modify a value **outside** any observation context — an event handler, a timeout — every write notifies immediately. When you modify a value **inside** one — a `computed`, `observe` or `watch` callback, a rendering component — notifications are deferred until the callback ends.
+When you modify a value **outside** any observation context — an event handler or a timeout — every write notifies immediately. When you modify a value **inside** one — a `computed`, `observe`, or `watch` callback, or a rendering component — notifications are deferred until the callback ends.
 
 The immediate half keeps simple code simple: write a value, watch the screen change. But it means multi-field updates expose transient states. A review touches two fields:
 
@@ -59,7 +59,7 @@ Three in the morning. Forty-one new cards slide into the deck — one notificati
 :::
 
 ::: pro
-`batch` is not needed inside `computed`, `source`, `store`, `observe` or `watch` — there, notifications are already deferred. Reach for it in event handlers, network callbacks, and initialization code.
+`batch` is not needed inside `computed`, `source`, `store`, `observe`, or `watch` — there, notifications are already deferred. Reach for it in event handlers, network callbacks, and initialization code.
 :::
 
 ### watch: cause, then effect
@@ -92,7 +92,7 @@ watch(
 )
 ```
 
-The rule that matters: a `watch` never re-triggers itself from its own writes, in either phase — while its effects still notify everyone else, deferred, as one batch. Cause and effect, cleanly separated; the scenario *the score follows results* goes green with these six lines.
+The rule that matters: a `watch` never re-triggers itself from its own writes in either phase, while its effects still notify everyone else, deferred as one batch. Cause and effect are cleanly separated; the scenario *the score follows results* goes green with these six lines.
 
 One sharper tool for completeness: inside `observe`, mutating a value the same callback reads schedules one more run, repeating until a run changes nothing. That is how an `observe` can drive a state machine to a fixed point — and how it can loop forever if no fixed point exists. Deliberate, powerful, sharp; make sure every self-feeding `observe` converges.
 

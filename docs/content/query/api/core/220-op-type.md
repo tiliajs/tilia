@@ -24,7 +24,7 @@ label: Op
 - `Upsert` carries the full value.
 - `Remove` carries only the id — a remove never requires a full value.
 
-Adaptors meet ops in two places, always as ordered batches:
+Adaptors handle ops in two places, always as ordered batches:
 
 - [Remote.push](api.html#remote-type) receives every pending op not already in flight, to send to the server.
 - [Local.push](api.html#local-type) receives value changes to apply to the local values table.

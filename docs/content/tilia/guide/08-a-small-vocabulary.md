@@ -8,7 +8,7 @@ chapter: "08"
 
 Alice wants a streak — days in a row with every due card reviewed. It is one number, and it raises a question Claudine asks before writing anything: *who may change it?* Anyone should read it; only the review logic should bump it. The question is about ownership.
 
-The four words are `signal`, standalone `derived`, `lift`, and `readonly`. Three are one-liners over what you already know; they add no power, only names — there is still one mechanism underneath.
+The four words are `signal`, standalone `derived`, `lift`, and `readonly`. Three are one-liners built on what you already know; they add no power, only names — there is still one mechanism underneath.
 
 ### signal, lift: reading is public, writing is owned
 
@@ -36,7 +36,7 @@ let stats = tilia({
 })
 ```
 
-The domain exposes `stats.streak` in domain language; neither the signal nor its setter leaves the module. A whole class of "who owns this value" bugs cannot be written — the ownership is not a convention in a comment, it is the shape of the code.
+The domain exposes `stats.streak` in domain language; neither the signal nor its setter leaves the module. A whole class of "who owns this value" bugs cannot be written. The ownership is not a convention in a comment; it is the shape of the code.
 
 ::: story
 Seven days in a row. The number on Alice's screen and the number the session logic increments are the same value — there is no copy to drift.
@@ -46,7 +46,7 @@ Standalone [`derived`](api.html#derived) rounds out the pair: it creates a signa
 
 ### readonly: opting out
 
-Tracking costs a little, and immutable data does not need it. [`readonly`](api.html#readonly) wraps a value so tilia leaves it alone — reads return the original data untouched, writes throw. The deck catalogue Alice browses — hundreds of decks, updated never — rides along inside the reactive app without paying for reactivity it will not use:
+Tracking costs a little, and immutable data does not need it. [`readonly`](api.html#readonly) wraps a value so tilia leaves it alone — reads return the original data untouched, writes throw. The deck catalogue Alice browses — hundreds of decks, never updated — rides along inside the reactive app without paying for reactivity it will not use:
 
 ```typescript
 import { readonly } from "tilia";

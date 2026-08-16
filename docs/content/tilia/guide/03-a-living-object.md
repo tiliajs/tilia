@@ -64,11 +64,11 @@ observe(() => {
 pass(card) // ✨ "gato" comes back in 6 day(s)
 ```
 
-This is the mechanism all of tilia rests on. While the callback runs, tilia records which properties are read on which reactive objects — those exact properties, no more, become its dependencies. You never wrote a subscription, an event name, or an unsubscribe: you declared what the reaction needs by simply using it, and tilia drew the wiring from that. Writing a value equal to the current one notifies nobody; when a reaction should end, `observe` returns a function that stops it.
+This is the mechanism all of tilia rests on. While the callback runs, tilia records which properties are read on which reactive objects — those exact properties, and no more, become its dependencies. You never wrote a subscription, an event name, or an unsubscribe: you declared what the reaction needs by simply using it, and tilia drew the wiring from that. Writing a value equal to the current one notifies no one; when a reaction should end, `observe` returns a function that stops it.
 
 ### A forest, not a tree
 
-Reactive objects do not need to share a root. Separate `tilia` objects live in one shared context, and a single observer can depend on several of them — Alice's profile here, the settings there, no "which store does this belong to?" ever asked. Tracking even follows objects that are moved or copied between reactive parents: assign a card into another tilia object and both paths see the same living value.
+Reactive objects do not need to share a root. Separate `tilia` objects live in one shared context, and a single observer can depend on several of them — Alice's profile here, the settings there — without anyone ever asking, "Which store does this belong to?" Tracking even follows objects that are moved or copied between reactive parents: assign a card to a property of another tilia object, and both paths see the same living value.
 
 ::: pro
 Use `tilia` when you want a quick reactive object. Designing a *feature* — state, derived values and actions as one self-contained object — is what [`carve`](#carving-a-feature) is for, two chapters from here.

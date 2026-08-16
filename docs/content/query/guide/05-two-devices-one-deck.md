@@ -18,7 +18,7 @@ Multi-device support, offline support, and plain cache correctness turn out to b
 
 ### When the server speaks first
 
-So far the remote only ever answered questions. Real backends also *volunteer* facts — a websocket delivery, a sync engine's notification. Those enter through `receive`:
+So far the remote only ever answered questions. Real backends also *volunteer* facts — a WebSocket delivery, a sync engine's notification. Those enter through `receive`:
 
 ```typescript
 // values that changed
@@ -38,7 +38,7 @@ Deliveries are past tense on purpose: facts about the server, not commands to it
 
 ### Queries that stay fresh on their own
 
-When a source pushes complete results (a server subscription per query) the adaptor answers through `channel.live` instead of `channel.set`, calling it again on every update, and registers its cleanup with `channel.finally`:
+When a source pushes complete results (a server subscription per query), the adaptor answers through `channel.live` instead of `channel.set`, calling it again on every update, and registers its cleanup with `channel.finally`:
 
 ```typescript
 fetch: (query, channel) => {
@@ -54,14 +54,14 @@ fetch: (query, channel) => {
 },
 ```
 
-`live` tells the engine the source keeps this result fresh, so the periodic refresh skips it. `finally` hands the engine the teardown, and the engine runs it exactly once, when the fetch closes — superseded, retired from memory, or disposed. Late replies on a closed fetch are ignored wholesale.
+`live` tells the engine the source keeps this result fresh, so the periodic refresh skips it. `finally` hands the engine the teardown, and the engine runs it exactly once when the fetch closes — whether it was superseded, retired from memory, or disposed. Late replies on a closed fetch are ignored wholesale.
 
 ::: story
-Alice buys a terrible coffee, thumbs the phone awake in the bus queue, and the deck is already mid-thought — the queue starts where the laptop stopped, the card she reworded in the last tunnel reads the new way. The bus climbs; the bars vanish; the deck doesn't flinch.
+Alice buys a terrible coffee, thumbs the phone awake in the bus queue, and the deck is already mid-thought: the queue starts where the laptop stopped, and the card she reworded in the last tunnel reads the new way. The bus climbs; the bars vanish; the deck doesn't flinch.
 :::
 
 ::: pro
-Keep your protocol past tense too. A message named `cardChanged` carries a fact and can be replayed, reordered, or ignored safely; a message named `changeCard` is a command.
+Keep your protocol in the past tense too. A message named `cardChanged` carries a fact and can be replayed, reordered, or ignored safely; a message named `changeCard` is a command.
 :::
 
 The phone now holds everything it needs. It will have to, because where the bus is going there is no third answer coming — for a week.

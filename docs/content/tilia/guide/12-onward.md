@@ -10,7 +10,7 @@ Step back and look at what got built, and how. A card is a plain object. A deck 
 
 The mental model compresses well:
 
-- **The scenarios are the design.** Behavior is decided in the domain's words, and the running program is checked against them for life.
+- **The scenarios are the design.** Behavior is decided in the domain's words, and the running program is checked against them throughout its life.
 - **Objects live.** `tilia` makes a plain object reactive without changing its shape; separate objects share one forest.
 - **Values follow.** `computed` and `derived` keep declared relationships true — pull, cached, nearly free to read.
 - **The world is asked for, and flows in.** Dependencies arrive injected — a date you can set, a repo in memory — and `source` and `store` place external, self-managing values inside the same objects, under the same rules.
@@ -21,13 +21,13 @@ And the deeper habit the library rewards is the one named in the first chapter's
 
 ### Where to go from here
 
-The [API reference](api.html) documents the complete public surface — every function, both languages, precise rules wherever this guide chose the readable ones.
+The [API reference](api.html) documents the complete public surface — every function in both languages, with precise rules wherever this guide chose readability.
 
-The views of chapter 10 were described and never written. **[@tilia/react](react/index.html)** is where they live: `leaf`, `useTilia` and `useComputed`, with the narrative and the reference on [its own pages](react/index.html) — React and React Native alike, since a tracked read is indifferent to what draws it.
+The views of chapter 10 were described and never written. **[@tilia/react](react/index.html)** is where they live: `leaf`, `useTilia`, and `useComputed`, with the narrative and the reference on [the package's own pages](react/index.html) — React and React Native alike, since a tracked read is indifferent to what draws it.
 
-The scheduler's repo was injected and politely ignored; synchronizing collections with a server — loading, caching, going offline and coming back — is its own discipline, with its own convictions. **[@tilia/query](query/index.html)** builds that lifecycle on the reactivity you now understand, and [its guide](query/guide.html) takes Alice somewhere with very bad reception.
+The scheduler's repo was injected and politely ignored; synchronizing collections with a server — loading, caching, going offline, and coming back — is its own discipline, with its own convictions. **[@tilia/query](query/index.html)** builds that lifecycle on the reactivity you now understand, and [its guide](query/guide.html) takes Alice somewhere with very bad reception.
 
-The scenarios that ran green through every chapter were executed by **épure**, published as [@epure/vitest](https://www.npmjs.com/package/@epure/vitest) — the same project whose `CONTRIBUTING.md` started the empty directory in chapter 2. The method — software drawn before it is built — lives at [epuremethod.com](https://epuremethod.com), and its guide is this trilogy's prequel: where the drawings come from.
+The scenarios that ran green through every chapter were executed by **épure**, published as [@epure/vitest](https://www.npmjs.com/package/@epure/vitest) — the same project that provided the `CONTRIBUTING.md` in the empty directory in chapter 2. The method — software drawn before it is built — lives at [epuremethod.com](https://epuremethod.com), and its guide is this trilogy's prequel: where the drawings come from.
 
 tilia itself is open source, at [github.com/tiliajs/tilia](https://github.com/tiliajs/tilia).
 

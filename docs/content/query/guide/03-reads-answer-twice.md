@@ -6,7 +6,7 @@ refs: [loadable-type, local-channel-type, expiry-type, tick, canopy-type, canopy
 chapter: "03"
 ---
 
-Open a query and two reads start at once: the local store answers from what the device already holds, and the remote answers from the truth. The local answer arrives in milliseconds; the remote takes whatever the network takes. The user sees the first and is quietly upgraded to the second:
+Open a query and two reads start at once: the local store answers from what the device already holds, and the remote answers from the truth. The local answer arrives in milliseconds; the remote takes as long as the network takes. The user sees the first and is quietly upgraded to the second:
 
 ```typescript
 cards.array({ deck: "spanish" });
@@ -35,13 +35,13 @@ A `loadable` never makes the reader guess. Each state is a complete sentence:
 - `Loading` — an answer may still be coming. Shown only when there is truly nothing to show yet.
 - `Loaded, fresh: false` — here is what we know; we are checking.
 - `Loaded, fresh: true` — this is current.
-- `NotFound` — a source answered with an empty result. An answer, from `one`.
+- `NotFound` — a source answered with an empty result. It is an answer from `one`.
 - `NotLocal` — the device is offline and holds nothing for this query. Also an answer, not a progress state: the app can say "not available offline" instead of spinning forever.
 - `Failed` — the remote fetch broke, and the message surfaces *at the read site*, where the value is used. There is no global error slot, and the query is not stuck: it re-enters the refresh cycle and retries.
 
 ### The heartbeat
 
-Who decides when "fresh" stops being true? The engine has no timers. The application calls `tick()`, and the library does the time-based work: queries someone is watching are refreshed when their result grows old (30 seconds by default, while online), results nobody watches are let go from memory, old local data is eventually purged.
+Who decides when "fresh" stops being true? The engine has no timers. The application calls `tick()`, and the library does the time-based work: queries someone is watching are refreshed when their result grows old (30 seconds by default, while online); results nobody watches are let go from memory; old local data is eventually purged.
 
 "Someone is watching" is not a subscription API. The engine asks tilia's observer graph which results are currently being read. A component rendering `cards.array({deck: "spanish"})` keeps that query alive, and closing the component lets it retire. Reading marks the query as observed, like any reactive value in tilia.
 
@@ -50,7 +50,7 @@ A refetch returning the same rows changes nothing: the result keeps its identity
 :::
 
 ::: story
-The 8:04 train pulls out. Alice opens the laptop before the wifi has decided whether it exists; the Spanish deck is simply there, yesterday's copy, a shade dimmer if you know where to look. Three stops later, something on the screen barely brightens. All along, she never saw a spinner, because there was none.
+The 8:04 train pulls out. Alice opens the laptop before the Wi-Fi has decided whether it exists; the Spanish deck is simply there, yesterday's copy, a shade dimmer if you know where to look. Three stops later, something on the screen barely brightens. All along, she never saw a spinner, because there was none.
 :::
 
 Reading is now settled: local answers, remote confirms, the app tells the truth about which is which. The train, meanwhile, is heading for the mountains — and the first tunnel is about mutations.

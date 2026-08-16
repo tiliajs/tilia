@@ -6,7 +6,7 @@ refs: [upsert, remove, op-type, status-type, status, write-channel-type]
 chapter: "04"
 ---
 
-The engine never guesses about connectivity. The application owns a tilia [`signal`](../api.html#signal) and tells the state as it changes:
+The engine never guesses about connectivity. The application owns a tilia [`signal`](../api.html#signal) and reports the connectivity state as it changes:
 
 ```typescript
 import { signal } from "tilia";
@@ -24,7 +24,7 @@ window.addEventListener("online", () => setOnline(true))
 window.addEventListener("offline", () => setOnline(false))
 ```
 
-That signal went into the config in [chapter 2](#a-shape-for-queries). Everything this chapter describes hangs off it and off one decision about mutations.
+That signal went into the config in [chapter 2](#a-shape-for-queries). Everything this chapter describes depends on it and on one decision about mutations.
 
 ### Mutations apply now
 
@@ -48,13 +48,13 @@ let review = (card, result) =>
   })
 ```
 
-`upsert` does four things, in order. It updates the value in memory and in the local store. It updates query membership using `matches`: the new value joins every in-memory query it now matches and leaves every one it no longer does, so moving a card between decks updates both lists at once, no refetch. It appends the operation to the **outbox**. And if the remote is online, it pushes. Voilà.
+`upsert` does four things, in order. It updates the value in memory and in the local store. It updates query membership using `matches`: the new value joins every in-memory query it now matches and leaves every one it no longer does, so moving a card between decks updates both lists at once, without a refetch. It appends the operation to the **outbox**. And if the remote is online, it pushes. Voilà.
 
-Note what is *not* in that list: waiting. This is where you win your users. The write path never blocks on the network. The app is snappy by construction, and offline support stops being a mode — it is just the case where step four waits.
+Note what is *not* in that list: waiting. This is where you win over your users. The write path never blocks on the network. The app is snappy by construction, and offline support stops being a mode — it is just the case where step four waits.
 
 ### The outbox
 
-The outbox is an ordered queue of operations the remote has not yet confirmed. Each mutation gets a sequence number; when the local store is configured, each is persisted, so pending writes survive a restart. The queue is visible as one observable number:
+The outbox is an ordered queue of operations the remote has not yet confirmed. Each mutation gets a sequence number; when the local store is configured, each operation is persisted, so pending writes survive a restart. The queue is visible as one observable number:
 
 ```typescript
 cards.status.pending; // operations waiting for the remote — reactive
@@ -69,7 +69,7 @@ When the connection returns, the signal flips to `true` and pending operations a
 Confirmed operations leave the outbox, `pending` counts down, and the app is exactly where it would be if the network had never left. A transient failure just returns the unconfirmed part of the batch to pending for a later try. A failure that is *not* transient reverts each unconfirmed optimistic change to remote truth and records its context; [chapter 7](#when-the-world-returns) explains what the application does with it.
 
 ::: story
-Twenty minutes in, the train drops into the first tunnel mid-review. Alice taps *Pass*; the card reschedules; the queue advances. In the corner of the screen, a small "3 pending" appears, then the mountain ends and it fades away. She notices none of it — which is the entire review criterion for this chapter.
+Twenty minutes in, the train drops into the first tunnel mid-review. Alice taps *Pass*; the card reschedules; the queue advances. In the corner of the screen, a small "3 pending" appears, then the mountain ends and it fades away. She notices none of it — which is the entire success criterion for this chapter.
 :::
 
 ::: pro

@@ -12,7 +12,7 @@ signature.res: "type readonly<'a> = {data: 'a}"
 label: Readonly
 ---
 
-`Readonly<T>`/`readonly<'a>` is the wrapper produced by [readonly](api.html#readonly).
+The `Readonly<T>`/`readonly<'a>` type is the wrapper produced by [readonly](api.html#readonly).
 
 It exposes `data` and prevents replacing the `data` property itself.
 

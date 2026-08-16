@@ -83,7 +83,7 @@ build:
     input: "{{shell}}"
     var:
       title: "@tilia/react — Views That Observe the Domain"
-      description: "@tilia/react — React and React Native views that observe tilia state directly: exact render tracking with leaf, useTilia and useComputed, no selectors and no memo rituals."
+      description: "@tilia/react — React and React Native views that observe tilia state directly: exact render tracking with leaf, useTilia, and useComputed; no selectors or memo rituals."
       htmlAttrs: lang="en" data-lang="ts"
       homeCurrentAttr: ' aria-current="page"'
       prePaint: <script>{{prePaintScript}}</script>

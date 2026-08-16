@@ -12,7 +12,7 @@ var:
   faviconUrl: data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232e7d3a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 21c.5 -4.5 2.5 -8 7 -10'/%3E%3Cpath d='M9 18c6.218 0 10.5 -3.288 11 -12v-2h-4.014c-9 0 -11.986 4 -12 9c0 1 0 3 2 5h3l.014 0'/%3E%3C/svg%3E
   prePaintScript: |-
     /* Language choice, resolved before first paint.
-       Priority: ?lang= query param > localStorage > "ts". */
+       Priority: ?lang= query parameter > localStorage > "ts". */
     (function () {
       var q = new URLSearchParams(location.search).get("lang");
       var saved = null;
@@ -21,7 +21,7 @@ var:
       document.documentElement.setAttribute("data-lang", lang);
     })();
   toggleListenerScript: |-
-    /* Language toggle: one delegated listener flips html[data-lang] and persists.
+    /* Language toggle: one delegated listener switches html[data-lang] and persists the choice.
        The buttons carry no state — CSS renders them from the attribute. */
     document.addEventListener("click", function (e) {
       if (!e.target.closest(".lang-toggle, .toggle")) return;
@@ -30,7 +30,7 @@ var:
       try { localStorage.setItem("tilia-lang", next); } catch (err) {}
     });
   pkgSwitcherScript: |-
-    /* Package switcher: a listbox of packages, opened from its trigger. */
+    /* Package switcher: a listbox of packages opened from its trigger. */
     (function () {
       var trigger = document.getElementById("pkg-trigger");
       var menu = document.getElementById("pkg-menu");
@@ -127,7 +127,7 @@ var:
   mainAttrs: ""
   scripts: ""
   header: |-
-    <!-- Leaf, chevron, check and GitHub marks: Tabler Icons (MIT) — see {{rootHref}}notice.txt -->
+    <!-- Leaf, chevron, check, and GitHub marks: Tabler Icons (MIT) — see {{rootHref}}notice.txt -->
     <header class="top">
       <div class="wrap">
         <div class="header-left">
@@ -236,7 +236,7 @@ var:
       <div class="wrap">
         <p class="eyebrow">Guide<span class="sep">·</span>v6.x</p>
         <h1>The Guide</h1>
-        <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and the views that read them. Read it top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and made for that.</p>
+        <p class="standfirst">A reading path through tilia, in order: the mental model first, then tracking, computed values, observers, and the views that read them. Read it from top to bottom once. When you need to look something up later, use the <a href="./api.html">API reference</a> instead — it is flat, complete, and designed for that.</p>
       </div>
     </div>
 

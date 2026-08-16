@@ -18,11 +18,11 @@ One tick can:
 
 - Refresh observed queries whose last remote delivery is older than `expiry.refresh` — except live queries, whose source keeps them fresh.
 - Flip a stale result to `fresh: false` (see [Loadable](api.html#loadable-type)) and retry failed non-live queries.
-- Update observed queries' last-seen time, and evict unobserved queries past `expiry.memory` — eviction closes the query's fetch, running its `finally` teardown.
+- Update observed queries' last-seen time and evict unobserved queries past `expiry.memory` — eviction closes the query's fetch, running its `finally` teardown.
 - Push pending ops that are not already in flight.
 - Run the local purge — gated: on the first tick after boot, then at most once per `expiry.local / 8` (3.75 days at the default).
 
-Only the purge is gated; refresh checks, last-seen updates and memory expiry run on every tick.
+Only the purge is gated; refresh checks, last-seen updates, and memory expiry run on every tick.
 
 See [Expiry](api.html#expiry-type), [dispose](api.html#dispose), and guide chapters [Reads answer twice](guide.html#reads-answer-twice) and [A week at Nora's](guide.html#a-week-at-noras). `cards` is the collection from [make](api.html#make).
 

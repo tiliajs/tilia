@@ -12,11 +12,11 @@ signature.res: "let batch: (unit => unit) => unit"
 label: batch(fn)
 ---
 
-`batch` runs `fn` with notification flushing locked, then flushes once when the outermost batch ends.
+`batch` runs `fn` while notification flushing is locked, then flushes notifications once the outermost batch ends.
 
-Nested batches are supported. While inside a batch, writes update state immediately but observers are notified only after unlock. This prevents transient intermediate notifications.
+Nested batches are supported. Within a batch, writes update state immediately, but observers are notified only after the outermost batch ends. This prevents transient intermediate notifications.
 
-`observe`, `watch` effects, and computed rebuilds already run under deferred flushing. Use `batch` for grouped writes from non-reactive callbacks. See [watch](api.html#watch) and guide chapter [While Alice sleeps](guide.html#while-alice-sleeps).
+`observe`, `watch` effects, and computed rebuilds already use deferred flushing. Use `batch` for grouped writes from non-reactive callbacks. See [watch](api.html#watch) and the guide chapter [While Alice sleeps](guide.html#while-alice-sleeps).
 
 ```typescript
 import { batch, tilia } from "tilia";

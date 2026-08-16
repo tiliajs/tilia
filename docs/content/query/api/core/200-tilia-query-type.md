@@ -36,9 +36,9 @@ signature.res: |-
 label: TiliaQuery
 ---
 
-`TiliaQuery<T, Q>`/`t<'query, 'a>` is the collection object returned by [make](api.html#make): one value per collection, holding everything the application touches.
+`TiliaQuery<T, Q>`/`t<'query, 'a>` is the collection object returned by [make](api.html#make): one object per collection, holding everything the application touches.
 
-- Reads: [one](api.html#one), [array](api.html#array) — reactive, answering a [Loadable](api.html#loadable-type).
+- Reads: [one](api.html#one), [array](api.html#array) — reactive readers that return a [Loadable](api.html#loadable-type).
 - Writes: [upsert](api.html#upsert), [remove](api.html#remove) — optimistic, queued in the outbox.
 - Inbound push: [receive.changed](api.html#receive-changed), [receive.removed](api.html#receive-removed).
 - Sync state: [status](api.html#status), with [dismiss](api.html#dismiss) for resolved or ignored rejections.

@@ -12,7 +12,7 @@ signature.res: "type deriver<'p> = {derived: 'a. ('p => 'a) => 'a}"
 label: Deriver
 ---
 
-`Deriver<U>`/`deriver<'p>` is the helper parameter type received by [carve](api.html#carve).
+The `Deriver<U>`/`deriver<'p>` type is the helper parameter received by [carve](api.html#carve).
 
 Its `derived` method binds the carved object as input for self-based derivations.
 
