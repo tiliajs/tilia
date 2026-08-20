@@ -408,6 +408,27 @@ The bet loses when the counts stop being small — hundreds of active queries,
 or a large outbox overlaid onto frequent deliveries. The fix at that point is
 indexing (ids to queries, ids to operations), not tuning the scans.
 
+## The plain-value bet
+
+The compiled `TiliaQuery.mjs` imports one module: tilia. Like `Tilia.res`,
+the source binds the JavaScript it needs (`Object.keys`, `Object.values`,
+`Object.entries`, `Reflect.deleteProperty`, index access) instead of
+calling the ReScript standard library, so no `@rescript/runtime` helper
+reaches the output. The published package depends on tilia and nothing
+else.
+
+This works because absence is represented directly: a dict or array read
+is typed `nullable` and answers with the raw JavaScript value. The bet is
+that a stored value or query is never `null` or `undefined`, so a
+`nullable` read always means absent, never stored. A row is an object with
+an id and a query is a value `matches` can inspect, so the bet holds by
+construction; it would lose only if an adaptor delivered `undefined` as a
+row, which nothing guards, exactly as nothing guards a row without an id.
+
+At bundle time the single import is rewritten from `tilia/src/Tilia.mjs`
+to the package root `tilia` — the same specifier the app uses — so the app
+and the engine load one tilia instance and share one module-level context.
+
 ## Rejection test fixture
 
 Rejection scenarios need a deterministic definitive failure rather than a

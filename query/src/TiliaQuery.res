@@ -110,6 +110,31 @@ type t<'query, 'a> = {
   _canopy: unit => canopy,
 }
 
+// === JS bindings
+
+// Like `Tilia.res`, these bindings keep the compiled output free of
+// `@rescript/runtime` imports. The bet: a value or a query is never `null`
+// or `undefined`, so a `nullable` read from a dict or an array slot means
+// absent, never stored.
+
+module Dict = {
+  let make: unit => dict<'a> = %raw(`() => ({})`)
+  @get_index external get: (dict<'a>, string) => nullable<'a> = ""
+  @set_index external set: (dict<'a>, string, 'a) => unit = ""
+  @val external keys: dict<'a> => array<string> = "Object.keys"
+  @val external values: dict<'a> => array<'a> = "Object.values"
+  @val external entries: dict<'a> => array<(string, 'a)> = "Object.entries"
+  external remove: (dict<'a>, string) => bool = "Reflect.deleteProperty"
+  let delete = (d, k) => d->remove(k)->ignore
+  let forEach = (d, fn) => d->values->Array.forEach(fn)
+  let forEachWithKey = (d, fn) => d->entries->Array.forEach(((k, v)) => fn(v, k))
+}
+
+module Arr = {
+  @get_index external at: (array<'a>, int) => nullable<'a> = ""
+  @send external reduce: (array<'a>, ('b, 'a) => 'b, 'b) => 'b = "reduce"
+}
+
 // === Mutations (outbox)
 
 /** A queued write, ordered by `seq` and guarded from duplicate pushes by `flight`. */
@@ -126,8 +151,8 @@ function encodeOp(entry) {
   return JSON.stringify({seq: entry.seq, op: entry.op, change: entry.change});
 }`)
 
-/** Returns None on malformed kv data: the entry is skipped, not fatal. */
-let parseOp: string => option<outboxOp<'a>> = %raw(`
+/** Returns Undefined on malformed kv data: the entry is skipped, not fatal. */
+let parseOp: string => nullable<outboxOp<'a>> = %raw(`
 function parseOp(value) {
   try {
     const r = JSON.parse(value);
@@ -149,16 +174,16 @@ function parseOp(value) {
 /** Durable query result used to find rows still reachable during local purge. */
 type queryRecord<'query> = {
   key: string,
-  // The query itself, so matches can run on disk-only records. None on synthetics.
-  query: option<'query>,
+  // The query itself, so matches can run on disk-only records. Undefined on synthetics.
+  query: nullable<'query>,
   mutable ids: array<string>,
   mutable lastSeen: float,
 }
 
 @scope("JSON") @val external encodeRecord: queryRecord<'query> => string = "stringify"
 
-/** Returns None on malformed kv data: the entry is skipped, not fatal. */
-let parseRecord: string => option<queryRecord<'query>> = %raw(`
+/** Returns Undefined on malformed kv data: the entry is skipped, not fatal. */
+let parseRecord: string => nullable<queryRecord<'query>> = %raw(`
 function parseRecord(value) {
   try {
     const r = JSON.parse(value);
@@ -194,7 +219,10 @@ let observedKeys = results => Tilia._canopy(results).live
 
 /** Missing key means the entry was never created: treat as still loading. */
 let getResult = (results, entry: entry<'query>) =>
-  results->Dict.get(entry.key)->Option.getOr(Loading)
+  switch results->Dict.get(entry.key) {
+  | Value(result) => result
+  | Null | Undefined => Loading
+  }
 
 let makeFetch = (remote, local, loaded, results, now) =>
   entry => {
@@ -298,8 +326,8 @@ let makeGetEntry = (fetch, entries, results, key, now) =>
   query => {
     let k = key(query)
     switch entries->Dict.get(k) {
-    | Some(entry) => entry
-    | None =>
+    | Value(entry) => entry
+    | Null | Undefined =>
       let entry = {
         lastSeen: now(),
         refreshedAt: 0.0,
@@ -320,9 +348,9 @@ let makeOne = (getEntry, results) =>
   query =>
     switch getResult(results, getEntry(query)) {
     | Loaded({data, fresh}) =>
-      switch data->Array.get(0) {
-      | Some(value) => Loaded({data: value, fresh})
-      | None => NotFound
+      switch data->Arr.at(0) {
+      | Value(value) => Loaded({data: value, fresh})
+      | Null | Undefined => NotFound
       }
     | Loading => Loading
     | NotFound => NotFound
@@ -363,10 +391,22 @@ let _no_sort = _query => array => array
 let make = (
   {id, matches, remote, ?local, ?expiry, ?now, ?key, ?sort, ?merge}: config<'query, 'a>,
 ) => {
-  let expiry = expiry->Option.getOr(_expiry)
-  let now = now->Option.getOr(_now)
-  let key = key->Option.getOr(sortedStringify)
-  let sort = sort->Option.getOr(_no_sort)
+  let expiry = switch expiry {
+  | Some(expiry) => expiry
+  | None => _expiry
+  }
+  let now = switch now {
+  | Some(now) => now
+  | None => _now
+  }
+  let key = switch key {
+  | Some(key) => key
+  | None => sortedStringify
+  }
+  let sort = switch sort {
+  | Some(sort) => sort
+  | None => _no_sort
+  }
   let itemById: dict<'a> = Dict.make()->Tilia.tilia
   let idsByKey: dict<array<string>> = Dict.make()->Tilia.tilia
 
@@ -388,9 +428,9 @@ let make = (
     | None => ()
     | Some(_) =>
       let record = switch registry->Dict.get(entry.key) {
-      | Some(record) => record
-      | None =>
-        let record = {key: entry.key, query: Some(entry.query), ids: [], lastSeen: 0.0}
+      | Value(record) => record
+      | Null | Undefined =>
+        let record = {key: entry.key, query: Value(entry.query), ids: [], lastSeen: 0.0}
         registry->Dict.set(entry.key, record)
         record
       }
@@ -468,7 +508,7 @@ let make = (
         }
       | Remove({id: rid}) => values->Array.filter(v => id(v) !== rid)
       }
-    outbox->Array.reduce(values, (values, {op}) => apply(values, op))
+    outbox->Arr.reduce((values, {op}) => apply(values, op), values)
   }
 
   let join = value => {
@@ -478,26 +518,26 @@ let make = (
       if matches(entry.query, value) {
         joined := true
         switch idsByKey->Dict.get(entry.key) {
-        | Some(ids) if !(ids->Array.includes(vid)) =>
+        | Value(ids) if !(ids->Array.includes(vid)) =>
           // Do not mutate in place: the value may be shared.
-          idsByKey->Dict.set(entry.key, [...ids, vid])
+          idsByKey->Dict.set(entry.key, ids->Array.concat([vid]))
         | _ => ()
         }
         switch registry->Dict.get(entry.key) {
-        | Some(record) if !(record.ids->Array.includes(vid)) =>
+        | Value(record) if !(record.ids->Array.includes(vid)) =>
           // Do not mutate in place: the value may be shared.
-          record.ids = [...record.ids, vid]
+          record.ids = record.ids->Array.concat([vid])
           persistRecord(record)
         | _ => ()
         }
       } else {
         switch idsByKey->Dict.get(entry.key) {
-        | Some(ids) if ids->Array.includes(vid) =>
+        | Value(ids) if ids->Array.includes(vid) =>
           idsByKey->Dict.set(entry.key, ids->Array.filter(i => i !== vid))
         | _ => ()
         }
         switch registry->Dict.get(entry.key) {
-        | Some(record) if record.ids->Array.includes(vid) =>
+        | Value(record) if record.ids->Array.includes(vid) =>
           record.ids = record.ids->Array.filter(i => i !== vid)
           persistRecord(record)
         | _ => ()
@@ -592,7 +632,7 @@ let make = (
       }
     | None =>
       switch itemById->Dict.get(rid) {
-      | Some(current) if merged(Clean({value: current}), remoteValue) => current
+      | Value(current) if merged(Clean({value: current}), remoteValue) => current
       | _ => remoteValue
       }
     }
@@ -615,11 +655,17 @@ let make = (
     idsByKey->Dict.set(entry.key, ids)
     // Rebuild when the id list or any listed item changes.
     let build = () => {
-      let values =
-        idsByKey
-        ->Dict.get(entry.key)
-        ->Option.getOr([])
-        ->Array.filterMap(id => itemById->Dict.get(id))
+      let values = []
+      switch idsByKey->Dict.get(entry.key) {
+      | Value(ids) =>
+        ids->Array.forEach(id =>
+          switch itemById->Dict.get(id) {
+          | Value(value) => values->Array.push(value)
+          | Null | Undefined => ()
+          }
+        )
+      | Null | Undefined => ()
+      }
       // Observe sorting so edits to sort keys update the list.
       sort(entry.query)(values)
     }
@@ -750,8 +796,8 @@ let make = (
     | Some({change: None}) => Created({edited: value})
     | None =>
       switch itemById->Dict.get(vid) {
-      | Some(base) => Updated({base, edited: value})
-      | None => Created({edited: value})
+      | Value(base) => Updated({base, edited: value})
+      | Null | Undefined => Created({edited: value})
       }
     }
     itemById->Dict.set(vid, value)
@@ -766,7 +812,7 @@ let make = (
       )
       if !listed.contents {
         // A synthetic record keeps an otherwise unreferenced row reachable.
-        let record = {key: syntheticPrefix ++ vid, query: None, ids: [vid], lastSeen: now()}
+        let record = {key: syntheticPrefix ++ vid, query: Undefined, ids: [vid], lastSeen: now()}
         registry->Dict.set(record.key, record)
         persistRecord(record)
       }
@@ -795,7 +841,10 @@ let make = (
       | Some(Removed(_)) => ()
       }
     | None =>
-      let change = itemById->Dict.get(rid)->Option.map(base => Removed({base: base}))
+      let change = switch itemById->Dict.get(rid) {
+      | Value(base) => Some(Removed({base: base}))
+      | Null | Undefined => None
+      }
       forget(rid)
       enqueue(change, Remove({id: rid}))
     }
@@ -859,10 +908,10 @@ let make = (
     local.get(~tag=outboxTag, ~set=values => {
       values->Array.forEach(value =>
         switch parseOp(value) {
-        | Some(entry) =>
+        | Value(entry) =>
           outbox->Array.push(entry)
           nextSeq := Math.max(nextSeq.contents, entry.seq +. 1.0)
-        | None => ()
+        | Null | Undefined => ()
         }
       )
       outbox->Array.sort((a, b) => a.seq -. b.seq)
@@ -910,25 +959,28 @@ let make = (
         // Merge only persisted queries absent from the write-through mirror.
         values->Array.forEach(value =>
           switch parseRecord(value) {
-          | Some(record) if registry->Dict.get(record.key)->Option.isNone =>
-            registry->Dict.set(record.key, record)
-          | _ => ()
+          | Value(record) =>
+            switch registry->Dict.get(record.key) {
+            | Value(_) => ()
+            | Null | Undefined => registry->Dict.set(record.key, record)
+            }
+          | Null | Undefined => ()
           }
         )
         // Adopt homeless rows: a matching real query replaces the synthetic root.
         registry
-        ->Dict.keysToArray
+        ->Dict.keys
         ->Array.filter(rkey => rkey->String.startsWith(syntheticPrefix))
         ->Array.forEach(rkey => {
           let rid = rkey->String.slice(~start=syntheticPrefix->String.length)
           switch itemById->Dict.get(rid) {
-          | None => () // Value unknown (earlier session): keep the synthetic root.
-          | Some(value) =>
+          | Null | Undefined => () // Value unknown (earlier session): keep the synthetic root.
+          | Value(value) =>
             let adopted = ref(false)
             registry->Dict.forEach(
               record =>
                 switch record.query {
-                | Some(query) if matches(query, value) =>
+                | Value(query) if matches(query, value) =>
                   if !(record.ids->Array.includes(rid)) {
                     record.ids = record.ids->Array.concat([rid])
                     persistRecord(record)
@@ -945,9 +997,13 @@ let make = (
         })
         // Retain records for queries still in memory.
         registry->Dict.forEach(record =>
-          if t > record.lastSeen + expiry.local && entries->Dict.get(record.key)->Option.isNone {
-            registry->Dict.delete(record.key)
-            local.set(~tag=queryTag, ~key=record.key, None)
+          switch entries->Dict.get(record.key) {
+          | Value(_) => ()
+          | Null | Undefined =>
+            if t > record.lastSeen + expiry.local {
+              registry->Dict.delete(record.key)
+              local.set(~tag=queryTag, ~key=record.key, None)
+            }
           }
         )
         // Mark and sweep: a row stays only while some record lists it.
@@ -956,8 +1012,13 @@ let make = (
           registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
           // Pending ops root their rows because they replay after restart.
           outbox->Array.forEach(entry => marked->Set.add(opId(entry.op)))
-          let removes =
-            allIds->Array.filterMap(id => marked->Set.has(id) ? None : Some(Remove({id: id})))
+          let removes = []
+          allIds->Array.forEach(
+            id =>
+              if !(marked->Set.has(id)) {
+                removes->Array.push(Remove({id: id}))
+              },
+          )
           if removes->Array.length > 0 {
             local.push(removes)
           }
@@ -979,7 +1040,7 @@ let make = (
         entry.lastSeen = t
         // Persist observation without deliveries at most once per refresh window.
         switch registry->Dict.get(entry.key) {
-        | Some(record) if t > record.lastSeen + expiry.refresh =>
+        | Value(record) if t > record.lastSeen + expiry.refresh =>
           record.lastSeen = t
           persistRecord(record)
         | _ => ()
@@ -1022,7 +1083,10 @@ let make = (
         // Stop a still-open source (e.g. a live subscription) before eviction.
         entry.close()
         let key = entry.key
-        idsByKey->Dict.get(key)->Option.getOr([])->Array.forEach(id => orphans->Set.add(id))
+        switch idsByKey->Dict.get(key) {
+        | Value(ids) => ids->Array.forEach(id => orphans->Set.add(id))
+        | Null | Undefined => ()
+        }
         entries->Dict.delete(key)
         results->Dict.delete(key)
         idsByKey->Dict.delete(key)

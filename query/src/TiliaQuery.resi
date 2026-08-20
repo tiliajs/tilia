@@ -244,4 +244,9 @@ type t<'query, 'a> = {
  */
 let sortedStringify: 'a => string
 
+/**
+ * Build the engine. Values and queries are held in plain JavaScript
+ * objects and absence is read as `undefined`, so a value or a query must
+ * never be `null` or `undefined` itself.
+ */
 let make: config<'query, 'a> => t<'query, 'a>
