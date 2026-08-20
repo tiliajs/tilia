@@ -22,7 +22,10 @@
     "prepack": "pnpm build && clean-package",
     "postpack": "clean-package restore",
     "pretest": "pnpm res:build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "pub": "./bin/publish.sh",
+    "beta": "./bin/publish.sh --beta",
+    "canary": "./bin/publish.sh --canary"
   },
   "description": "Offline-first query and cache layer for Tilia apps.",
   "keywords": [
@@ -55,6 +58,9 @@
       "scripts",
       "devDependencies",
       "clean-package"
-    ]
+    ],
+    "replace": {
+      "dependencies.tilia": "^6.0.0-beta"
+    }
   }
 }

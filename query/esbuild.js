@@ -11,6 +11,20 @@ function copyFile(sourceFile, targetFile) {
   };
 }
 
+// The app imports the root "tilia"; the same import here keeps both
+// packages on one tilia instance (one module-level context).
+function tiliaRoot() {
+  return {
+    name: "tilia-root",
+    setup(build) {
+      build.onResolve({ filter: /^tilia\/src\/Tilia\.mjs$/ }, () => ({
+        path: "tilia",
+        external: true,
+      }));
+    },
+  };
+}
+
 const build = {
   entryPoints: ["src/index.js"],
   bundle: true,
@@ -19,6 +33,7 @@ const build = {
   target: ["esnext"],
   ignoreAnnotations: true,
   plugins: [
+    tiliaRoot(),
     nodeExternalsPlugin(),
     copyFile("./src/index.d.ts", "./dist/index.d.ts"),
   ],

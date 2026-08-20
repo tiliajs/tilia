@@ -9,3 +9,6 @@
 
 # TypeScript target: include build result from esbuild
 !dist/*
+
+# Not the build: the monorepo test run emits a parallel .res.mjs world
+src/*.res.mjs
