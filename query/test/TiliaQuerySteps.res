@@ -19,6 +19,10 @@ type mergeRecord = {
 
 @scope("JSON") @val external parseRecord: string => queryRecord = "parse"
 
+// Table cells arrive as strings. `version` is a number on the server, so a
+// row crossing into or out of it has to be converted.
+@val external asFloat: 'a => float = "Number"
+
 // Step definitions for TiliaQuery.feature. The `given` builds the world —
 // simulated remote (Papabase behind a Network), local store (Dexme) and the
 // app — then each step drives or observes it the way a real app would.
@@ -27,6 +31,12 @@ type mergeRecord = {
 // macrotask (`settled`), so every pending local (Dexme) answer lands
 // between two steps. Remote responses are held by the Network and only
 // arrive when a `time passes` step flushes it.
+let numericVersion = (card: card) =>
+  switch card.version {
+  | Some(version) => {...card, version: asFloat(version)}
+  | None => card
+  }
+
 given("an {string} training app", ({step}, status: string) => {
   let (online_, setOnline) = Tilia.signal(status === "online")
   let (now_, setNow) = Tilia.signal(0.0)
@@ -34,10 +44,19 @@ given("an {string} training app", ({step}, status: string) => {
   let papabase = Papabase.make(network)
   let dexme = Dexme.make()
   let live = Live.make(network)
+  let push = Push.make()
+  let rules = Rules.make()
   let merge = Merge.make()
+  // Failures the read site is never told about, because it still had
+  // something to show.
+  let errors: ref<array<(query, string)>> = ref([])
+  let onError = (~query, ~message) => errors := errors.contents->Array.concat([(query, message)])
   // A ref so "I restart the app" can rebuild the engine on the same stores.
-  let cards = ref(make(~dexme, ~live, ~merge, papabase, () => now_.value, online_))
+  let cards = ref(
+    make(~dexme, ~live, ~push, ~rules, ~merge, ~onError, papabase, () => now_.value, online_),
+  )
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
+  let single: ref<TiliaQuery.loadable<card>> = ref(TiliaQuery.Loading)
   let closeDeck: ref<unit => unit> = ref(() => ())
 
   step("a set of language cards on a remote", (table: array<array<string>>) =>
@@ -90,7 +109,8 @@ given("an {string} training app", ({step}, status: string) => {
   // local and remote stores, like the app coming back after a reload.
   step("I restart the app", () => {
     cards.contents.dispose()
-    cards := make(~dexme, ~live, ~merge, papabase, () => now_.value, online_)
+    cards :=
+      make(~dexme, ~live, ~push, ~rules, ~merge, ~onError, papabase, () => now_.value, online_)
     // Boot reloads the outbox from the kv, answering on the microtask queue.
     settled()
   })
@@ -113,6 +133,36 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("the remote recovers", () => papabase._failing(None))
 
+  step("the remote push is unavailable", () => push.unavailable = true)
+
+  step("the remote push recovers", () => {
+    push.unavailable = false
+    rules.transientFrom = None
+  })
+
+  // The server holds this row and answers `conflict` for that id: the write
+  // is not refused, it is out of date.
+  step("the remote conflicts {string} with", (id: string, table: array<array<string>>) => {
+    let row = numericVersion(toRecords(table)->Array.getUnsafe(0))
+    papabase._put(row)
+    rules.conflicts->Dict.set(id, row)
+  })
+
+  step("the remote rejects {string} with {string}", (id: string, message: string) =>
+    rules.rejects->Dict.set(id, message)
+  )
+
+  step("the remote is transient from {string}", (id: string) => rules.transientFrom = Some(id))
+
+  step("the remote fails the batch with {string} after {string}", (
+    message: string,
+    after: string,
+  ) => rules.failAfter = Some((after, message)))
+
+  step("the remote push should have been attempted {number} time(s)", (count: float) =>
+    expect(push.attempts).toBe(count->Float.toInt)
+  )
+
   // Observe like a UI binding would: the callback re-runs whenever the
   // query result changes, keeping `view` in sync.
   let openDeck = query => {
@@ -126,7 +176,19 @@ given("an {string} training app", ({step}, status: string) => {
       })
   }
 
+  // The same binding over `one`, which selects the first row of a query.
+  let openOne = query => {
+    closeDeck := Tilia.observe(() => single := cards.contents.one(query))
+  }
+
   step("I open the {string} deck", (deck: string) => openDeck(query(deck)))
+
+  step("I open one card from the {string} deck", (deck: string) => openOne(query(deck)))
+
+  step("I open one card from the {string} deck filtered by seen {string}", (
+    deck: string,
+    seen: string,
+  ) => openOne(query(~seen=Some(seen), deck)))
 
   step("I open the {string} deck filtered by seen {string}", (deck: string, seen: string) =>
     openDeck(query(~seen=Some(seen), deck))
@@ -139,20 +201,60 @@ given("an {string} training app", ({step}, status: string) => {
     expect(view.contents).toMatchObject(TiliaQuery.Loading)
   })
 
-  step("I should see not local", () => {
-    expect(view.contents).toMatchObject(TiliaQuery.NotLocal)
+  let claimOf = (name: string) =>
+    switch name {
+    | "partial" => TiliaQuery.Partial
+    | "local" => TiliaQuery.Local
+    | "fresh" => TiliaQuery.Fresh
+    | other => throw(Invalid_argument(`unknown claim "${other}"`))
+    }
+
+  step("I should see no data because offline", () => {
+    expect(view.contents).toMatchObject(TiliaQuery.NoData({reason: TiliaQuery.Offline}))
   })
 
-  step("I should see failed with {string}", (message: string) => {
-    expect(view.contents).toMatchObject(TiliaQuery.Failed({message: message}))
-  })
-
-  step("I should see {string} loaded with data", (source: string, table: array<array<string>>) => {
-    let expected: array<card> = toRecords(table)
+  step("I should see no data because failed with {string}", (message: string) => {
     expect(view.contents).toMatchObject(
-      TiliaQuery.Loaded({data: expected, fresh: source === "remote"}),
+      TiliaQuery.NoData({reason: TiliaQuery.Failed({message: message})}),
     )
   })
+
+  step("I should see {string} loaded with data", (claim: string, table: array<array<string>>) => {
+    let expected: array<card> = toRecords(table)
+    expect(view.contents).toMatchObject(TiliaQuery.Loaded({claim: claimOf(claim), data: expected}))
+  })
+
+  step("I should see {string} loaded with no rows", (claim: string) => {
+    expect(view.contents).toMatchObject(TiliaQuery.Loaded({claim: claimOf(claim), data: []}))
+  })
+
+  step("I should see the {string} card", (claim: string, table: array<array<string>>) => {
+    let expected = toRecords(table)->Array.getUnsafe(0)
+    expect(single.contents).toMatchObject(
+      TiliaQuery.Loaded({claim: claimOf(claim), data: expected}),
+    )
+  })
+
+  step("I should see no data because no {string} match", (claim: string) => {
+    expect(single.contents).toMatchObject(
+      TiliaQuery.NoData({reason: TiliaQuery.NoMatch({claim: claimOf(claim)})}),
+    )
+  })
+
+  // A store with no query index can hold rows without claiming they are the
+  // whole answer.
+  step("the local store answers partially", () => dexme.partial = true)
+
+  step("the local store holds nothing", () =>
+    expect(dexme.cards._select(_ => true)->Array.length).toBe(0)
+  )
+
+  step("onError should have received {string} for {string}", (message: string, deck: string) => {
+    let expected = query(deck)
+    expect(errors.contents->Array.some(((q, m)) => m === message && q == expected)).toBe(true)
+  })
+
+  step("onError should have received nothing", () => expect(errors.contents->Array.length).toBe(0))
 
   step("I upsert", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(card => cards.contents.upsert(card))
@@ -293,7 +395,9 @@ given("an {string} training app", ({step}, status: string) => {
   // `_select` looks straight inside the simulated stores — test-only
   // inspection, this is not something an adaptor can or should do.
   step("remote should have", (table: array<array<string>>) =>
-    toRecords(table)->Array.forEach(
+    toRecords(table)
+    ->Array.map(numericVersion)
+    ->Array.forEach(
       (card: card) => {
         let found =
           papabase._select(c => c.id === card.id)
@@ -332,6 +436,14 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("local query {string} should have ids", expectLocal)
 
+  step("status rejections should be in order", (table: array<array<string>>) => {
+    let expected =
+      table
+      ->Array.slice(~start=1, ~end=table->Array.length)
+      ->Array.map(row => row->Array.getUnsafe(0))
+    expect(cards.contents.status.rejected->Array.map(rejectionId)).toEqual(expected)
+  })
+
   step("query {string} should be dropped from memory", (deck: string) => {
     let key = TiliaQuery.sortedStringify(query(deck))
     let canopy = cards.contents._canopy()
@@ -361,7 +473,7 @@ given("an {string} training app", ({step}, status: string) => {
 
   step("the superseded fetch delivers", (table: array<array<string>>) => {
     let values: array<card> = toRecords(table)
-    supersededChannel().set(values)
+    supersededChannel().fresh(values)
   })
 
   step("the superseded fetch fails with {string}", (message: string) =>

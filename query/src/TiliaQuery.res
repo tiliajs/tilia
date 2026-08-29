@@ -1,12 +1,21 @@
 // === PUBLIC TYPES (from .resi file)
 
+type claim =
+  | @as("partial") Partial
+  | @as("local") Local
+  | @as("fresh") Fresh
+
+@tag("reason")
+type reason =
+  | @as("failed") Failed({message: string})
+  | @as("offline") Offline
+  | @as("noMatch") NoMatch({claim: claim})
+
 @tag("state")
 type loadable<'a> =
   | @as("loading") Loading
-  | @as("loaded") Loaded({data: 'a, fresh: bool})
-  | @as("notFound") NotFound
-  | @as("notLocal") NotLocal
-  | @as("failed") Failed({message: string})
+  | @as("loaded") Loaded({claim: claim, data: 'a})
+  | @as("noData") NoData({reason: reason})
 
 @tag("op")
 type op<'a> =
@@ -30,7 +39,7 @@ type change<'a> =
   | @as("removed") Removed({base: 'a})
 module Channel = {
   type read<'a> = {
-    set: array<'a> => unit,
+    fresh: array<'a> => unit,
     live: array<'a> => unit,
     fail: string => unit,
     end: unit => unit,
@@ -38,13 +47,15 @@ module Channel = {
   }
 
   type local<'a> = {
-    set: array<'a> => unit,
-    unknown: unit => unit,
+    partial: array<'a> => unit,
+    local: array<'a> => unit,
   }
 
   type write<'a> = {
     set: 'a => unit,
     removed: string => unit,
+    conflict: 'a => unit,
+    reject: (string, string) => unit,
     retry: unit => unit,
     fail: string => unit,
   }
@@ -85,6 +96,7 @@ type config<'query, 'a> = {
   key?: 'query => string,
   sort?: 'query => array<'a> => array<'a>,
   merge?: (~change: change<'a>, ~remote: 'a) => bool,
+  onError?: (~query: 'query, ~message: string) => unit,
 }
 
 type receive<'a> = {
@@ -196,7 +208,27 @@ function parseRecord(value) {
 
 // === Read
 
-type entryState = Pristine | LoadedLocal | LoadedRemote | LiveRemote
+type entryState = Pristine | LoadedPartial | LoadedLocal | LoadedRemote | LiveRemote
+
+/** `Partial < Local < Fresh`: a weaker answer cannot replace a stronger one. */
+let rank = claim =>
+  switch claim {
+  | Partial => 0
+  | Local => 1
+  | Fresh => 2
+  }
+
+/**
+ * An empty `Partial` is not a result: it says the store holds nothing, which
+ * is not the same as the answer being empty. A remote answer may still be
+ * coming, unless there is no network to bring it.
+ */
+let project = (online, result) =>
+  switch result {
+  | Loaded({claim: Partial, data}) if data->Array.length === 0 =>
+    online ? Loading : NoData({reason: Offline})
+  | result => result
+  }
 
 /** Runtime state for one in-memory query. */
 type entry<'query> = {
@@ -224,7 +256,7 @@ let getResult = (results, entry: entry<'query>) =>
   | Null | Undefined => Loading
   }
 
-let makeFetch = (remote, local, loaded, results, now) =>
+let makeFetch = (remote, local, loaded, results, now, reportError) =>
   entry => {
     // A live entry keeps its source until it ends, is superseded or expires.
     if entry.state !== LiveRemote {
@@ -242,28 +274,30 @@ let makeFetch = (remote, local, loaded, results, now) =>
         }
       entry.close = close
 
-      let unknown = () => {
-        if active.contents && !remote.online.value && entry.state == Pristine {
-          // No local storage and no network: nothing can ever answer this query.
-          results->Dict.set(entry.key, NotLocal)
-        }
-      }
-
       if entry.state == Pristine {
         // Local only materializes a query: a refresh would discard its answer.
         switch local {
-        | None => unknown()
+        | None =>
+          if active.contents && !remote.online.value {
+            // No local storage and no network: nothing can answer this query.
+            results->Dict.set(entry.key, NoData({reason: Offline}))
+          }
         | Some(local) =>
           local.fetch(
             entry.query,
             {
-              set: values => {
+              partial: values => {
                 if active.contents && entry.state == Pristine {
-                  entry.state = LoadedLocal
-                  loaded(entry, values, false)
+                  entry.state = LoadedPartial
+                  loaded(entry, values, Partial)
                 }
               },
-              unknown: () => unknown(),
+              local: values => {
+                if active.contents && entry.state == Pristine {
+                  entry.state = LoadedLocal
+                  loaded(entry, values, Local)
+                }
+              },
             },
           )
         }
@@ -274,21 +308,30 @@ let makeFetch = (remote, local, loaded, results, now) =>
         remote.fetch(
           entry.query,
           {
-            set: values => {
+            fresh: values => {
               if active.contents {
                 entry.state = LoadedRemote
-                loaded(entry, values, true)
+                loaded(entry, values, Fresh)
               }
             },
             live: values => {
               if active.contents {
                 entry.state = LiveRemote
-                loaded(entry, values, true)
+                loaded(entry, values, Fresh)
               }
             },
             fail: message => {
               if active.contents {
-                results->Dict.set(entry.key, Failed({message: message}))
+                // Shown only when there is nothing else to show. The
+                // discriminator is what `array` answers, not which find
+                // failed: some data beats an error in place of a list, and a
+                // list blinking data to error to data is worse than either.
+                switch project(remote.online.value, getResult(results, entry)) {
+                | Loaded(_) => reportError(entry.query, message)
+                | Loading
+                | NoData(_) =>
+                  results->Dict.set(entry.key, NoData({reason: Failed({message: message})}))
+                }
               }
             },
             end: () => {
@@ -344,21 +387,21 @@ let makeGetEntry = (fetch, entries, results, key, now) =>
     }
   }
 
-let makeOne = (getEntry, results) =>
+let makeOne = (getEntry, results, online: Tilia.signal<bool>) =>
   query =>
-    switch getResult(results, getEntry(query)) {
-    | Loaded({data, fresh}) =>
+    switch project(online.value, getResult(results, getEntry(query))) {
+    | Loaded({claim, data}) =>
       switch data->Arr.at(0) {
-      | Value(value) => Loaded({data: value, fresh})
-      | Null | Undefined => NotFound
+      // An absence ages like any other answer, so it carries its claim.
+      | Null | Undefined => NoData({reason: NoMatch({claim: claim})})
+      | Value(value) => Loaded({claim, data: value})
       }
     | Loading => Loading
-    | NotFound => NotFound
-    | NotLocal => NotLocal
-    | Failed({message}) => Failed({message: message})
+    | NoData({reason}) => NoData({reason: reason})
     }
 
-let makeArray = (getEntry, results) => query => getResult(results, getEntry(query))
+let makeArray = (getEntry, results, online: Tilia.signal<bool>) =>
+  query => project(online.value, getResult(results, getEntry(query)))
 
 // === make (factory)
 
@@ -389,8 +432,13 @@ let _now = () => Date.now()
 let _no_sort = _query => array => array
 
 let make = (
-  {id, matches, remote, ?local, ?expiry, ?now, ?key, ?sort, ?merge}: config<'query, 'a>,
+  {id, matches, remote, ?local, ?expiry, ?now, ?key, ?sort, ?merge, ?onError}: config<'query, 'a>,
 ) => {
+  let reportError = (query, message) =>
+    switch onError {
+    | Some(onError) => onError(~query, ~message)
+    | None => ()
+    }
   let expiry = switch expiry {
   | Some(expiry) => expiry
   | None => _expiry
@@ -638,38 +686,53 @@ let make = (
     }
   }
 
-  let loaded = (entry, values, remote) => {
-    let values = remote ? applyPending(entry, values->Array.map(reconcile)) : values
-    if remote {
-      entry.refreshedAt = now()
-      switch local {
-      | Some(local) => local.push(values->Array.map(value => Upsert({value: value})))
-      | None => ()
-      }
+  let loaded = (entry, values, claim) => {
+    // Only `tick` lowers a claim. A find that reopens answers local storage
+    // first, and that must not pull a fresh result back down.
+    let weaker = switch getResult(results, entry) {
+    | Loaded({claim: current}) => rank(claim) < rank(current)
+    | _ => false
     }
-    values->Array.forEach(value => {
-      itemById->Dict.set(id(value), value)
-    })
-    let ids = values->Array.map(id)
-    recordSeen(entry, ids)
-    idsByKey->Dict.set(entry.key, ids)
-    // Rebuild when the id list or any listed item changes.
-    let build = () => {
-      let values = []
-      switch idsByKey->Dict.get(entry.key) {
-      | Value(ids) =>
-        ids->Array.forEach(id =>
-          switch itemById->Dict.get(id) {
-          | Value(value) => values->Array.push(value)
-          | Null | Undefined => ()
-          }
-        )
-      | Null | Undefined => ()
+    if weaker {
+      ()
+    } else {
+      let remote = claim === Fresh
+      let values = remote ? applyPending(entry, values->Array.map(reconcile)) : values
+      if remote {
+        entry.refreshedAt = now()
+        switch local {
+        | Some(local) => local.push(values->Array.map(value => Upsert({value: value})))
+        | None => ()
+        }
       }
-      // Observe sorting so edits to sort keys update the list.
-      sort(entry.query)(values)
+      values->Array.forEach(value => {
+        itemById->Dict.set(id(value), value)
+      })
+      let ids = values->Array.map(id)
+
+      // A partial answer never records a query result: it was not one.
+      if claim !== Partial {
+        recordSeen(entry, ids)
+      }
+      idsByKey->Dict.set(entry.key, ids)
+      // Rebuild when the id list or any listed item changes.
+      let build = () => {
+        let values = []
+        switch idsByKey->Dict.get(entry.key) {
+        | Value(ids) =>
+          ids->Array.forEach(id =>
+            switch itemById->Dict.get(id) {
+            | Value(value) => values->Array.push(value)
+            | Null | Undefined => ()
+            }
+          )
+        | Null | Undefined => ()
+        }
+        // Observe sorting so edits to sort keys update the list.
+        sort(entry.query)(values)
+      }
+      results->Dict.set(entry.key, Loaded({claim, data: Tilia.computed(build)}))
     }
-    results->Dict.set(entry.key, Loaded({data: Tilia.computed(build), fresh: remote}))
   }
 
   // One push carries every pending op not already in flight, in order.
@@ -679,46 +742,120 @@ let make = (
       if batch->Array.length > 0 {
         batch->Array.forEach(entry => entry.flight = true)
         let settled = ref(false)
+        // `set`, `removed`, `conflict` and `reject` answer one operation.
+        // `retry` and `fail` apply to every operation in the push that has
+        // not been answered. Answering is not settling: `conflict` leaves the
+        // operation pending so the rebased value still has to reach the
+        // server.
+        let answered: array<outboxOp<'a>> = []
+        let waiting = entry => outbox->Array.includes(entry) && !(answered->Array.includes(entry))
+        let findUpsert = vid =>
+          batch->Array.find(entry =>
+            waiting(entry) &&
+            switch entry.op {
+            | Upsert({value}) => id(value) === vid
+            | Remove(_) => false
+            }
+          )
+        let findRemove = rid =>
+          batch->Array.find(entry =>
+            waiting(entry) &&
+            switch entry.op {
+            | Remove({id}) => id === rid
+            | Upsert(_) => false
+            }
+          )
+        let findAny = rid => batch->Array.find(entry => waiting(entry) && opId(entry.op) === rid)
+
+        // Put the local value back where the server says it never moved, and
+        // keep the refused work rather than losing it.
+        let revert = (entry: outboxOp<'a>, message) => {
+          let change = entry.change
+          confirmed(entry)
+          switch change {
+          | Some(Created({edited})) => forget(id(edited))
+          | Some(Updated({base}))
+          | Some(Removed({base})) =>
+            place(base)->ignore
+          | Some(Clean(_))
+          | None => ()
+          }
+          switch change {
+          | Some(change) => addRejection(failed(change, message))
+          | None => ()
+          }
+        }
+
         remote.push(
           batch->Array.map(entry => entry.op),
           {
             set: value => {
               if !settled.contents {
-                let vid = id(value)
-                let match = batch->Array.find(entry =>
-                  outbox->Array.includes(entry) &&
-                    switch entry.op {
-                    | Upsert({value}) => id(value) === vid
-                    | Remove(_) => false
-                    }
-                )
-                switch match {
+                switch findUpsert(id(value)) {
                 | Some(entry) =>
-                  let value = switch merge {
-                  | Some(_) => reconcile(value)
-                  | None =>
-                    confirmed(entry)
-                    value
-                  }
+                  answered->Array.push(entry)
+                  confirmed(entry)
                   place(value)->ignore
-                  if outbox->Array.includes(entry) {
-                    confirmed(entry)
-                  }
                 | None => ()
                 }
               }
             },
             removed: rid => {
               if !settled.contents {
-                let match = batch->Array.find(entry =>
-                  outbox->Array.includes(entry) &&
-                    switch entry.op {
-                    | Remove({id}) => id === rid
-                    | Upsert(_) => false
+                switch findRemove(rid) {
+                | Some(entry) =>
+                  answered->Array.push(entry)
+                  confirmed(entry)
+                | None => ()
+                }
+              }
+            },
+            conflict: value => {
+              if !settled.contents {
+                switch findAny(id(value)) {
+                | Some(entry) =>
+                  answered->Array.push(entry)
+                  switch entry.change {
+                  | None =>
+                    // Nothing local to rebase: the server value stands.
+                    confirmed(entry)
+                    place(value)->ignore
+                  | Some(change) =>
+                    if merged(change, value) {
+                      let (next, edited) = switch change {
+                      | Created({edited})
+                      | Updated({edited}) => (Updated({base: value, edited}), edited)
+                      | Removed({base}) => (Removed({base: base}), base)
+                      | Clean({value}) => (Clean({value: value}), value)
+                      }
+                      entry.change = Some(next)
+                      switch next {
+                      | Updated({edited}) => entry.op = Upsert({value: edited})
+                      | _ => ()
+                      }
+                      persistOp(entry)
+
+                      // Still pending: the heartbeat pushes the rebased value.
+                      // Retrying here would let a server that keeps
+                      // conflicting spin the outbox.
+                      entry.flight = false
+                      place(edited)->ignore
+                    } else {
+                      confirmed(entry)
+                      addRejection(conflict(change))
+                      place(value)->ignore
                     }
-                )
-                switch match {
-                | Some(entry) => confirmed(entry)
+                  }
+                | None => ()
+                }
+              }
+            },
+            reject: (rid, message) => {
+              if !settled.contents {
+                switch findAny(rid) {
+                | Some(entry) =>
+                  answered->Array.push(entry)
+                  Tilia.batch(() => revert(entry, message))
                 | None => ()
                 }
               }
@@ -727,7 +864,7 @@ let make = (
               if !settled.contents {
                 settled := true
                 batch->Array.forEach(entry =>
-                  if outbox->Array.includes(entry) {
+                  if waiting(entry) {
                     entry.flight = false
                   }
                 )
@@ -736,28 +873,16 @@ let make = (
             fail: message => {
               if !settled.contents {
                 settled := true
-                Tilia.batch(() => {
-                  for i in batch->Array.length - 1 downto 0 {
-                    switch batch[i] {
-                    | Some(entry) if outbox->Array.includes(entry) =>
-                      let change = entry.change
-                      confirmed(entry)
-                      switch change {
-                      | Some(Created({edited})) => forget(id(edited))
-                      | Some(Updated({base}))
-                      | Some(Removed({base})) =>
-                        place(base)->ignore
-                      | Some(Clean(_))
-                      | None => ()
-                      }
-                      switch change {
-                      | Some(change) => addRejection(failed(change, message))
-                      | None => ()
-                      }
-                    | _ => ()
+                // Write order: a cascade is refused cause-first, so working
+                // down `status.rejected` retries the cause before the
+                // consequence.
+                Tilia.batch(() =>
+                  batch->Array.forEach(entry =>
+                    if waiting(entry) {
+                      revert(entry, message)
                     }
-                  }
-                })
+                  )
+                )
               }
             },
           },
@@ -920,7 +1045,7 @@ let make = (
     })
   }
 
-  let fetch = makeFetch(remote, local, loaded, results, now)
+  let fetch = makeFetch(remote, local, loaded, results, now, reportError)
   let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now)
 
   let clearOnline = Tilia.watch(
@@ -935,7 +1060,7 @@ let make = (
           // Going offline frees the refresh slot for the next reconnect.
           entry.fetchedAt = 0.0
           switch getResult(results, entry) {
-          | Loading => results->Dict.set(entry.key, NotLocal)
+          | Loading => results->Dict.set(entry.key, NoData({reason: Offline}))
           | _ => ()
           }
         })
@@ -1049,14 +1174,18 @@ let make = (
       if t > entry.lastSeen + expiry.memory {
         dropped->Array.push(entry)
       } else {
-        // A failed fetch re-enters the refresh loop whatever state produced
-        // it; a live source owns its own recovery (a later delivery or `end`).
-        let failed = switch getResult(results, entry) {
-        | Failed(_) => true
-        | _ => false
+        // Anything not fresh re-enters the refresh loop, whatever state
+        // produced it: a local or partial answer, a stale remote one, or a
+        // failure with nothing behind it. A live source owns its own recovery
+        // instead (a later delivery or `end`), and an entry still waiting for
+        // its first answer already has a find open.
+        let stale = switch (entry.state, getResult(results, entry)) {
+        | (LiveRemote, _) => false
+        | (Pristine, Loading) => false
+        | _ => true
         }
         if (
-          (entry.state === LoadedRemote || (failed && entry.state !== LiveRemote)) &&
+          stale &&
           online &&
           entry.refreshedAt < t - expiry.refresh &&
           // A hung refresh frees its slot after one refresh window.
@@ -1067,9 +1196,9 @@ let make = (
         }
         if entry.state === LoadedRemote {
           switch getResult(results, entry) {
-          | Loaded({data, fresh: true}) =>
+          | Loaded({data, claim: Fresh}) =>
             if entry.refreshedAt < freshLimit {
-              results->Dict.set(entry.key, Loaded({data, fresh: false}))
+              results->Dict.set(entry.key, Loaded({data, claim: Local}))
             }
           | _ => ()
           }
@@ -1094,6 +1223,11 @@ let make = (
       idsByKey->Dict.forEach(ids => ids->Array.forEach(id => orphans->Set.delete(id)->ignore))
       orphans->Set.forEach(id => itemById->Dict.delete(id))
     }
+    // Retry transient push failures. `channel.retry()` only frees the ops; the
+    // heartbeat is what decides to try again, so an app that is online and
+    // idle still drains its outbox. Ops already in flight are skipped, so the
+    // rate is bounded by the tick rate.
+    pushPending()
     if t > lastPurgeAt.contents + expiry.local / 8.0 {
       lastPurgeAt := t
       purgeLocal(t)
@@ -1101,8 +1235,8 @@ let make = (
   }
 
   {
-    one: makeOne(getEntry, results),
-    array: makeArray(getEntry, results),
+    one: makeOne(getEntry, results, remote.online),
+    array: makeArray(getEntry, results, remote.online),
     upsert,
     remove,
     receive: {changed: receiveChanged, removed: receiveRemoved},

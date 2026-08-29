@@ -2,3 +2,6 @@ node_modules
 *.tgz
 .DS_Store
 *.res.mjs
+
+**/croquis/*
+!**/croquis/.gitkeep

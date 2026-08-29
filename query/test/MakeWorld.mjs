@@ -59,6 +59,9 @@ function make$1(network) {
       _0: newrecord
     });
   };
+  let _put = card => {
+    data[card.id] = card;
+  };
   let remove = id => {
     Stdlib_Dict.$$delete(data, id);
     return respond({
@@ -89,9 +92,11 @@ function make$1(network) {
     upsert: upsert,
     remove: remove,
     _select: _select,
+    _put: _put,
     _failing: message => {
       failing.contents = message;
-    }
+    },
+    _network: network
   };
 }
 
@@ -120,7 +125,8 @@ function makeTable(getKey) {
 function make$2() {
   return {
     cards: makeTable(card => card.id),
-    kv: makeTable(entry => entry.key)
+    kv: makeTable(entry => entry.key),
+    partial: false
   };
 }
 
@@ -135,7 +141,7 @@ function make$3(papabase, online_) {
     fetch: (query, channel) => {
       papabase.select(card => matches(query, card)).then(result => {
         if (result.TAG === "Ok") {
-          return channel.set(result._0);
+          return channel.fresh(result._0);
         } else {
           return channel.fail(result._0);
         }
@@ -178,10 +184,10 @@ function make$4(dexme) {
   return {
     fetch: (query, channel) => {
       dexme.cards.filter(card => matches(query, card)).then(result => {
-        if (result.length !== 0) {
-          return channel.set(result);
+        if (dexme.partial || result.length === 0) {
+          return channel.partial(result);
         } else {
-          return channel.unknown();
+          return channel.local(result);
         }
       });
     },
@@ -222,7 +228,83 @@ let DexmeAdaptor = {
   make: make$4
 };
 
-function make$5(network) {
+function make$5() {
+  return {
+    rejects: {},
+    conflicts: {},
+    transientFrom: undefined,
+    failAfter: undefined
+  };
+}
+
+function opId(op) {
+  if (op.op === "upsert") {
+    return op.value.id;
+  } else {
+    return op.id;
+  }
+}
+
+function wrap(rules, network, remote) {
+  let later = f => {
+    new Promise((resolve, param) => network.respond(() => resolve())).then(f);
+  };
+  return {
+    online: remote.online,
+    fetch: remote.fetch,
+    push: (ops, channel) => {
+      let ended = {
+        contents: false
+      };
+      ops.forEach(op => {
+        if (ended.contents) {
+          return;
+        }
+        let oid = opId(op);
+        let from = rules.transientFrom;
+        let exit = 0;
+        if (from !== undefined && from === oid) {
+          ended.contents = true;
+          later(() => channel.retry());
+        } else {
+          exit = 1;
+        }
+        if (exit === 1) {
+          let message = rules.rejects[oid];
+          if (message !== undefined) {
+            later(() => channel.reject(oid, message));
+          } else {
+            let row = rules.conflicts[oid];
+            if (row !== undefined) {
+              Stdlib_Dict.$$delete(rules.conflicts, oid);
+              later(() => channel.conflict(row));
+            } else {
+              remote.push([op], channel);
+            }
+          }
+        }
+        let match = rules.failAfter;
+        if (match === undefined) {
+          return;
+        }
+        if (match[0] !== oid) {
+          return;
+        }
+        let message$1 = match[1];
+        ended.contents = true;
+        later(() => channel.fail(message$1));
+      });
+    }
+  };
+}
+
+let Rules = {
+  make: make$5,
+  opId: opId,
+  wrap: wrap
+};
+
+function make$6(network) {
   return {
     network: network,
     enabled: false,
@@ -234,7 +316,7 @@ function make$5(network) {
   };
 }
 
-function wrap(live, papabase, remote) {
+function wrap$1(live, papabase, remote) {
   return {
     online: remote.online,
     fetch: (query, channel) => {
@@ -260,11 +342,11 @@ function wrap(live, papabase, remote) {
 }
 
 let Live = {
-  make: make$5,
-  wrap: wrap
+  make: make$6,
+  wrap: wrap$1
 };
 
-function make$6() {
+function make$7() {
   return {
     accepted: true,
     calls: []
@@ -331,7 +413,7 @@ function run(merge, change, remote) {
 }
 
 let Merge = {
-  make: make$6,
+  make: make$7,
   run: run
 };
 
@@ -349,34 +431,65 @@ function sortBySeen(a, b) {
   }
 }
 
-function make$7(dexme, live, mergeOpt, papabase, now, online_) {
+function make$8() {
+  return {
+    unavailable: false,
+    attempts: 0
+  };
+}
+
+function wrap$2(push, remote) {
+  return {
+    online: remote.online,
+    fetch: remote.fetch,
+    push: (ops, channel) => {
+      push.attempts = push.attempts + 1 | 0;
+      if (push.unavailable) {
+        return channel.retry();
+      } else {
+        return remote.push(ops, channel);
+      }
+    }
+  };
+}
+
+let Push = {
+  make: make$8,
+  wrap: wrap$2
+};
+
+function make$9(dexme, live, push, rules, mergeOpt, onError, papabase, now, online_) {
   let merge = mergeOpt !== undefined ? mergeOpt : ({
       accepted: true,
       calls: []
     });
   let remote = make$3(papabase, online_);
-  let remote$1 = live !== undefined ? wrap(live, papabase, remote) : remote;
+  let remote$1 = live !== undefined ? wrap$1(live, papabase, remote) : remote;
+  let remote$2 = rules !== undefined ? wrap(rules, papabase._network, remote$1) : remote$1;
+  let remote$3 = push !== undefined ? wrap$2(push, remote$2) : remote$2;
   let sort = _query => (array => array.toSorted(sortBySeen));
   let mergeValues = (change, remote) => run(merge, change, remote);
   if (dexme === undefined) {
     return TiliaQuery.make({
       id: id,
       matches: matches,
-      remote: remote$1,
+      remote: remote$3,
       now: now,
       sort: sort,
-      merge: mergeValues
+      merge: mergeValues,
+      onError: onError
     });
   }
   let local = make$4(dexme);
   return TiliaQuery.make({
     id: id,
     matches: matches,
-    remote: remote$1,
+    remote: remote$3,
     local: local,
     now: now,
     sort: sort,
-    merge: mergeValues
+    merge: mergeValues,
+    onError: onError
   });
 }
 
@@ -389,9 +502,11 @@ export {
   Dexme,
   PapabaseAdaptor,
   DexmeAdaptor,
+  Rules,
   Live,
   Merge,
   sortBySeen,
-  make$7 as make,
+  Push,
+  make$9 as make,
 }
 /* TiliaQuery Not a pure module */

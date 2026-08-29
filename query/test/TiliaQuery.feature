@@ -13,7 +13,7 @@ Feature: Language training app
     When I open the "Spanish" deck
     Then I should see loading
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -24,9 +24,23 @@ Feature: Language training app
       | dog.es | spanish | dog     | perro       | 1    |
     When I open the "Spanish" deck filtered by seen "1"
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 1    |
+
+  # Rule 4. An empty list is data. Only `one` projects it into "no match",
+  # and the absence carries its claim because it ages like any other answer.
+
+  Scenario: a fresh empty result is loaded
+    When I open the "Klingon" deck
+    And time passes
+    Then I should see "fresh" loaded with no rows
+    When I open one card from the "Klingon" deck
+    Then I should see no data because no "fresh" match
+    When I go "offline"
+    And 35 seconds pass
+    And tick is called
+    Then I should see no data because no "local" match
 
   Scenario: fetch a deck while offline
     When deck "Spanish" is in local db
@@ -40,12 +54,12 @@ Feature: Language training app
   Scenario: fetch an uncached deck while offline
     When I go "offline"
     And I open the "Spanish" deck
-    Then I should see not local
+    Then I should see no data because offline
     And the remote fetch should have run 0 times
     When I go "online"
     Then the remote fetch should have run 1 time
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -54,7 +68,28 @@ Feature: Language training app
     When I open the "Spanish" deck
     Then I should see loading
     And I go "offline"
-    Then I should see not local
+    Then I should see no data because offline
+
+  # Rules 1 and 2. A store without a query index holds rows without being able
+  # to claim they are the whole answer. Holding nothing is not an empty
+  # answer: it says so, and the engine waits or gives up.
+
+  Scenario: a partial result is shown
+    When deck "Spanish" is in local db
+    And the local store answers partially
+    And I go "offline"
+    And I open the "Spanish" deck
+    Then I should see "partial" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: an empty partial waits while the remote may still answer
+    When the local store holds nothing
+    And I open the "Spanish" deck
+    Then I should see loading
+    When I go "offline"
+    Then I should see no data because offline
 
   Scenario: a subscription updates a visible card
     When I open the "Spanish" deck
@@ -62,7 +97,7 @@ Feature: Language training app
     And the subscription changes
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -73,7 +108,7 @@ Feature: Language training app
     And the subscription changes
       | id      | deck    | english | translation | seen |
       | rain.es | spanish | rain    | lluvia      | 0    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id      | english | translation | seen |
       | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
@@ -83,7 +118,7 @@ Feature: Language training app
     When I open the "Spanish" deck
     And time passes
     And the subscription removes "cat.es"
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
 
@@ -129,7 +164,7 @@ Feature: Language training app
     And the subscription changes
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 2    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 2    |
@@ -140,7 +175,7 @@ Feature: Language training app
   Scenario: update a card while online
     When I open the "Spanish" deck
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -154,7 +189,7 @@ Feature: Language training app
     And local should have
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
-    And I should see "remote" loaded with data
+    And I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -166,7 +201,7 @@ Feature: Language training app
     And I upsert
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -174,7 +209,7 @@ Feature: Language training app
   Scenario: remote data becomes local after refresh timeout
     When I open the "Spanish" deck
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -182,6 +217,31 @@ Feature: Language training app
     And 35 seconds pass
     And tick is called
     Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  # Rule 3. A refresh asks the store again and the store answers from local
+  # storage first; that must not pull a fresh result back down. Refresh opens
+  # at 30s, demotion waits for the buffer until 33.75s, so this runs in the
+  # window where a weaker answer would be visible.
+
+  Scenario: a refresh does not weaken a result while it is in flight
+    When deck "Spanish" is in local db
+    And I open the "Spanish" deck
+    And time passes
+    Then I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When 31 seconds pass
+    And tick is called
+    Then I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When time passes
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -195,7 +255,7 @@ Feature: Language training app
     And 35 seconds pass
     And tick is called
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id      | english | translation | seen |
       | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
@@ -210,7 +270,7 @@ Feature: Language training app
     And 10 seconds pass
     And tick is called
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -242,7 +302,7 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -250,7 +310,7 @@ Feature: Language training app
   Scenario: a closed deck is dropped from memory after the memory timeout
     When I open the "Spanish" deck
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -263,7 +323,7 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -312,7 +372,7 @@ Feature: Language training app
     And 35 seconds pass
     And tick is called
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
     And local should have
@@ -340,6 +400,128 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
 
+  # `tick` is the engine's only heartbeat: a transient push failure leaves the
+  # batch pending, and nothing else is going to notice that it is time to try
+  # again. An application that is online and idle must still drain its outbox.
+
+  Scenario: a transient push failure is retried on the next tick
+    When I open the "Spanish" deck
+    And time passes
+    And the remote push is unavailable
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    And time passes
+    Then status should have 1 pending
+    And the remote push should have been attempted 1 time
+    When the remote push recovers
+    And tick is called
+    And time passes
+    Then the remote push should have been attempted 2 times
+    And status should have 0 pending
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+
+  # Per-operation outcomes. `conflict` hands back the server's row and keeps
+  # the write pending so it rebases; `reject` refuses one write and leaves the
+  # others alone, because order does not imply dependency. `fail` speaks for
+  # every operation in the push that has not been answered, and `Transient`
+  # ends the push without answering anything.
+
+  Scenario: a conflict rebases one operation and pushes the merged value
+    When I open the "Spanish" deck
+    And time passes
+    # The server moved on before our write left: it holds version 7 and will
+    # answer this id with `conflict` once.
+    And the remote conflicts "cat.es" with
+      | id     | deck    | english | translation | seen | version |
+      | cat.es | spanish | cat     | gato        | 0    | 7       |
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    And time passes
+    Then status should have 1 pending
+    When 35 seconds pass
+    And tick is called
+    And time passes
+    Then status should have 0 pending
+    # Papabase accepts an incoming version of 0 and stores `actual + 1`; the
+    # rebased write carries no version.
+    And remote should have
+      | id     | english | translation | seen | version |
+      | cat.es | cat     | gato        | 1    | 8       |
+
+  Scenario: one rejected write does not affect the others
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | dog.es | spanish | dog     | perro       | 1    |
+    And the remote rejects "cat.es" with "forbidden"
+    And I go "online"
+    And time passes
+    Then status should have 0 pending
+    And status should have rejection
+      | kind          | id     | base | edited | message   |
+      | update failed | cat.es | 0    | 1      | forbidden |
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 1    |
+
+  Scenario: a batch failure rejects the remaining writes
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id      | deck    | english | translation | seen |
+      | cat.es  | spanish | cat     | gato        | 1    |
+      | dog.es  | spanish | dog     | perro       | 1    |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And the remote fails the batch with "batch rejected" after "cat.es"
+    And I go "online"
+    And time passes
+    Then status should have 0 pending
+    And status rejections should be in order
+      | id      |
+      | dog.es  |
+      | rain.es |
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 0    |
+    And I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 1    |
+
+  Scenario: a batch stops at the first transient and keeps what was answered
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id      | deck    | english | translation | seen |
+      | cat.es  | spanish | cat     | gato        | 1    |
+      | dog.es  | spanish | dog     | perro       | 1    |
+      | rain.es | spanish | rain    | lluvia      | 0    |
+    And the remote is transient from "dog.es"
+    And I go "online"
+    And time passes
+    Then status should have 2 pending
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+    When the remote push recovers
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then status should have 0 pending
+
   Scenario: pending writes survive a restart
     When I open the "Spanish" deck
     And time passes
@@ -360,7 +542,7 @@ Feature: Language training app
     When I open the "Spanish" deck
     And time passes
     When I remove "cat.es"
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
     And local query "Spanish" should have ids
@@ -376,7 +558,7 @@ Feature: Language training app
     And I upsert
       | id      | deck    | english | translation | seen |
       | rain.es | spanish | rain    | lluvia      | 0    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id      | english | translation | seen |
       | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
@@ -398,7 +580,7 @@ Feature: Language training app
     And status should have rejection
       | kind          | id     | base | edited | message                      |
       | update failed | cat.es | 0    | 9      | version conflict on "cat.es" |
-    And I should see "remote" loaded with data
+    And I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -439,7 +621,7 @@ Feature: Language training app
       | dog.es | dog     | perro       | 0    |
     When I close the deck
     And I open the "Spanglish" deck
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
     And local query "Spanish" should have ids
@@ -463,26 +645,32 @@ Feature: Language training app
       | dog.es  |
       | rain.es |
 
-  # A failed fetch shows `Failed` at the read site and re-enters the refresh
-  # loop: the next tick past the refresh window retries. A live source owns
-  # its own recovery instead (a later delivery or `end`).
+  # A failure replaces the result only when there is no data to show.
+  # Otherwise the current result stays visible and the message goes to
+  # `onError`: some data beats an error in place of a list, and a list
+  # blinking data to error to data is worse than either.
+  #
+  # Either way the query re-enters the refresh loop and the next tick past the
+  # refresh window retries. A live source owns its own recovery instead (a
+  # later delivery or `end`).
 
-  Scenario: a failed fetch surfaces and retries after the refresh window
+  Scenario: a failed find with nothing to show surfaces and retries
     When the remote is failing with "boom"
     And I open the "Spanish" deck
     And time passes
-    Then I should see failed with "boom"
+    Then I should see no data because failed with "boom"
+    And onError should have received nothing
     When the remote recovers
     And 35 seconds pass
     And tick is called
     Then the remote fetch should have run 2 times
     When time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
 
-  Scenario: a failed fetch replaces a local result and retries
+  Scenario: a failed find leaves a local result standing
     When deck "Spanish" is in local db
     And the remote is failing with "boom"
     And I open the "Spanish" deck
@@ -491,13 +679,17 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
     When time passes
-    Then I should see failed with "boom"
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And onError should have received "boom" for "Spanish"
     When the remote recovers
     And 35 seconds pass
     And tick is called
     Then the remote fetch should have run 2 times
     When time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -511,7 +703,7 @@ Feature: Language training app
     When the remote supports live queries
     And I open the "Spanish" deck
     And time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -519,7 +711,7 @@ Feature: Language training app
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
       | dog.es | spanish | dog     | perro       | 0    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -527,7 +719,7 @@ Feature: Language training app
     And tick is called
     And time passes
     Then the remote fetch should have run 1 time
-    And I should see "remote" loaded with data
+    And I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -545,7 +737,7 @@ Feature: Language training app
     And tick is called
     And time passes
     Then the remote fetch should have run 2 times
-    And I should see "remote" loaded with data
+    And I should see "fresh" loaded with data
       | id      | english | translation | seen |
       | cat.es  | cat     | gato        | 0    |
       | dog.es  | dog     | perro       | 0    |
@@ -580,18 +772,22 @@ Feature: Language training app
       | rain.es | spanish | rain    | lluvia      | 0    |
     And the live source fails with "boom"
     And the live source ends
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
     And the source teardown should have run 1 time
 
-  Scenario: a live source failure recovers on the next delivery
+  Scenario: a live source failure leaves the result standing
     When the remote supports live queries
     And I open the "Spanish" deck
     And time passes
     And the live source fails with "boom"
-    Then I should see failed with "boom"
+    Then I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And onError should have received "boom" for "Spanish"
     # The engine does not refetch a failed live query: recovery is the
     # source's job.
     When 35 seconds pass
@@ -600,7 +796,7 @@ Feature: Language training app
     When the live source delivers
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
 
@@ -621,7 +817,7 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
     When time passes
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
@@ -635,7 +831,7 @@ Feature: Language training app
       | id     | deck    | english | translation | seen |
       | cat.es | spanish | cat     | gato        | 1    |
       | dog.es | spanish | dog     | perro       | 0    |
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
@@ -659,7 +855,7 @@ Feature: Language training app
       | rain.es | spanish | rain    | lluvia      | 0    |
     And the live source fails with "boom"
     And the live source ends
-    Then I should see "remote" loaded with data
+    Then I should see "fresh" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |

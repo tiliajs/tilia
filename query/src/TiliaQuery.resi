@@ -1,17 +1,46 @@
 /**
- * A value as seen by the read path.
+ * How strong an answer is. `Partial` and `Local` both come out of local
+ * storage and differ only in whether it could certify the answer was the
+ * whole answer. `Fresh` means authoritative as of now — not "from the
+ * network": a synchronized local store is entitled to say it.
  *
- * `Loaded.fresh` says whether the remote is known to be current.
- * `NotLocal` means no local answer is available while offline.
- * `Failed` carries the fetch error to the read site.
+ * A query climbs `Partial -> Fresh -> Local -> Fresh`. Only `tick` lowers a
+ * claim, as data ages.
+ */
+type claim =
+  | @as("partial") Partial
+  | @as("local") Local
+  | @as("fresh") Fresh
+
+/**
+ * Why there is nothing to show. A value, not a sentence: each is a different
+ * affordance, and only `Failed` carries prose — the adaptor's.
+ *
+ * `NoMatch` says the answer set was empty, never that the row does not
+ * exist. It carries its claim because an absence ages like any other answer.
+ */
+@tag("reason")
+type reason =
+  | @as("failed") Failed({message: string})
+  | @as("offline") Offline
+  | @as("noMatch") NoMatch({claim: claim})
+
+/**
+ * A value as seen by the read path: wait, render, or explain.
+ *
+ * `claim` is a field rather than a constructor so the common case — render
+ * whatever we have — does not grow a branch.
+ *
+ * An empty `Partial` is not a result. It reads as `Loading` while a remote
+ * answer is still possible and `NoData({Offline})` otherwise. `array` on a
+ * complete but empty query stays `Loaded({data: []})`: an empty list is data.
+ * Only `one` projects it into `NoMatch`.
  */
 @tag("state")
 type loadable<'a> =
   | @as("loading") Loading
-  | @as("loaded") Loaded({data: 'a, fresh: bool})
-  | @as("notFound") NotFound
-  | @as("notLocal") NotLocal
-  | @as("failed") Failed({message: string})
+  | @as("loaded") Loaded({claim: claim, data: 'a})
+  | @as("noData") NoData({reason: reason})
 
 /**
  * An outbox operation: a local change not yet confirmed by the remote.
@@ -53,9 +82,10 @@ module Channel: {
   /**
    * Read channel handed to `remote.fetch`.
    *
-   * `set` publishes a complete result set, replacing the previous one.
+   * `fresh` publishes a complete result set, replacing the previous one.
    * `live` does the same and declares that the adaptor keeps the result
-   * fresh, so periodic refresh is skipped.
+   * fresh, so periodic refresh is skipped. Both claim `Fresh`: `live` adds
+   * maintenance, not strength.
    *
    * `fail` publishes a failed result without closing the fetch, allowing a
    * live source to recover. `end` closes the fetch and returns a live query
@@ -66,7 +96,7 @@ module Channel: {
    * on a closed fetch are ignored.
    */
   type read<'a> = {
-    set: array<'a> => unit,
+    fresh: array<'a> => unit,
     live: array<'a> => unit,
     fail: string => unit,
     end: unit => unit,
@@ -76,23 +106,50 @@ module Channel: {
   /**
    * Local fetch channel, handed to `local.fetch`.
    *
-   * Answer with `set`, or call `unknown` when local storage cannot answer.
+   * `local` publishes a complete result set: everything the query matches,
+   * as far as storage knows. `partial` publishes rows it holds without
+   * claiming they are all of them — `partial([])` is how a store says it
+   * holds nothing.
    */
   type local<'a> = {
-    set: array<'a> => unit,
-    unknown: unit => unit,
+    partial: array<'a> => unit,
+    local: array<'a> => unit,
   }
 
   /**
    * Write channel, handed to `remote.push` together with a batch of ops.
    *
-   * Confirm each upsert with its authoritative value through `set`, and
-   * each remove by id through `removed`. `retry` keeps unconfirmed ops
-   * pending; `fail` reverts them and adds rejection contexts.
+   * `set`, `removed`, `conflict` and `reject` answer one operation. `retry`
+   * and `fail` apply to every operation in the push that has not been
+   * answered. Answering is not settling: `conflict` leaves its operation
+   * pending.
+   *
+   * Confirm each upsert with its authoritative value through `set`, and each
+   * remove by id through `removed`.
+   *
+   * `conflict` hands back the server's row for one operation and keeps it
+   * pending, so the local change rebases onto it through `merge` and the
+   * heartbeat pushes it again. A rejecting `merge` reverts instead and
+   * records the conflict.
+   *
+   * `reject` refuses one operation: it reverts that write and records it.
+   * Order does not imply dependency, so reverting unrelated writes would
+   * record rejections that are false.
+   *
+   * `retry` keeps unanswered ops pending, for a failure that says nothing
+   * about the writes themselves. `fail` rejects every operation in the
+   * current push that has not yet received an outcome; earlier outcomes
+   * remain unchanged, so a server that acknowledged an operation and then
+   * rolled it back has to say so through `receive`.
+   *
+   * `set(value)` and `conflict(value)` find their operation by `id(value)`:
+   * a server that assigns its own id leaves that operation pending forever.
    */
   type write<'a> = {
     set: 'a => unit,
     removed: string => unit,
+    conflict: 'a => unit,
+    reject: (string, string) => unit,
     retry: unit => unit,
     fail: string => unit,
   }
@@ -112,7 +169,8 @@ type expiry = {
 }
 
 /**
- * Reactive write state. Read failures are returned through `loadable.Failed`.
+ * Reactive write state. Read failures are returned through
+ * `loadable.NoData({Failed})`.
  */
 type status<'a> = {
   /** Number of ops waiting in the outbox. */
@@ -129,7 +187,7 @@ type remote<'query, 'a> = {
    */
   online: Tilia.signal<bool>,
   /**
-   * Fetch a query's complete result set. Use `set` for periodically
+   * Fetch a query's complete result set. Use `fresh` for periodically
    * refreshed results or `live` for a source that keeps itself fresh.
    */
   fetch: ('query, Channel.read<'a>) => unit,
@@ -182,6 +240,15 @@ type config<'query, 'a> = {
    * conflict and keeps the remote value.
    */
   merge?: (~change: change<'a>, ~remote: 'a) => bool,
+  /**
+   * A find failed and the read site will not be told, because it still has
+   * something to show. Refresh failures land here; a first failure, with
+   * nothing behind it, reaches the read site as `NoData({Failed})` instead.
+   *
+   * There is no error field on `Loaded`: an adaptor can log every failure
+   * itself, but it cannot know whether the engine had rows to keep.
+   */
+  onError?: (~query: 'query, ~message: string) => unit,
 }
 
 /**

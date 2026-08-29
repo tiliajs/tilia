@@ -44,6 +44,44 @@ let parseRecord = (function parseRecord(value) {
   return undefined;
 });
 
+function rank(claim) {
+  switch (claim) {
+    case "partial" :
+      return 0;
+    case "local" :
+      return 1;
+    case "fresh" :
+      return 2;
+  }
+}
+
+function project(online, result) {
+  if (typeof result !== "object") {
+    return result;
+  }
+  if (result.state !== "loaded") {
+    return result;
+  }
+  switch (result.claim) {
+    case "partial" :
+      if (result.data.length === 0) {
+        if (online) {
+          return "loading";
+        } else {
+          return {
+            state: "noData",
+            reason: "offline"
+          };
+        }
+      } else {
+        return result;
+      }
+    case "local" :
+    case "fresh" :
+      return result;
+  }
+}
+
 function getResult(results, entry) {
   let result = results[entry.key];
   if (result == null) {
@@ -53,7 +91,7 @@ function getResult(results, entry) {
   }
 }
 
-function makeFetch(remote, local, loaded, results, now) {
+function makeFetch(remote, local, loaded, results, now, reportError) {
   return entry => {
     if (entry.state === "LiveRemote") {
       return;
@@ -75,50 +113,59 @@ function makeFetch(remote, local, loaded, results, now) {
       clean();
     };
     entry.close = close;
-    let unknown = () => {
-      if (active.contents && !remote.online.value && entry.state === "Pristine") {
-        results[entry.key] = "notLocal";
-        return;
-      }
-    };
     if (entry.state === "Pristine") {
       if (local !== undefined) {
         local.fetch(entry.query, {
-          set: values => {
+          partial: values => {
             if (active.contents && entry.state === "Pristine") {
-              entry.state = "LoadedLocal";
-              return loaded(entry, values, false);
+              entry.state = "LoadedPartial";
+              return loaded(entry, values, "partial");
             }
           },
-          unknown: () => unknown()
+          local: values => {
+            if (active.contents && entry.state === "Pristine") {
+              entry.state = "LoadedLocal";
+              return loaded(entry, values, "local");
+            }
+          }
         });
-      } else {
-        unknown();
+      } else if (active.contents && !remote.online.value) {
+        results[entry.key] = {
+          state: "noData",
+          reason: "offline"
+        };
       }
     }
     if (remote.online.value) {
       entry.fetchedAt = now();
       return remote.fetch(entry.query, {
-        set: values => {
+        fresh: values => {
           if (active.contents) {
             entry.state = "LoadedRemote";
-            return loaded(entry, values, true);
+            return loaded(entry, values, "fresh");
           }
         },
         live: values => {
           if (active.contents) {
             entry.state = "LiveRemote";
-            return loaded(entry, values, true);
+            return loaded(entry, values, "fresh");
           }
         },
         fail: message => {
-          if (active.contents) {
-            results[entry.key] = {
-              state: "failed",
-              message: message
-            };
+          if (!active.contents) {
             return;
           }
+          let match = project(remote.online.value, getResult(results, entry));
+          if (typeof match === "object" && match.state === "loaded") {
+            return reportError(entry.query, message);
+          }
+          results[entry.key] = {
+            state: "noData",
+            reason: {
+              reason: "failed",
+              message: message
+            }
+          };
         },
         end: () => {
           if (active.contents) {
@@ -166,37 +213,40 @@ function makeGetEntry(fetch, entries, results, key, now) {
   };
 }
 
-function makeOne(getEntry, results) {
+function makeOne(getEntry, results, online) {
   return query => {
-    let match = getResult(results, getEntry(query));
+    let match = project(online.value, getResult(results, getEntry(query)));
     if (typeof match !== "object") {
-      switch (match) {
-        case "loading" :
-          return "loading";
-        case "notFound" :
-          return "notFound";
-        case "notLocal" :
-          return "notLocal";
-      }
+      return "loading";
+    }
+    if (match.state !== "loaded") {
+      return {
+        state: "noData",
+        reason: match.reason
+      };
+    }
+    let claim = match.claim;
+    let value = match.data[0];
+    if (value == null) {
+      return {
+        state: "noData",
+        reason: {
+          reason: "noMatch",
+          claim: claim
+        }
+      };
     } else {
-      if (match.state !== "loaded") {
-        return {
-          state: "failed",
-          message: match.message
-        };
-      }
-      let value = match.data[0];
-      if (value == null) {
-        return "notFound";
-      } else {
-        return {
-          state: "loaded",
-          data: value,
-          fresh: match.fresh
-        };
-      }
+      return {
+        state: "loaded",
+        claim: claim,
+        data: value
+      };
     }
   };
+}
+
+function makeArray(getEntry, results, online) {
+  return query => project(online.value, getResult(results, getEntry(query)));
 }
 
 let sortedStringify = (function sortedStringify(value) {
@@ -221,6 +271,7 @@ function _no_sort(_query) {
 }
 
 function make$1(param) {
+  let onError = param.onError;
   let merge = param.merge;
   let sort = param.sort;
   let key = param.key;
@@ -230,6 +281,11 @@ function make$1(param) {
   let remote = param.remote;
   let matches = param.matches;
   let id = param.id;
+  let reportError = (query, message) => {
+    if (onError !== undefined) {
+      return onError(query, message);
+    }
+  };
   let expiry$1 = expiry !== undefined ? expiry : ({
       refresh: 30000.0,
       memory: 300000.0,
@@ -575,7 +631,14 @@ function make$1(param) {
       return current;
     }
   };
-  let loaded = (entry, values, remote) => {
+  let loaded = (entry, values, claim) => {
+    let match = getResult(results, entry);
+    let weaker;
+    weaker = typeof match !== "object" || match.state !== "loaded" ? false : rank(claim) < rank(match.claim);
+    if (weaker) {
+      return;
+    }
+    let remote = claim === "fresh";
     let values$1 = remote ? applyPending(entry, values.map(reconcile)) : values;
     if (remote) {
       entry.refreshedAt = now$1();
@@ -590,7 +653,9 @@ function make$1(param) {
       itemById[id(value)] = value;
     });
     let ids = values$1.map(id);
-    recordSeen(entry, ids);
+    if (claim !== "partial") {
+      recordSeen(entry, ids);
+    }
     idsByKey[entry.key] = ids;
     let build = () => {
       let values = [];
@@ -610,8 +675,8 @@ function make$1(param) {
     };
     results[entry.key] = {
       state: "loaded",
-      data: Tilia.computed(build),
-      fresh: remote
+      claim: claim,
+      data: Tilia.computed(build)
     };
   };
   let pushPending = () => {
@@ -628,56 +693,179 @@ function make$1(param) {
     let settled = {
       contents: false
     };
+    let answered = [];
+    let waiting = entry => {
+      if (outbox.includes(entry)) {
+        return !answered.includes(entry);
+      } else {
+        return false;
+      }
+    };
+    let findUpsert = vid => batch.find(entry => {
+      if (!waiting(entry)) {
+        return false;
+      }
+      let match = entry.op;
+      if (match.op === "upsert") {
+        return id(match.value) === vid;
+      } else {
+        return false;
+      }
+    });
+    let findRemove = rid => batch.find(entry => {
+      if (!waiting(entry)) {
+        return false;
+      }
+      let match = entry.op;
+      if (match.op === "upsert") {
+        return false;
+      } else {
+        return match.id === rid;
+      }
+    });
+    let findAny = rid => batch.find(entry => {
+      if (waiting(entry)) {
+        return opId(entry.op) === rid;
+      } else {
+        return false;
+      }
+    });
+    let revert = (entry, message) => {
+      let change = entry.change;
+      confirmed(entry);
+      if (change !== undefined) {
+        switch (change.change) {
+          case "clean" :
+            break;
+          case "created" :
+            forget(id(change.edited));
+            break;
+          case "updated" :
+          case "removed" :
+            place(change.base);
+            break;
+        }
+      }
+      if (change !== undefined) {
+        return addRejection(failed(change, message));
+      }
+    };
     remote.push(batch.map(entry => entry.op), {
       set: value => {
         if (settled.contents) {
           return;
         }
-        let vid = id(value);
-        let match = batch.find(entry => {
-          if (!outbox.includes(entry)) {
-            return false;
-          }
-          let match = entry.op;
-          if (match.op === "upsert") {
-            return id(match.value) === vid;
-          } else {
-            return false;
-          }
-        });
-        if (match === undefined) {
+        let entry = findUpsert(id(value));
+        if (entry !== undefined) {
+          answered.push(entry);
+          confirmed(entry);
+          place(value);
           return;
-        }
-        let value$1 = merge !== undefined ? reconcile(value) : (confirmed(match), value);
-        place(value$1);
-        if (outbox.includes(match)) {
-          return confirmed(match);
         }
       },
       removed: rid => {
         if (settled.contents) {
           return;
         }
-        let match = batch.find(entry => {
-          if (!outbox.includes(entry)) {
-            return false;
+        let entry = findRemove(rid);
+        if (entry !== undefined) {
+          answered.push(entry);
+          return confirmed(entry);
+        }
+      },
+      conflict: value => {
+        if (settled.contents) {
+          return;
+        }
+        let entry = findAny(id(value));
+        if (entry === undefined) {
+          return;
+        }
+        answered.push(entry);
+        let change = entry.change;
+        if (change !== undefined) {
+          if (merged(change, value)) {
+            let match;
+            switch (change.change) {
+              case "clean" :
+                let value$1 = change.value;
+                match = [
+                  {
+                    change: "clean",
+                    value: value$1
+                  },
+                  value$1
+                ];
+                break;
+              case "created" :
+                let edited = change.edited;
+                match = [
+                  {
+                    change: "updated",
+                    base: value,
+                    edited: edited
+                  },
+                  edited
+                ];
+                break;
+              case "updated" :
+                let edited$1 = change.edited;
+                match = [
+                  {
+                    change: "updated",
+                    base: value,
+                    edited: edited$1
+                  },
+                  edited$1
+                ];
+                break;
+              case "removed" :
+                let base = change.base;
+                match = [
+                  {
+                    change: "removed",
+                    base: base
+                  },
+                  base
+                ];
+                break;
+            }
+            let next = match[0];
+            entry.change = next;
+            if (next.change === "updated") {
+              entry.op = {
+                op: "upsert",
+                value: next.edited
+              };
+            }
+            persistOp(entry);
+            entry.flight = false;
+            place(match[1]);
+            return;
           }
-          let match = entry.op;
-          if (match.op === "upsert") {
-            return false;
-          } else {
-            return match.id === rid;
-          }
-        });
-        if (match !== undefined) {
-          return confirmed(match);
+          confirmed(entry);
+          addRejection(conflict(change));
+          place(value);
+          return;
+        }
+        confirmed(entry);
+        place(value);
+      },
+      reject: (rid, message) => {
+        if (settled.contents) {
+          return;
+        }
+        let entry = findAny(rid);
+        if (entry !== undefined) {
+          answered.push(entry);
+          return Tilia.batch(() => revert(entry, message));
         }
       },
       retry: () => {
         if (!settled.contents) {
           settled.contents = true;
           batch.forEach(entry => {
-            if (outbox.includes(entry)) {
+            if (waiting(entry)) {
               entry.flight = false;
               return;
             }
@@ -689,29 +877,11 @@ function make$1(param) {
         if (!settled.contents) {
           settled.contents = true;
           return Tilia.batch(() => {
-            for (let i = batch.length - 1 | 0; i >= 0; --i) {
-              let entry = batch[i];
-              if (entry !== undefined && outbox.includes(entry)) {
-                let change = entry.change;
-                confirmed(entry);
-                if (change !== undefined) {
-                  switch (change.change) {
-                    case "clean" :
-                      break;
-                    case "created" :
-                      forget(id(change.edited));
-                      break;
-                    case "updated" :
-                    case "removed" :
-                      place(change.base);
-                      break;
-                  }
-                }
-                if (change !== undefined) {
-                  addRejection(failed(change, message));
-                }
+            batch.forEach(entry => {
+              if (waiting(entry)) {
+                return revert(entry, message);
               }
-            }
+            });
           });
         }
       }
@@ -960,7 +1130,7 @@ function make$1(param) {
       pushPending();
     });
   }
-  let fetch = makeFetch(remote, local, loaded, results, now$1);
+  let fetch = makeFetch(remote, local, loaded, results, now$1, reportError);
   let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key$1, now$1);
   let clearOnline = Tilia.watch(() => remote.online.value, online => {
     if (online) {
@@ -973,10 +1143,10 @@ function make$1(param) {
         if (typeof match === "object") {
           return;
         }
-        if (match !== "loading") {
-          return;
-        }
-        results[entry.key] = "notLocal";
+        results[entry.key] = {
+          state: "noData",
+          reason: "offline"
+        };
       });
     }
   });
@@ -1012,25 +1182,47 @@ function make$1(param) {
         dropped.push(entry);
         return;
       }
-      let match = getResult(results, entry);
-      let failed;
-      failed = typeof match !== "object" ? false : match.state === "failed";
-      if ((entry.state === "LoadedRemote" || failed && entry.state !== "LiveRemote") && online && entry.refreshedAt < t - expiry$1.refresh && entry.fetchedAt < t - expiry$1.refresh && t < entry.lastSeen + expiry$1.refresh) {
+      let match = entry.state;
+      let match$1 = getResult(results, entry);
+      let stale;
+      switch (match) {
+        case "Pristine" :
+          stale = typeof match$1 === "object";
+          break;
+        case "LiveRemote" :
+          stale = false;
+          break;
+        default:
+          stale = true;
+      }
+      if (stale && online && entry.refreshedAt < t - expiry$1.refresh && entry.fetchedAt < t - expiry$1.refresh && t < entry.lastSeen + expiry$1.refresh) {
         fetch(entry);
       }
       if (entry.state !== "LoadedRemote") {
         return;
       }
-      let match$1 = getResult(results, entry);
-      if (typeof match$1 !== "object" || !(match$1.state === "loaded" && match$1.fresh && entry.refreshedAt < freshLimit)) {
+      let match$2 = getResult(results, entry);
+      if (typeof match$2 !== "object") {
         return;
-      } else {
-        results[entry.key] = {
-          state: "loaded",
-          data: match$1.data,
-          fresh: false
-        };
+      }
+      if (match$2.state !== "loaded") {
         return;
+      }
+      switch (match$2.claim) {
+        case "partial" :
+        case "local" :
+          return;
+        case "fresh" :
+          if (entry.refreshedAt < freshLimit) {
+            results[entry.key] = {
+              state: "loaded",
+              claim: "local",
+              data: match$2.data
+            };
+            return;
+          } else {
+            return;
+          }
       }
     });
     if (dropped.length !== 0) {
@@ -1059,6 +1251,7 @@ function make$1(param) {
         Reflect.deleteProperty(itemById, id);
       });
     }
+    pushPending();
     if (t > lastPurgeAt.contents + expiry$1.local / 8.0) {
       lastPurgeAt.contents = t;
       if (local !== undefined) {
@@ -1147,8 +1340,8 @@ function make$1(param) {
     }
   };
   return {
-    one: makeOne(getEntry, results),
-    array: query => getResult(results, getEntry(query)),
+    one: makeOne(getEntry, results, remote.online),
+    array: makeArray(getEntry, results, remote.online),
     upsert: upsert,
     remove: remove,
     receive: {

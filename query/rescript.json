@@ -6,7 +6,13 @@
       "public": [
         "TiliaQuery"
       ],
-      "subdirs": true
+      "subdirs": false
+    },
+    {
+      "dir": "src/croquis",
+      "public": [],
+      "subdirs": true,
+      "type": "dev"
     },
     {
       "dir": "test",

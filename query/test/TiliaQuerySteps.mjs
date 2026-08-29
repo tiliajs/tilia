@@ -6,7 +6,18 @@ import * as MakeWorld from "./MakeWorld.mjs";
 import * as TiliaQuery from "../src/TiliaQuery.mjs";
 import * as VitestBdd from "vitest-bdd";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
+import * as Primitive_object from "@rescript/runtime/lib/es6/Primitive_object.js";
 import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js";
+
+function numericVersion(card) {
+  let version = card.version;
+  if (version === undefined) {
+    return card;
+  }
+  let newrecord = {...card};
+  newrecord.version = Number(version);
+  return newrecord;
+}
 
 VitestBdd.Given("an {string} training app", (param, status) => {
   let step = param.step;
@@ -20,11 +31,25 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   let papabase = MakeWorld.Papabase.make(network);
   let dexme = MakeWorld.Dexme.make();
   let live = MakeWorld.Live.make(network);
+  let push = MakeWorld.Push.make();
+  let rules = MakeWorld.Rules.make();
   let merge = MakeWorld.Merge.make();
+  let errors = {
+    contents: []
+  };
+  let onError = (query, message) => {
+    errors.contents = errors.contents.concat([[
+        query,
+        message
+      ]]);
+  };
   let cards = {
-    contents: MakeWorld.make(dexme, live, merge, papabase, () => now_.value, online_)
+    contents: MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_)
   };
   let view = {
+    contents: "loading"
+  };
+  let single = {
     contents: "loading"
   };
   let closeDeck = {
@@ -70,11 +95,11 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("I restart the app", () => {
     cards.contents.dispose();
-    cards.contents = MakeWorld.make(dexme, live, merge, papabase, () => now_.value, online_);
+    cards.contents = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
     return settled();
   });
   step("deck {string} is in local db", deck => {
-    let app = MakeWorld.make(dexme, undefined, undefined, papabase, () => now_.value, online_);
+    let app = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
     let close = Tilia.observe(() => {
       app.array(query(undefined, deck));
     });
@@ -87,6 +112,31 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("I go {string}", status => setOnline(status === "online"));
   step("the remote is failing with {string}", message => papabase._failing(message));
   step("the remote recovers", () => papabase._failing(undefined));
+  step("the remote push is unavailable", () => {
+    push.unavailable = true;
+  });
+  step("the remote push recovers", () => {
+    push.unavailable = false;
+    rules.transientFrom = undefined;
+  });
+  step("the remote conflicts {string} with", (id, table) => {
+    let row = numericVersion(VitestBdd.toRecords(table)[0]);
+    papabase._put(row);
+    rules.conflicts[id] = row;
+  });
+  step("the remote rejects {string} with {string}", (id, message) => {
+    rules.rejects[id] = message;
+  });
+  step("the remote is transient from {string}", id => {
+    rules.transientFrom = id;
+  });
+  step("the remote fails the batch with {string} after {string}", (message, after) => {
+    rules.failAfter = [
+      after,
+      message
+    ];
+  });
+  step("the remote push should have been attempted {number} time(s)", count => Vitest.expect(push.attempts).toBe(count | 0));
   let openDeck = query => {
     closeDeck.contents = Tilia.observe(() => {
       view.contents = cards.contents.array(query);
@@ -102,23 +152,87 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       console.log("not loaded");
     });
   };
+  let openOne = query => {
+    closeDeck.contents = Tilia.observe(() => {
+      single.contents = cards.contents.one(query);
+    });
+  };
   step("I open the {string} deck", deck => openDeck(query(undefined, deck)));
+  step("I open one card from the {string} deck", deck => openOne(query(undefined, deck)));
+  step("I open one card from the {string} deck filtered by seen {string}", (deck, seen) => openOne(query(Primitive_option.some(seen), deck)));
   step("I open the {string} deck filtered by seen {string}", (deck, seen) => openDeck(query(Primitive_option.some(seen), deck)));
   step("I close the deck", () => closeDeck.contents());
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
-  step("I should see not local", () => Vitest.expect(view.contents).toMatchObject("notLocal"));
-  step("I should see failed with {string}", message => Vitest.expect(view.contents).toMatchObject({
-    state: "failed",
-    message: message
+  let claimOf = name => {
+    switch (name) {
+      case "fresh" :
+        return "fresh";
+      case "local" :
+        return "local";
+      case "partial" :
+        return "partial";
+      default:
+        throw {
+          RE_EXN_ID: "Invalid_argument",
+          _1: `unknown claim "` + name + `"`,
+          Error: new Error()
+        };
+    }
+  };
+  step("I should see no data because offline", () => Vitest.expect(view.contents).toMatchObject({
+    state: "noData",
+    reason: "offline"
   }));
-  step("I should see {string} loaded with data", (source, table) => {
+  step("I should see no data because failed with {string}", message => Vitest.expect(view.contents).toMatchObject({
+    state: "noData",
+    reason: {
+      reason: "failed",
+      message: message
+    }
+  }));
+  step("I should see {string} loaded with data", (claim, table) => {
     let expected = VitestBdd.toRecords(table);
     Vitest.expect(view.contents).toMatchObject({
       state: "loaded",
-      data: expected,
-      fresh: source === "remote"
+      claim: claimOf(claim),
+      data: expected
     });
   });
+  step("I should see {string} loaded with no rows", claim => Vitest.expect(view.contents).toMatchObject({
+    state: "loaded",
+    claim: claimOf(claim),
+    data: []
+  }));
+  step("I should see the {string} card", (claim, table) => {
+    let expected = VitestBdd.toRecords(table)[0];
+    Vitest.expect(single.contents).toMatchObject({
+      state: "loaded",
+      claim: claimOf(claim),
+      data: expected
+    });
+  });
+  step("I should see no data because no {string} match", claim => Vitest.expect(single.contents).toMatchObject({
+    state: "noData",
+    reason: {
+      reason: "noMatch",
+      claim: claimOf(claim)
+    }
+  }));
+  step("the local store answers partially", () => {
+    dexme.partial = true;
+  });
+  step("the local store holds nothing", () => Vitest.expect(dexme.cards._select(param => true).length).toBe(0));
+  step("onError should have received {string} for {string}", (message, deck) => {
+    let expected = query(undefined, deck);
+    Vitest.expect(errors.contents.some(param => {
+      if (param[1] === message) {
+        return Primitive_object.equal(param[0], expected);
+      } else {
+        return false;
+      }
+    })).toBe(true);
+  });
+  step("onError should have received nothing", () => Vitest.expect(errors.contents.length).toBe(0));
   step("I upsert", table => {
     VitestBdd.toRecords(table).forEach(card => cards.contents.upsert(card));
   });
@@ -253,7 +367,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("remote should not have {string}", id => Vitest.expect(papabase._select(c => c.id === id).length).toBe(0));
   step("remote should have", table => {
-    VitestBdd.toRecords(table).forEach(card => {
+    VitestBdd.toRecords(table).map(numericVersion).forEach(card => {
       let found = Stdlib_Option.getOrThrow(papabase._select(c => c.id === card.id)[0], `remote has no card "` + card.id + `"`);
       Vitest.expect(found).toMatchObject(card);
     });
@@ -272,6 +386,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     Vitest.expect(JSON.parse(entry.value).ids).toEqual(ids);
   };
   step("local query {string} should have ids", expectLocal);
+  step("status rejections should be in order", table => Vitest.expect(cards.contents.status.rejected.map(rejectionId)).toEqual(table.slice(1, table.length).map(row => row[0])));
   step("query {string} should be dropped from memory", deck => {
     let key = TiliaQuery.sortedStringify(query(undefined, deck));
     let canopy = cards.contents._canopy();
@@ -286,11 +401,14 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("the live source delivers", table => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").live(VitestBdd.toRecords(table)));
   step("the live source fails with {string}", message => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").fail(message));
   step("the live source ends", () => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").end());
-  step("the superseded fetch delivers", table => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").set(VitestBdd.toRecords(table)));
+  step("the superseded fetch delivers", table => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").fresh(VitestBdd.toRecords(table)));
   step("the superseded fetch fails with {string}", message => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").fail(message));
   step("the source teardown should have run {number} time(s)", count => Vitest.expect(live.cleanups).toBe(count | 0));
   step("the remote fetch should have run {number} time(s)", count => Vitest.expect(live.fetches).toBe(count | 0));
   step("I dispose the app", () => cards.contents.dispose());
 });
 
+export {
+  numericVersion,
+}
 /*  Not a pure module */

@@ -76,8 +76,12 @@ module Papabase = {
     remove: string => promise<result<unit, string>>,
     /** Test-only: synchronous look inside the server's table. */
     _select: (card => bool) => array<card>,
+    /** Test-only: write a row with its version, bypassing the version check. */
+    _put: card => unit,
     /** Test-only: while set, `select` answers this error. */
     _failing: option<string> => unit,
+    /** Test-only: the queue controlled replies share with the real ones. */
+    _network: Network.t,
   }
 
   // The server processes a request the moment it is made; only the response
@@ -96,6 +100,7 @@ module Papabase = {
         respond(Ok(stored))
       }
     }
+    let _put = card => data->Dict.set(card.id, card)
     let remove = id => {
       data->Dict.delete(id)
       respond(Ok())
@@ -112,7 +117,9 @@ module Papabase = {
       upsert,
       remove,
       _select,
+      _put,
       _failing: message => failing := message,
+      _network: network,
     }
   }
 }
@@ -134,6 +141,12 @@ module Dexme = {
   type t = {
     cards: table<card>,
     kv: table<kvEntry>,
+    /**
+     * Test control. While set, a read answers `channel.partial`: the rows are
+     * there but storage will not claim they are the whole answer. A store
+     * without a query index can say no more than that.
+     */
+    mutable partial: bool,
   }
 
   let makeTable = (getKey: 'a => string): table<'a> => {
@@ -155,6 +168,7 @@ module Dexme = {
   let make = (): t => {
     cards: makeTable(card => card.id),
     kv: makeTable(entry => entry.key),
+    partial: false,
   }
 }
 
@@ -174,7 +188,7 @@ module PapabaseAdaptor = {
       papabase.select(card => matches(query, card))
       ->Promise.thenResolve(result =>
         switch result {
-        | Ok(cards) => channel.set(cards)
+        | Ok(cards) => channel.fresh(cards)
         | Error(error) => channel.fail(error)
         }
       )
@@ -215,13 +229,15 @@ module DexmeAdaptor = {
   let make = (dexme: Dexme.t): TiliaQuery.local<query, card> => {
     fetch: (query, channel) => {
       dexme.cards.filter(card => matches(query, card))
-      ->Promise.thenResolve(result => {
-        if result->Array.length > 0 {
-          channel.set(result)
+      ->Promise.thenResolve(result =>
+        if dexme.partial || result->Array.length === 0 {
+          // Nothing held is never a complete answer: it is the store saying
+          // it holds nothing, which the engine reads as loading or offline.
+          channel.partial(result)
         } else {
-          channel.unknown()
+          channel.local(result)
         }
-      })
+      )
       ->ignore
     },
     push: ops =>
@@ -252,6 +268,82 @@ module DexmeAdaptor = {
       dexme.cards.filter(_ => true)
       ->Promise.thenResolve(cards => set(cards->Array.map(card => card.id)))
       ->ignore,
+  }
+}
+
+/**
+ * Per-operation server outcomes, so a scenario can say what happens to one
+ * write without saying it about the whole push. Controlled replies go through
+ * the network like the real ones, so they land in queue order — a `fail` after
+ * an accepted write really does arrive after it.
+ */
+module Rules = {
+  type t = {
+    rejects: dict<string>,
+    conflicts: dict<card>,
+    mutable transientFrom: option<string>,
+    mutable failAfter: option<(string, string)>,
+  }
+
+  let make = (): t => {
+    rejects: Dict.make(),
+    conflicts: Dict.make(),
+    transientFrom: None,
+    failAfter: None,
+  }
+
+  let opId = (op: TiliaQuery.op<card>) =>
+    switch op {
+    | TiliaQuery.Upsert({value}) => value.id
+    | TiliaQuery.Remove({id}) => id
+    }
+
+  let wrap = (
+    rules: t,
+    network: Network.t,
+    remote: TiliaQuery.remote<query, card>,
+  ): TiliaQuery.remote<query, card> => {
+    let later = f =>
+      Promise.make((resolve, _) => network.respond(() => resolve()))
+      ->Promise.thenResolve(f)
+      ->ignore
+    {
+      ...remote,
+      push: (ops, channel) => {
+        // Once the push has ended, the remaining ops are not sent at all:
+        // `retry` or `fail` speaks for them.
+        let ended = ref(false)
+        ops->Array.forEach(op => {
+          if !ended.contents {
+            let oid = opId(op)
+            switch rules.transientFrom {
+            | Some(from) if from === oid =>
+              ended := true
+              later(() => channel.retry())
+            | _ =>
+              switch rules.rejects->Dict.get(oid) {
+              | Some(message) => later(() => channel.reject(oid, message))
+              | None =>
+                switch rules.conflicts->Dict.get(oid) {
+                | Some(row) =>
+                  // One-shot: the write was out of date, and now it is not.
+                  // A standing conflict would spin the outbox forever.
+                  rules.conflicts->Dict.delete(oid)
+                  later(() => channel.conflict(row))
+                | None => remote.push([op], channel)
+                }
+              }
+            }
+            switch rules.failAfter {
+            | Some((after, message)) if after === oid =>
+              ended := true
+              later(() => channel.fail(message))
+            | _ => ()
+            }
+          }
+        })
+      },
+    }
   }
 }
 
@@ -377,13 +469,44 @@ let sortBySeen = (a: card, b: card) =>
     0.0
   }
 
+/**
+ * Wraps a remote so a scenario can make writes fail transiently. While
+ * `unavailable`, `push` answers `channel.retry()`: the batch stays pending and
+ * the engine owns when to try again. `attempts` counts the calls, so a
+ * scenario can assert that a retry actually happened rather than inferring it
+ * from the outcome.
+ */
+module Push = {
+  type t = {
+    mutable unavailable: bool,
+    mutable attempts: int,
+  }
+
+  let make = (): t => {unavailable: false, attempts: 0}
+
+  let wrap = (push: t, remote: TiliaQuery.remote<query, card>): TiliaQuery.remote<query, card> => {
+    ...remote,
+    push: (ops, channel) => {
+      push.attempts = push.attempts + 1
+      if push.unavailable {
+        channel.retry()
+      } else {
+        remote.push(ops, channel)
+      }
+    },
+  }
+}
+
 // Convention: signals end with an underscore (now_, online_).
 // The engine's default expiry applies (refresh 30s, memory 5min, local
 // 30 days): scenarios advance the clock with real durations.
 let make = (
   ~dexme: option<Dexme.t>=?,
   ~live: option<Live.t>=?,
+  ~push: option<Push.t>=?,
+  ~rules: option<Rules.t>=?,
   ~merge: Merge.t=Merge.make(),
+  ~onError: option<(~query: query, ~message: string) => unit>=?,
   papabase: Papabase.t,
   now: unit => float,
   online_: Tilia.signal<bool>,
@@ -393,12 +516,20 @@ let make = (
   | Some(live) => Live.wrap(live, papabase, remote)
   | None => remote
   }
+  let remote = switch rules {
+  | Some(rules) => Rules.wrap(rules, papabase._network, remote)
+  | None => remote
+  }
+  let remote = switch push {
+  | Some(push) => Push.wrap(push, remote)
+  | None => remote
+  }
   let sort = _query => array => array->Array.toSorted(sortBySeen)
   let mergeValues = (~change, ~remote) => Merge.run(merge, ~change, ~remote)
   switch dexme {
   | Some(dexme) =>
     let local = DexmeAdaptor.make(dexme)
-    TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, local, now})
-  | None => TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, now})
+    TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, local, now, ?onError})
+  | None => TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, now, ?onError})
   }
 }
