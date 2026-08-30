@@ -311,10 +311,104 @@ package ships CJS as well as ESM, so a CJS consumer takes the whole module.
 - ~~`tick` never called `pushPending`~~ — fixed, with *a transient push
   failure is retried on the next tick* and a `Push` wrapper in the harness.
 
-## Unspecified
+## `Store.make`, and what `claims-app-ts` says about it
 
-**Is `Store.make` enough?** `claims-app-ts` is the test — its adaptor should
-mostly disappear. Answerable only by writing it.
+Written on paper against `claims-app-ts` before locking `Store.config`, as
+the plan asked. The answer to *is `Store.make` enough?* is **yes for a backend
+that answers when asked, and it was never meant to be enough for one that
+pushes** — which the app also has, behind a test flag.
+
+### The config
+
+```rescript
+type answer<'a> = {fresh: array<'a> => unit, fail: string => unit}
+
+type outcome<'a> =
+  | Saved({value: 'a})
+  | Conflict({value: 'a})
+  | Rejected({message: string})
+  | Transient
+
+type removal =
+  | Removed
+  | Rejected({message: string})
+  | Transient
+
+type config<'query, 'a> = {
+  find: ('query, answer<'a>) => unit,
+  upsert: ('a, outcome<'a> => unit) => unit,
+  remove: (string, removal => unit) => unit,
+  online?: Tilia.signal<bool>,
+  persist?: Kv.t,
+  lookup?: ...,
+  merge?: (~change: change<'a>, ~remote: 'a) => bool,
+  expiry?: expiry,
+}
+```
+
+- **The words are the channel's, in the past tense.** `Saved`, `Conflict`,
+  `Rejected`, `Removed`, `Transient` map one to one onto `set`, `conflict`,
+  `reject`, `removed`, `retry`. Same words at every level, and nothing to
+  learn twice.
+- **Two outcome types, as decided.** `claims-app-ts` is the evidence: its
+  server has one shared `Outcome` with `removed` in it, and its adaptor is
+  left mapping a `removed` reply to an upsert onto `channel.retry()`
+  (`adapters.ts:125`) — a case that cannot happen, answered with a guess,
+  because the type allowed it to be asked.
+- **The batch is issued one operation at a time**, each waiting for its
+  outcome. That is what lets it stop at the first `Transient` with nothing
+  further sent, and it keeps a cascade in the order the outbox holds. A store
+  that wants concurrency uses `Store.custom`.
+- **No `id` field.** The schema has it.
+
+### What the app writes today, and what it would write
+
+Today, `makeRemote` is ~90 lines: a fetch that guards its own reply, and a
+`push` that walks the batch by hand — `next(index + 1)` after each outcome,
+`channel.fail` on a rejection, `channel.retry()` on the case that cannot
+happen. With `Store.make` the whole of `push` is three lines of translation:
+
+```ts
+Store.make({
+  online: network.online,
+  find: (query, answer) => server.fetch(user, query, answer.fresh),
+  upsert: (claim, reply) =>
+    server.upsert(user, claim, (o) =>
+      o.kind === "saved"    ? reply(Saved({ value: o.claim }))
+      : o.kind === "conflict" ? reply(Conflict({ value: o.claim }))
+      : o.kind === "rejected" ? reply(Rejected({ message: o.message }))
+      : reply(Transient)),
+  remove: (id, reply) =>
+    server.remove(user, id, (o) =>
+      o.kind === "removed"  ? reply(Removed)
+      : o.kind === "rejected" ? reply(Rejected({ message: o.message }))
+      : reply(Transient)),
+  merge,
+})
+```
+
+The sequencing, the batch semantics and the ordering are gone from the
+application. What is left is a translation table between two vocabularies,
+which is the only part that was ever the app's to write.
+
+### What it does not absorb
+
+- **The live half stays on `Store.custom`.** `claims-app-ts` has a `live`
+  flag: when set, `fetch` subscribes, republishes on reconnect, and
+  unsubscribes through `channel.finally` (~30 lines). None of that is
+  expressible in `find`, and by decision it should not be — `Store.make` is
+  for backends that answer when asked. An app with both modes writes both
+  adaptors; a real app has one.
+- **Inbound facts are not a store concern either.** They arrive through
+  `Store.t.receive`, which a `Store.make` store has like any other.
+- **The reply guard is the app's.** Today the adaptor drops a reply that
+  lands while offline. Nothing in `Store.make` removes that judgement.
+
+### What this settles for 4b
+
+`makeLocal` (~50 lines: a values table, a kv, an id sweep) becomes a `Kv.t`
+over the same map. The rows table, the query records and the sweep move
+inside the store, which is what `persist` is for.
 
 ## Invariant
 

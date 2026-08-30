@@ -1,8 +1,9 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 57/57 green, phases 0 through 3 done, 4a half done.
-`Store.make` and its outcome types are next, and 5a comes first.**
-Nothing is committed — Anna owns the history.
+**Where things stand: 57/57 green, phases 0 through 3 done, 4a half done,
+5a done on paper. 4b next, and `Store.make` lands with it.**
+Committed through 4a's first half, on `main`, at Anna's word — the ledger
+below is what each commit did.
 
 The decisions are in `TILIA-QUERY-SPLIT.md`, which was the whole spec phase 3
 was built from.
@@ -187,17 +188,23 @@ Test controls added during phase 2, all driven from steps:
         `{local}` on the store. The suite moved to the new surface unchanged
         — the same 57 scenarios, the write steps now going through the store
         handle.
-        Still to write: `Store.make({find, upsert, remove, ...})` and its two
-        outcome types. **5a first** — the plan says `Store.config` is not to
-        be locked before the `claims-app-ts` adaptor is on paper, and that is
-        the one part of this design the settlement does not specify.
+        Still to write: `Store.make({find, upsert, remove, ...})`. 5a is
+        done and the shape is settled — see `TILIA-QUERY-SPLIT.md`. It wants
+        `persist` from 4b to be worth writing, so 4b comes first and
+        `Store.make` lands with it.
   - [ ] 4b `Kv.t`, memory keyspace as default, `persist`
   - [ ] 4c registry lookup, scan fallback, `lookup?` — `Partial` first becomes
         reachable from the shipped store here
   - [ ] 4d `@tilia/query/indexeddb` subpath: `exports`, esbuild, clean-package
 - [ ] **5 · Proof and product.**
-  - [ ] 5a `claims-app-ts` adaptor on paper, before `Store.config` is locked
-        — **now the gate on the rest of 4a**, not a later step
+  - [x] 5a `claims-app-ts` adaptor on paper, before `Store.config` is
+        locked. Written up in `TILIA-QUERY-SPLIT.md` under **`Store.make`,
+        and what `claims-app-ts` says about it**: the config, the two outcome
+        types in the channel's own words, one-at-a-time issue so the batch
+        can stop at the first `Transient`, and the app's ~90-line `push`
+        reduced to a translation table. It does not absorb the live half —
+        that stays on `Store.custom` by decision — and `claims-app-ts`
+        happens to have both because `live` is a test flag.
   - [ ] 5b guide and API reference
   - [ ] 5c `claims-app-ts` migrated, after the refactor ships
 
