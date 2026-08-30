@@ -136,18 +136,11 @@ module Dexme = {
     _select: ('a => bool) => array<'a>,
   }
 
-  type kvEntry = {key: string, value: string}
+  type entry = {key: string, value: string}
 
-  type t = {
-    cards: table<card>,
-    kv: table<kvEntry>,
-    /**
-     * Test control. While set, a read answers `channel.partial`: the rows are
-     * there but storage will not claim they are the whole answer. A store
-     * without a query index can say no more than that.
-     */
-    mutable partial: bool,
-  }
+  // One table now: the store keeps rows, query records and the outbox as
+  // entries under a tag, and asks nothing else of storage.
+  type t = {entries: table<entry>}
 
   let makeTable = (getKey: 'a => string): table<'a> => {
     let data: dict<'a> = Dict.make()
@@ -165,11 +158,7 @@ module Dexme = {
     }
   }
 
-  let make = (): t => {
-    cards: makeTable(card => card.id),
-    kv: makeTable(entry => entry.key),
-    partial: false,
-  }
+  let make = (): t => {entries: makeTable(entry => entry.key)}
 }
 
 // ================ Adaptors — the reference code for a real app
@@ -223,51 +212,45 @@ module PapabaseAdaptor = {
 
 // Wire a Dexie-like api as a tilia/query local. Bookkeeping entries land in
 // the kv table under a "tag/key" composite key.
-module DexmeAdaptor = {
+// Wire a Dexie-like table as a `Kv`: one row per entry, keyed "tag/key".
+// This is the whole of what the store asks of storage now — the rows table,
+// the query records and the outbox all live in here as strings.
+module DexmeKv = {
   let kvKey = (~tag, ~key) => `${tag}/${key}`
+  let prefix = tag => `${tag}/`
 
-  let make = (dexme: Dexme.t): TiliaQuery.local<query, card> => {
-    fetch: (query, channel) => {
-      dexme.cards.filter(card => matches(query, card))
-      ->Promise.thenResolve(result =>
-        if dexme.partial || result->Array.length === 0 {
-          // Nothing held is never a complete answer: it is the store saying
-          // it holds nothing, which the engine reads as loading or offline.
-          channel.partial(result)
-        } else {
-          channel.local(result)
-        }
-      )
-      ->ignore
-    },
-    push: ops =>
-      ops->Array.forEach(op =>
-        switch op {
-        | TiliaQuery.Upsert({value}) => dexme.cards.put(value)->ignore
-        | TiliaQuery.Remove({id}) => dexme.cards.delete(id)->ignore
-        }
-      ),
-    set: (~tag, ~key, value) =>
-      switch value {
-      | Some(value) => dexme.kv.put({key: kvKey(~tag, ~key), value})->ignore
-      | None => dexme.kv.delete(kvKey(~tag, ~key))->ignore
-      },
-    get: (~tag, ~key=?, ~set) =>
-      switch key {
-      | Some(key) =>
-        dexme.kv.get(kvKey(~tag, ~key))
-        ->Promise.thenResolve(result => set(result->Option.mapOr([], e => [e.value])))
+  let make = (dexme: Dexme.t): TiliaQuery.Store.Kv.t => {
+    get: (~tag, ~keys=?, ~set) =>
+      switch keys {
+      | Some(keys) =>
+        let wanted = keys->Array.map(key => kvKey(~tag, ~key))
+        dexme.entries.filter(entry => wanted->Array.includes(entry.key))
+        ->Promise.thenResolve(found =>
+          // Answer in the order asked for: the record's ids are its order.
+          set(
+            wanted->Array.filterMap(key =>
+              found->Array.find(entry => entry.key === key)->Option.map(entry => entry.value)
+            ),
+          )
+        )
         ->ignore
       | None =>
-        dexme.kv.filter(e => e.key->String.startsWith(`${tag}/`))
-        ->Promise.thenResolve(result => set(result->Array.map(e => e.value)))
+        dexme.entries.filter(entry => entry.key->String.startsWith(prefix(tag)))
+        ->Promise.thenResolve(found => set(found->Array.map(entry => entry.value)))
         ->ignore
       },
-    // With real Dexie this is `table.toCollection().primaryKeys()`.
-    ids: (~set) =>
-      dexme.cards.filter(_ => true)
-      ->Promise.thenResolve(cards => set(cards->Array.map(card => card.id)))
+    // With real Dexie this is `table.where("key").startsWith(tag).primaryKeys()`.
+    keys: (~tag, ~set) =>
+      dexme.entries.filter(entry => entry.key->String.startsWith(prefix(tag)))
+      ->Promise.thenResolve(found =>
+        set(found->Array.map(entry => entry.key->String.slice(~start=prefix(tag)->String.length)))
+      )
       ->ignore,
+    set: (~tag, ~key, value) =>
+      switch value {
+      | Some(value) => dexme.entries.put({key: kvKey(~tag, ~key), value})->ignore
+      | None => dexme.entries.delete(kvKey(~tag, ~key))->ignore
+      },
   }
 }
 
@@ -565,11 +548,32 @@ let makeSync = (rows: array<card>, now, online_): TiliaQuery.t<query, card> => {
   query
 }
 
+// A store with an index of its own. It reads the rows the keyspace holds —
+// the same author writes both, which is why it may know the layout — filters
+// them itself, and certifies: this is every row of that deck, not some.
+module DexmeIndex = {
+  @scope("JSON") @val external parseCard: string => card = "parse"
+
+  let prefix = DexmeKv.prefix(TiliaQuery.Store.rowTag)
+
+  let make = (dexme: Dexme.t, query, channel: TiliaQuery.Channel.local<card>) =>
+    dexme.entries.filter(entry => entry.key->String.startsWith(prefix))
+    ->Promise.thenResolve(found =>
+      channel.local(
+        found
+        ->Array.map(entry => parseCard(entry.value))
+        ->Array.filter(card => matches(query, card)),
+      )
+    )
+    ->ignore
+}
+
 // Convention: signals end with an underscore (now_, online_).
 // The engine's default expiry applies (refresh 30s, memory 5min, local
 // 30 days): scenarios advance the clock with real durations.
 let make = (
   ~dexme: option<Dexme.t>=?,
+  ~indexed: bool=false,
   ~live: option<Live.t>=?,
   ~push: option<Push.t>=?,
   ~rules: option<Rules.t>=?,
@@ -594,13 +598,17 @@ let make = (
   }
   let sort = _query => array => array->Array.toSorted(sortBySeen)
   let mergeValues = (~change, ~remote) => Merge.run(merge, ~change, ~remote)
-  let local = dexme->Option.map(DexmeAdaptor.make)
+  let persist = dexme->Option.map(DexmeKv.make)
+  let lookup = switch (indexed, dexme) {
+  | (true, Some(dexme)) => Some((query, channel) => DexmeIndex.make(dexme, query, channel))
+  | _ => None
+  }
   TiliaQuery.make({
     id,
     matches,
     sort,
     now,
     ?onError,
-    store: TiliaQuery.Store.custom({remote, ?local, merge: mergeValues}),
+    store: TiliaQuery.Store.custom({remote, ?persist, ?lookup, merge: mergeValues}),
   })
 }

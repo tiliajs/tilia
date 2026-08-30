@@ -92,14 +92,6 @@ type remote<'query, 'a> = TiliaQueryStore.remote<'query, 'a> = {
   push: (array<op<'a>>, Channel.write<'a>) => unit,
 }
 
-type local<'query, 'a> = TiliaQueryStore.local<'query, 'a> = {
-  fetch: ('query, Channel.local<'a>) => unit,
-  push: array<op<'a>> => unit,
-  set: (~tag: string, ~key: string, option<string>) => unit,
-  get: (~tag: string, ~key: string=?, ~set: array<string> => unit) => unit,
-  ids: (~set: array<string> => unit) => unit,
-}
-
 type config<'query, 'a, 'store> = {
   id: 'a => string,
   matches: ('query, 'a) => bool,
@@ -145,9 +137,14 @@ module Store = {
     discard: rejection<'a> => unit,
   }
 
+  module Kv = TiliaQueryStore.Kv
+
+  let rowTag = TiliaQueryStore.rowTag
+
   type config<'query, 'a> = {
     remote: remote<'query, 'a>,
-    local?: local<'query, 'a>,
+    persist?: Kv.t,
+    lookup?: ('query, Channel.local<'a>) => unit,
     merge?: (~change: change<'a>, ~remote: 'a) => bool,
     expiry?: expiry,
   }
@@ -161,7 +158,7 @@ module Store = {
    * A store described by its channels: an adaptor that answers a find when
    * it can, pushes a batch when asked, and may push facts in at any time.
    */
-  let custom = ({remote, ?local, ?merge, ?expiry}: config<'query, 'a>) =>
+  let custom = ({remote, ?persist, ?lookup, ?merge, ?expiry}: config<'query, 'a>) =>
     (schema, binding) =>
       TiliaQueryStore.connect(
         {
@@ -171,14 +168,18 @@ module Store = {
           | None => _expiry
           },
           remote,
-          ?local,
+          persist: switch persist {
+          | Some(persist) => persist
+          | None => Kv.make()
+          },
+          ?lookup,
           ?merge,
         },
         binding,
       )
 }
 
-// === make (factory)// === make (factory)
+// === make (factory)
 
 let sortedStringify = TiliaQuerySchema.sortedStringify
 

@@ -125,9 +125,7 @@ function makeTable(getKey) {
 
 function make$2() {
   return {
-    cards: makeTable(card => card.id),
-    kv: makeTable(entry => entry.key),
-    partial: false
+    entries: makeTable(entry => entry.key)
   };
 }
 
@@ -181,51 +179,39 @@ function kvKey(tag, key) {
   return tag + `/` + key;
 }
 
+function prefix(tag) {
+  return tag + `/`;
+}
+
 function make$4(dexme) {
   return {
-    fetch: (query, channel) => {
-      dexme.cards.filter(card => matches(query, card)).then(result => {
-        if (dexme.partial || result.length === 0) {
-          return channel.partial(result);
-        } else {
-          return channel.local(result);
-        }
-      });
+    get: (tag, keys, set) => {
+      if (keys !== undefined) {
+        let wanted = keys.map(key => kvKey(tag, key));
+        dexme.entries.filter(entry => wanted.includes(entry.key)).then(found => set(Stdlib_Array.filterMap(wanted, key => Stdlib_Option.map(found.find(entry => entry.key === key), entry => entry.value))));
+        return;
+      }
+      dexme.entries.filter(entry => entry.key.startsWith(prefix(tag))).then(found => set(found.map(entry => entry.value)));
     },
-    push: ops => {
-      ops.forEach(op => {
-        if (op.op === "upsert") {
-          dexme.cards.put(op.value);
-          return;
-        }
-        dexme.cards.delete(op.id);
-      });
+    keys: (tag, set) => {
+      dexme.entries.filter(entry => entry.key.startsWith(prefix(tag))).then(found => set(found.map(entry => entry.key.slice(prefix(tag).length))));
     },
     set: (tag, key, value) => {
       if (value !== undefined) {
-        dexme.kv.put({
+        dexme.entries.put({
           key: kvKey(tag, key),
           value: value
         });
       } else {
-        dexme.kv.delete(kvKey(tag, key));
+        dexme.entries.delete(kvKey(tag, key));
       }
-    },
-    get: (tag, key, set) => {
-      if (key !== undefined) {
-        dexme.kv.get(kvKey(tag, key)).then(result => set(Stdlib_Option.mapOr(result, [], e => [e.value])));
-      } else {
-        dexme.kv.filter(e => e.key.startsWith(tag + `/`)).then(result => set(result.map(e => e.value)));
-      }
-    },
-    ids: set => {
-      dexme.cards.filter(param => true).then(cards => set(cards.map(card => card.id)));
     }
   };
 }
 
-let DexmeAdaptor = {
+let DexmeKv = {
   kvKey: kvKey,
+  prefix: prefix,
   make: make$4
 };
 
@@ -502,7 +488,19 @@ function makeSync(rows, now, online_) {
     })[0];
 }
 
-function make$9(dexme, live, push, rules, mergeOpt, onError, papabase, now, online_) {
+let prefix$1 = prefix(TiliaQuery.Store.rowTag);
+
+function make$9(dexme, query, channel) {
+  dexme.entries.filter(entry => entry.key.startsWith(prefix$1)).then(found => channel.local(found.map(entry => JSON.parse(entry.value)).filter(card => matches(query, card))));
+}
+
+let DexmeIndex = {
+  prefix: prefix$1,
+  make: make$9
+};
+
+function make$10(dexme, indexedOpt, live, push, rules, mergeOpt, onError, papabase, now, online_) {
+  let indexed = indexedOpt !== undefined ? indexedOpt : false;
   let merge = mergeOpt !== undefined ? mergeOpt : ({
       accepted: true,
       calls: []
@@ -513,13 +511,15 @@ function make$9(dexme, live, push, rules, mergeOpt, onError, papabase, now, onli
   let remote$3 = push !== undefined ? wrap$2(push, remote$2) : remote$2;
   let sort = _query => (array => array.toSorted(sortBySeen));
   let mergeValues = (change, remote) => run(merge, change, remote);
-  let local = Stdlib_Option.map(dexme, make$4);
+  let persist = Stdlib_Option.map(dexme, make$4);
+  let lookup = indexed && dexme !== undefined ? (query, channel) => make$9(dexme, query, channel) : undefined;
   return TiliaQuery.make({
     id: id,
     matches: matches,
     store: TiliaQuery.Store.custom({
       remote: remote$3,
-      local: local,
+      persist: persist,
+      lookup: lookup,
       merge: mergeValues
     }),
     now: now,
@@ -536,7 +536,7 @@ export {
   Papabase,
   Dexme,
   PapabaseAdaptor,
-  DexmeAdaptor,
+  DexmeKv,
   Rules,
   Live,
   Merge,
@@ -544,6 +544,7 @@ export {
   Push,
   SyncStore,
   makeSync,
-  make$9 as make,
+  DexmeIndex,
+  make$10 as make,
 }
-/* TiliaQuery Not a pure module */
+/* prefix Not a pure module */

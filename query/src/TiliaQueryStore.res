@@ -49,12 +49,72 @@ type remote<'query, 'a> = {
   push: (array<op<'a>>, Channel.write<'a>) => unit,
 }
 
-type local<'query, 'a> = {
-  fetch: ('query, Channel.local<'a>) => unit,
-  push: array<op<'a>> => unit,
-  set: (~tag: string, ~key: string, option<string>) => unit,
-  get: (~tag: string, ~key: string=?, ~set: array<string> => unit) => unit,
-  ids: (~set: array<string> => unit) => unit,
+/**
+ * A string keyspace, and the whole of what this store asks of persistence.
+ * Rows, query records and the outbox are all entries under a tag: what they
+ * mean is the store's business, and a keyspace never has to know.
+ *
+ * Every reply comes back through `set` — synchronously or later, like
+ * everything else here. Errors belong to whoever implements it: a keyspace
+ * that cannot answer answers with nothing.
+ */
+/**
+ * The tag rows are kept under. One entry per row, keyed by its id, holding
+ * the value as JSON — documented because whoever writes the keyspace is who
+ * can index it, and `lookup` is theirs to write too.
+ */
+let rowTag = "row"
+
+module Kv = {
+  type t = {
+    /** Read the named entries under a tag, or every entry under it when
+     `keys` is omitted. */
+    get: (~tag: string, ~keys: array<string>=?, ~set: array<string> => unit) => unit,
+    /** Reply with the key of every entry under a tag. Cheaper than reading
+     them: with IndexedDB this is `primaryKeys()`. */
+    keys: (~tag: string, ~set: array<string> => unit) => unit,
+    /** Write or, with `None`, delete one entry. */
+    set: (~tag: string, ~key: string, option<string>) => unit,
+  }
+
+  /**
+   * The default. Absent persistence is not a second mode — it is a keyspace
+   * that forgets when the process does, and it costs a dict.
+   */
+  let make = (): t => {
+    let tags: dict<dict<string>> = Dict.make()
+    let tagged = tag =>
+      switch tags->Dict.get(tag) {
+      | Value(entries) => entries
+      | Null | Undefined =>
+        let entries = Dict.make()
+        tags->Dict.set(tag, entries)
+        entries
+      }
+    {
+      get: (~tag, ~keys=?, ~set) => {
+        let entries = tagged(tag)
+        set(
+          switch keys {
+          | Some(keys) =>
+            keys->Array.filterMap(key =>
+              switch entries->Dict.get(key) {
+              | Value(value) => Some(value)
+              | Null | Undefined => None
+              }
+            )
+          | None => entries->Dict.values
+          },
+        )
+      },
+      keys: (~tag, ~set) => set(tagged(tag)->Dict.keys),
+      set: (~tag, ~key, value) =>
+        switch value {
+        | Some(value) => tagged(tag)->Dict.set(key, value)
+        | None => tagged(tag)->Dict.delete(key)
+        },
+    }
+  }
 }
 
 /** Timing this store owns, in milliseconds: how long a row nothing
@@ -106,6 +166,19 @@ function snapshot(value) {
 
 // === Query records (registry)
 
+/** Rows go through the same round trip the whole store contract rests on. */
+@scope("JSON") @val external encodeRow: 'a => string = "stringify"
+
+/** Returns Undefined on malformed kv data: the row is skipped, not fatal. */
+let parseRow: string => nullable<'a> = %raw(`
+function parseRow(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r === "object") return r;
+  } catch (_) {}
+  return undefined;
+}`)
+
 /** Durable query result used to find rows still reachable during local purge. */
 type queryRecord<'query> = {
   key: string,
@@ -134,7 +207,8 @@ type config<'query, 'a> = {
   schema: schema<'query, 'a>,
   expiry: expiry,
   remote: remote<'query, 'a>,
-  local?: local<'query, 'a>,
+  persist: Kv.t,
+  lookup?: ('query, Channel.local<'a>) => unit,
   merge?: (~change: change<'a>, ~remote: 'a) => bool,
 }
 
@@ -154,20 +228,31 @@ type t<'a> = {
  source the engine will read from. The outbox replay belongs here, in the
  store's own construction. */
 let connect = (
-  {schema, expiry, remote, ?local, ?merge}: config<'query, 'a>,
+  {schema, expiry, remote, persist, ?lookup, ?merge}: config<'query, 'a>,
   binding: binding<'a>,
 ) => {
   let {id, matches, key, now, _} = schema
+
+  // Rows live in the keyspace beside the bookkeeping. Nothing is optional
+  // here any more: a store with no persistence configured has a keyspace
+  // that forgets when the process does, which is the same code path.
+  let rowTag = rowTag
+  let putRow = value => persist.set(~tag=rowTag, ~key=id(value), Some(encodeRow(value)))
+  let dropRow = rid => persist.set(~tag=rowTag, ~key=rid, None)
+  let decodeRows = values =>
+    values->Array.filterMap(value =>
+      switch parseRow(value) {
+      | Value(row) => Some(row)
+      | Null | Undefined => None
+      }
+    )
 
   // The write-through registry wins over older persisted records during purge.
   let queryTag = "query"
   let syntheticPrefix = "__id:"
   let registry: dict<queryRecord<'query>> = Dict.make()
   let persistRecord = (record: queryRecord<'query>) =>
-    switch local {
-    | None => ()
-    | Some(local) => local.set(~tag=queryTag, ~key=record.key, Some(encodeRecord(record)))
-    }
+    persist.set(~tag=queryTag, ~key=record.key, Some(encodeRecord(record)))
   // The queries the engine holds in memory, and when each was last asked
   // for. A query is held from its first find until `forget`, which is the
   // store's only view of what is still on screen: the registry is maintained
@@ -191,10 +276,9 @@ let connect = (
     | Value(current) => rank(claim) < rank(current)
     | Null | Undefined => false
     }
-    switch local {
-    | None => ()
-    | Some(_) if weaker => ()
-    | Some(_) =>
+    if weaker {
+      ()
+    } else {
       recorded->Dict.set(k, claim)
       let record = switch registry->Dict.get(k) {
       | Value(record) => record
@@ -303,21 +387,14 @@ let connect = (
     }
 
   let persistOp = (entry: outboxOp<'a>) =>
-    switch local {
-    | Some(local) =>
-      local.set(~tag=outboxTag, ~key=Float.toString(entry.seq), Some(encodeOp(entry)))
-    | None => ()
-    }
+    persist.set(~tag=outboxTag, ~key=Float.toString(entry.seq), Some(encodeOp(entry)))
 
   let confirmed = (entry: outboxOp<'a>) => {
     let i = outbox->Array.indexOf(entry)
     if i >= 0 {
       outbox->Array.splice(~start=i, ~remove=1, ~insert=[])
     }
-    switch local {
-    | Some(local) => local.set(~tag=outboxTag, ~key=Float.toString(entry.seq), None)
-    | None => ()
-    }
+    persist.set(~tag=outboxTag, ~key=Float.toString(entry.seq), None)
     syncPending()
   }
 
@@ -351,10 +428,7 @@ let connect = (
         persistRecord(record)
       }
     )
-    switch local {
-    | Some(local) => local.push([Remove({id: rid})])
-    | None => ()
-    }
+    dropRow(rid)
   }
 
   // The store's own write of one row: into the engine, into the registry,
@@ -362,10 +436,7 @@ let connect = (
   let place = value => {
     binding.place(value)
     joinRegistry(value)->ignore
-    switch local {
-    | Some(local) => local.push([Upsert({value: value})])
-    | None => ()
-    }
+    putRow(value)
   }
 
   let conflict = change =>
@@ -623,18 +694,13 @@ let connect = (
       }
     }
     binding.place(value)
-    let listed = joinRegistry(value)
-    switch local {
-    | Some(local) =>
-      if !listed {
-        // A synthetic record keeps an otherwise unreferenced row reachable.
-        let record = {key: syntheticPrefix ++ vid, query: Undefined, ids: [vid], lastSeen: now()}
-        registry->Dict.set(record.key, record)
-        persistRecord(record)
-      }
-      local.push([Upsert({value: value})])
-    | None => ()
+    if !joinRegistry(value) {
+      // A synthetic record keeps an otherwise unreferenced row reachable.
+      let record = {key: syntheticPrefix ++ vid, query: Undefined, ids: [vid], lastSeen: now()}
+      registry->Dict.set(record.key, record)
+      persistRecord(record)
     }
+    putRow(value)
     enqueue(Some(change), Upsert({value: value}))
   }
 
@@ -682,10 +748,7 @@ let connect = (
 
         // Local storage keeps a copy only while some record lists the row.
         if joinRegistry(value) {
-          switch local {
-          | Some(local) => local.push([Upsert({value: value})])
-          | None => ()
-          }
+          putRow(value)
         }
       }
     })
@@ -712,24 +775,20 @@ let connect = (
       })
     )
 
-  // Boot: reload the persisted outbox, oldest first, and replay if online.
-  switch local {
-  | None => ()
-  | Some(local) =>
-    local.get(~tag=outboxTag, ~set=values => {
-      values->Array.forEach(value =>
-        switch parseOp(value) {
-        | Value(entry) =>
-          outbox->Array.push(entry)
-          nextSeq := Math.max(nextSeq.contents, entry.seq +. 1.0)
-        | Null | Undefined => ()
-        }
-      )
-      outbox->Array.sort((a, b) => a.seq -. b.seq)
-      syncPending()
-      pushPending()
-    })
-  }
+  // Boot: the outbox, oldest first, replayed if online.
+  persist.get(~tag=outboxTag, ~set=values => {
+    values->Array.forEach(value =>
+      switch parseOp(value) {
+      | Value(entry) =>
+        outbox->Array.push(entry)
+        nextSeq := Math.max(nextSeq.contents, entry.seq +. 1.0)
+      | Null | Undefined => ()
+      }
+    )
+    outbox->Array.sort((a, b) => a.seq -. b.seq)
+    syncPending()
+    pushPending()
+  })
 
   // B+C · one find, both tiers, in the order the engine assumes: what is
   // already held answers first, and the remote answers over it. The store
@@ -753,30 +812,62 @@ let connect = (
     // Remote truth, reconciled against what is queued before anyone sees it.
     let received = values => {
       let values = applyPending(query, values->Array.map(reconcile))
-      switch local {
-      | Some(local) => local.push(values->Array.map(value => Upsert({value: value})))
-      | None => ()
-      }
+      values->Array.forEach(putRow)
       recordSeen(k, query, Fresh, values->Array.map(id))
       values
     }
 
-    switch local {
-    | None =>
-      // Nothing is held, and holding nothing is not an answer: the engine
-      // reads an empty `Partial` as still loading, or as offline.
-      channel.partial([])
-    | Some(local) =>
-      local.fetch(
-        query,
-        {
-          // A partial answer never records a query result: it was not one.
-          partial: values => channel.partial(values),
-          local: values => {
-            recordSeen(k, query, Local, values->Array.map(id))
-            channel.local(values)
+    // What is held, and how strongly the store can speak for it.
+    //
+    // A query with a record recorded what it answered, so the record is the
+    // answer: read those rows and claim `local`. One without has only the
+    // rows themselves — scan them through `matches` and claim `partial`,
+    // because a scan cannot know about rows the query has never seen.
+    // `lookup` is the way out for a keyspace with an index of its own: it
+    // may certify, and only then may it claim `local`.
+    let answer = (record: queryRecord<'query>) =>
+      persist.get(~tag=rowTag, ~keys=record.ids, ~set=values => {
+        let rows = decodeRows(values)
+        recordSeen(k, query, Local, rows->Array.map(id))
+        channel.local(rows)
+      })
+
+    let unregistered = () =>
+      switch lookup {
+      | Some(lookup) =>
+        lookup(
+          query,
+          {
+            // A partial answer never records a query result: it was not one.
+            partial: values => channel.partial(values),
+            local: values => {
+              recordSeen(k, query, Local, values->Array.map(id))
+              channel.local(values)
+            },
           },
-        },
+        )
+      | None =>
+        persist.get(~tag=rowTag, ~set=values =>
+          channel.partial(decodeRows(values)->Array.filter(row => matches(query, row)))
+        )
+      }
+
+    switch registry->Dict.get(k) {
+    | Value(record) => answer(record)
+    | Null | Undefined =>
+      // The mirror is a cache of the keyspace, not a snapshot taken at boot:
+      // a record an earlier session left behind is still a record.
+      persist.get(~tag=queryTag, ~keys=[k], ~set=values =>
+        switch values->Arr.at(0) {
+        | Value(value) =>
+          switch parseRecord(value) {
+          | Value(record) =>
+            registry->Dict.set(k, record)
+            answer(record)
+          | Null | Undefined => unregistered()
+          }
+        | Null | Undefined => unregistered()
+        }
       )
     }
 
@@ -845,83 +936,76 @@ let connect = (
   let lastPurgeAt = ref(Float.Constants.negativeInfinity)
 
   let purgeLocal = t =>
-    switch local {
-    | None => ()
-    | Some(local) =>
-      local.get(~tag=queryTag, ~set=values => {
-        // Merge only persisted queries absent from the write-through mirror.
-        values->Array.forEach(value =>
-          switch parseRecord(value) {
-          | Value(record) =>
-            switch registry->Dict.get(record.key) {
-            | Value(_) => ()
-            | Null | Undefined => registry->Dict.set(record.key, record)
-            }
-          | Null | Undefined => ()
+    persist.get(~tag=queryTag, ~set=values => {
+      // Merge only persisted queries absent from the write-through mirror.
+      values->Array.forEach(value =>
+        switch parseRecord(value) {
+        | Value(record) =>
+          switch registry->Dict.get(record.key) {
+          | Value(_) => ()
+          | Null | Undefined => registry->Dict.set(record.key, record)
           }
-        )
-        // Adopt homeless rows: a matching real query replaces the synthetic root.
-        registry
-        ->Dict.keys
-        ->Array.filter(rkey => rkey->String.startsWith(syntheticPrefix))
-        ->Array.forEach(rkey => {
-          let rid = rkey->String.slice(~start=syntheticPrefix->String.length)
-          switch binding.item(rid) {
-          | None => () // Value unknown (earlier session): keep the synthetic root.
-          | Some(value) =>
-            let adopted = ref(false)
-            registry->Dict.forEach(
-              record =>
-                switch record.query {
-                | Value(query) if matches(query, value) =>
-                  if !(record.ids->Array.includes(rid)) {
-                    record.ids = record.ids->Array.concat([rid])
-                    persistRecord(record)
-                  }
-                  adopted := true
-                | _ => ()
-                },
-            )
-            if adopted.contents {
-              registry->Dict.delete(rkey)
-              local.set(~tag=queryTag, ~key=rkey, None)
-            }
-          }
-        })
-        // Retain records for queries the engine still holds, and date them
-        // on the way past: a live query is found once, so nothing else keeps
-        // its record current while it is on screen.
-        registry->Dict.forEach(record =>
-          switch held->Dict.get(record.key) {
-          | Value(_) =>
-            record.lastSeen = t
-            persistRecord(record)
-          | Null | Undefined =>
-            if t > record.lastSeen + expiry.local {
-              registry->Dict.delete(record.key)
-              local.set(~tag=queryTag, ~key=record.key, None)
-            }
-          }
-        )
-        // Mark and sweep: a row stays only while some record lists it.
-        local.ids(~set=allIds => {
-          let marked = Set.make()
-          registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
-          // Pending ops root their rows because they replay after restart.
-          outbox->Array.forEach(entry => marked->Set.add(opId(entry.op)))
-          let removes = []
-          allIds->Array.forEach(
-            id =>
-              if !(marked->Set.has(id)) {
-                removes->Array.push(Remove({id: id}))
+        | Null | Undefined => ()
+        }
+      )
+      // Adopt homeless rows: a matching real query replaces the synthetic root.
+      registry
+      ->Dict.keys
+      ->Array.filter(rkey => rkey->String.startsWith(syntheticPrefix))
+      ->Array.forEach(rkey => {
+        let rid = rkey->String.slice(~start=syntheticPrefix->String.length)
+        switch binding.item(rid) {
+        | None => () // Value unknown (earlier session): keep the synthetic root.
+        | Some(value) =>
+          let adopted = ref(false)
+          registry->Dict.forEach(
+            record =>
+              switch record.query {
+              | Value(query) if matches(query, value) =>
+                if !(record.ids->Array.includes(rid)) {
+                  record.ids = record.ids->Array.concat([rid])
+                  persistRecord(record)
+                }
+                adopted := true
+              | _ => ()
               },
           )
-          if removes->Array.length > 0 {
-            local.push(removes)
+          if adopted.contents {
+            registry->Dict.delete(rkey)
+            persist.set(~tag=queryTag, ~key=rkey, None)
           }
-        })
+        }
       })
-    }
+      // Retain records for queries the engine still holds, and date them
+      // on the way past: a live query is found once, so nothing else keeps
+      // its record current while it is on screen.
+      registry->Dict.forEach(record =>
+        switch held->Dict.get(record.key) {
+        | Value(_) =>
+          record.lastSeen = t
+          persistRecord(record)
+        | Null | Undefined =>
+          if t > record.lastSeen + expiry.local {
+            registry->Dict.delete(record.key)
+            persist.set(~tag=queryTag, ~key=record.key, None)
+          }
+        }
+      )
+      // Mark and sweep: a row stays only while some record lists it. The keys
+      // are the ids, so nothing has to be read to know what is there.
+      persist.keys(~tag=rowTag, ~set=allIds => {
+        let marked = Set.make()
+        registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
+        // Pending ops root their rows because they replay after restart.
+        outbox->Array.forEach(entry => marked->Set.add(opId(entry.op)))
+        allIds->Array.forEach(
+          id =>
+            if !(marked->Set.has(id)) {
+              dropRow(id)
+            },
+        )
+      })
+    })
 
   // B+C · the store's half of the heartbeat, run after the engine's.
   let storeTick = t => {

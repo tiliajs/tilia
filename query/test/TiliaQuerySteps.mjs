@@ -44,7 +44,10 @@ VitestBdd.Given("an {string} training app", (param, status) => {
         message
       ]]);
   };
-  let match$2 = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
+  let indexed = {
+    contents: false
+  };
+  let match$2 = MakeWorld.make(dexme, undefined, live, push, rules, merge, onError, papabase, () => now_.value, online_);
   let cards = {
     contents: match$2[0]
   };
@@ -100,7 +103,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("I restart the app", () => {
     cards.contents.dispose();
-    let match = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
+    let match = MakeWorld.make(dexme, indexed.contents, live, push, rules, merge, onError, papabase, () => now_.value, online_);
     cards.contents = match[0];
     store.contents = match[1];
     return settled();
@@ -110,7 +113,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     cards.contents = MakeWorld.makeSync(VitestBdd.toRecords(table), () => now_.value, online_);
   });
   step("deck {string} is in local db", deck => {
-    let match = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
+    let match = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
     let app = match[0];
     let close = Tilia.observe(() => {
       app.array(query(undefined, deck));
@@ -173,10 +176,22 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       single.contents = cards.contents.one(query);
     });
   };
-  step("I open the {string} deck", deck => openDeck(query(undefined, deck)));
-  step("I open one card from the {string} deck", deck => openOne(query(undefined, deck)));
-  step("I open one card from the {string} deck filtered by seen {string}", (deck, seen) => openOne(query(Primitive_option.some(seen), deck)));
-  step("I open the {string} deck filtered by seen {string}", (deck, seen) => openDeck(query(Primitive_option.some(seen), deck)));
+  step("I open the {string} deck", deck => {
+    openDeck(query(undefined, deck));
+    return settled();
+  });
+  step("I open one card from the {string} deck", deck => {
+    openOne(query(undefined, deck));
+    return settled();
+  });
+  step("I open one card from the {string} deck filtered by seen {string}", (deck, seen) => {
+    openOne(query(Primitive_option.some(seen), deck));
+    return settled();
+  });
+  step("I open the {string} deck filtered by seen {string}", (deck, seen) => {
+    openDeck(query(Primitive_option.some(seen), deck));
+    return settled();
+  });
   step("I close the deck", () => closeDeck.contents());
   step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
   let claimOf = name => {
@@ -234,10 +249,23 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       claim: claimOf(claim)
     }
   }));
-  step("the local store answers partially", () => {
-    dexme.partial = true;
+  let rowPrefix = MakeWorld.DexmeKv.prefix(TiliaQuery.Store.rowTag);
+  let storedRows = () => dexme.entries._select(entry => entry.key.startsWith(rowPrefix)).map(entry => JSON.parse(entry.value));
+  step("the local store holds nothing", () => Vitest.expect(storedRows().length).toBe(0));
+  step("the query registry is empty", () => {
+    dexme.entries._select(entry => entry.key.startsWith(MakeWorld.DexmeKv.prefix("query"))).forEach(entry => {
+      dexme.entries.delete(entry.key);
+    });
   });
-  step("the local store holds nothing", () => Vitest.expect(dexme.cards._select(param => true).length).toBe(0));
+  step("the app has no persistence", () => {
+    cards.contents.dispose();
+    let match = MakeWorld.make(undefined, undefined, live, push, rules, merge, onError, papabase, () => now_.value, online_);
+    cards.contents = match[0];
+    store.contents = match[1];
+  });
+  step("the local store has an index", () => {
+    indexed.contents = true;
+  });
   step("onError should have received {string} for {string}", (message, deck) => {
     let expected = query(undefined, deck);
     Vitest.expect(errors.contents.some(param => {
@@ -415,17 +443,17 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       Vitest.expect(found).toMatchObject(card);
     });
   });
-  step("local should not have {string}", id => Vitest.expect(dexme.cards._select(c => c.id === id).length).toBe(0));
+  step("local should not have {string}", id => Vitest.expect(storedRows().filter(c => c.id === id).length).toBe(0));
   step("local should have", table => {
     VitestBdd.toRecords(table).forEach(card => {
-      let found = Stdlib_Option.getOrThrow(dexme.cards._select(c => c.id === card.id)[0], `local has no card "` + card.id + `"`);
+      let found = Stdlib_Option.getOrThrow(storedRows().find(c => c.id === card.id), `local has no card "` + card.id + `"`);
       Vitest.expect(found).toMatchObject(card);
     });
   });
   let expectLocal = (deck, table) => {
     let ids = VitestBdd.toRecords(table).map(row => row.id);
-    let key = MakeWorld.DexmeAdaptor.kvKey("query", TiliaQuery.sortedStringify(query(undefined, deck)));
-    let entry = Stdlib_Option.getOrThrow(dexme.kv._select(entry => entry.key === key)[0], `local has no query for "` + deck + `"`);
+    let key = MakeWorld.DexmeKv.kvKey("query", TiliaQuery.sortedStringify(query(undefined, deck)));
+    let entry = Stdlib_Option.getOrThrow(dexme.entries._select(entry => entry.key === key)[0], `local has no query for "` + deck + `"`);
     Vitest.expect(JSON.parse(entry.value).ids).toEqual(ids);
   };
   step("local query {string} should have ids", expectLocal);

@@ -195,27 +195,6 @@ type remote<'query, 'a> = TiliaQueryStore.remote<'query, 'a> = {
   push: (array<op<'a>>, Channel.write<'a>) => unit,
 }
 
-/**
- * Local adaptor: a typed values table (`push`, `fetch`) plus a string KV
- * for engine bookkeeping (`set`, `get`). Persistence is command-only;
- * local storage errors are handled by the adaptor.
- */
-type local<'query, 'a> = TiliaQueryStore.local<'query, 'a> = {
-  /** Fetch cached results through the local channel. */
-  fetch: ('query, Channel.local<'a>) => unit,
-  /** Apply value changes to the values table in order. */
-  push: array<op<'a>> => unit,
-  /** Store an engine bookkeeping entry by tag and key; `None` deletes. */
-  set: (~tag: string, ~key: string, option<string>) => unit,
-  /**
-   * Read one entry by key, or every entry for the tag when omitted.
-   * Reply through `set` — synchronously or later, like everything else.
-   */
-  get: (~tag: string, ~key: string=?, ~set: array<string> => unit) => unit,
-  /** Reply through `set` with every row id in the values table. */
-  ids: (~set: array<string> => unit) => unit,
-}
-
 /** Configuration for `make`. */
 /** Configuration for `make`. Everything here is the engine's; what belongs
  to a store is in the value you give `store`. */
@@ -328,9 +307,36 @@ module Store: {
     discard: rejection<'a> => unit,
   }
 
+  /**
+   * A string keyspace, and the whole of what this store asks of
+   * persistence. Rows, query records and the outbox are all entries under a
+   * tag; what they mean is the store's business. Defined, and documented, in
+   * `TiliaQueryStore`.
+   */
+  module Kv = TiliaQueryStore.Kv
+
+  /**
+   * The tag rows are kept under: one entry per row, keyed by its id, holding
+   * the value as JSON. Documented because whoever writes the keyspace is who
+   * can index it — and `lookup` is theirs to write too.
+   */
+  let rowTag: string
+
   type config<'query, 'a> = {
     remote: remote<'query, 'a>,
-    local?: local<'query, 'a>,
+    /**
+     * Where rows and bookkeeping are kept. Absent means an in-memory
+     * keyspace — not a second mode, but the same code path over a dict that
+     * forgets when the process does.
+     */
+    persist?: Kv.t,
+    /**
+     * An index of your own, for a query the store has no record of. It may
+     * answer `partial` with rows it holds, and `local` only when it can
+     * certify that they are the whole answer. Without it such a query is
+     * answered by a scan, which never can.
+     */
+    lookup?: ('query, Channel.local<'a>) => unit,
     /**
      * Merge a remote value into the local value in place. Runs inside
      * `Tilia.batch`. Return true when merged; false records the corresponding

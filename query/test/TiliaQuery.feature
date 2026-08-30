@@ -70,16 +70,55 @@ Feature: Language training app
     And I go "offline"
     Then I should see no data because offline
 
-  # Rules 1 and 2. A store without a query index holds rows without being able
-  # to claim they are the whole answer. Holding nothing is not an empty
-  # answer: it says so, and the engine waits or gives up.
+  # Rules 1, 2 and 12. A query the store has a record of was answered once and
+  # written down, so the store can hand back that answer and say it is the
+  # whole of it. A query it has no record of leaves it holding rows and no
+  # way to know whether there are others it has never seen: it says so, and
+  # the claim is `partial`. Holding nothing is not an empty answer either —
+  # the engine waits, or gives up.
 
-  Scenario: a partial result is shown
+  Scenario: an unregistered query is answered by a scan and claims partial
     When deck "Spanish" is in local db
-    And the local store answers partially
+    And I restart the app
+    And the query registry is empty
     And I go "offline"
     And I open the "Spanish" deck
     Then I should see "partial" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  # Rule 15. A keyspace with an index of its own can do what a scan cannot:
+  # find the rows of a query it has no record of, and certify that they are
+  # all of them. Whoever writes the keyspace writes this, because only they
+  # know how the rows are stored.
+
+  Scenario: an indexed store certifies its answer and claims local
+    When deck "Spanish" is in local db
+    And the local store has an index
+    And I restart the app
+    And the query registry is empty
+    And I go "offline"
+    And I open the "Spanish" deck
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  # Rule 16. No persistence is not a second mode: it is a keyspace that
+  # forgets when the process does, down the same code path.
+
+  Scenario: an app with no persistence still answers from memory
+    When the app has no persistence
+    And I open the "Spanish" deck
+    And time passes
+    And I close the deck
+    And 6 minutes pass
+    And tick is called
+    And query "Spanish" should be dropped from memory
+    And I go "offline"
+    And I open the "Spanish" deck
+    Then I should see "local" loaded with data
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |

@@ -1,7 +1,7 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 57/57 green, phases 0 through 3 done, 4a half done,
-5a done on paper. 4b next, and `Store.make` lands with it.**
+**Where things stand: 59/59 green, phases 0 through 3 done, 4a half done,
+4b and 4c done, 5a done on paper. `Store.make` is what is left of 4a.**
 Committed through 4a's first half, on `main`, at Anna's word — the ledger
 below is what each commit did.
 
@@ -60,6 +60,9 @@ Test controls added during phase 2, all driven from steps:
 - `numericVersion` in the steps — table cells are strings and `version` is a
   number on the server; anything crossing that line needs converting.
 - `onError` recorder — failures the read site was never told about.
+- `DexmeKv` (4b) — the Dexie-like table wired as a `Kv`, one entry per row
+  keyed `tag/key`. `DexmeIndex` (4c) is the same table read as an index, for
+  the `lookup` scenario: same author, which is the point.
 - `SyncStore` (3d) — a store whose replay is synchronous: it puts its rows
   into the engine inside its own constructor and answers finds by reading
   them back through `binding.item`. `makeSync` assembles it into a
@@ -192,9 +195,22 @@ Test controls added during phase 2, all driven from steps:
         done and the shape is settled — see `TILIA-QUERY-SPLIT.md`. It wants
         `persist` from 4b to be worth writing, so 4b comes first and
         `Store.make` lands with it.
-  - [ ] 4b `Kv.t`, memory keyspace as default, `persist`
-  - [ ] 4c registry lookup, scan fallback, `lookup?` — `Partial` first becomes
-        reachable from the shipped store here
+  - [x] 4b **`Kv.t`, memory keyspace as default, `persist`. 59/59.** The
+        local adaptor is gone: rows, query records and the outbox are all
+        entries under a tag in one string keyspace, `{get, keys, set}`. `get`
+        takes `~keys` so a record's ids are one read; `keys` is the sweep,
+        and with IndexedDB it is `primaryKeys()`. `persist` absent means an
+        in-memory keyspace — the same code path, so every `switch local` in
+        the store went with it. Rule 16.
+  - [x] 4c **registry lookup, scan fallback, `lookup?`. 59/59.** A query with
+        a record is answered from the ids it recorded, and claims `local`; a
+        query without one is scanned through `matches` and claims `partial`,
+        because a scan cannot know about rows it has never seen. `lookup` is
+        the way out for a keyspace with an index — it may certify, and only
+        then claim `local`. Rules 12 and 15, both mutation-checked, and rule
+        16 with them. The shipped *a partial result is shown* became rule
+        12's scenario: `Dexme.partial` was a stand-in for exactly this, and
+        the store can now produce `Partial` itself.
   - [ ] 4d `@tilia/query/indexeddb` subpath: `exports`, esbuild, clean-package
 - [ ] **5 · Proof and product.**
   - [x] 5a `claims-app-ts` adaptor on paper, before `Store.config` is
@@ -211,6 +227,24 @@ Test controls added during phase 2, all driven from steps:
 ### Opus Autonomous Decisions
 
 Taken while landing phase 3 alone. Each is cheap to undo.
+
+**The registry mirror is a cache of the keyspace, not a snapshot of it.** A
+find that has no record in memory reads the one the keyspace may hold before
+falling back to a scan. Loading them all at boot was the first try and it is
+wrong: a record written after boot — by an earlier session in the tests, by
+another window in life — would never be seen, and a store holding the whole
+answer would keep calling it partial.
+
+**Opening a deck now ends when storage has answered.** The local tier reads
+its keyspace twice (the record, then the rows it lists), which outruns the
+harness's assumption that one microtask is enough. The step drains instead,
+which is what its own comment always claimed — and no real keyspace answers
+inside a microtask anyway.
+
+**The row layout is documented, not hidden.** `Store.rowTag`, one entry per
+row keyed by id, holding the value as JSON. `lookup` is written by whoever
+writes the keyspace, because only they can index what they store; hiding the
+layout would leave `lookup` unimplementable by the one person who needs it.
 
 **`source` carries `tick` and `dispose`.** The settlement lists the seam as
 `{online, find, forget}` and says to dispose the engine first and the store

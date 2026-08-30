@@ -53,6 +53,7 @@ given("an {string} training app", ({step}, status: string) => {
   let onError = (~query, ~message) => errors := errors.contents->Array.concat([(query, message)])
   // Two handles now: the query object, and whatever the store offers beside
   // it. Refs so "I restart the app" can rebuild both on the same stores.
+  let indexed = ref(false)
   let (cards_, store_) = make(
     ~dexme,
     ~live,
@@ -122,6 +123,7 @@ given("an {string} training app", ({step}, status: string) => {
     cards.contents.dispose()
     let (next, nextStore) = make(
       ~dexme,
+      ~indexed=indexed.contents,
       ~live,
       ~push,
       ~rules,
@@ -216,18 +218,31 @@ given("an {string} training app", ({step}, status: string) => {
     closeDeck := Tilia.observe(() => single := cards.contents.one(query))
   }
 
-  step("I open the {string} deck", (deck: string) => openDeck(query(deck)))
+  // Opening ends when storage has answered. The store reads its keyspace to
+  // find out what it holds for a query — a record, then the rows it lists —
+  // so "immediately" is a drain of the microtask queue, not one tick of it.
+  step("I open the {string} deck", (deck: string) => {
+    openDeck(query(deck))
+    settled()
+  })
 
-  step("I open one card from the {string} deck", (deck: string) => openOne(query(deck)))
+  step("I open one card from the {string} deck", (deck: string) => {
+    openOne(query(deck))
+    settled()
+  })
 
   step("I open one card from the {string} deck filtered by seen {string}", (
     deck: string,
     seen: string,
-  ) => openOne(query(~seen=Some(seen), deck)))
+  ) => {
+    openOne(query(~seen=Some(seen), deck))
+    settled()
+  })
 
-  step("I open the {string} deck filtered by seen {string}", (deck: string, seen: string) =>
+  step("I open the {string} deck filtered by seen {string}", (deck: string, seen: string) => {
     openDeck(query(~seen=Some(seen), deck))
-  )
+    settled()
+  })
 
   // Stop observing, like a UI unmount: the query is no longer "seen".
   step("I close the deck", () => closeDeck.contents())
@@ -276,13 +291,44 @@ given("an {string} training app", ({step}, status: string) => {
     )
   })
 
-  // A store with no query index can hold rows without claiming they are the
-  // whole answer.
-  step("the local store answers partially", () => dexme.partial = true)
+  // The rows the keyspace holds, read the way an inspection would: the store
+  // keeps one entry per row, as JSON, under its own tag.
+  let rowPrefix = DexmeKv.prefix(TiliaQuery.Store.rowTag)
+  let storedRows = () =>
+    dexme.entries._select(entry => entry.key->String.startsWith(rowPrefix))->Array.map(entry =>
+      DexmeIndex.parseCard(entry.value)
+    )
 
-  step("the local store holds nothing", () =>
-    expect(dexme.cards._select(_ => true)->Array.length).toBe(0)
+  step("the local store holds nothing", () => expect(storedRows()->Array.length).toBe(0))
+
+  // A query the store has no record of: it can scan its rows, but it cannot
+  // know whether the query has rows it has never seen.
+  step("the query registry is empty", () =>
+    dexme.entries._select(
+      entry => entry.key->String.startsWith(DexmeKv.prefix("query")),
+    )->Array.forEach(entry => dexme.entries.delete(entry.key)->ignore)
   )
+
+  // Rebuilt with no keyspace of its own: the store falls back to memory,
+  // which is not a second mode.
+  step("the app has no persistence", () => {
+    cards.contents.dispose()
+    let (next, nextStore) = make(
+      ~live,
+      ~push,
+      ~rules,
+      ~merge,
+      ~onError,
+      papabase,
+      () => now_.value,
+      online_,
+    )
+    cards := next
+    store := nextStore
+  })
+
+  // Read at the next restart: a keyspace whose author also wrote `lookup`.
+  step("the local store has an index", () => indexed := true)
 
   step("onError should have received {string} for {string}", (message: string, deck: string) => {
     let expected = query(deck)
@@ -466,15 +512,15 @@ given("an {string} training app", ({step}, status: string) => {
   )
 
   step("local should not have {string}", (id: string) => {
-    expect(dexme.cards._select(c => c.id === id)->Array.length).toBe(0)
+    expect(storedRows()->Array.filter(c => c.id === id)->Array.length).toBe(0)
   })
 
   step("local should have", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(
       (card: card) => {
         let found =
-          dexme.cards._select(c => c.id === card.id)
-          ->Array.get(0)
+          storedRows()
+          ->Array.find(c => c.id === card.id)
           ->Option.getOrThrow(~message=`local has no card "${card.id}"`)
         expect(found).toMatchObject(card)
       },
@@ -483,9 +529,9 @@ given("an {string} training app", ({step}, status: string) => {
 
   let expectLocal = (deck, table) => {
     let ids = toRecords(table)->Array.map(row => row.id)
-    let key = DexmeAdaptor.kvKey(~tag="query", ~key=TiliaQuery.sortedStringify(query(deck)))
+    let key = DexmeKv.kvKey(~tag="query", ~key=TiliaQuery.sortedStringify(query(deck)))
     let entry =
-      dexme.kv._select(entry => entry.key === key)
+      dexme.entries._select(entry => entry.key === key)
       ->Array.get(0)
       ->Option.getOrThrow(~message=`local has no query for "${deck}"`)
     expect(parseRecord(entry.value).ids).toEqual(ids)

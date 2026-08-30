@@ -7,7 +7,8 @@ import * as TiliaQuerySchema from "./TiliaQuerySchema.mjs";
 function custom(param) {
   let expiry = param.expiry;
   let merge = param.merge;
-  let local = param.local;
+  let lookup = param.lookup;
+  let persist = param.persist;
   let remote = param.remote;
   return (schema, binding) => TiliaQueryStore.connect({
     schema: schema,
@@ -15,7 +16,8 @@ function custom(param) {
         local: 2592000000.0
       }),
     remote: remote,
-    local: local,
+    persist: persist !== undefined ? persist : TiliaQueryStore.Kv.make(),
+    lookup: lookup,
     merge: merge
   }, binding);
 }
@@ -67,6 +69,8 @@ function make(param) {
 let Channel;
 
 let Store = {
+  Kv: undefined,
+  rowTag: TiliaQueryStore.rowTag,
   custom: custom
 };
 
