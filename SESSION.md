@@ -1,6 +1,6 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 49/49 green, phases 0 through 2c done, 2d next.**
+**Where things stand: 53/53 green, phases 0 through 2d done, 2e next.**
 Nothing is committed — Anna owns the history.
 
 The decisions are in `TILIA-QUERY-SPLIT.md` and the shape they imply is
@@ -43,7 +43,9 @@ Test controls added during phase 2, all driven from steps:
   the outbox), `transientFrom`, `failAfter`. Controlled replies go out through
   `network.respond` wrapped in a promise, so they land in queue order behind
   the real ones — that is what makes `fail after "cat.es"` arrive *after*
-  cat.es was accepted.
+  cat.es was accepted. `reversed` (2d) holds the controlled replies of a push
+  and answers them backwards, so a scenario can ask for a rejection to arrive
+  before the one that caused it.
 - `Papabase._put` — write a row with its version, bypassing the version check,
   so a scenario can put the server ahead of the client.
 - `numericVersion` in the steps — table cells are strings and `version` is a
@@ -89,27 +91,22 @@ Test controls added during phase 2, all driven from steps:
         what `conflict` is for — which is the bug fixed. Harness gained
         `Rules` (per-operation server outcomes, replying through the network
         queue so a `fail` after an accepted write really lands after it).
-  - [ ] 2d rejection recovery — `retry`/`discard`, snapshots, outbox order.
-        Four scenarios in `TILIA-QUERY-SCENARIOS.md` (rules 10, 11, 13, 14)
-        and four new steps: `I retry the rejection for`, `I discard the
-        rejection for`, `the remote stops rejecting` (delete from
-        `Rules.rejects`), `the remote replies out of order` (a `reversed` flag
-        on `Rules`). Three things to decide or find out:
-        1. **How to snapshot.** `Updated({base, edited})` holds the *live*
-           objects: `base` is what `place` puts back, so a later remote change
-           mutates the rejection under the app. Clone at refusal, in `revert`
-           and in the `conflict` reject branch. The store's own contract
-           already requires values to survive a JSON round trip, so
-           `JSON.parse(JSON.stringify(v))` is the cheap answer; there is no
-           dependency to add.
-        2. **`dismiss` becomes `retry` + `discard`** on `t` and in the
-           `.resi`. `retry` re-enqueues the snapshot as a new optimistic
-           write — the local value is back at `base`, so the change context
-           recomputes with no special path. `discard` just drops the record.
-        3. **`addRejection` (`:467`) appends or replaces in place.** Ordering
-           has to come from the operation's seq, not from reply arrival.
-           `TODO.md` carries a second half of this: `applyPending` overlays
-           rejections in dict order.
+  - [x] 2d rejection recovery — `retry`/`discard`, snapshots, outbox order.
+        **53/53.** All three questions resolved into one place: `addRejection`
+        took `~seq` and became the single boundary where a live change turns
+        into a historical record. It copies the whole rejection through the
+        store's JSON contract (`snapshot`, beside the other codecs) and
+        inserts it in operation order rather than reply-arrival order, so a
+        cascade still reads cause-first when the replies come back backwards.
+        `dismiss` split into `retry` and `discard`, both acting only on the
+        exact record they are handed; `upsert` and `remove` now clear the
+        rejection an id had — that last one was new behaviour, not preserved
+        behaviour, whatever the settlement said. Harness gained
+        `Rules.reversed` (controlled replies held and answered backwards) and
+        the steps for retry, discard, `the remote stops rejecting` and `the
+        remote replies out of order`. Rules 10, 11, 13 and 14 each
+        mutation-checked; decisions along the way under **Opus autonomous
+        decisions**.
   - [ ] 2e harness: a store that replays synchronously during construction
 - [ ] **3 · The split, behaviour-neutral.** No scenario changes here; if one
       needs editing, behaviour moved by accident.
@@ -131,6 +128,51 @@ Test controls added during phase 2, all driven from steps:
   - [ ] 5a `claims-app-ts` adaptor on paper, before `Store.config` is locked
   - [ ] 5b guide and API reference
   - [ ] 5c `claims-app-ts` migrated, after the refactor ships
+
+### Opus Autonomous Decisions
+
+Taken while landing 2d alone. Each is cheap to undo.
+
+**The seq lives in a private dict keyed by id, not on the rejection.** The
+settlement asked for it as private metadata on the record, but `rejection<'a>`
+is a public variant in the `.resi`: a hidden payload field means a wrapper type
+or an external. `addRejection` already keys by id and there is at most one
+rejection per id, so a `dict<float>` beside `status` is exact and the public
+type is untouched. `retry`, `discard` and a write on the id all delete from it.
+
+**A replacement keeps the place — and the seq — its id already holds.** So
+array order and seq order stay the same statement. With rule 11 clearing on
+write, a second rejection for an id nothing has written to since is nearly
+unreachable anyway, and keeping the first position is what the code did before.
+
+**The copy is not ordered against `revert` and `place`.** The settlement asked
+for `addRejection` to run before `base` is restored or remote truth installed.
+Taking the copy inside `addRejection` makes that moot — neither `place` nor
+`revert` mutates the objects it moves — so the call sites stayed where they
+were. One less rule to hold.
+
+**`retry`'s second copy is kept, and is not proven.** Breaking
+`upsert(snapshot(edited))` to `upsert(edited)` fails no scenario. It is kept
+as a cheap guard on the same rule as the first copy — a record handed out
+never aliases a live row — on the `settled` precedent. If it ever costs
+anything, it can go without a scenario changing.
+
+**Rule 14's scenario stands as the batch wrote it; my review of it was
+wrong.** I had claimed it could not fail without the copy, on the reading that
+a delivered change replaces the row in `itemById`. It does not: `itemById` is
+a tilia dict, so `receiveChanged` updates the observed row *in place* and
+`base` reads `4` without the copy. Verified by mutation. The extra step I had
+added to force the failure (`the app edits {string} seen to {string}`) was
+redundant and is gone with its scenario line.
+
+**The four new scenarios state the standing rule before the write.** The batch
+has `I upsert` and then `the remote rejects "cat.es"`, but the push leaves the
+moment the write is queued, so the rule was never in force and nothing was
+refused. Reordered — the same behaviour, declared in time.
+
+**The shipped `... and can be dismissed` scenario is now `... and can be
+discarded`**, with its step swapped. `dismiss` left the api, so one shipped
+scenario had to move; nothing else about it changed.
 
 ## Decided in review
 
@@ -214,16 +256,30 @@ replay, `purgeLocal`, `dismiss`, local expiry.
 
 ## Standing
 
+- **`vitest-bdd` has no tag support.** The string `tag` appears nowhere in the
+  package, so a phase cannot land its scenarios as skipped: each one trickles
+  in with the code that makes it pass, which is how 2d went.
+- **`receiveRemoved`'s seq is untested.** Both of its rejection sites carry
+  `entry.seq`, but no scenario orders a rejection from an inbound remove
+  against another one — mutating it to `~seq=0.0` fails nothing. Same shape as
+  the deferred pre-existing gaps, and cheap to cover when 2e touches the
+  harness.
+- **The api reference and guide still say `dismiss`.** Five pages plus guide
+  07; carried in `query/TODO.md`, for the doc rewrite once 4a has settled the
+  surface. Not done here: 2d is behaviour, and the `.resi` is rewritten again
+  at 4a.
 - `one` is **untested**. No scenario and no step touches it, and `one` is
   exactly where `NoMatch` and the empty-`Partial` projection live. The batch
   gets its first, under rule 4. Fuller coverage is deferred: it is a
   pre-existing gap, not this refactor's. `one(query)` selects the first result
   of a query — it is not a lookup by id (`TiliaQuery.res:347`), which the
   first draft of the batch got wrong.
-- `TODO.md` already carries two items that belong to 2d: rejections overlaying
-  in dict order rather than by seq, and the restart-with-rejection scenario the
-  `.resi` promises. The first is in scope; the second is deferred as a
-  pre-existing gap.
+- The overlay item in `TODO.md` was stale and is closed: rejections are status
+  records, not optimistic overlays — `applyPending` folds the outbox alone, a
+  rejected op has already reverted, and overlaying one would show refused work
+  again. The ordering that did matter was `status.rejected` itself, which rule
+  13 now fixes. The restart-with-rejection scenario the `.resi` promises stays
+  deferred as a pre-existing gap.
 - `TODO.md` also wants the query-language constraint stated in the `.resi`:
   queries are pure predicates over one row, no limits, no pagination, no
   aggregates. It belongs to 4a, when the `.resi` is rewritten anyway.

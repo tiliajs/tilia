@@ -34,6 +34,10 @@ let parseOp = (function parseOp(value) {
   return undefined;
 });
 
+let snapshot = (function snapshot(value) {
+  return JSON.parse(JSON.stringify(value));
+});
+
 let parseRecord = (function parseRecord(value) {
   try {
     const r = JSON.parse(value);
@@ -363,13 +367,43 @@ function make$1(param) {
         return id(rejection.base);
     }
   };
-  let addRejection = rejection => {
+  let rejectionSeq = make();
+  let seqOf = rejection => {
+    let seq = rejectionSeq[rejectionId(rejection)];
+    if (seq == null) {
+      if (seq === null) {
+        return 0.0;
+      } else {
+        return 0.0;
+      }
+    } else {
+      return seq;
+    }
+  };
+  let addRejection = (seq, rejection) => {
     let rid = rejectionId(rejection);
+    let rejection$1 = snapshot(rejection);
     let i = status.rejected.findIndex(value => rejectionId(value) === rid);
     if (i !== -1) {
-      status.rejected[i] = rejection;
+      status.rejected[i] = rejection$1;
+      return;
+    }
+    rejectionSeq[rid] = seq;
+    let i$1 = status.rejected.findIndex(value => seqOf(value) > seq);
+    if (i$1 !== -1) {
+      status.rejected.splice(i$1, 0, rejection$1);
     } else {
-      status.rejected.push(rejection);
+      status.rejected.push(rejection$1);
+    }
+  };
+  let dropRejection = rid => {
+    let i = status.rejected.findIndex(value => rejectionId(value) === rid);
+    if (i !== -1) {
+      status.rejected.splice(i, 1);
+      Reflect.deleteProperty(rejectionSeq, rid);
+      return true;
+    } else {
+      return false;
     }
   };
   let persistOp = entry => {
@@ -615,7 +649,7 @@ function make$1(param) {
           return match[1];
         }
         confirmed(entry);
-        addRejection(conflict(change));
+        addRejection(entry.seq, conflict(change));
         return remoteValue;
       }
       confirmed(entry);
@@ -747,7 +781,7 @@ function make$1(param) {
         }
       }
       if (change !== undefined) {
-        return addRejection(failed(change, message));
+        return addRejection(entry.seq, failed(change, message));
       }
     };
     remote.push(batch.map(entry => entry.op), {
@@ -844,7 +878,7 @@ function make$1(param) {
             return;
           }
           confirmed(entry);
-          addRejection(conflict(change));
+          addRejection(entry.seq, conflict(change));
           place(value);
           return;
         }
@@ -918,6 +952,7 @@ function make$1(param) {
   };
   let upsert = value => {
     let vid = id(value);
+    dropRejection(vid);
     let match = pending(vid);
     let change;
     if (match !== undefined) {
@@ -996,6 +1031,7 @@ function make$1(param) {
     });
   };
   let remove = rid => {
+    dropRejection(rid);
     let entry = pending(rid);
     if (entry !== undefined) {
       let match = entry.change;
@@ -1094,13 +1130,13 @@ function make$1(param) {
         if (change !== undefined) {
           switch (change.change) {
             case "created" :
-              addRejection({
+              addRejection(entry.seq, {
                 rejection: "createConflict",
                 edited: change.edited
               });
               break;
             case "updated" :
-              addRejection({
+              addRejection(entry.seq, {
                 rejection: "updateConflict",
                 base: change.base,
                 edited: change.edited
@@ -1150,11 +1186,33 @@ function make$1(param) {
       });
     }
   });
-  let dismiss = rejection => {
+  let take = rejection => {
     let i = status.rejected.indexOf(rejection);
-    if (i >= 0) {
-      status.rejected.splice(i, 1);
+    if (i === -1) {
+      return false;
+    }
+    status.rejected.splice(i, 1);
+    let k = rejectionId(rejection);
+    Reflect.deleteProperty(rejectionSeq, k);
+    return true;
+  };
+  let discard = rejection => {
+    take(rejection);
+  };
+  let retry = rejection => {
+    if (!take(rejection)) {
       return;
+    }
+    switch (rejection.rejection) {
+      case "createConflict" :
+      case "createFailed" :
+        return upsert(snapshot(rejection.edited));
+      case "updateConflict" :
+      case "updateFailed" :
+        return upsert(snapshot(rejection.edited));
+      case "removeConflict" :
+      case "removeFailed" :
+        return remove(id(rejection.base));
     }
   };
   let lastPurgeAt = {
@@ -1349,7 +1407,8 @@ function make$1(param) {
       removed: receiveRemoved
     },
     status: status,
-    dismiss: dismiss,
+    retry: retry,
+    discard: discard,
     tick: tick,
     dispose: () => {
       clearOnline();

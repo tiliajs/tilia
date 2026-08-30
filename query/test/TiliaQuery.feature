@@ -500,6 +500,27 @@ Feature: Language training app
       | dog.es | dog     | perro       | 0    |
       | cat.es | cat     | gato        | 1    |
 
+  # Ordering is what an app iterates: a cascade is refused cause-first, so
+  # working down the list retries the cause before the consequence.
+
+  Scenario: rejections are listed in outbox order whatever order replies arrive
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+      | dog.es | spanish | dog     | perro       | 1    |
+    And the remote rejects "dog.es" with "second"
+    And the remote rejects "cat.es" with "first"
+    And the remote replies out of order
+    And I go "online"
+    And time passes
+    Then status rejections should be in order
+      | id     |
+      | cat.es |
+      | dog.es |
+
   Scenario: a batch stops at the first transient and keeps what was answered
     When I open the "Spanish" deck
     And time passes
@@ -569,7 +590,7 @@ Feature: Language training app
       | dog.es  |
       | rain.es |
 
-  Scenario: a failed write reverts to remote truth and can be dismissed
+  Scenario: a failed write reverts to remote truth and can be discarded
     When I open the "Spanish" deck
     And time passes
     And I upsert
@@ -584,8 +605,75 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
-    When I dismiss the rejection for "cat.es"
+    When I discard the rejection for "cat.es"
     Then status should have 0 rejected
+
+  Scenario: a rejected write can be retried or discarded
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And time passes
+    Then status should have rejection
+      | kind          | id     | base | edited | message   |
+      | update failed | cat.es | 0    | 9      | forbidden |
+    And I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When the remote rejects "dog.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | dog.es | spanish | dog     | perro       | 7    |
+    And time passes
+    Then status should have 2 rejected
+    When the remote stops rejecting "cat.es"
+    And I retry the rejection for "cat.es"
+    And I discard the rejection for "dog.es"
+    And time passes
+    Then status should have 0 rejected
+    And status should have 0 pending
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 9    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: writing again clears an existing rejection
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And time passes
+    Then status should have 1 rejected
+    When the remote stops rejecting "cat.es"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 2    |
+    Then status should have 0 rejected
+
+  # A rejection is what was refused. The card moves on; the record does not.
+
+  Scenario: a rejection keeps what was refused, not what happened after
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And time passes
+    Then status should have rejection
+      | kind          | id     | base | edited | message   |
+      | update failed | cat.es | 0    | 9      | forbidden |
+    When the subscription changes
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 4    |
+    Then status should have rejection
+      | kind          | id     | base | edited | message   |
+      | update failed | cat.es | 0    | 9      | forbidden |
 
   Scenario: the local purge spares rows with pending writes
     When deck "Spanish" is in local db

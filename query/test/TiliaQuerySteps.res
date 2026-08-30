@@ -152,6 +152,10 @@ given("an {string} training app", ({step}, status: string) => {
     rules.rejects->Dict.set(id, message)
   )
 
+  step("the remote stops rejecting {string}", (id: string) => rules.rejects->Dict.delete(id))
+
+  step("the remote replies out of order", () => rules.reversed = true)
+
   step("the remote is transient from {string}", (id: string) => rules.transientFrom = Some(id))
 
   step("the remote fails the batch with {string} after {string}", (
@@ -340,8 +344,12 @@ given("an {string} training app", ({step}, status: string) => {
     expect(actual).toEqual(expected)
   })
 
-  step("I dismiss the rejection for {string}", (id: string) =>
-    cards.contents.dismiss(findRejection(id))
+  step("I retry the rejection for {string}", (id: string) =>
+    cards.contents.retry(findRejection(id))
+  )
+
+  step("I discard the rejection for {string}", (id: string) =>
+    cards.contents.discard(findRejection(id))
   )
 
   step("merge calls are cleared", () =>

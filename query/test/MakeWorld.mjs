@@ -233,7 +233,8 @@ function make$5() {
     rejects: {},
     conflicts: {},
     transientFrom: undefined,
-    failAfter: undefined
+    failAfter: undefined,
+    reversed: false
   };
 }
 
@@ -246,13 +247,22 @@ function opId(op) {
 }
 
 function wrap(rules, network, remote) {
-  let later = f => {
+  let send = f => {
     new Promise((resolve, param) => network.respond(() => resolve())).then(f);
   };
   return {
     online: remote.online,
     fetch: remote.fetch,
     push: (ops, channel) => {
+      let held = [];
+      let later = f => {
+        if (rules.reversed) {
+          held.push(f);
+          return;
+        } else {
+          return send(f);
+        }
+      };
       let ended = {
         contents: false
       };
@@ -294,6 +304,7 @@ function wrap(rules, network, remote) {
         ended.contents = true;
         later(() => channel.fail(message$1));
       });
+      held.toReversed().forEach(send);
     }
   };
 }

@@ -57,6 +57,9 @@ type op<'a> =
  * `edited` is the latest local edit, `base` the value it started from
  * (or the removed value). Failed variants carry the remote's `message`.
  * The current remote value is already in memory.
+ *
+ * Both are snapshots taken when the operation was refused: the row moves on,
+ * the record does not.
  */
 @tag("rejection")
 type rejection<'a> =
@@ -175,7 +178,13 @@ type expiry = {
 type status<'a> = {
   /** Number of ops waiting in the outbox. */
   pending: int,
-  /** Contexts for reverted conflicts and definitively rejected writes. */
+  /**
+   * Contexts for reverted conflicts and definitively rejected writes, in
+   * outbox order whatever order the replies arrived in: a cascade is refused
+   * cause-first, so working down the list retries the cause before the
+   * consequence. At most one rejection per id, and writing to an id clears
+   * the one it had.
+   */
   rejected: array<rejection<'a>>,
 }
 
@@ -288,8 +297,16 @@ type t<'query, 'a> = {
   receive: receive<'a>,
   /** Reactive sync state (tilia object). */
   status: status<'a>,
-  /** Remove a resolved or ignored rejection context. */
-  dismiss: rejection<'a> => unit,
+  /**
+   * Queue the refused work again and drop the rejection. The edit is
+   * re-applied as an ordinary optimistic write, so its change is computed
+   * against the value that stands now rather than the one it was refused
+   * against. Acts only on the exact record it is handed: a rejection already
+   * replaced or cleared is a no-op.
+   */
+  retry: rejection<'a> => unit,
+  /** Drop a rejection without retrying it. Same exact-record rule as `retry`. */
+  discard: rejection<'a> => unit,
   /**
    * Time heartbeat. The engine owns no timers: refresh, expiry, gc and
    * push retries happen here. Call it at least twice per refresh interval.

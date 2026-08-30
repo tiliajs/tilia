@@ -5,6 +5,7 @@ import * as Vitest from "vitest";
 import * as MakeWorld from "./MakeWorld.mjs";
 import * as TiliaQuery from "../src/TiliaQuery.mjs";
 import * as VitestBdd from "vitest-bdd";
+import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as Primitive_object from "@rescript/runtime/lib/es6/Primitive_object.js";
 import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js";
@@ -126,6 +127,10 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("the remote rejects {string} with {string}", (id, message) => {
     rules.rejects[id] = message;
+  });
+  step("the remote stops rejecting {string}", id => Stdlib_Dict.$$delete(rules.rejects, id));
+  step("the remote replies out of order", () => {
+    rules.reversed = true;
   });
   step("the remote is transient from {string}", id => {
     rules.transientFrom = id;
@@ -314,7 +319,8 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     });
     Vitest.expect(actual).toEqual(VitestBdd.toRecords(table));
   });
-  step("I dismiss the rejection for {string}", id => cards.contents.dismiss(findRejection(id)));
+  step("I retry the rejection for {string}", id => cards.contents.retry(findRejection(id)));
+  step("I discard the rejection for {string}", id => cards.contents.discard(findRejection(id)));
   step("merge calls are cleared", () => {
     merge.calls.splice(0, merge.calls.length);
   });

@@ -116,7 +116,8 @@ type t<'query, 'a> = {
   remove: string => unit,
   receive: receive<'a>,
   status: status<'a>,
-  dismiss: rejection<'a> => unit,
+  retry: rejection<'a> => unit,
+  discard: rejection<'a> => unit,
   tick: unit => unit,
   dispose: unit => unit,
   _canopy: unit => canopy,
@@ -179,6 +180,15 @@ function parseOp(value) {
     }
   } catch (_) {}
   return undefined;
+}`)
+
+/**
+ * Deep copy through the store contract: values are already required to
+ * survive a JSON round trip, so nothing new is asked of them here.
+ */
+let snapshot: 'a => 'a = %raw(`
+function snapshot(value) {
+  return JSON.parse(JSON.stringify(value));
 }`)
 
 // === Query records (registry)
@@ -512,13 +522,42 @@ let make = (
       id(record)
     }
 
-  let addRejection = rejection => {
+  // The operation each rejection stands for, so the list can be ordered by
+  // it rather than by the order replies happen to arrive in. Private: the
+  // seq is bookkeeping, not something an app should read off a rejection.
+  let rejectionSeq: dict<float> = Dict.make()
+  let seqOf = rejection =>
+    switch rejectionSeq->Dict.get(rejectionId(rejection)) {
+    | Value(seq) => seq
+    | Null | Undefined => 0.0
+    }
+
+  let addRejection = (~seq, rejection) => {
     let rid = rejectionId(rejection)
+    // The single boundary where a live change becomes a historical record:
+    // copy it here, so no later branch can hand out a value still in play.
+    let rejection = snapshot(rejection)
     switch status.rejected->Array.findIndex(value => rejectionId(value) === rid) {
-    | -1 => status.rejected->Array.push(rejection)
+    | -1 =>
+      rejectionSeq->Dict.set(rid, seq)
+      switch status.rejected->Array.findIndex(value => seqOf(value) > seq) {
+      | -1 => status.rejected->Array.push(rejection)
+      | i => status.rejected->Array.splice(~start=i, ~remove=0, ~insert=[rejection])
+      }
+    // A replacement keeps the place its id already holds: the list orders the
+    // work that was refused, and that work queued once.
     | i => status.rejected->Array.set(i, rejection)
     }
   }
+
+  let dropRejection = rid =>
+    switch status.rejected->Array.findIndex(value => rejectionId(value) === rid) {
+    | -1 => false
+    | i =>
+      status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
+      rejectionSeq->Dict.delete(rid)
+      true
+    }
 
   let persistOp = (entry: outboxOp<'a>) =>
     switch local {
@@ -674,7 +713,7 @@ let make = (
           value
         } else {
           confirmed(entry)
-          addRejection(conflict(change))
+          addRejection(~seq=entry.seq, conflict(change))
           remoteValue
         }
       }
@@ -781,7 +820,7 @@ let make = (
           | None => ()
           }
           switch change {
-          | Some(change) => addRejection(failed(change, message))
+          | Some(change) => addRejection(~seq=entry.seq, failed(change, message))
           | None => ()
           }
         }
@@ -842,7 +881,7 @@ let make = (
                       place(edited)->ignore
                     } else {
                       confirmed(entry)
-                      addRejection(conflict(change))
+                      addRejection(~seq=entry.seq, conflict(change))
                       place(value)->ignore
                     }
                   }
@@ -912,6 +951,8 @@ let make = (
   // Join or un-join optimistic upserts on every in-memory query.
   let upsert = value => {
     let vid = id(value)
+    // A new write on an id speaks for it: whatever was refused is history.
+    dropRejection(vid)->ignore
     let change = switch pending(vid) {
     | Some({change: Some(Created(_))}) => Created({edited: value})
     | Some({change: Some(Updated({base}))})
@@ -949,6 +990,7 @@ let make = (
 
   // Remove optimistically from memory, loaded query records, and local storage.
   let remove = rid => {
+    dropRejection(rid)->ignore
     switch pending(rid) {
     | Some(entry) =>
       switch entry.change {
@@ -1014,8 +1056,10 @@ let make = (
           let change = entry.change
           confirmed(entry)
           switch change {
-          | Some(Created({edited})) => addRejection(CreateConflict({edited: edited}))
-          | Some(Updated({base, edited})) => addRejection(UpdateConflict({base, edited}))
+          | Some(Created({edited})) =>
+            addRejection(~seq=entry.seq, CreateConflict({edited: edited}))
+          | Some(Updated({base, edited})) =>
+            addRejection(~seq=entry.seq, UpdateConflict({base, edited}))
           | Some(Removed(_))
           | Some(Clean(_))
           | None => ()
@@ -1068,12 +1112,35 @@ let make = (
     },
   )
 
-  let dismiss = rejection => {
-    let i = status.rejected->Array.indexOf(rejection)
-    if i >= 0 {
+  // Both act on the exact record they were handed. A stale callback holding
+  // a superseded rejection must not speak for the one that replaced it.
+  let take = rejection =>
+    switch status.rejected->Array.indexOf(rejection) {
+    | -1 => false
+    | i =>
       status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
+      rejectionSeq->Dict.delete(rejectionId(rejection))
+      true
     }
-  }
+
+  let discard = rejection => take(rejection)->ignore
+
+  // The refused work goes back through the ordinary write path, so its change
+  // is computed against the value that stands now, not the one it started
+  // from. Copied on the way out: the record an app may still hold is history.
+  let retry = rejection =>
+    if take(rejection) {
+      switch rejection {
+      | CreateConflict({edited})
+      | CreateFailed({edited})
+      | UpdateConflict({edited})
+      | UpdateFailed({edited}) =>
+        upsert(snapshot(edited))
+      | RemoveConflict({base})
+      | RemoveFailed({base}) =>
+        remove(id(base))
+      }
+    }
 
   let lastPurgeAt = ref(Float.Constants.negativeInfinity)
   let purgeLocal = t =>
@@ -1241,7 +1308,8 @@ let make = (
     remove,
     receive: {changed: receiveChanged, removed: receiveRemoved},
     status,
-    dismiss,
+    retry,
+    discard,
     tick,
     dispose: () => {
       clearOnline()

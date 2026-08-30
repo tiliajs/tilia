@@ -283,6 +283,12 @@ module Rules = {
     conflicts: dict<card>,
     mutable transientFrom: option<string>,
     mutable failAfter: option<(string, string)>,
+    /**
+     * Test control. While set, the controlled replies of a push are held and
+     * answered backwards: the last operation is answered first. Nothing else
+     * about the push changes — only the order the answers come back in.
+     */
+    mutable reversed: bool,
   }
 
   let make = (): t => {
@@ -290,6 +296,7 @@ module Rules = {
     conflicts: Dict.make(),
     transientFrom: None,
     failAfter: None,
+    reversed: false,
   }
 
   let opId = (op: TiliaQuery.op<card>) =>
@@ -303,13 +310,22 @@ module Rules = {
     network: Network.t,
     remote: TiliaQuery.remote<query, card>,
   ): TiliaQuery.remote<query, card> => {
-    let later = f =>
+    let send = f =>
       Promise.make((resolve, _) => network.respond(() => resolve()))
       ->Promise.thenResolve(f)
       ->ignore
     {
       ...remote,
       push: (ops, channel) => {
+        // Held only while `reversed`, so an ordinary push still queues each
+        // answer where it happened, interleaved with the uncontrolled ones.
+        let held: array<unit => unit> = []
+        let later = f =>
+          if rules.reversed {
+            held->Array.push(f)
+          } else {
+            send(f)
+          }
         // Once the push has ended, the remaining ops are not sent at all:
         // `retry` or `fail` speaks for them.
         let ended = ref(false)
@@ -342,6 +358,7 @@ module Rules = {
             }
           }
         })
+        held->Array.toReversed->Array.forEach(send)
       },
     }
   }

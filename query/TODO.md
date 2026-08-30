@@ -17,13 +17,19 @@
       are pure predicates over one row — no limits, no pagination, no
       aggregates — because join-on-upsert and full-result `set` semantics
       both break otherwise.
-- [ ] Rejected ops overlay in dict order before the seq-ordered outbox
-      (`applyPending`). With one rejection per id it mostly cannot matter,
-      but it is the only place ordering is accidental rather than chosen.
-      Make it deterministic (sort by seq) or note why it cannot matter.
+- [ ] The api reference and guide still document `dismiss`, which 2d replaced
+      with `retry` and `discard` (`docs/content/query/api/core/090-dismiss.md`,
+      `040-upsert.md`, `080-status.md`, `230-rejection-type.md`, and guide 07).
+      Belongs with the doc rewrite, once the new surface is settled.
 - [ ] Restart-with-rejection scenario: the `.resi` promises the rejection
       resurfaces on its own after a restart (op reloads as pending, re-push
       fails again). Test it.
+- [x] Rejected ops overlay in dict order before the seq-ordered outbox
+      (`applyPending`). Stale: rejections are status records, not optimistic
+      overlays — `applyPending` folds the outbox alone, and a rejected op has
+      already reverted, so overlaying one would show refused work again. The
+      ordering that did matter is `status.rejected` itself, now inserted in
+      operation order rather than reply-arrival order (2d, rule 13).
 - [x] Document the linear-scan bet: `upsert` walks every entry and registry
       record, `applyPending` re-applies the whole outbox per delivery. Fine
       at client-cache scale (dozens of queries); say so rather than betting
