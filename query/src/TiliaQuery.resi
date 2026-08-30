@@ -58,8 +58,8 @@ type op<'a> =
  * (or the removed value). Failed variants carry the remote's `message`.
  * The current remote value is already in memory.
  *
- * Both are snapshots taken when the operation was refused: the row moves on,
- * the record does not.
+ * Both are snapshots, copied through JSON when the operation was refused:
+ * the row moves on, the record does not.
  */
 @tag("rejection")
 type rejection<'a> =
@@ -301,8 +301,9 @@ type t<'query, 'a> = {
    * Queue the refused work again and drop the rejection. The edit is
    * re-applied as an ordinary optimistic write, so its change is computed
    * against the value that stands now rather than the one it was refused
-   * against. Acts only on the exact record it is handed: a rejection already
-   * replaced or cleared is a no-op.
+   * against. The work is queued as a copy, so the record stays history even
+   * once the row it describes is back in play. Acts only on the exact record
+   * it is handed: a rejection already replaced or cleared is a no-op.
    */
   retry: rejection<'a> => unit,
   /** Drop a rejection without retrying it. Same exact-record rule as `retry`. */
@@ -332,5 +333,10 @@ let sortedStringify: 'a => string
  * Build the engine. Values and queries are held in plain JavaScript
  * objects and absence is read as `undefined`, so a value or a query must
  * never be `null` or `undefined` itself.
+ *
+ * A value must also survive a JSON round trip unchanged: no functions, no
+ * cycles, no class instances, nothing whose identity carries meaning. A
+ * `local` adaptor needs it, and so does every rejection — the record is
+ * copied through JSON whether or not persistence is configured.
  */
 let make: config<'query, 'a> => t<'query, 'a>

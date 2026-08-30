@@ -319,7 +319,33 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     });
     Vitest.expect(actual).toEqual(VitestBdd.toRecords(table));
   });
-  step("I retry the rejection for {string}", id => cards.contents.retry(findRejection(id)));
+  let retried = {
+    contents: undefined
+  };
+  step("I retry the rejection for {string}", id => {
+    let rejection = findRejection(id);
+    retried.contents = rejection;
+    cards.contents.retry(rejection);
+  });
+  step("the retried rejection should still show english {string}", english => {
+    let rejection = Stdlib_Option.getOrThrow(retried.contents, "no rejection was retried");
+    let card;
+    switch (rejection.rejection) {
+      case "createConflict" :
+      case "createFailed" :
+        card = rejection.edited;
+        break;
+      case "updateConflict" :
+      case "updateFailed" :
+        card = rejection.edited;
+        break;
+      case "removeConflict" :
+      case "removeFailed" :
+        card = rejection.base;
+        break;
+    }
+    Vitest.expect(card.english).toBe(english);
+  });
   step("I discard the rejection for {string}", id => cards.contents.discard(findRejection(id)));
   step("merge calls are cleared", () => {
     merge.calls.splice(0, merge.calls.length);

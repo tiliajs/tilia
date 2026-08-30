@@ -344,9 +344,27 @@ given("an {string} training app", ({step}, status: string) => {
     expect(actual).toEqual(expected)
   })
 
-  step("I retry the rejection for {string}", (id: string) =>
-    cards.contents.retry(findRejection(id))
-  )
+  // Kept after the retry, the way an application holding the record does.
+  let retried: ref<option<TiliaQuery.rejection<card>>> = ref(None)
+
+  step("I retry the rejection for {string}", (id: string) => {
+    let rejection = findRejection(id)
+    retried := Some(rejection)
+    cards.contents.retry(rejection)
+  })
+
+  step("the retried rejection should still show english {string}", (english: string) => {
+    let rejection = retried.contents->Option.getOrThrow(~message="no rejection was retried")
+    let card = switch rejection {
+    | TiliaQuery.CreateConflict({edited})
+    | TiliaQuery.CreateFailed({edited})
+    | TiliaQuery.UpdateConflict({edited})
+    | TiliaQuery.UpdateFailed({edited}) => edited
+    | TiliaQuery.RemoveConflict({base})
+    | TiliaQuery.RemoveFailed({base}) => base
+    }
+    expect(card.english).toBe(english)
+  })
 
   step("I discard the rejection for {string}", (id: string) =>
     cards.contents.discard(findRejection(id))

@@ -521,6 +521,31 @@ Feature: Language training app
       | cat.es |
       | dog.es |
 
+  # The same order holds for a refusal the server never sent: an inbound
+  # remove refuses the write it lands on, and that refusal belongs where the
+  # write was queued, not where the news arrived.
+
+  Scenario: a rejection from an inbound remove keeps its place in the order
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id      | deck    | english | translation | seen |
+      | cat.es  | spanish | cat     | gato        | 1    |
+      | rain.es | spanish | rain    | lluvia      | 1    |
+      | dog.es  | spanish | dog     | perro       | 1    |
+    And the subscription removes "rain.es"
+    And the subscription removes "dog.es"
+    Then status should have 2 rejected
+    When the remote rejects "cat.es" with "forbidden"
+    And I go "online"
+    And time passes
+    Then status rejections should be in order
+      | id      |
+      | cat.es  |
+      | rain.es |
+      | dog.es  |
+
   Scenario: a batch stops at the first transient and keeps what was answered
     When I open the "Spanish" deck
     And time passes
@@ -542,6 +567,37 @@ Feature: Language training app
     And tick is called
     And time passes
     Then status should have 0 pending
+
+  # `retry` ends the push: the transport gave up, so every operation it did
+  # not answer goes back to pending, and the next push owns them. A
+  # per-operation reply that arrives after that speaks for a push that is
+  # over, and must not settle a write that is queued again.
+
+  Scenario: a reply arriving after a transient is ignored
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+      | dog.es | spanish | dog     | perro       | 1    |
+    And the remote rejects "cat.es" with "forbidden"
+    And the remote is transient from "dog.es"
+    And the remote replies out of order
+    And I go "online"
+    And time passes
+    Then status should have 2 pending
+    And status should have 0 rejected
+    When the remote push recovers
+    And the remote stops rejecting "cat.es"
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then status should have 0 pending
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 1    |
+      | dog.es | dog     | perro       | 1    |
 
   Scenario: pending writes survive a restart
     When I open the "Spanish" deck
@@ -674,6 +730,25 @@ Feature: Language training app
     Then status should have rejection
       | kind          | id     | base | edited | message   |
       | update failed | cat.es | 0    | 9      | forbidden |
+
+  # Retrying does not hand the record back: what goes into play is a copy, so
+  # the row can move on again without rewriting the history the app holds.
+
+  Scenario: a retried rejection is not the row it puts back in play
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And time passes
+    Then status should have 1 rejected
+    When I go "offline"
+    And I retry the rejection for "cat.es"
+    And the subscription changes
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | CAT     | gato        | 4    |
+    Then the retried rejection should still show english "cat"
 
   Scenario: the local purge spares rows with pending writes
     When deck "Spanish" is in local db

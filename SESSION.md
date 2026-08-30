@@ -1,16 +1,17 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 53/53 green, phases 0 through 2d done, 2e next.**
+**Where things stand: 56/56 green, phases 0 through 2 done. 3a next.**
 Nothing is committed — Anna owns the history.
 
 The decisions are in `TILIA-QUERY-SPLIT.md` and the shape they imply is
 `query/src/croquis/TiliaQuerySplit.res` (a sketch that compiles, not code).
-The ledger is `query/test/TiliaQuery.feature`; the scenarios still waiting to
-land are in `TILIA-QUERY-SCENARIOS.md`, one per decided rule, each tagged with
-the phase that makes it pass.
+The ledger is `query/test/TiliaQuery.feature`; the complete scenario batch is
+in `TILIA-QUERY-SCENARIOS.md`, one per decided rule, each tagged with the
+phase that makes it pass.
 
-The 41 scenarios that shipped are the only safety net for a refactor this
-size, so no step leaves the suite red past its own end.
+The 41 scenarios that shipped are the regression baseline for a refactor this
+size. Together with the new scenarios, they must stay green at the end of
+every step.
 
 ## How to work here
 
@@ -51,6 +52,11 @@ Test controls added during phase 2, all driven from steps:
 - `numericVersion` in the steps — table cells are strings and `version` is a
   number on the server; anything crossing that line needs converting.
 - `onError` recorder — failures the read site was never told about.
+- `I retry the rejection for {string}` keeps the record it was handed, so
+  `the retried rejection should still show english {string}` can ask what the
+  application is still holding after the row moved on. The only harness work
+  the 2d proof gaps needed: the other two scenarios are written entirely from
+  controls that were already there.
 
 ## Plan
 
@@ -64,8 +70,9 @@ Test controls added during phase 2, all driven from steps:
       translation layer, so a rule is stated as behaviour and the
       implementation stays out of it. Five gaps are deferred as pre-existing.
       One scenario needs the harness strengthened before it can fail at all:
-      a store that replays synchronously in its own constructor.
-- [ ] **2 · Behaviour, on the monolith.** Each step green at its end. New
+      a store that replays synchronously in its own constructor. It waits for
+      3d, where `binding` and `connect` exist.
+- [x] **2 · Behaviour, on the monolith.** Each step green at its end. New
       scenarios go beside the ones they relate to, not appended: the file
       reads top to bottom as one story.
   - [x] 2a `claim` + `NoData`; `one`/`array` projection; empty-`Partial`;
@@ -85,12 +92,13 @@ Test controls added during phase 2, all driven from steps:
         still open. Both halves mutation-checked.
   - [x] 2c per-op `conflict` + `reject`, and the `set`-with-`merge` bug.
         **49/49.** `Channel.write` gained `conflict` and `reject`; the push
-        now tracks which operations were *answered* rather than one `settled`
-        flag, and `fail` iterates in outbox order instead of backwards. `set`
-        no longer calls `reconcile`: confirming is confirming, and rebasing is
-        what `conflict` is for — which is the bug fixed. Harness gained
-        `Rules` (per-operation server outcomes, replying through the network
-        queue so a `fail` after an accepted write really lands after it).
+        now tracks which operations were *answered*, while `settled` closes
+        the whole push after `retry` or `fail`; `fail` iterates in outbox order
+        instead of backwards. `set` no longer calls `reconcile`: confirming is
+        confirming, and rebasing is what `conflict` is for — which is the bug
+        fixed. Harness gained `Rules` (per-operation server outcomes, replying
+        through the network queue so a `fail` after an accepted write really
+        lands after it).
   - [x] 2d rejection recovery — `retry`/`discard`, snapshots, outbox order.
         **53/53.** All three questions resolved into one place: `addRejection`
         took `~seq` and became the single boundary where a live change turns
@@ -107,16 +115,44 @@ Test controls added during phase 2, all driven from steps:
         remote replies out of order`. Rules 10, 11, 13 and 14 each
         mutation-checked; decisions along the way under **Opus autonomous
         decisions**.
-  - [ ] 2e harness: a store that replays synchronously during construction
-- [ ] **3 · The split, behaviour-neutral.** No scenario changes here; if one
-      needs editing, behaviour moved by accident.
+- [x] **Before 3a · Close the 2d proof gaps. 56/56.** Three scenarios, one
+      per gap, each mutation-checked and each failing only its own:
+  - *a reply arriving after a transient is ignored* — `retry` closes the
+      push. The existing controls already state it: `the remote rejects
+      "cat.es"` + `the remote is transient from "dog.es"` + `the remote
+      replies out of order` puts the terminal `retry()` ahead of a
+      per-operation `reject`. Without `settled := true`, that late reject
+      answers a write the next push now owns — 1 pending, 1 rejected instead
+      of 2 pending, 0 rejected.
+  - *a rejection from an inbound remove keeps its place in the order* — both
+      `receiveRemoved` sites at once. Three writes queued offline, the
+      second (`Created`) and third (`Updated`) taken out by the
+      subscription, then the first refused by the remote: the list still
+      reads in outbox order. `~seq=0.0` at either site reorders it.
+  - *a retried rejection is not the row it puts back in play* — retry is
+      handed the record, retries it offline, and a delivery then merges into
+      the row now in play. Without `upsert(snapshot(edited))` the record the
+      app still holds reads `CAT`. The copy is proven; it stays.
+  - The `.resi` now states the JSON round trip on `make`, beside the
+      plain-object rule, and says it holds with or without a `local`
+      adaptor. `rejection` and `retry` name the copy that rests on it.
+- [ ] **3 · The split, behaviour-neutral.** No shipped scenario changes here;
+      if one needs editing, behaviour moved by accident. The one addition is
+      rule 17's, at 3d, which states what the new construction allows.
   - [ ] 3a `Schema.t` resolved once, threaded through
   - [ ] 3b store-side touches of engine state routed through
         `item`/`changed`/`removed`/`place` — still one file
   - [ ] 3c engine's find path routed through `{online, find, forget}` — still
         one file
   - [ ] 3d files split: `TiliaQueryEngine.res`, `TiliaQueryStore.res`,
-        `TiliaQuery.res` as the assembly; `source.forget` on eviction only
+        `TiliaQuery.res` as the assembly; `source.forget` on eviction only.
+        Also the harness demand from phase 1 and rule 17's scenario: a fake
+        store that replays an outbox entry synchronously inside its own
+        constructor, calling `binding.place` while it is still being built.
+        It lands here because `binding` and internal `connect` first exist
+        here, and it is the only test that tells this construction apart from
+        a two-phase design that attaches the binding afterwards — the built-in
+        store cannot, its replay is asynchronous.
 - [ ] **4 · The new surface.**
   - [ ] 4a `connect: binding => (source, 'store)`; `Store.make`/`Store.custom`;
         `Query.make` with `store:`
@@ -151,11 +187,13 @@ Taking the copy inside `addRejection` makes that moot — neither `place` nor
 `revert` mutates the objects it moves — so the call sites stayed where they
 were. One less rule to hold.
 
-**`retry`'s second copy is kept, and is not proven.** Breaking
-`upsert(snapshot(edited))` to `upsert(edited)` fails no scenario. It is kept
-as a cheap guard on the same rule as the first copy — a record handed out
-never aliases a live row — on the `settled` precedent. If it ever costs
-anything, it can go without a scenario changing.
+**`retry`'s second copy is kept, and now proven.** It protects a real
+boundary — a rejection already handed to the application must not become the
+live row when retried — and *a retried rejection is not the row it puts back
+in play* fails without it. The retry has to stay unconfirmed for the alias to
+be visible: once the server answers, `place` installs its own row and the
+window closes. So the scenario retries offline and lets a delivery merge into
+the pending edit.
 
 **Rule 14's scenario stands as the batch wrote it; my review of it was
 wrong.** I had claimed it could not fail without the copy, on the reading that
@@ -190,10 +228,13 @@ The alternative — passing the current claim into `find` — was rejected: it
 adds a parameter and every store has to honour it. Scenario: *a refresh does
 not weaken a result while it is in flight*.
 
-**`settled` is redundant, not untested.** Flipping it off breaks no
-scenario, because after `fail` every unanswered operation has already left the
-outbox and `waiting` rejects a late reply on its own. Left in as a cheap guard
-against a channel that answers twice; not worth a scenario.
+**`settled` closes a push after `retry` or `fail`.** After `fail`, every
+unanswered operation has left the outbox and `waiting` rejects a late reply
+on its own. After `retry`, however, unanswered operations remain in the
+outbox; without `settled`, a late per-operation callback can still answer
+them. *A reply arriving after a transient is ignored* holds that half — the
+`fail` half is still a cheap guard against a channel that answers twice, and
+still has no scenario.
 
 **`tick` now refreshes anything not fresh.** 2b replaced the old gate
 (`LoadedRemote`, or a `Failed` result) with `stale`: false while live, false
@@ -227,7 +268,7 @@ keyspace can back several stores, so closing belongs to whoever created it.
 `registry`, `persistRecord`, `outbox`, `status`, rejections, `persistOp`,
 `confirmed`, `pending`, `applyPending`, `conflict`, `failed`, `merged`,
 `enqueue`, `upsert`, `remove`, `receiveChanged`, `receiveRemoved`, boot
-replay, `purgeLocal`, `dismiss`, local expiry.
+replay, `purgeLocal`, `retry`, `discard`, local expiry.
 
 **Straddlers — the actual work of phase 3.**
 
@@ -247,7 +288,7 @@ replay, `purgeLocal`, `dismiss`, local expiry.
 - `makeFetch` (`:227`) orchestrates local-then-remote. Both collapse into
   `source.find`, and A stops knowing there are two tiers. `unknown()` (`:245`)
   becomes the store answering `partial([])` and A's empty-`Partial` rule.
-  This is where the open decision above bites.
+  This is where the no-weakening decision above applies.
 - `tick` (`:1029`) does A's refresh, demote and evict, and B's purge and
   push. Splits into `engine.tick()` then `store.tick()`, in that order, which
   is the order the current code already runs them in.
@@ -259,21 +300,19 @@ replay, `purgeLocal`, `dismiss`, local expiry.
 - **`vitest-bdd` has no tag support.** The string `tag` appears nowhere in the
   package, so a phase cannot land its scenarios as skipped: each one trickles
   in with the code that makes it pass, which is how 2d went.
-- **`receiveRemoved`'s seq is untested.** Both of its rejection sites carry
-  `entry.seq`, but no scenario orders a rejection from an inbound remove
-  against another one — mutating it to `~seq=0.0` fails nothing. Same shape as
-  the deferred pre-existing gaps, and cheap to cover when 2e touches the
-  harness.
+- **`receiveRemoved`'s seq is covered.** *A rejection from an inbound remove
+  keeps its place in the order* orders both of its rejection sites against a
+  remote refusal; `~seq=0.0` at either one reorders the list.
 - **The api reference and guide still say `dismiss`.** Five pages plus guide
   07; carried in `query/TODO.md`, for the doc rewrite once 4a has settled the
   surface. Not done here: 2d is behaviour, and the `.resi` is rewritten again
   at 4a.
-- `one` is **untested**. No scenario and no step touches it, and `one` is
-  exactly where `NoMatch` and the empty-`Partial` projection live. The batch
-  gets its first, under rule 4. Fuller coverage is deferred: it is a
-  pre-existing gap, not this refactor's. `one(query)` selects the first result
-  of a query — it is not a lookup by id (`TiliaQuery.res:347`), which the
-  first draft of the batch got wrong.
+- `one` now has its first scenario and step under rule 4, covering `NoMatch`
+  and claim ageing for a complete empty query. Fuller coverage is deferred:
+  selecting a row from a narrowed query and `one` over an empty `Partial` are
+  pre-existing gaps. `one(query)` selects the first result of a query — it is
+  not a lookup by id (`TiliaQuery.res:347`), which the first draft of the batch
+  got wrong.
 - The overlay item in `TODO.md` was stale and is closed: rejections are status
   records, not optimistic overlays — `applyPending` folds the outbox alone, a
   rejected op has already reverted, and overlaying one would show refused work
@@ -286,5 +325,3 @@ replay, `purgeLocal`, `dismiss`, local expiry.
 - How `dist/index.d.ts` is produced is unchecked. The read model and the
   constructors both change the TypeScript surface, and `claims-app-ts` is a TS
   consumer.
-- Whether vitest-bdd honours scenario tags is unchecked. It decides whether a
-  phase can land scenarios as skipped or has to trickle them in.
