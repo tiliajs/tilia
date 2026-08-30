@@ -141,7 +141,7 @@ module Store = {
 
   let rowTag = TiliaQueryStore.rowTag
 
-  type config<'query, 'a> = {
+  type channels<'query, 'a> = {
     remote: remote<'query, 'a>,
     persist?: Kv.t,
     lookup?: ('query, Channel.local<'a>) => unit,
@@ -158,7 +158,28 @@ module Store = {
    * A store described by its channels: an adaptor that answers a find when
    * it can, pushes a batch when asked, and may push facts in at any time.
    */
-  let custom = ({remote, ?persist, ?lookup, ?merge, ?expiry}: config<'query, 'a>) =>
+  module Outcome = TiliaQueryStore.Outcome
+  module Removal = TiliaQueryStore.Removal
+
+  type answer<'a> = TiliaQueryStore.answer<'a> = {
+    fresh: array<'a> => unit,
+    fail: string => unit,
+  }
+
+  type config<'query, 'a> = {
+    find: ('query, answer<'a>) => unit,
+    upsert: ('a, Outcome.t<'a> => unit) => unit,
+    remove: (string, Removal.t => unit) => unit,
+    online?: Tilia.signal<bool>,
+    persist?: Kv.t,
+    lookup?: ('query, Channel.local<'a>) => unit,
+    merge?: (~change: change<'a>, ~remote: 'a) => bool,
+    expiry?: expiry,
+  }
+
+  let online = TiliaQueryStore.online
+
+  let custom = ({remote, ?persist, ?lookup, ?merge, ?expiry}: channels<'query, 'a>) =>
     (schema, binding) =>
       TiliaQueryStore.connect(
         {
@@ -177,6 +198,28 @@ module Store = {
         },
         binding,
       )
+
+  /**
+   * A store described by what its backend does when asked: find these rows,
+   * write this one, remove that one. The batching, the ordering and the
+   * protocol are ours; what is left is a translation table.
+   */
+  let make = (
+    {find, upsert, remove, ?online, ?persist, ?lookup, ?merge, ?expiry}: config<'query, 'a>,
+  ) => {
+    let signal = switch online {
+    | Some(online) => online
+    | None => TiliaQueryStore.online()
+    }
+    (schema: schema<'query, 'a>, binding) =>
+      custom({
+        remote: TiliaQueryStore.asRemote(~id=schema.id, ~online=signal, ~find, ~upsert, ~remove),
+        ?persist,
+        ?lookup,
+        ?merge,
+        ?expiry,
+      })(schema, binding)
+  }
 }
 
 // === make (factory)

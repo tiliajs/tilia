@@ -89,6 +89,102 @@ let parseRecord = (function parseRecord(value) {
   return undefined;
 });
 
+let Outcome = {};
+
+let Removal = {};
+
+let listen = (function listen(fn) {
+  if (typeof addEventListener !== "function") return false;
+  addEventListener("online", fn);
+  addEventListener("offline", fn);
+  return true;
+});
+
+let reachable = (function reachable() {
+  return typeof navigator === "object" && navigator && typeof navigator.onLine === "boolean"
+    ? navigator.onLine
+    : true;
+});
+
+let shared = {
+  contents: undefined
+};
+
+function online() {
+  let signal = shared.contents;
+  if (signal !== undefined) {
+    return signal;
+  }
+  let match = Tilia.signal(reachable());
+  let set = match[1];
+  let signal$1 = match[0];
+  listen(() => set(reachable()));
+  shared.contents = signal$1;
+  return signal$1;
+}
+
+function asRemote(id, online, find, upsert, remove) {
+  return {
+    online: online,
+    fetch: (query, channel) => find(query, {
+      fresh: channel.fresh,
+      fail: channel.fail
+    }),
+    push: (ops, channel) => {
+      let once = reply => {
+        let answered = {
+          contents: false
+        };
+        return outcome => {
+          if (!answered.contents) {
+            answered.contents = true;
+            return reply(outcome);
+          }
+        };
+      };
+      let next = index => {
+        let match = ops[index];
+        if (match == null) {
+          return;
+        }
+        if (match.op === "upsert") {
+          let value = match.value;
+          return upsert(value, once(outcome => {
+            if (typeof outcome !== "object") {
+              return channel.retry();
+            }
+            switch (outcome.outcome) {
+              case "saved" :
+                channel.set(outcome.value);
+                return next(index + 1 | 0);
+              case "conflict" :
+                channel.conflict(outcome.value);
+                return next(index + 1 | 0);
+              case "rejected" :
+                channel.reject(id(value), outcome.message);
+                return next(index + 1 | 0);
+            }
+          }));
+        }
+        let rid = match.id;
+        remove(rid, once(outcome => {
+          if (typeof outcome !== "object") {
+            if (outcome !== "removed") {
+              return channel.retry();
+            }
+            channel.removed(rid);
+            return next(index + 1 | 0);
+          } else {
+            channel.reject(rid, outcome.message);
+            return next(index + 1 | 0);
+          }
+        }));
+      };
+      next(0);
+    }
+  };
+}
+
 function connect(param, binding) {
   let schema = param.schema;
   let now = schema.now;
@@ -1096,6 +1192,10 @@ export {
   snapshot,
   parseRow,
   parseRecord,
+  Outcome,
+  Removal,
+  online,
+  asRemote,
   connect,
 }
 /* Tilia Not a pure module */

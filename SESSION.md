@@ -1,7 +1,7 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 59/59 green, phases 0 through 3 done, 4a half done,
-4b and 4c done, 5a done on paper. `Store.make` is what is left of 4a.**
+**Where things stand: 60/60 green, phases 0 through 4c done, 5a done on
+paper. 4d is what is left of phase 4.**
 Committed through 4a's first half, on `main`, at Anna's word — the ledger
 below is what each commit did.
 
@@ -60,6 +60,10 @@ Test controls added during phase 2, all driven from steps:
 - `numericVersion` in the steps — table cells are strings and `version` is a
   number on the server; anything crossing that line needs converting.
 - `onError` recorder — failures the read site was never told about.
+- `PapabaseStore` (4a) — the same simulated server described by outcomes
+  instead of channels, and `makeOutcomes` to build the app on it. It is the
+  reference for what an application writes against `Store.make`: three
+  functions and a translation table.
 - `DexmeKv` (4b) — the Dexie-like table wired as a `Kv`, one entry per row
   keyed `tag/key`. `DexmeIndex` (4c) is the same table read as an index, for
   the `lookup` scenario: same author, which is the point.
@@ -181,7 +185,7 @@ Test controls added during phase 2, all driven from steps:
         with nothing to place and nothing to find. Mutation-checked — drop
         the constructor `place` and only that scenario fails.
 - [ ] **4 · The new surface.**
-  - [~] 4a **the seam is public; `Store.make` is not written. 57/57.**
+  - [x] 4a **the seam is public, and both constructors are written. 60/60.**
         `make` takes `store:` and returns `(t, 'store)`; `t` is
         `{one, array, tick, dispose, _canopy}` and everything a store offers
         comes back beside it — `Store.t` for the one shipped here, `unit` for
@@ -191,10 +195,14 @@ Test controls added during phase 2, all driven from steps:
         `{local}` on the store. The suite moved to the new surface unchanged
         — the same 57 scenarios, the write steps now going through the store
         handle.
-        Still to write: `Store.make({find, upsert, remove, ...})`. 5a is
-        done and the shape is settled — see `TILIA-QUERY-SPLIT.md`. It wants
-        `persist` from 4b to be worth writing, so 4b comes first and
-        `Store.make` lands with it.
+        `Store.make({find, upsert, remove, ...})` landed after 4b, as 5a
+        settled it: `answer` is `{fresh, fail}`, the outcomes are
+        `Outcome.t`/`Removal.t` in the channel's own words, and the batch is
+        issued one operation at a time so it can stop at the first
+        `Transient` with nothing further sent. `Store.online()` is one signal
+        per process. Scenario: *an outcome store issues one write at a time*
+        — three writes take three round trips, where a channel store settles
+        them in one. Mutation-checked by issuing the batch at once.
   - [x] 4b **`Kv.t`, memory keyspace as default, `persist`. 59/59.** The
         local adaptor is gone: rows, query records and the outbox are all
         entries under a tag in one string keyspace, `{get, keys, set}`. `get`

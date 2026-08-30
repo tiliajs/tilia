@@ -202,6 +202,49 @@ function parseRecord(value) {
   return undefined;
 }`)
 
+/**
+ * What a find may answer, for a backend that answers when asked. `fresh` is
+ * the complete result set as of now; `fail` is a message. The weaker claims
+ * are not here: what the store holds is the store's own business.
+ */
+type answer<'a> = {
+  fresh: array<'a> => unit,
+  fail: string => unit,
+}
+
+/**
+ * What became of one write. The words are the channel's, in the past tense:
+ * `Saved` is `set`, `Conflict` is `conflict`, `Rejected` is `reject`,
+ * `Transient` is `retry`.
+ *
+ * `Conflict` hands back the row the backend holds and keeps the write
+ * pending, so it rebases through `merge` and goes again. `Rejected` refuses
+ * this one write and no other. `Transient` says nothing about the write at
+ * all — the batch stops there, and everything unanswered goes again later.
+ */
+module Outcome = {
+  @tag("outcome")
+  type t<'a> =
+    | @as("saved") Saved({value: 'a})
+    | @as("conflict") Conflict({value: 'a})
+    | @as("rejected") Rejected({message: string})
+    | @as("transient") Transient
+}
+
+/**
+ * What became of one remove. Its own type, and not a variant of `Outcome`:
+ * a shared one would let `Saved` answer a remove, which matches no operation
+ * and hangs it forever. Its own module too, so both can keep the words they
+ * share.
+ */
+module Removal = {
+  @tag("outcome")
+  type t =
+    | @as("removed") Removed
+    | @as("rejected") Rejected({message: string})
+    | @as("transient") Transient
+}
+
 /** Configuration for `connect`. */
 type config<'query, 'a> = {
   schema: schema<'query, 'a>,
@@ -227,6 +270,107 @@ type t<'a> = {
 /** Build the store around a binding that already works, and hand back the
  source the engine will read from. The outbox replay belongs here, in the
  store's own construction. */
+/**
+ * Connectivity, once per process. Where there is no `addEventListener` there
+ * is nothing to listen to, and a process that cannot be told it is offline
+ * is treated as online — the alternative is an application that never pushes.
+ */
+let online: unit => Tilia.signal<bool> = {
+  let listen: (unit => unit) => bool = %raw(`
+function listen(fn) {
+  if (typeof addEventListener !== "function") return false;
+  addEventListener("online", fn);
+  addEventListener("offline", fn);
+  return true;
+}`)
+  let reachable: unit => bool = %raw(`
+function reachable() {
+  return typeof navigator === "object" && navigator && typeof navigator.onLine === "boolean"
+    ? navigator.onLine
+    : true;
+}`)
+  let shared = ref(None)
+  () =>
+    switch shared.contents {
+    | Some(signal) => signal
+    | None =>
+      let (signal, set) = Tilia.signal(reachable())
+      listen(() => set(reachable()))->ignore
+      shared := Some(signal)
+      signal
+    }
+}
+
+/**
+ * A remote built from three functions instead of two channels: the batching,
+ * the ordering and the protocol are this package's, and the application is
+ * left with a translation table.
+ *
+ * Operations are issued one at a time, each waiting for its outcome, which is
+ * what lets the batch stop at the first `Transient` with nothing further
+ * sent — and keeps a cascade in the order the outbox holds it.
+ */
+let asRemote = (
+  ~id: 'a => string,
+  ~online: Tilia.signal<bool>,
+  ~find: ('query, answer<'a>) => unit,
+  ~upsert: ('a, Outcome.t<'a> => unit) => unit,
+  ~remove: (string, Removal.t => unit) => unit,
+): remote<'query, 'a> => {
+  online,
+  fetch: (query, channel) => find(query, {fresh: channel.fresh, fail: channel.fail}),
+  push: (ops, channel) => {
+    // One reply per operation: a second one has nothing left to answer, and
+    // acting on it would issue the rest of the batch twice.
+    let once = reply => {
+      let answered = ref(false)
+      outcome =>
+        if !answered.contents {
+          answered := true
+          reply(outcome)
+        }
+    }
+    let rec next = index =>
+      switch ops->Arr.at(index) {
+      | Null | Undefined => ()
+      | Value(Upsert({value})) =>
+        upsert(
+          value,
+          once(outcome =>
+            switch outcome {
+            | Outcome.Saved({value}) =>
+              channel.set(value)
+              next(index + 1)
+            | Conflict({value}) =>
+              channel.conflict(value)
+              next(index + 1)
+            | Rejected({message}) =>
+              channel.reject(id(value), message)
+              next(index + 1)
+            | Transient => channel.retry()
+            }
+          ),
+        )
+      | Value(Remove({id: rid})) =>
+        remove(
+          rid,
+          once(outcome =>
+            switch outcome {
+            | Removal.Removed =>
+              channel.removed(rid)
+              next(index + 1)
+            | Rejected({message}) =>
+              channel.reject(rid, message)
+              next(index + 1)
+            | Transient => channel.retry()
+            }
+          ),
+        )
+      }
+    next(0)
+  },
+}
+
 let connect = (
   {schema, expiry, remote, persist, ?lookup, ?merge}: config<'query, 'a>,
   binding: binding<'a>,

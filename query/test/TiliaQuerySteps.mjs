@@ -263,6 +263,12 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     cards.contents = match[0];
     store.contents = match[1];
   });
+  step("the app describes its backend by outcomes", () => {
+    cards.contents.dispose();
+    let match = MakeWorld.makeOutcomes(dexme, merge, papabase, () => now_.value, online_);
+    cards.contents = match[0];
+    store.contents = match[1];
+  });
   step("the local store has an index", () => {
     indexed.contents = true;
   });

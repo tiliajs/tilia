@@ -327,6 +327,15 @@ given("an {string} training app", ({step}, status: string) => {
     store := nextStore
   })
 
+  // Rebuilt over a store described by what the server does when asked, not
+  // by channels: the package owns the batching and the order.
+  step("the app describes its backend by outcomes", () => {
+    cards.contents.dispose()
+    let (next, nextStore) = makeOutcomes(~dexme, ~merge, papabase, () => now_.value, online_)
+    cards := next
+    store := nextStore
+  })
+
   // Read at the next restart: a keyspace whose author also wrote `lookup`.
   step("the local store has an index", () => indexed := true)
 

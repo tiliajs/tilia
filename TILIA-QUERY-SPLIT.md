@@ -314,7 +314,8 @@ package ships CJS as well as ESM, so a CJS consumer takes the whole module.
 ## `Store.make`, and what `claims-app-ts` says about it
 
 Written on paper against `claims-app-ts` before locking `Store.config`, as
-the plan asked. The answer to *is `Store.make` enough?* is **yes for a backend
+the plan asked, and **implemented as written** apart from three naming
+changes noted at the end. The answer to *is `Store.make` enough?* is **yes for a backend
 that answers when asked, and it was never meant to be enough for one that
 pushes** — which the app also has, behind a test flag.
 
@@ -323,24 +324,30 @@ pushes** — which the app also has, behind a test flag.
 ```rescript
 type answer<'a> = {fresh: array<'a> => unit, fail: string => unit}
 
-type outcome<'a> =
-  | Saved({value: 'a})
-  | Conflict({value: 'a})
-  | Rejected({message: string})
-  | Transient
+module Outcome = {
+  @tag("outcome")
+  type t<'a> =
+    | @as("saved") Saved({value: 'a})
+    | @as("conflict") Conflict({value: 'a})
+    | @as("rejected") Rejected({message: string})
+    | @as("transient") Transient
+}
 
-type removal =
-  | Removed
-  | Rejected({message: string})
-  | Transient
+module Removal = {
+  @tag("outcome")
+  type t =
+    | @as("removed") Removed
+    | @as("rejected") Rejected({message: string})
+    | @as("transient") Transient
+}
 
 type config<'query, 'a> = {
   find: ('query, answer<'a>) => unit,
-  upsert: ('a, outcome<'a> => unit) => unit,
-  remove: (string, removal => unit) => unit,
+  upsert: ('a, Outcome.t<'a> => unit) => unit,
+  remove: (string, Removal.t => unit) => unit,
   online?: Tilia.signal<bool>,
   persist?: Kv.t,
-  lookup?: ...,
+  lookup?: ('query, Channel.local<'a>) => unit,
   merge?: (~change: change<'a>, ~remote: 'a) => bool,
   expiry?: expiry,
 }
@@ -403,6 +410,21 @@ which is the only part that was ever the app's to write.
   `Store.t.receive`, which a `Store.make` store has like any other.
 - **The reply guard is the app's.** Today the adaptor drops a reply that
   lands while offline. Nothing in `Store.make` removes that judgement.
+
+### Three names changed on the way in
+
+- **The two outcome types live in modules.** `Removed` collides with
+  `change`'s `Removed({base})`, and `Rejected` and `Transient` collide with
+  each other — unavoidable between two types that share a vocabulary on
+  purpose. `Outcome.t` and `Removal.t` keep the words. The JavaScript is
+  unchanged: `@tag("outcome")` and `@as` mean a TypeScript application writes
+  `{outcome: "saved", value}` either way.
+- **`Store.config` is `make`'s and `Store.channels` is `custom`'s.** The
+  ordinary way keeps the ordinary name.
+- **`Store.online()`** is `navigator.onLine` plus the two window events, one
+  signal per process, and always online where `addEventListener` is not a
+  function. A process that cannot be told it is offline is treated as online:
+  the alternative is an application that never pushes.
 
 ### What this settles for 4b
 

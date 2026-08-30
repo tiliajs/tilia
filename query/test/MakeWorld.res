@@ -548,6 +548,45 @@ let makeSync = (rows: array<card>, now, online_): TiliaQuery.t<query, card> => {
   query
 }
 
+// The same server, described by what it does when asked instead of by
+// channels. This is the whole adaptor: the batching, the ordering and the
+// protocol are the package's, and what is left is a translation table.
+module PapabaseStore = {
+  let make = (papabase: Papabase.t, online_, persist, merge) =>
+    TiliaQuery.Store.make({
+      online: online_,
+      find: (query, answer) =>
+        papabase.select(card => matches(query, card))
+        ->Promise.thenResolve(result =>
+          switch result {
+          | Ok(cards) => answer.fresh(cards)
+          | Error(message) => answer.fail(message)
+          }
+        )
+        ->ignore,
+      upsert: (card, reply) =>
+        papabase.upsert(card)
+        ->Promise.thenResolve(result =>
+          switch result {
+          | Ok(saved) => reply(Saved({value: saved}))
+          | Error(message) => reply(Rejected({message: message}))
+          }
+        )
+        ->ignore,
+      remove: (rid, reply) =>
+        papabase.remove(rid)
+        ->Promise.thenResolve(result =>
+          switch result {
+          | Ok() => reply(Removed)
+          | Error(message) => reply(Rejected({message: message}))
+          }
+        )
+        ->ignore,
+      persist,
+      merge,
+    })
+}
+
 // A store with an index of its own. It reads the rows the keyspace holds —
 // the same author writes both, which is why it may know the layout — filters
 // them itself, and certifies: this is every row of that deck, not some.
@@ -567,6 +606,24 @@ module DexmeIndex = {
     )
     ->ignore
 }
+
+// The same app over a store described by outcomes rather than channels.
+let makeOutcomes = (
+  ~dexme: Dexme.t,
+  ~merge: Merge.t=Merge.make(),
+  papabase: Papabase.t,
+  now,
+  online_,
+) =>
+  TiliaQuery.make({
+    id,
+    matches,
+    sort: _query => array => array->Array.toSorted(sortBySeen),
+    now,
+    store: PapabaseStore.make(papabase, online_, DexmeKv.make(dexme), (~change, ~remote) =>
+      Merge.run(merge, ~change, ~remote)
+    ),
+  })
 
 // Convention: signals end with an underscore (now_, online_).
 // The engine's default expiry applies (refresh 30s, memory 5min, local

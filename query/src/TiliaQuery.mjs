@@ -22,6 +22,25 @@ function custom(param) {
   }, binding);
 }
 
+function make(param) {
+  let expiry = param.expiry;
+  let merge = param.merge;
+  let lookup = param.lookup;
+  let persist = param.persist;
+  let online = param.online;
+  let remove = param.remove;
+  let upsert = param.upsert;
+  let find = param.find;
+  let signal = online !== undefined ? online : TiliaQueryStore.online();
+  return (schema, binding) => custom({
+    remote: TiliaQueryStore.asRemote(schema.id, signal, find, upsert, remove),
+    persist: persist,
+    lookup: lookup,
+    merge: merge,
+    expiry: expiry
+  })(schema, binding);
+}
+
 function _now() {
   return Date.now();
 }
@@ -30,7 +49,7 @@ function _no_sort(_query) {
   return array => array;
 }
 
-function make(param) {
+function make$1(param) {
   let onError = param.onError;
   let sort = param.sort;
   let key = param.key;
@@ -71,6 +90,10 @@ let Channel;
 let Store = {
   Kv: undefined,
   rowTag: TiliaQueryStore.rowTag,
+  Outcome: undefined,
+  Removal: undefined,
+  online: TiliaQueryStore.online,
+  make: make,
   custom: custom
 };
 
@@ -80,6 +103,6 @@ export {
   Channel,
   Store,
   sortedStringify,
-  make,
+  make$1 as make,
 }
 /* TiliaQueryStore Not a pure module */

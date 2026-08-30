@@ -638,6 +638,40 @@ Feature: Language training app
       | cat.es | cat     | gato        | 1    |
       | dog.es | dog     | perro       | 1    |
 
+  # A store described by outcomes issues one operation at a time, each
+  # waiting for its answer. That is what lets a batch stop at the first
+  # `Transient` with nothing further sent, and it keeps a cascade in the
+  # order the outbox holds it. Here it is visible as a step per round trip:
+  # three writes take three of them, where a store that hands the whole batch
+  # to a channel would settle them all in one.
+
+  Scenario: an outcome store issues one write at a time
+    When the app describes its backend by outcomes
+    And I open the "Spanish" deck
+    And time passes
+    Then I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When I go "offline"
+    And I upsert
+      | id      | deck    | english | translation | seen |
+      | cat.es  | spanish | cat     | gato        | 1    |
+      | dog.es  | spanish | dog     | perro       | 1    |
+      | rain.es | spanish | rain    | lluvia      | 1    |
+    And I go "online"
+    And time passes
+    Then status should have 2 pending
+    When time passes
+    Then status should have 1 pending
+    When time passes
+    Then status should have 0 pending
+    And remote should have
+      | id      | english | translation | seen |
+      | cat.es  | cat     | gato        | 1    |
+      | dog.es  | dog     | perro       | 1    |
+      | rain.es | rain    | lluvia      | 1    |
+
   Scenario: pending writes survive a restart
     When I open the "Spanish" deck
     And time passes

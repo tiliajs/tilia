@@ -488,18 +488,80 @@ function makeSync(rows, now, online_) {
     })[0];
 }
 
+function make$9(papabase, online_, persist, merge) {
+  return TiliaQuery.Store.make({
+    find: (query, answer) => {
+      papabase.select(card => matches(query, card)).then(result => {
+        if (result.TAG === "Ok") {
+          return answer.fresh(result._0);
+        } else {
+          return answer.fail(result._0);
+        }
+      });
+    },
+    upsert: (card, reply) => {
+      papabase.upsert(card).then(result => {
+        if (result.TAG === "Ok") {
+          return reply({
+            outcome: "saved",
+            value: result._0
+          });
+        } else {
+          return reply({
+            outcome: "rejected",
+            message: result._0
+          });
+        }
+      });
+    },
+    remove: (rid, reply) => {
+      papabase.remove(rid).then(result => {
+        if (result.TAG === "Ok") {
+          return reply("removed");
+        } else {
+          return reply({
+            outcome: "rejected",
+            message: result._0
+          });
+        }
+      });
+    },
+    online: online_,
+    persist: persist,
+    merge: merge
+  });
+}
+
+let PapabaseStore = {
+  make: make$9
+};
+
 let prefix$1 = prefix(TiliaQuery.Store.rowTag);
 
-function make$9(dexme, query, channel) {
+function make$10(dexme, query, channel) {
   dexme.entries.filter(entry => entry.key.startsWith(prefix$1)).then(found => channel.local(found.map(entry => JSON.parse(entry.value)).filter(card => matches(query, card))));
 }
 
 let DexmeIndex = {
   prefix: prefix$1,
-  make: make$9
+  make: make$10
 };
 
-function make$10(dexme, indexedOpt, live, push, rules, mergeOpt, onError, papabase, now, online_) {
+function makeOutcomes(dexme, mergeOpt, papabase, now, online_) {
+  let merge = mergeOpt !== undefined ? mergeOpt : ({
+      accepted: true,
+      calls: []
+    });
+  return TiliaQuery.make({
+    id: id,
+    matches: matches,
+    store: make$9(papabase, online_, make$4(dexme), (change, remote) => run(merge, change, remote)),
+    now: now,
+    sort: _query => (array => array.toSorted(sortBySeen))
+  });
+}
+
+function make$11(dexme, indexedOpt, live, push, rules, mergeOpt, onError, papabase, now, online_) {
   let indexed = indexedOpt !== undefined ? indexedOpt : false;
   let merge = mergeOpt !== undefined ? mergeOpt : ({
       accepted: true,
@@ -512,7 +574,7 @@ function make$10(dexme, indexedOpt, live, push, rules, mergeOpt, onError, papaba
   let sort = _query => (array => array.toSorted(sortBySeen));
   let mergeValues = (change, remote) => run(merge, change, remote);
   let persist = Stdlib_Option.map(dexme, make$4);
-  let lookup = indexed && dexme !== undefined ? (query, channel) => make$9(dexme, query, channel) : undefined;
+  let lookup = indexed && dexme !== undefined ? (query, channel) => make$10(dexme, query, channel) : undefined;
   return TiliaQuery.make({
     id: id,
     matches: matches,
@@ -544,7 +606,9 @@ export {
   Push,
   SyncStore,
   makeSync,
+  PapabaseStore,
   DexmeIndex,
-  make$10 as make,
+  makeOutcomes,
+  make$11 as make,
 }
 /* prefix Not a pure module */

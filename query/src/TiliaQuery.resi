@@ -322,7 +322,67 @@ module Store: {
    */
   let rowTag: string
 
+  /** What a find may answer, for a backend that answers when asked. `fresh`
+   is the complete result set as of now; `fail` is a message. The weaker
+   claims are not here: what the store holds is its own business. */
+  type answer<'a> = TiliaQueryStore.answer<'a> = {
+    fresh: array<'a> => unit,
+    fail: string => unit,
+  }
+
+  /**
+   * What became of one write. The words are the channel's, in the past
+   * tense: `Saved` is `set`, `Conflict` is `conflict`, `Rejected` is
+   * `reject`, `Transient` is `retry`.
+   *
+   * `Conflict` hands back the row the backend holds and keeps the write
+   * pending, so it rebases through `merge` and goes again. `Rejected`
+   * refuses this one write and no other. `Transient` says nothing about the
+   * write at all — the batch stops there, and everything unanswered goes
+   * again later.
+   */
+  module Outcome = TiliaQueryStore.Outcome
+
+  /** What became of one remove. Its own type, and not a variant of
+   `Outcome`: a shared one would let `Saved` answer a remove, which matches
+   no operation and hangs it forever. */
+  module Removal = TiliaQueryStore.Removal
+
+  /**
+   * Connectivity, once per process. Where there is no `addEventListener`
+   * there is nothing to listen to, and a process that cannot be told it is
+   * offline is treated as online — the alternative is an application that
+   * never pushes.
+   */
+  let online: unit => Tilia.signal<bool>
+
+  /** Configuration for `make`: a backend described by what it does when
+   asked. */
   type config<'query, 'a> = {
+    /** Answer this query with everything that matches it, or fail. */
+    find: ('query, answer<'a>) => unit,
+    /** Write one row and say what became of it. */
+    upsert: ('a, Outcome.t<'a> => unit) => unit,
+    /** Remove one row by id and say what became of it. */
+    remove: (string, Removal.t => unit) => unit,
+    /** Defaults to `Store.online()`. */
+    online?: Tilia.signal<bool>,
+    persist?: Kv.t,
+    lookup?: ('query, Channel.local<'a>) => unit,
+    merge?: (~change: change<'a>, ~remote: 'a) => bool,
+    expiry?: expiry,
+  }
+
+  /**
+   * A store described by what its backend does when asked. Operations are
+   * issued one at a time, each waiting for its outcome: that is what lets a
+   * batch stop at the first `Transient` with nothing further sent, and it
+   * keeps a cascade in the order the outbox holds it.
+   */
+  let make: config<'query, 'a> => store<'query, 'a, t<'a>>
+
+  /** Configuration for `custom`. */
+  type channels<'query, 'a> = {
     remote: remote<'query, 'a>,
     /**
      * Where rows and bookkeeping are kept. Absent means an in-memory
@@ -350,7 +410,7 @@ module Store: {
    * A store described by its channels: an adaptor that answers a find when
    * it can, pushes a batch when asked, and may push facts in at any time.
    */
-  let custom: config<'query, 'a> => store<'query, 'a, t<'a>>
+  let custom: channels<'query, 'a> => store<'query, 'a, t<'a>>
 }
 
 /**
