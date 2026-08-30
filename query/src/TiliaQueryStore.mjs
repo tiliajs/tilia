@@ -856,7 +856,7 @@ function connect(param, binding) {
     let record = registry[k];
     if (record == null) {
       record === null;
-    } else if (t > record.lastSeen + expiry.refresh) {
+    } else {
       record.lastSeen = t;
       persistRecord(record);
     }
@@ -939,29 +939,9 @@ function connect(param, binding) {
     {
       online: remote.online,
       find: findQuery,
-      forget: forgetQuery
-    },
-    {
-      upsert: upsert,
-      remove: remove,
-      receive: {
-        changed: receiveChanged,
-        removed: receiveRemoved
-      },
-      status: status,
-      retry: retry,
-      discard: discard,
+      forget: forgetQuery,
       tick: () => {
         let t = now();
-        TiliaQuerySchema.Dict.forEachWithKey(registry, (record, k) => {
-          let match = held[k];
-          if ((match == null) || t <= record.lastSeen + expiry.refresh) {
-            return;
-          } else {
-            record.lastSeen = t;
-            return persistRecord(record);
-          }
-        });
         pushPending();
         if (t > lastPurgeAt.contents + expiry.local / 8.0) {
           lastPurgeAt.contents = t;
@@ -1012,10 +992,12 @@ function connect(param, binding) {
               });
               TiliaQuerySchema.Dict.forEach(registry, record => {
                 let match = held[record.key];
-                if (match !== null && match !== undefined) {
-                  return;
+                if (match == null) {
+                  match === null;
+                } else {
+                  record.lastSeen = t;
+                  return persistRecord(record);
                 }
-                match === null;
                 if (t > record.lastSeen + expiry.local) {
                   TiliaQuerySchema.Dict.$$delete(registry, record.key);
                   return local.set(queryTag, record.key, undefined);
@@ -1052,6 +1034,17 @@ function connect(param, binding) {
         }
       },
       dispose: () => clearOnlineStore()
+    },
+    {
+      upsert: upsert,
+      remove: remove,
+      receive: {
+        changed: receiveChanged,
+        removed: receiveRemoved
+      },
+      status: status,
+      retry: retry,
+      discard: discard
     }
   ];
 }

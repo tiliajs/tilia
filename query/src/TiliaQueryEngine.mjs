@@ -343,32 +343,32 @@ function make(param) {
           }
       }
     });
-    if (dropped.length === 0) {
-      return;
-    }
-    let orphans = new Set();
-    dropped.forEach(entry => {
-      entry.close();
-      source.forget(entry.query);
-      let key = entry.key;
-      let ids = idsByKey[key];
-      if (ids == null) {
-        ids === null;
-      } else {
-        ids.forEach(id => {
-          orphans.add(id);
-        });
-      }
-      TiliaQuerySchema.Dict.$$delete(entries, key);
-      TiliaQuerySchema.Dict.$$delete(results, key);
-      TiliaQuerySchema.Dict.$$delete(idsByKey, key);
-    });
-    TiliaQuerySchema.Dict.forEach(idsByKey, ids => {
-      ids.forEach(id => {
-        orphans.delete(id);
+    if (dropped.length !== 0) {
+      let orphans = new Set();
+      dropped.forEach(entry => {
+        entry.close();
+        source.forget(entry.query);
+        let key = entry.key;
+        let ids = idsByKey[key];
+        if (ids == null) {
+          ids === null;
+        } else {
+          ids.forEach(id => {
+            orphans.add(id);
+          });
+        }
+        TiliaQuerySchema.Dict.$$delete(entries, key);
+        TiliaQuerySchema.Dict.$$delete(results, key);
+        TiliaQuerySchema.Dict.$$delete(idsByKey, key);
       });
-    });
-    orphans.forEach(id => TiliaQuerySchema.Dict.$$delete(itemById, id));
+      TiliaQuerySchema.Dict.forEach(idsByKey, ids => {
+        ids.forEach(id => {
+          orphans.delete(id);
+        });
+      });
+      orphans.forEach(id => TiliaQuerySchema.Dict.$$delete(itemById, id));
+    }
+    source.tick();
   };
   return [
     {
@@ -378,6 +378,7 @@ function make(param) {
       dispose: () => {
         clearOnline();
         TiliaQuerySchema.Dict.forEach(entries, entry => entry.close());
+        source.dispose();
       },
       _canopy: () => {
         let match = Tilia._canopy(results);

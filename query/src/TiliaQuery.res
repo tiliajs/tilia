@@ -45,11 +45,41 @@ type change<'a> = TiliaQueryStore.change<'a> =
   | @as("removed") Removed({base: 'a})
 module Channel = TiliaQuerySchema.Channel
 
-type expiry = TiliaQuerySchema.expiry = {
+type expiry = TiliaQueryEngine.expiry = {
   refresh: float,
   memory: float,
-  local: float,
 }
+
+type schema<'query, 'a> = TiliaQuerySchema.schema<'query, 'a> = {
+  id: 'a => string,
+  matches: ('query, 'a) => bool,
+  key: 'query => string,
+  sort: 'query => array<'a> => array<'a>,
+  now: unit => float,
+}
+
+type binding<'a> = TiliaQueryEngine.binding<'a> = {
+  item: string => option<'a>,
+  changed: array<'a> => unit,
+  removed: array<string> => unit,
+  place: 'a => unit,
+}
+
+type source<'query, 'a> = TiliaQueryEngine.source<'query, 'a> = {
+  online: Tilia.signal<bool>,
+  find: ('query, Channel.find<'a>) => unit,
+  forget: 'query => unit,
+  tick: unit => unit,
+  dispose: unit => unit,
+}
+
+/**
+ * A store, as `Query.make` takes it: not a built store but a factory, given
+ * the schema the engine resolved and a binding that already works. The two
+ * halves cannot disagree about `id` or `key`, because neither of them
+ * decides it.
+ */
+type store<'query, 'a, 'store> = (schema<'query, 'a>, binding<'a>) => (source<'query, 'a>, 'store)
 
 type status<'a> = TiliaQueryStore.status<'a> = {
   pending: int,
@@ -70,16 +100,14 @@ type local<'query, 'a> = TiliaQueryStore.local<'query, 'a> = {
   ids: (~set: array<string> => unit) => unit,
 }
 
-type config<'query, 'a> = {
+type config<'query, 'a, 'store> = {
   id: 'a => string,
   matches: ('query, 'a) => bool,
-  remote: remote<'query, 'a>,
-  local?: local<'query, 'a>,
+  store: store<'query, 'a, 'store>,
   expiry?: expiry,
   now?: unit => float,
   key?: 'query => string,
   sort?: 'query => array<'a> => array<'a>,
-  merge?: (~change: change<'a>, ~remote: 'a) => bool,
   onError?: (~query: 'query, ~message: string) => unit,
 }
 
@@ -93,38 +121,79 @@ type canopy = TiliaQueryEngine.canopy = {
   idle: array<string>,
 }
 
-type t<'query, 'a> = {
+type t<'query, 'a> = TiliaQueryEngine.t<'query, 'a> = {
   one: 'query => loadable<'a>,
   array: 'query => loadable<array<'a>>,
-  upsert: 'a => unit,
-  remove: string => unit,
-  receive: receive<'a>,
-  status: status<'a>,
-  retry: rejection<'a> => unit,
-  discard: rejection<'a> => unit,
   tick: unit => unit,
   dispose: unit => unit,
   _canopy: unit => canopy,
 }
 
-// === make (factory)
+/**
+ * The store this package ships: a write-through cache with an outbox. It is
+ * one value the `store` field can take, not a second entry point.
+ */
+module Store = {
+  type expiry = TiliaQueryStore.expiry = {local: float}
+
+  type t<'a> = TiliaQueryStore.t<'a> = {
+    upsert: 'a => unit,
+    remove: string => unit,
+    receive: receive<'a>,
+    status: status<'a>,
+    retry: rejection<'a> => unit,
+    discard: rejection<'a> => unit,
+  }
+
+  type config<'query, 'a> = {
+    remote: remote<'query, 'a>,
+    local?: local<'query, 'a>,
+    merge?: (~change: change<'a>, ~remote: 'a) => bool,
+    expiry?: expiry,
+  }
+
+  let _expiry: expiry = {
+    // 30 days
+    local: 2_592_000_000.0,
+  }
+
+  /**
+   * A store described by its channels: an adaptor that answers a find when
+   * it can, pushes a batch when asked, and may push facts in at any time.
+   */
+  let custom = ({remote, ?local, ?merge, ?expiry}: config<'query, 'a>) =>
+    (schema, binding) =>
+      TiliaQueryStore.connect(
+        {
+          schema,
+          expiry: switch expiry {
+          | Some(expiry) => expiry
+          | None => _expiry
+          },
+          remote,
+          ?local,
+          ?merge,
+        },
+        binding,
+      )
+}
+
+// === make (factory)// === make (factory)
 
 let sortedStringify = TiliaQuerySchema.sortedStringify
 
-let _expiry = {
+let _expiry: expiry = {
   // 30 seconds
   refresh: 30_000.0,
   // 5 minutes
   memory: 300_000.0,
-  // 30 days
-  local: 2_592_000_000.0,
 }
 
 let _now = () => Date.now()
 let _no_sort = _query => array => array
 
 let make = (
-  {id, matches, remote, ?local, ?expiry, ?now, ?key, ?sort, ?merge, ?onError}: config<'query, 'a>,
+  {id, matches, store, ?expiry, ?now, ?key, ?sort, ?onError}: config<'query, 'a, 'store>,
 ) => {
   let expiry = switch expiry {
   | Some(expiry) => expiry
@@ -142,43 +211,19 @@ let make = (
   | Some(sort) => sort
   | None => _no_sort
   }
-  // Resolved once, here, and read by both halves from now on. The store is a
+  // Resolved once, here, and read by both halves from now on. `store` is a
   // factory, not a built store, so the two cannot disagree about it.
-  let schema: TiliaQuerySchema.schema<'query, 'a> = {id, matches, key, sort, now}
+  let schema: schema<'query, 'a> = {id, matches, key, sort, now}
   let onError = (~query, ~message) =>
     switch onError {
     | Some(onError) => onError(~query, ~message)
     | None => ()
     }
 
-  let (engine, store) = TiliaQueryEngine.make({
+  TiliaQueryEngine.make({
     schema,
     expiry,
     onError,
-    connect: binding => TiliaQueryStore.connect({schema, expiry, remote, ?local, ?merge}, binding),
+    connect: binding => store(schema, binding),
   })
-
-  {
-    one: engine.one,
-    array: engine.array,
-    upsert: store.upsert,
-    remove: store.remove,
-    receive: store.receive,
-    status: store.status,
-    retry: store.retry,
-    discard: store.discard,
-    // The engine's half runs first: eviction tells the store what it no
-    // longer has to maintain before the store sweeps.
-    tick: () => {
-      engine.tick()
-      store.tick()
-    },
-    // Dispose the engine first, so no find is in flight against a store that
-    // has stopped. Neither half writes anything on the way out.
-    dispose: () => {
-      engine.dispose()
-      store.dispose()
-    },
-    _canopy: engine._canopy,
-  }
 }

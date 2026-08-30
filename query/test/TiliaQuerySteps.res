@@ -51,10 +51,21 @@ given("an {string} training app", ({step}, status: string) => {
   // something to show.
   let errors: ref<array<(query, string)>> = ref([])
   let onError = (~query, ~message) => errors := errors.contents->Array.concat([(query, message)])
-  // A ref so "I restart the app" can rebuild the engine on the same stores.
-  let cards = ref(
-    make(~dexme, ~live, ~push, ~rules, ~merge, ~onError, papabase, () => now_.value, online_),
+  // Two handles now: the query object, and whatever the store offers beside
+  // it. Refs so "I restart the app" can rebuild both on the same stores.
+  let (cards_, store_) = make(
+    ~dexme,
+    ~live,
+    ~push,
+    ~rules,
+    ~merge,
+    ~onError,
+    papabase,
+    () => now_.value,
+    online_,
   )
+  let cards = ref(cards_)
+  let store = ref(store_)
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
   let single: ref<TiliaQuery.loadable<card>> = ref(TiliaQuery.Loading)
   let closeDeck: ref<unit => unit> = ref(() => ())
@@ -70,10 +81,10 @@ given("an {string} training app", ({step}, status: string) => {
   )
 
   step("the subscription changes", (table: array<array<string>>) =>
-    cards.contents.receive.changed(toRecords(table))
+    store.contents.receive.changed(toRecords(table))
   )
 
-  step("the subscription removes {string}", (id: string) => cards.contents.receive.removed([id]))
+  step("the subscription removes {string}", (id: string) => store.contents.receive.removed([id]))
 
   // Delete straight on the server: the local copy lingers until the purge
   // sweeps it.
@@ -109,21 +120,34 @@ given("an {string} training app", ({step}, status: string) => {
   // local and remote stores, like the app coming back after a reload.
   step("I restart the app", () => {
     cards.contents.dispose()
-    cards :=
-      make(~dexme, ~live, ~push, ~rules, ~merge, ~onError, papabase, () => now_.value, online_)
+    let (next, nextStore) = make(
+      ~dexme,
+      ~live,
+      ~push,
+      ~rules,
+      ~merge,
+      ~onError,
+      papabase,
+      () => now_.value,
+      online_,
+    )
+    cards := next
+    store := nextStore
     // Boot reloads the outbox from the kv, answering on the microtask queue.
     settled()
   })
 
   // Rule 17: the app comes back on a store whose replay is synchronous, so
-  // the rows are in the engine before anything can ask for them.
+  // the rows are in the engine before anything can ask for them. That store
+  // offers nothing beside the query object, so `store` keeps pointing at the
+  // one that went away — no step in this scenario writes.
   step("the store replays its outbox during construction", (table: array<array<string>>) => {
     cards.contents.dispose()
     cards := makeSync(toRecords(table), () => now_.value, online_)
   })
 
   step("deck {string} is in local db", (deck: string) => {
-    let app = make(~dexme, papabase, () => now_.value, online_)
+    let (app, _) = make(~dexme, papabase, () => now_.value, online_)
     let close = Tilia.observe(() => app.array(query(deck))->ignore)
     network.flush()
     settled()->Promise.thenResolve(
@@ -268,17 +292,17 @@ given("an {string} training app", ({step}, status: string) => {
   step("onError should have received nothing", () => expect(errors.contents->Array.length).toBe(0))
 
   step("I upsert", (table: array<array<string>>) =>
-    toRecords(table)->Array.forEach(card => cards.contents.upsert(card))
+    toRecords(table)->Array.forEach(card => store.contents.upsert(card))
   )
 
-  step("I remove {string}", (id: string) => cards.contents.remove(id))
+  step("I remove {string}", (id: string) => store.contents.remove(id))
 
   step("status should have {number} pending", (count: float) =>
-    expect(cards.contents.status.pending).toBe(count->Float.toInt)
+    expect(store.contents.status.pending).toBe(count->Float.toInt)
   )
 
   step("status should have {number} rejected", (count: float) =>
-    expect(cards.contents.status.rejected->Array.length).toBe(count->Float.toInt)
+    expect(store.contents.status.rejected->Array.length).toBe(count->Float.toInt)
   )
 
   let rejectionId = (rejection: TiliaQuery.rejection<card>) =>
@@ -295,12 +319,12 @@ given("an {string} training app", ({step}, status: string) => {
     }
 
   let findRejection = (id: string) =>
-    cards.contents.status.rejected
+    store.contents.status.rejected
     ->Array.find(rejection => rejectionId(rejection) === id)
     ->Option.getOrThrow(~message=`no rejection for "${id}"`)
 
   step("status should have rejection", (table: array<array<string>>) => {
-    let actual: array<rejectionRecord> = cards.contents.status.rejected->Array.map(
+    let actual: array<rejectionRecord> = store.contents.status.rejected->Array.map(
       rejection =>
         switch rejection {
         | TiliaQuery.CreateConflict({edited}) => {
@@ -357,7 +381,7 @@ given("an {string} training app", ({step}, status: string) => {
   step("I retry the rejection for {string}", (id: string) => {
     let rejection = findRejection(id)
     retried := Some(rejection)
-    cards.contents.retry(rejection)
+    store.contents.retry(rejection)
   })
 
   step("the retried rejection should still show english {string}", (english: string) => {
@@ -374,7 +398,7 @@ given("an {string} training app", ({step}, status: string) => {
   })
 
   step("I discard the rejection for {string}", (id: string) =>
-    cards.contents.discard(findRejection(id))
+    store.contents.discard(findRejection(id))
   )
 
   step("merge calls are cleared", () =>
@@ -474,7 +498,7 @@ given("an {string} training app", ({step}, status: string) => {
       table
       ->Array.slice(~start=1, ~end=table->Array.length)
       ->Array.map(row => row->Array.getUnsafe(0))
-    expect(cards.contents.status.rejected->Array.map(rejectionId)).toEqual(expected)
+    expect(store.contents.status.rejected->Array.map(rejectionId)).toEqual(expected)
   })
 
   step("query {string} should be dropped from memory", (deck: string) => {

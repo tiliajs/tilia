@@ -10,6 +10,16 @@
 open TiliaQuerySchema
 
 /**
+ * Timing the engine owns, in milliseconds: how long an answer stays fresh,
+ * and how long a query it no longer shows stays in memory. What local
+ * storage keeps, and for how long, is the store's own business.
+ */
+type expiry = {
+  refresh: float,
+  memory: float,
+}
+
+/**
  * What the store may do to the engine's rows. `item` is a getter, not the
  * dict: the object it hands back *is* the live one, so merging in place
  * works, while a key insert or delete stays unexpressible and `idsByKey`
@@ -36,7 +46,23 @@ type source<'query, 'a> = {
   online: Tilia.signal<bool>,
   find: ('query, Channel.find<'a>) => unit,
   forget: 'query => unit,
+  /** The store's half of the heartbeat and of shutdown. Both cross the seam
+   the same way a find does, and in the same direction: whoever holds the
+   query object drives one clock and closes one thing, and the engine keeps
+   the order — its own half first, so nothing is in flight against a store
+   that has stopped. */
+  tick: unit => unit,
+  dispose: unit => unit,
 }
+
+/**
+ * How a store is attached. It is given a binding that already works and
+ * hands back its source in the same breath, so neither half ever exists
+ * unconnected and a store may use the binding while its own constructor is
+ * still running. `'store` is whatever that store offers the application —
+ * opaque here, because the engine has no business knowing.
+ */
+type connect<'query, 'a, 'store> = binding<'a> => (source<'query, 'a>, 'store)
 
 // === Read
 
@@ -213,7 +239,7 @@ type config<'query, 'a, 'store> = {
   schema: schema<'query, 'a>,
   expiry: expiry,
   onError: (~query: 'query, ~message: string) => unit,
-  connect: binding<'a> => (source<'query, 'a>, 'store),
+  connect: connect<'query, 'a, 'store>,
 }
 
 type t<'query, 'a> = {
@@ -414,6 +440,9 @@ let make = ({schema, expiry, onError, connect}: config<'query, 'a, 'store>) => {
       idsByKey->Dict.forEach(ids => ids->Array.forEach(id => orphans->Set.delete(id)->ignore))
       orphans->Set.forEach(id => itemById->Dict.delete(id))
     }
+    // The engine's half ran first: eviction has told the store what it no
+    // longer has to maintain before the store sweeps.
+    source.tick()
   }
 
   (
@@ -423,8 +452,11 @@ let make = ({schema, expiry, onError, connect}: config<'query, 'a, 'store>) => {
       tick,
       dispose: () => {
         clearOnline()
-        // Stop every still-open source. Cached values are left to normal expiry.
+        // Stop every still-open find. Cached values are left to normal expiry.
         entries->Dict.forEach(entry => entry.close())
+        // The store last, so no find is in flight against a stopped store.
+        // Neither half writes anything on the way out.
+        source.dispose()
       },
       _canopy: () => {
         let {live, idle}: Tilia.canopy = Tilia._canopy(results)

@@ -57,6 +57,10 @@ type local<'query, 'a> = {
   ids: (~set: array<string> => unit) => unit,
 }
 
+/** Timing this store owns, in milliseconds: how long a row nothing
+ references is kept in local storage. */
+type expiry = {local: float}
+
 // === Mutations (outbox)
 
 /** A queued write, ordered by `seq` and guarded from duplicate pushes by `flight`. */
@@ -134,15 +138,16 @@ type config<'query, 'a> = {
   merge?: (~change: change<'a>, ~remote: 'a) => bool,
 }
 
-type t<'query, 'a> = {
+/** What this store offers the application. The heartbeat and shutdown are
+ not here: they reach the store through its source, so whoever holds the
+ query object drives one clock and closes one thing. */
+type t<'a> = {
   upsert: 'a => unit,
   remove: string => unit,
   receive: receive<'a>,
   status: status<'a>,
   retry: rejection<'a> => unit,
   discard: rejection<'a> => unit,
-  tick: unit => unit,
-  dispose: unit => unit,
 }
 
 /** Build the store around a binding that already works, and hand back the
@@ -734,14 +739,15 @@ let connect = (
     let t = now()
     held->Dict.set(k, query)
     lastFindAt->Dict.set(k, t)
-    // A held query keeps its record alive. The engine finds an observed
-    // query again at most one refresh window apart, so this dates it about
-    // as often as it is worth a write.
+    // A held query keeps its record alive, and a find is the store's proof
+    // that someone is still asking. The engine finds an observed query again
+    // at most once per refresh window, so this is one write per window —
+    // which is the rate the engine's own heartbeat used to write at.
     switch registry->Dict.get(k) {
-    | Value(record) if t > record.lastSeen + expiry.refresh =>
+    | Value(record) =>
       record.lastSeen = t
       persistRecord(record)
-    | _ => ()
+    | Null | Undefined => ()
     }
 
     // Remote truth, reconciled against what is queued before anyone sees it.
@@ -882,10 +888,14 @@ let connect = (
             }
           }
         })
-        // Retain records for queries the engine still holds.
+        // Retain records for queries the engine still holds, and date them
+        // on the way past: a live query is found once, so nothing else keeps
+        // its record current while it is on screen.
         registry->Dict.forEach(record =>
           switch held->Dict.get(record.key) {
-          | Value(_) => ()
+          | Value(_) =>
+            record.lastSeen = t
+            persistRecord(record)
           | Null | Undefined =>
             if t > record.lastSeen + expiry.local {
               registry->Dict.delete(record.key)
@@ -915,17 +925,6 @@ let connect = (
 
   // B+C · the store's half of the heartbeat, run after the engine's.
   let storeTick = t => {
-    // Persist observation without deliveries at most once per refresh
-    // window. A held query is found again at least that often, except a live
-    // one, which is found once and would otherwise let its record age out.
-    registry->Dict.forEachWithKey((record, k) =>
-      switch held->Dict.get(k) {
-      | Value(_) if t > record.lastSeen + expiry.refresh =>
-        record.lastSeen = t
-        persistRecord(record)
-      | _ => ()
-      }
-    )
     // Retry transient push failures. `channel.retry()` only frees the ops; the
     // heartbeat is what decides to try again, so an app that is online and
     // idle still drains its outbox. Ops already in flight are skipped, so the
@@ -938,7 +937,13 @@ let connect = (
   }
 
   (
-    {online: remote.online, find: findQuery, forget: forgetQuery},
+    {
+      online: remote.online,
+      find: findQuery,
+      forget: forgetQuery,
+      tick: () => storeTick(now()),
+      dispose: () => clearOnlineStore(),
+    },
     {
       upsert,
       remove,
@@ -946,8 +951,6 @@ let connect = (
       status,
       retry,
       discard,
-      tick: () => storeTick(now()),
-      dispose: () => clearOnlineStore(),
     },
   )
 }

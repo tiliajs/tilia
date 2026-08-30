@@ -44,8 +44,12 @@ VitestBdd.Given("an {string} training app", (param, status) => {
         message
       ]]);
   };
+  let match$2 = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
   let cards = {
-    contents: MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_)
+    contents: match$2[0]
+  };
+  let store = {
+    contents: match$2[1]
   };
   let view = {
     contents: "loading"
@@ -66,8 +70,8 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       papabase.upsert(card);
     });
   });
-  step("the subscription changes", table => cards.contents.receive.changed(VitestBdd.toRecords(table)));
-  step("the subscription removes {string}", id => cards.contents.receive.removed([id]));
+  step("the subscription changes", table => store.contents.receive.changed(VitestBdd.toRecords(table)));
+  step("the subscription removes {string}", id => store.contents.receive.removed([id]));
   step("the remote removes {string}", id => {
     papabase.remove(id);
   });
@@ -96,7 +100,9 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("I restart the app", () => {
     cards.contents.dispose();
-    cards.contents = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
+    let match = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
+    cards.contents = match[0];
+    store.contents = match[1];
     return settled();
   });
   step("the store replays its outbox during construction", table => {
@@ -104,7 +110,8 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     cards.contents = MakeWorld.makeSync(VitestBdd.toRecords(table), () => now_.value, online_);
   });
   step("deck {string} is in local db", deck => {
-    let app = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
+    let match = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
+    let app = match[0];
     let close = Tilia.observe(() => {
       app.array(query(undefined, deck));
     });
@@ -243,11 +250,11 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("onError should have received nothing", () => Vitest.expect(errors.contents.length).toBe(0));
   step("I upsert", table => {
-    VitestBdd.toRecords(table).forEach(card => cards.contents.upsert(card));
+    VitestBdd.toRecords(table).forEach(card => store.contents.upsert(card));
   });
-  step("I remove {string}", id => cards.contents.remove(id));
-  step("status should have {number} pending", count => Vitest.expect(cards.contents.status.pending).toBe(count | 0));
-  step("status should have {number} rejected", count => Vitest.expect(cards.contents.status.rejected.length).toBe(count | 0));
+  step("I remove {string}", id => store.contents.remove(id));
+  step("status should have {number} pending", count => Vitest.expect(store.contents.status.pending).toBe(count | 0));
+  step("status should have {number} rejected", count => Vitest.expect(store.contents.status.rejected.length).toBe(count | 0));
   let rejectionId = rejection => {
     switch (rejection.rejection) {
       case "createConflict" :
@@ -261,9 +268,9 @@ VitestBdd.Given("an {string} training app", (param, status) => {
         return rejection.base.id;
     }
   };
-  let findRejection = id => Stdlib_Option.getOrThrow(cards.contents.status.rejected.find(rejection => rejectionId(rejection) === id), `no rejection for "` + id + `"`);
+  let findRejection = id => Stdlib_Option.getOrThrow(store.contents.status.rejected.find(rejection => rejectionId(rejection) === id), `no rejection for "` + id + `"`);
   step("status should have rejection", table => {
-    let actual = cards.contents.status.rejected.map(rejection => {
+    let actual = store.contents.status.rejected.map(rejection => {
       switch (rejection.rejection) {
         case "createConflict" :
           let edited = rejection.edited;
@@ -329,7 +336,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("I retry the rejection for {string}", id => {
     let rejection = findRejection(id);
     retried.contents = rejection;
-    cards.contents.retry(rejection);
+    store.contents.retry(rejection);
   });
   step("the retried rejection should still show english {string}", english => {
     let rejection = Stdlib_Option.getOrThrow(retried.contents, "no rejection was retried");
@@ -350,7 +357,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     }
     Vitest.expect(card.english).toBe(english);
   });
-  step("I discard the rejection for {string}", id => cards.contents.discard(findRejection(id)));
+  step("I discard the rejection for {string}", id => store.contents.discard(findRejection(id)));
   step("merge calls are cleared", () => {
     merge.calls.splice(0, merge.calls.length);
   });
@@ -422,7 +429,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     Vitest.expect(JSON.parse(entry.value).ids).toEqual(ids);
   };
   step("local query {string} should have ids", expectLocal);
-  step("status rejections should be in order", table => Vitest.expect(cards.contents.status.rejected.map(rejectionId)).toEqual(table.slice(1, table.length).map(row => row[0])));
+  step("status rejections should be in order", table => Vitest.expect(store.contents.status.rejected.map(rejectionId)).toEqual(table.slice(1, table.length).map(row => row[0])));
   step("query {string} should be dropped from memory", deck => {
     let key = TiliaQuery.sortedStringify(query(undefined, deck));
     let canopy = cards.contents._canopy();

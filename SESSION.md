@@ -1,6 +1,7 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 57/57 green, phases 0 through 3 done. 4a next.**
+**Where things stand: 57/57 green, phases 0 through 3 done, 4a half done.
+`Store.make` and its outcome types are next, and 5a comes first.**
 Nothing is committed — Anna owns the history.
 
 The decisions are in `TILIA-QUERY-SPLIT.md`, which was the whole spec phase 3
@@ -176,20 +177,41 @@ Test controls added during phase 2, all driven from steps:
         with nothing to place and nothing to find. Mutation-checked — drop
         the constructor `place` and only that scenario fails.
 - [ ] **4 · The new surface.**
-  - [ ] 4a `connect: binding => (source, 'store)`; `Store.make`/`Store.custom`;
-        `Query.make` with `store:`
+  - [~] 4a **the seam is public; `Store.make` is not written. 57/57.**
+        `make` takes `store:` and returns `(t, 'store)`; `t` is
+        `{one, array, tick, dispose, _canopy}` and everything a store offers
+        comes back beside it — `Store.t` for the one shipped here, `unit` for
+        one that offers nothing. `Store.custom({remote, local?, merge?,
+        expiry?})` is that store, described by its channels. `expiry` split
+        in two with nothing left over: `{refresh, memory}` on the query,
+        `{local}` on the store. The suite moved to the new surface unchanged
+        — the same 57 scenarios, the write steps now going through the store
+        handle.
+        Still to write: `Store.make({find, upsert, remove, ...})` and its two
+        outcome types. **5a first** — the plan says `Store.config` is not to
+        be locked before the `claims-app-ts` adaptor is on paper, and that is
+        the one part of this design the settlement does not specify.
   - [ ] 4b `Kv.t`, memory keyspace as default, `persist`
   - [ ] 4c registry lookup, scan fallback, `lookup?` — `Partial` first becomes
         reachable from the shipped store here
   - [ ] 4d `@tilia/query/indexeddb` subpath: `exports`, esbuild, clean-package
 - [ ] **5 · Proof and product.**
   - [ ] 5a `claims-app-ts` adaptor on paper, before `Store.config` is locked
+        — **now the gate on the rest of 4a**, not a later step
   - [ ] 5b guide and API reference
   - [ ] 5c `claims-app-ts` migrated, after the refactor ships
 
 ### Opus Autonomous Decisions
 
 Taken while landing phase 3 alone. Each is cheap to undo.
+
+**`source` carries `tick` and `dispose`.** The settlement lists the seam as
+`{online, find, forget}` and says to dispose the engine first and the store
+second — but with `'store` opaque, nothing above the seam can call the
+store's half, and leaving it to the application means two calls in an order
+it has to get right. Both cross where `find` does, and the engine keeps the
+order: its own half first, then the store's. The application still calls one
+`tick` and one `dispose`.
 
 **A fourth file, `TiliaQuerySchema.res`.** The plan named three. The read
 model, the channel vocabulary and the schema belong to neither half, and the
@@ -423,6 +445,9 @@ record of the analysis, and of where each one ended up.
   `.gitkeep` was ever committed. `TILIA-QUERY-SPLIT.md` was the whole spec for
   phase 3, and it was enough. The line about it at the top of this file is
   wrong.
-- How `dist/index.d.ts` is produced is unchecked. The read model and the
-  constructors both change the TypeScript surface, and `claims-app-ts` is a TS
-  consumer.
+- **`src/index.d.ts` is hand-written and stale since 2a.** `esbuild.js`
+  copies it to `dist/index.d.ts`; nothing generates it. It still describes
+  `notFound`, `notLocal`, `fresh: boolean` and `dismiss`, and now also
+  predates `store:` and the tuple return. It is the contract `claims-app-ts`
+  compiles against, so it is part of 5c, not of the doc rewrite — and worth
+  doing once, after 4d, rather than at every step.

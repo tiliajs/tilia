@@ -526,50 +526,43 @@ module Push = {
  * objects, which is why answering out of `binding.item` is not a contrivance.
  */
 module SyncStore = {
-  let connect = (rows: array<card>, online_, binding: TiliaQueryEngine.binding<card>) => {
-    // Construction time. There is no later.
-    rows->Array.forEach(row => binding.place(row))
-    let ids = rows->Array.map(id)
-    let find = (query, channel: TiliaQuerySchema.Channel.find<card>) =>
-      channel.local(
-        ids
-        ->Array.filterMap(rid => binding.item(rid))
-        ->Array.filter(card => matches(query, card)),
+  let connect = (rows: array<card>, online_) =>
+    (_schema: TiliaQuery.schema<query, card>, binding: TiliaQuery.binding<card>) => {
+      // Construction time. There is no later.
+      rows->Array.forEach(row => binding.place(row))
+      let ids = rows->Array.map(id)
+      let find = (query, channel: TiliaQuery.Channel.find<card>) =>
+        channel.local(
+          ids
+          ->Array.filterMap(rid => binding.item(rid))
+          ->Array.filter(card => matches(query, card)),
+        )
+      (
+        {
+          TiliaQuery.online: online_,
+          find,
+          forget: _ => (),
+          tick: () => (),
+          dispose: () => (),
+        },
+        (),
       )
-    ({TiliaQueryEngine.online: online_, find, forget: _ => ()}, ())
-  }
+    }
 }
 
 // The same app, built on `SyncStore` instead of the store this package
-// ships. Only the read side is real: the write side is not what rule 17 is
-// about, and a store that answers out of the engine has nothing to queue.
+// ships. It offers nothing beside the query object, so `make` hands back a
+// unit: rule 17 is about the read side reaching rows that were placed during
+// construction, and nothing else.
 let makeSync = (rows: array<card>, now, online_): TiliaQuery.t<query, card> => {
-  let schema: TiliaQuerySchema.schema<query, card> = {
+  let (query, ()) = TiliaQuery.make({
     id,
     matches,
-    key: TiliaQuery.sortedStringify,
     sort: _query => array => array->Array.toSorted(sortBySeen),
     now,
-  }
-  let (engine, _) = TiliaQueryEngine.make({
-    schema,
-    expiry: {refresh: 30_000.0, memory: 300_000.0, local: 2_592_000_000.0},
-    onError: (~query as _, ~message as _) => (),
-    connect: binding => SyncStore.connect(rows, online_, binding),
+    store: SyncStore.connect(rows, online_),
   })
-  {
-    one: engine.one,
-    array: engine.array,
-    upsert: _ => (),
-    remove: _ => (),
-    receive: {changed: _ => (), removed: _ => ()},
-    status: {pending: 0, rejected: []},
-    retry: _ => (),
-    discard: _ => (),
-    tick: engine.tick,
-    dispose: engine.dispose,
-    _canopy: engine._canopy,
-  }
+  query
 }
 
 // Convention: signals end with an underscore (now_, online_).
@@ -585,7 +578,7 @@ let make = (
   papabase: Papabase.t,
   now: unit => float,
   online_: Tilia.signal<bool>,
-): TiliaQuery.t<query, card> => {
+): (TiliaQuery.t<query, card>, TiliaQuery.Store.t<card>) => {
   let remote = PapabaseAdaptor.make(papabase, online_)
   let remote = switch live {
   | Some(live) => Live.wrap(live, papabase, remote)
@@ -601,10 +594,13 @@ let make = (
   }
   let sort = _query => array => array->Array.toSorted(sortBySeen)
   let mergeValues = (~change, ~remote) => Merge.run(merge, ~change, ~remote)
-  switch dexme {
-  | Some(dexme) =>
-    let local = DexmeAdaptor.make(dexme)
-    TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, local, now, ?onError})
-  | None => TiliaQuery.make({id, matches, sort, merge: mergeValues, remote, now, ?onError})
-  }
+  let local = dexme->Option.map(DexmeAdaptor.make)
+  TiliaQuery.make({
+    id,
+    matches,
+    sort,
+    now,
+    ?onError,
+    store: TiliaQuery.Store.custom({remote, ?local, merge: mergeValues}),
+  })
 }

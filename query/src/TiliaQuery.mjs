@@ -4,6 +4,22 @@ import * as TiliaQueryStore from "./TiliaQueryStore.mjs";
 import * as TiliaQueryEngine from "./TiliaQueryEngine.mjs";
 import * as TiliaQuerySchema from "./TiliaQuerySchema.mjs";
 
+function custom(param) {
+  let expiry = param.expiry;
+  let merge = param.merge;
+  let local = param.local;
+  let remote = param.remote;
+  return (schema, binding) => TiliaQueryStore.connect({
+    schema: schema,
+    expiry: expiry !== undefined ? expiry : ({
+        local: 2592000000.0
+      }),
+    remote: remote,
+    local: local,
+    merge: merge
+  }, binding);
+}
+
 function _now() {
   return Date.now();
 }
@@ -14,17 +30,14 @@ function _no_sort(_query) {
 
 function make(param) {
   let onError = param.onError;
-  let merge = param.merge;
   let sort = param.sort;
   let key = param.key;
   let now = param.now;
   let expiry = param.expiry;
-  let local = param.local;
-  let remote = param.remote;
+  let store = param.store;
   let expiry$1 = expiry !== undefined ? expiry : ({
       refresh: 30000.0,
-      memory: 300000.0,
-      local: 2592000000.0
+      memory: 300000.0
     });
   let now$1 = now !== undefined ? now : _now;
   let key$1 = key !== undefined ? key : TiliaQuerySchema.sortedStringify;
@@ -43,47 +56,25 @@ function make(param) {
       return onError(query, message);
     }
   };
-  let match = TiliaQueryEngine.make({
+  return TiliaQueryEngine.make({
     schema: schema,
     expiry: expiry$1,
     onError: onError$1,
-    connect: binding => TiliaQueryStore.connect({
-      schema: schema,
-      expiry: expiry$1,
-      remote: remote,
-      local: local,
-      merge: merge
-    }, binding)
+    connect: binding => store(schema, binding)
   });
-  let store = match[1];
-  let engine = match[0];
-  return {
-    one: engine.one,
-    array: engine.array,
-    upsert: store.upsert,
-    remove: store.remove,
-    receive: store.receive,
-    status: store.status,
-    retry: store.retry,
-    discard: store.discard,
-    tick: () => {
-      engine.tick();
-      store.tick();
-    },
-    dispose: () => {
-      engine.dispose();
-      store.dispose();
-    },
-    _canopy: engine._canopy
-  };
 }
 
 let Channel;
+
+let Store = {
+  custom: custom
+};
 
 let sortedStringify = TiliaQuerySchema.sortedStringify;
 
 export {
   Channel,
+  Store,
   sortedStringify,
   make,
 }

@@ -119,15 +119,6 @@ module Channel = {
   }
 }
 
-/** Timing configuration in milliseconds. */
-type expiry = {
-  refresh: float,
-  memory: float,
-  local: float,
-}
-
-// === JS bindings
-
 // Like `Tilia.res`, these bindings keep the compiled output free of
 // `@rescript/runtime` imports. The bet: a value or a query is never `null`
 // or `undefined`, so a `nullable` read from a dict or an array slot means

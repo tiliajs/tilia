@@ -4,7 +4,6 @@ import * as TiliaQuery from "../src/TiliaQuery.mjs";
 import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
 import * as Stdlib_Array from "@rescript/runtime/lib/es6/Stdlib_Array.js";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
-import * as TiliaQueryEngine from "../src/TiliaQueryEngine.mjs";
 
 function make() {
   let queue = [];
@@ -471,18 +470,22 @@ let Push = {
   wrap: wrap$2
 };
 
-function connect(rows, online_, binding) {
-  rows.forEach(row => binding.place(row));
-  let ids = rows.map(id);
-  let find = (query, channel) => channel.local(Stdlib_Array.filterMap(ids, rid => binding.item(rid)).filter(card => matches(query, card)));
-  return [
-    {
-      online: online_,
-      find: find,
-      forget: param => {}
-    },
-    undefined
-  ];
+function connect(rows, online_) {
+  return (_schema, binding) => {
+    rows.forEach(row => binding.place(row));
+    let ids = rows.map(id);
+    let find = (query, channel) => channel.local(Stdlib_Array.filterMap(ids, rid => binding.item(rid)).filter(card => matches(query, card)));
+    return [
+      {
+        online: online_,
+        find: find,
+        forget: param => {},
+        tick: () => {},
+        dispose: () => {}
+      },
+      undefined
+    ];
+  };
 }
 
 let SyncStore = {
@@ -490,44 +493,13 @@ let SyncStore = {
 };
 
 function makeSync(rows, now, online_) {
-  let schema_sort = _query => (array => array.toSorted(sortBySeen));
-  let schema = {
-    id: id,
-    matches: matches,
-    key: TiliaQuery.sortedStringify,
-    sort: schema_sort,
-    now: now
-  };
-  let match = TiliaQueryEngine.make({
-    schema: schema,
-    expiry: {
-      refresh: 30000.0,
-      memory: 300000.0,
-      local: 2592000000.0
-    },
-    onError: (param, param$1) => {},
-    connect: binding => connect(rows, online_, binding)
-  });
-  let engine = match[0];
-  return {
-    one: engine.one,
-    array: engine.array,
-    upsert: param => {},
-    remove: param => {},
-    receive: {
-      changed: param => {},
-      removed: param => {}
-    },
-    status: {
-      pending: 0,
-      rejected: []
-    },
-    retry: param => {},
-    discard: param => {},
-    tick: engine.tick,
-    dispose: engine.dispose,
-    _canopy: engine._canopy
-  };
+  return TiliaQuery.make({
+      id: id,
+      matches: matches,
+      store: connect(rows, online_),
+      now: now,
+      sort: _query => (array => array.toSorted(sortBySeen))
+    })[0];
 }
 
 function make$9(dexme, live, push, rules, mergeOpt, onError, papabase, now, online_) {
@@ -541,26 +513,17 @@ function make$9(dexme, live, push, rules, mergeOpt, onError, papabase, now, onli
   let remote$3 = push !== undefined ? wrap$2(push, remote$2) : remote$2;
   let sort = _query => (array => array.toSorted(sortBySeen));
   let mergeValues = (change, remote) => run(merge, change, remote);
-  if (dexme === undefined) {
-    return TiliaQuery.make({
-      id: id,
-      matches: matches,
-      remote: remote$3,
-      now: now,
-      sort: sort,
-      merge: mergeValues,
-      onError: onError
-    });
-  }
-  let local = make$4(dexme);
+  let local = Stdlib_Option.map(dexme, make$4);
   return TiliaQuery.make({
     id: id,
     matches: matches,
-    remote: remote$3,
-    local: local,
+    store: TiliaQuery.Store.custom({
+      remote: remote$3,
+      local: local,
+      merge: mergeValues
+    }),
     now: now,
     sort: sort,
-    merge: mergeValues,
     onError: onError
   });
 }
