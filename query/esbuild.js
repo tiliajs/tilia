@@ -25,32 +25,44 @@ function tiliaRoot() {
   };
 }
 
-const build = {
-  entryPoints: ["src/index.js"],
+const shared = {
   bundle: true,
   sourcemap: true,
   minify: process.env.CANARY ? false : true,
   target: ["esnext"],
   ignoreAnnotations: true,
-  plugins: [
-    tiliaRoot(),
-    nodeExternalsPlugin(),
-    copyFile("./src/index.d.ts", "./dist/index.d.ts"),
-  ],
 };
 
-Promise.all([
-  esbuild.build({
-    ...build,
-    format: "cjs",
-    outfile: "dist/index.cjs",
-  }),
-  esbuild.build({
-    ...build,
-    format: "esm",
-    outfile: "dist/index.mjs",
-  }),
-]).catch((e) => {
+// One bundle per entry point. `@tilia/query/indexeddb` is its own so that an
+// application that persists in memory never downloads a line of IndexedDB.
+const entries = [
+  {
+    entry: "src/index.js",
+    out: "dist/index",
+    types: "./src/index.d.ts",
+    plugins: [tiliaRoot(), nodeExternalsPlugin()],
+  },
+  {
+    entry: "src/indexeddb.js",
+    out: "dist/indexeddb",
+    types: "./src/indexeddb.d.ts",
+    plugins: [nodeExternalsPlugin()],
+  },
+];
+
+Promise.all(
+  entries.flatMap(({ entry, out, types, plugins }) => {
+    const build = {
+      ...shared,
+      entryPoints: [entry],
+      plugins: [...plugins, copyFile(types, `${out}.d.ts`)],
+    };
+    return [
+      esbuild.build({ ...build, format: "cjs", outfile: `${out}.cjs` }),
+      esbuild.build({ ...build, format: "esm", outfile: `${out}.mjs` }),
+    ];
+  })
+).catch((e) => {
   console.log(e);
   process.exit(1);
 });

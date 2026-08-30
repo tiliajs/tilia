@@ -1,7 +1,8 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 60/60 in `query` and 26/26 in `claims-app-ts`, phases
-0 through 4c done, 5a on paper, 5c done. 4d is what is left of phase 4.**
+**Where things stand: 70/70 in `query` and 26/26 in `claims-app-ts`, phase 4
+done, 5a on paper and 5c done. What is left is 5b: the guide and the API
+reference, a generation behind.**
 Committed through 4a's first half, on `main`, at Anna's word — the ledger
 below is what each commit did.
 
@@ -219,7 +220,16 @@ Test controls added during phase 2, all driven from steps:
         16 with them. The shipped *a partial result is shown* became rule
         12's scenario: `Dexme.partial` was a stand-in for exactly this, and
         the store can now produce `Partial` itself.
-  - [ ] 4d `@tilia/query/indexeddb` subpath: `exports`, esbuild, clean-package
+  - [x] 4d **`@tilia/query/indexeddb`. 70/70.** An `exports` map with `.`
+        and `./indexeddb`, two esbuild entry points, CJS and ESM each, and a
+        `.d.ts` per entry copied into `dist`. `clean-package` needed nothing.
+        Behind the subpath, `TiliaQueryIndexedDb`: a `Kv` over IndexedDB —
+        one object store, compound key `[tag, key]`, so a tag is a range
+        rather than a scan. Its `.resi` is the surface and `indexeddb.d.ts`
+        is TypeScript on top of it, in that order. `test/IndexedDb.feature`
+        drives it through a fake IndexedDB in `test/FakeIndexedDb.res`, which
+        installs the two globals a browser would have — `fake-indexeddb` is
+        not a dependency here and adding one is not this refactor's call.
 - [ ] **5 · Proof and product.**
   - [x] 5a `claims-app-ts` adaptor on paper, before `Store.config` is
         locked. Written up in `TILIA-QUERY-SPLIT.md` under **`Store.make`,
@@ -246,6 +256,55 @@ Test controls added during phase 2, all driven from steps:
         finding, now confirmed against the code.
 
 ### Opus Autonomous Decisions
+
+**The IndexedDB keyspace is ReScript, like everything else.** I wrote it in
+JavaScript first, on the grounds that it only binds a browser API — and Anna
+was right to send it back: it spread immediately. Plain JavaScript needed
+plain-JavaScript tests, which needed `vitest.config.ts` to stop being "the
+feature files" and start being a list of exceptions. The rule is the whole
+value: types are ReScript first and TypeScript on top, and a `.js` in `src`
+is the esbuild entry point, one line long, and nothing else.
+
+What it costs is about twenty externals — `open`, `onupgradeneeded`,
+`transaction`, `objectStore`, `getAll`, `getAllKeys`, `put`, `delete`,
+`IDBKeyRange.bound` and the handler properties — which is what a binding
+module is, and they sit together at the top of the file where they can be
+read as the surface this depends on. Two `%raw` guards remain, for reading a
+global that may not be declared: the same shape as `Store.online`'s.
+
+The fake is `test/FakeIndexedDb.res` and it agrees with the keyspace by
+shape, not by type: it installs the two globals a browser would have, so the
+bindings reach it exactly as they reach the real thing, and it is typed
+entirely on its own terms.
+
+**It ships no `lookup`.** The store keeps rows as JSON strings, and IndexedDB
+cannot index inside a string — so a shipped `lookup` would have to define how
+an application's queries map onto indexes it declared, which is a design and
+not a line of packaging. Unregistered queries are answered by the scan, which
+is the documented bet. `lookup` stays what 4c made it: a hook for an
+application that has an index of its own.
+
+**Two things the keyspace has to get right, and one it does not.** Every call
+queues behind the open, because the store asks in its own constructor — the
+outbox replay is the first thing that happens, and answering "nothing" there
+would lose every pending write. Writes accumulate and a read flushes them
+first, so a read can never answer without a row the store believes it wrote.
+Both are mutation-checked. The third — a flag that stops each write queueing
+its own no-op job — is *not* load-bearing: removing it fails no test, because
+the batch is one transaction thanks to the pending map, not the flag. It is
+kept as a cheap guard on the length of the queue and says so in the source.
+
+**A NUL byte got into the first draft.** I wrote the pending-writes map key
+as `tag + <NUL> + key` with a literal control character in the source rather
+than an escape. Invisible, and it made the file unquotable in a shell
+heredoc. It is `"\u0000"` now — the separator was the right idea, written the
+wrong way.
+
+**One scenario had to be rewritten to keep proving its rule.** *Pending
+writes are flushed before a read* passed even with the flush removed, because
+vitest-bdd awaits each step and the scheduled flush slips through the gap
+between two of them. It writes and reads inside one step now, which is what
+the mutation asks of it.
 
 Taken while landing phase 3 alone. Each is cheap to undo.
 

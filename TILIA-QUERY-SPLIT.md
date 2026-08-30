@@ -302,6 +302,13 @@ separate packages create versioning problems with no independent consumer.
 `Store.memory()` on core, IndexedDB behind `@tilia/query/indexeddb` — this
 package ships CJS as well as ESM, so a CJS consumer takes the whole module.
 
+Done in 4d: two entry points, two bundles each, an `exports` map, and a
+hand-written `.d.ts` per entry. The IndexedDB keyspace is plain JavaScript —
+it is a browser API binding and nothing else, and writing it in ReScript
+would have bought a pile of externals and no checking. A ReScript application
+that wants it binds `@module("@tilia/query/indexeddb")` itself; the `src/*.js`
+entry points are not in the tarball, the bundles are.
+
 ## Still to fix
 
 - ~~`Channel.write.set` with `merge` rebases, persists, then confirms away~~ —
