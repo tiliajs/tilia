@@ -42,6 +42,32 @@ is_semver "$VERSION"
 
 # ============================================ PUBLISH
 
+# The registry is whatever npm is configured to use — `~/.npmrc`, a project
+# `.npmrc`, or the environment. A local registry (verdaccio) admits anonymous
+# publish, but npm refuses to send one without a credential for the host and
+# fails after packing with ENEEDAUTH. So supply a token for that case, in a
+# throwaway user config that lasts the run.
+#
+# npmjs is left alone: its token is a real one, and replacing the user config
+# would hide it. Only a registry that is not npmjs gets the placeholder.
+REGISTRY=$(npm config get registry)
+REGISTRY=${REGISTRY%/}
+
+PUBLISH_ARGS=()
+case "$REGISTRY" in
+"" | *registry.npmjs.org*) ;;
+*)
+  NPMRC=$(mktemp)
+  trap 'rm -f "$NPMRC"' EXIT
+  printf '//%s/:_authToken="local"\n' "${REGISTRY#*://}" >"$NPMRC"
+  export NPM_CONFIG_USERCONFIG=$NPMRC
+  # The temp config replaces `~/.npmrc`, `registry=` included, so name the
+  # registry on each publish rather than letting it fall back to npmjs.
+  PUBLISH_ARGS=(--registry "$REGISTRY")
+  echo "Publishing to $REGISTRY"
+  ;;
+esac
+
 # Update version if publishing beta (--beta argument)
 if [[ $1 == "--beta" ]]; then
   VERSION=$VERSION-beta.$DATE
@@ -54,11 +80,11 @@ cd tilia
 npm --no-git-tag-version version $VERSION
 
 if [[ $1 == "--beta" ]]; then
-  pnpm publish --tag beta --access public --no-git-checks
+  pnpm publish --tag beta --access public --no-git-checks "${PUBLISH_ARGS[@]}"
 elif [[ $1 == "--canary" ]]; then
-  CANARY=true pnpm publish --tag canary --access public --no-git-checks
+  CANARY=true pnpm publish --tag canary --access public --no-git-checks "${PUBLISH_ARGS[@]}"
 else
-  pnpm publish --access public --no-git-checks
+  pnpm publish --access public --no-git-checks "${PUBLISH_ARGS[@]}"
   git tag "v$VERSION"
 fi
 cd ..
@@ -84,11 +110,11 @@ else
 fi
 
 if [[ $1 == "--beta" ]]; then
-  pnpm publish --tag beta --access public --no-git-checks
+  pnpm publish --tag beta --access public --no-git-checks "${PUBLISH_ARGS[@]}"
 elif [[ $1 == "--canary" ]]; then
-  CANARY=true pnpm publish --tag canary --access public --no-git-checks
+  CANARY=true pnpm publish --tag canary --access public --no-git-checks "${PUBLISH_ARGS[@]}"
 else
-  pnpm publish --access public --no-git-checks
+  pnpm publish --access public --no-git-checks "${PUBLISH_ARGS[@]}"
 fi
 cd ..
 
