@@ -5,39 +5,25 @@ kind: function
 module: core
 since: "0.1"
 sort: 30
-summary: Read a query's full result set, reactively.
+summary: Reactively read a query's sorted result array.
 tags: []
 signature.ts: "array: (query: Q) => Loadable<T[]>"
 signature.res: "array: 'query => loadable<array<'a>>"
-label: array
+label: array(query)
 ---
 
-`array` reads a query's results, as ordered by the `sort` given to [make](api.html#make).
+`array` reads all values matching a query, ordered by the configured `sort`. The read is reactive and includes the optimistic overlay from pending store writes.
 
-The read is reactive: inside `observe`, `watch`, or a component, the caller reruns when the result changes.
-
-- `array` never answers `NotFound`: an empty result is `Loaded` with an empty array.
-- Results include the optimistic overlay — pending writes are reconciled with every remote delivery, so an unconfirmed write never flickers out without either merging or producing a rejection.
-- All states and the `fresh` flag behave as described in [Loadable](api.html#loadable-type).
-
-`cards` below is the collection from [make](api.html#make). See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
+A complete empty answer is data: `{ state: "loaded", data: [], claim }`. An empty `partial` answer remains `"loading"` while remote data is possible and becomes offline `NoData` when it is not.
 
 ```typescript
-import { observe } from "tilia";
-
-observe(() => {
-  const spanish = cards.array({ deck: "es" });
-  if (typeof spanish === "object" && spanish.state === "loaded") {
-    console.log(spanish.data.length, spanish.fresh ? "fresh" : "cached");
-  }
-});
+const result = cards.array({ deck: "es" });
+if (result !== "loading" && result.state === "loaded") console.log(result.data);
 ```
 
 ```rescript
-Tilia.observe(() =>
-  switch cards.array({deck: "es"}) {
-  | Loaded({data, fresh}) => Console.log2(data->Array.length, fresh ? "fresh" : "cached")
-  | Loading | NotFound | NotLocal | Failed(_) => ()
-  }
-)
+switch cards.array({deck: "es"}) {
+| Loaded({data}) => Console.log(data)
+| Loading | NoData(_) => ()
+}
 ```

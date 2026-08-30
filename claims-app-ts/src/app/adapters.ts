@@ -40,6 +40,28 @@ const decode = (value: string) => {
   }
 };
 
+// *****************************************************************************
+// *
+// *  REMOTE — the backend half, handed to `Store.custom({remote})`.
+// *
+// *  A remote is described by its channels. That is the whole difference
+// *  between the two ways to build a store:
+// *
+// *    - `Store.make({find, upsert, remove})` — a backend that answers when
+// *      asked. A find answers through `Answer`: `fresh` or `fail`.
+// *    - `Store.custom({remote})` — a backend that pushes. Only `ReadChannel`
+// *      has `live`, `end` and `finally`.
+// *
+// *  This app is on `custom` because of `server.live`. A live fetch
+// *  subscribes, republishes on reconnect, and tears down through
+// *  `channel.finally`. None of that fits in `find`, by decision.
+// *
+// *  The write half would fit either way. A real app has one mode; one that
+// *  answers when asked writes three functions and this package does the
+// *  batching, the ordering and the stop-at-the-first-retry.
+// *
+// *****************************************************************************
+
 // One remote per logged-in user: the shared server sees who calls, the
 // reactive `online` flag drives reconnect replay for this user only.
 export function makeRemote(
@@ -141,6 +163,21 @@ export function makeRemote(
     },
   };
 }
+
+// *****************************************************************************
+// *
+// *  LOCAL — the keyspace, handed to `Store.custom({persist})`.
+// *
+// *  Not the other half of a pair with the remote above. A `Kv` is three
+// *  members over one table: `get`, `set`, `keys`. It keeps what the store
+// *  hands it, under the tags the store chooses, and knows nothing about
+// *  rows, query records or the outbox.
+// *
+// *  Every store takes one — `Store.make` and `Store.custom` alike — and
+// *  absent means an in-memory keyspace. Swapping this for
+// *  `IndexedDb.make({name: "claims"})` changes nothing else.
+// *
+// *****************************************************************************
 
 export type Local = Kv & {
   entries: Map<string, Map<string, string>>;

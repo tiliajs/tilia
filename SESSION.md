@@ -1,10 +1,9 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 70/70 in `query` and 26/26 in `claims-app-ts`, phase 4
-done, 5a on paper and 5c done. What is left is 5b: the guide and the API
-reference, a generation behind.**
-Committed through 4a's first half, on `main`, at Anna's word — the ledger
-below is what each commit did.
+**Where things stand: 70/70 in `query`, 26/26 in `claims-app-ts` and 18/18
+in `docs`; phases 0 through 5 are done.**
+Code is committed through 4d on `main`; the documentation pass is in the
+worktree, at Anna's word. The ledger below records what each phase did.
 
 The decisions are in `TILIA-QUERY-SPLIT.md`, which was the whole spec phase 3
 was built from.
@@ -185,7 +184,7 @@ Test controls added during phase 2, all driven from steps:
         `binding.item`, so a binding that arrived afterwards would leave it
         with nothing to place and nothing to find. Mutation-checked — drop
         the constructor `place` and only that scenario fails.
-- [ ] **4 · The new surface.**
+- [x] **4 · The new surface.**
   - [x] 4a **the seam is public, and both constructors are written. 60/60.**
         `make` takes `store:` and returns `(t, 'store)`; `t` is
         `{one, array, tick, dispose, _canopy}` and everything a store offers
@@ -230,7 +229,7 @@ Test controls added during phase 2, all driven from steps:
         drives it through a fake IndexedDB in `test/FakeIndexedDb.res`, which
         installs the two globals a browser would have — `fake-indexeddb` is
         not a dependency here and adding one is not this refactor's call.
-- [ ] **5 · Proof and product.**
+- [x] **5 · Proof and product.**
   - [x] 5a `claims-app-ts` adaptor on paper, before `Store.config` is
         locked. Written up in `TILIA-QUERY-SPLIT.md` under **`Store.make`,
         and what `claims-app-ts` says about it**: the config, the two outcome
@@ -239,7 +238,16 @@ Test controls added during phase 2, all driven from steps:
         reduced to a translation table. It does not absorb the live half —
         that stays on `Store.custom` by decision — and `claims-app-ts`
         happens to have both because `live` is a test flag.
-  - [ ] 5b guide and API reference
+  - [x] 5b **guide and API reference. 18/18 docs tests.** The Alice/Nora
+        journey now explains the final surface through the default
+        `Store.make`: `[query, store]`, claims and no-data reasons, ordered
+        optimistic writes, IndexedDB persistence, split expiry and
+        retry/discard recovery. It keeps low-level channels and liveness out
+        of the story, with one pointer to `Store.custom` in the reference.
+        The flat API reference covers the complete root, Store, seam and
+        IndexedDB contracts in TypeScript and ReScript. `README.md`,
+        `TECHNICAL.md`, `llms.txt`, the landing page and the claims-app
+        description moved with it.
   - [x] 5c **`claims-app-ts` migrated. 26/26**, from 5/26. Its adaptor spoke
         the pre-phase-2 vocabulary throughout: `channel.set` for a local
         answer and for a remote one, a server `conflict` mapped onto
@@ -533,12 +541,12 @@ record of the analysis, and of where each one ended up.
 - **The claims app never retries a rejection.** Its one affordance is
   Discard, plus the conflict resolver. `retry` has no button, so the half of
   2d that puts refused work back in the outbox has no user in this app. A
-  product gap, not a defect — worth a look when the guide is rewritten,
-  because the guide will want to show it.
-- **The api reference and guide still say `dismiss`.** Five pages plus guide
-  07; carried in `query/TODO.md`, for the doc rewrite once 4a has settled the
-  surface. Not done here: 2d is behaviour, and the `.resi` is rewritten again
-  at 4a.
+  product gap, not a defect. The guide now explains `retry` without implying
+  that the claims demo exposes it.
+- **The api reference and guide are current.** The API is the exhaustive
+  lookup surface; the guide stays explanatory and follows `Store.make`.
+  `Store.custom` and live channels are linked once and documented outside the
+  story.
 - `one` now has its first scenario and step under rule 4, covering `NoMatch`
   and claim ageing for a complete empty query. Fuller coverage is deferred:
   selecting a row from a narrowed query and `one` over an empty `Partial` are

@@ -238,8 +238,9 @@ export type Kv = {
 
 /** Timing the shipped store owns, in milliseconds. */
 export type StoreExpiry = {
-  /** How long a row nothing references is kept, since the query that last
-   * listed it was seen. Default: 30 days. */
+  /** How long an unheld query record remains in storage after that query was
+   * last seen. Rows no surviving record or pending operation references are
+   * removed by the next purge. Default: 30 days. */
   local: number;
 };
 
@@ -378,7 +379,13 @@ export type Canopy = {
 /** Configuration for {@link make}. Everything here is the engine's; what
  * belongs to a store is in the value you give `store`. */
 export type Config<T, Q, S> = {
+  /** Return a unique id for a given value. */
   id: (value: T) => string;
+  /**
+   * Return true if a value belongs to a query. Queries must be expressible
+   * as pure predicates over one row, and a find must answer with the complete
+   * result set: limits, pagination and aggregates do not fit this shape.
+   */
   matches: (query: Q, value: T) => boolean;
   /** Where answers come from and where writes go. `Store.custom` and
    * `Store.make` are the ones this package ships; any factory of this shape

@@ -5,7 +5,7 @@ kind: type
 module: core
 since: "0.1"
 sort: 245
-summary: Inbound facts pushed by the remote.
+summary: Accept authoritative facts pushed by the server.
 tags: []
 signature.ts: |-
   type Receive<T> = {
@@ -20,11 +20,14 @@ signature.res: |-
 label: Receive
 ---
 
-`Receive` accepts facts sent by the server, such as websocket deliveries:
+`Receive` is exposed by the application [Store](api.html#store-type) handle for server-initiated facts.
 
-- [changed](api.html#receive-changed) receives complete changed values.
-- [removed](api.html#receive-removed) receives ids deleted remotely.
+[receive.changed](api.html#receive-changed) applies complete values; [receive.removed](api.html#receive-removed) applies deleted ids. Both update matching queries, persistence, and pending-write reconciliation without changing query freshness.
 
-Deliveries update matching queries and local storage, reconcile pending changes, and do not affect query freshness.
+```typescript
+const receive: Receive<Card> = store.receive;
+```
 
-See guide chapter [Two devices, one deck](guide.html#two-devices-one-deck).
+```rescript
+let receive: TiliaQuery.receive<card> = store.receive
+```

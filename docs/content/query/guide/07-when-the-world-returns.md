@@ -2,11 +2,11 @@
 title: When the world returns
 slug: when-the-world-returns
 sort: 7
-refs: [change-type, rejection-type, status-type, status, dismiss]
+refs: [store-make, change-type, rejection-type, status-type, status, retry, discard]
 chapter: "07"
 ---
 
-Halfway down the valley, the phone finds a bar of signal, the connectivity signal flips, and two things happen at once: forty-one operations push to the server in the order Alice made them, and a week of the server's own history comes back the other way. Most of it passes without a ripple — confirmed writes leave the outbox, changed rows slot into their queries. This chapter is about the handful that collide.
+Halfway down the valley, the phone finds a bar of signal. Forty-one operations begin reaching the server in the order Alice made them, while ordinary query refresh brings back the week as the server now knows it. Most of the reunion passes without a ripple — saved writes leave the outbox and fresh rows settle into their queries. This chapter is about the handful that collide.
 
 While Alice was in the hills, her study group kept editing the shared deck. Nadia rewrote the example sentence on *echar de menos* — the same card Alice rewrote at Nora's table. Two honest edits, one card. What an app does next shows how much it *cares*.
 
@@ -14,94 +14,57 @@ The common answers are both small betrayals: refetch and let the server's copy s
 
 ### Three versions on the table
 
-When a remote value arrives for a row already known locally, the engine calls your `merge` function for two related jobs:
+When a fetched value, inbound delivery, or conflict response meets a row
+already known locally, the store calls the `merge` function given to
+`Store.make` for two related jobs. A successful save confirmation is already
+authoritative and replaces the row directly.
 
 1. fold remote fields into the existing object in place, preserving its reactive identity, and
 2. decide whether the local and remote histories can be reconciled.
 
-`change` tells the local story: `Clean` carries the current value with no local edit, `Created` a new local value, `Updated` the **base** and the **edit** made from it, and `Removed` the deleted value; `remote` is the server's version. For a conflict, `Updated` provides the full three-way setup — base, yours, theirs. A conflict only happens when the same field changed on *both* sides, in different ways:
+An `updated` change carries the **base** and the **edit** made from it; `remote` is the server's version. That provides the full three-way setup — base, yours, theirs. A true conflict exists only where the same field changed on both sides in different ways:
 
 ```typescript
-merge: (change, remote) => {
-  switch (change.change) {
-    case "clean": 
-      // no local edit: fold the server's fields in place
-      Object.assign(change.value, remote);
-      return true;
-    case "updated": {
-      const { base, edited: mine } = change;
-      for (const key of editableFields) {
-        const iChanged = mine[key] !== base[key];
-        const theyChanged = remote[key] !== base[key];
-        if (iChanged && theyChanged && mine[key] !== remote[key]) return false;
-        if (theyChanged) mine[key] = remote[key];
-      }
-      // both edits survive, in one card
-      return true;
-    }
-    case "created":
-      // the server already has this id: same card, or a conflict
-      return editableFields.every((key) => change.edited[key] === remote[key]);
-    case "removed":
-      // keep the freshest version under the pending remove
-      Object.assign(change.base, remote);
-      return true;
-  }
-},
+const conflicts = <T>(base: T, mine: T, theirs: T) =>
+  mine !== base && theirs !== base && mine !== theirs;
 ```
 
 ```rescript
-merge: (~change, ~remote) =>
-  switch change {
-  | Clean({value}) =>
-    // fold the server's fields in place
-    value.example = remote.example 
-    true
-  | Updated({base, edited: mine}) =>
-    if mine.example !== base.example && remote.example !== base.example {
-      mine.example === remote.example // the same rewrite is no conflict
-    } else {
-      if remote.example !== base.example {
-        mine.example = remote.example
-      }
-      // both edits survive, in one card
-      true 
-      // …the other fields follow the same three-way rule
-    }
-    // same card, or a conflict
-  | Created({edited}) => edited.example === remote.example 
-  | Removed({base}) =>
-    // keep the freshest version under the pending remove
-    base.example = remote.example 
-    true
-  },
+let conflicts = (~base, ~mine, ~theirs) =>
+  mine !== base && theirs !== base && mine !== theirs
 ```
 
-Return `true`, and the merged value stands: Nadia fixed the article on one card while Alice tuned its interval, and both changes simply coexist — nobody ever knows there was a disagreement, because there wasn't one. Return `false`, and the engine keeps remote truth as the visible value and records the disagreement, with nothing thrown away.
+Applied field by field, this rule separates disagreement from mere concurrency. If only Nadia changed the example, her sentence can be folded into Alice's existing object. If only Alice changed the interval, her edit remains. The [Change reference](api.html#change-type) gives the exact shapes for clean rows, creations, updates, and removals; the design purpose is the same in each case: preserve identity, preserve every distinct edit, and ask a human only when the histories truly disagree.
+
+Return `true`, and the merged value stands. If this happened while an operation was pending, that operation has been rebased and can be tried against the newer server version. Nadia can fix the article while Alice tunes the interval, and both edits simply coexist — nobody needs to hear about a disagreement because there was none. Return `false`, and the store keeps server truth as the visible value and records Alice's version separately, with nothing thrown away.
 
 ### When a human must choose
 
-Recorded disagreements — and mutations the server definitively refuses at push time — land in `status.rejected`, each carrying the local side of its story: what the row was, what was written, and the server's message when there is one. Remote truth is already visible in the collection. The reactive list is the app's cue to ask, gently, with both versions on screen:
+Recorded disagreements — and mutations the server definitively refuses — land in `store.status.rejected`. Each record carries the local side of its story: what the row was, what was written, and the server's message when there is one. Server truth is already visible through the query. The records remain in outbox order even if replies arrived differently, so a chain of dependent edits can be considered cause first.
 
 ```typescript
-const keepTheirs = (r: Rejection<Card>) => cards.dismiss(r);
+const tryAgain = (rejection: Rejection<Card>) =>
+  store.retry(rejection);
 
-const keepMine = (r: Rejection<Card>, edited: Card) => {
-  cards.upsert(edited); // a newer write wins over an older rejection
-  cards.dismiss(r);
-};
+const keepTheirs = (rejection: Rejection<Card>) =>
+  store.discard(rejection);
+
+const saveResolution = (draft: Card) => store.upsert(draft);
 ```
 
 ```rescript
-let keepTheirs = r => cards.dismiss(r)
+let tryAgain = rejection => store.retry(rejection)
 
-let keepMine = (r, edited) => {
-  cards.upsert(edited) // a newer write wins over an older rejection
-  cards.dismiss(r)
-}
+let keepTheirs = rejection => store.discard(rejection)
+
+let saveResolution = draft => store.upsert(draft)
 ```
 
-There is no special conflict-resolution mode: keeping your version is an ordinary write, pushed like any other. `dismiss` only retires the context once a human has resolved or ignored it; it neither retries nor changes data. The invariant underneath is the one from chapter 1 — **no version is ever silently lost**. The server's week is in the deck; Alice's week is either merged in or held, verbatim, in a context waiting for her eyes.
+`retry` is for work that should be attempted again: perhaps Alice signed in again after a policy rejection. It drops that rejection, reapplies its saved edit against the value visible now, and queues a new ordinary operation. `discard` accepts the visible server truth and drops only the recovery record. When a human composes a third version, as Alice will, an ordinary upsert writes it and clears the older rejection for that card; there is no special conflict-writing mode.
+
+The exact rejection object matters. Recovery acts on the record the screen was actually showing; if a later write has already cleared or replaced it, a stale button does nothing. That small rule prevents an old dialog from reviving an older history.
+
+The invariant underneath is the one from chapter 1 — **no version is ever silently lost**. The server's week is in the deck; Alice's week is either merged in or held, verbatim, in a context waiting for her eyes.
 
 ::: story
 One card interrupts the bus ride: *echar de menos*, her sentence and Nadia's, side by side. Nadia's verb is better; Alice's ending is funnier. She takes thirty seconds to weave them into one sentence neither of them wrote, taps keep, and the deck moves on — one question asked, out of forty-one writes and a week apart.

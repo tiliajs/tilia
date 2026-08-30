@@ -5,7 +5,7 @@ kind: type
 module: core
 since: "0.1"
 sort: 295
-summary: Debug view of observed and cached query keys.
+summary: List observed and cached query keys.
 tags: []
 signature.ts: |-
   type Canopy = {
@@ -20,9 +20,12 @@ signature.res: |-
 label: Canopy
 ---
 
-`Canopy` is returned by [_canopy](api.html#canopy).
+`Canopy` is returned by [_canopy](api.html#canopy). `live` contains observed query keys; `idle` contains unobserved keys retained until memory expiry.
 
-- `live` contains query keys observed by the tilia graph.
-- `idle` contains unobserved query keys still held in memory.
+```typescript
+const observed = (canopy: Canopy) => canopy.live.length;
+```
 
-It is intended for debugging and tooling.
+```rescript
+let observed = (canopy: TiliaQuery.canopy) => canopy.live->Array.length
+```

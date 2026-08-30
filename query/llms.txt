@@ -1,94 +1,182 @@
 # @tilia/query
 
-> Offline-first query and cache layer for Tilia apps: normalized object
-> cache, two-tier reads (local store + remote), durable optimistic outbox
-> with batch push and reconnect replay, merge-aware rejection contexts,
-> live queries, inbound server pushes, and mark-and-sweep local retention.
+Offline-first reactive query engine for Tilia, connected to a store factory.
+The shipped Store is a write-through cache with optimistic writes, ordered
+outbox, query registry, rejection records, and local retention.
 
-## Exact API contracts
+## Authority
 
-These files are authoritative. If prose differs, follow the contracts.
+If prose differs, follow:
 
-Repository:
+- TypeScript root API: `src/index.d.ts`
+- ReScript root API: `src/TiliaQuery.resi`
+- TypeScript IndexedDB API: `src/indexeddb.d.ts`
+- npm exports: `package.json`
 
-- TypeScript: `./src/index.d.ts`
-- ReScript: `./src/TiliaQuery.resi`
+Installed package contracts:
 
-Installed npm package:
+- `@tilia/query` types: `dist/index.d.ts`
+- `@tilia/query/indexeddb` types: `dist/indexeddb.d.ts`
+- ReScript: `src/TiliaQuery.resi`
 
-- TypeScript: `./dist/index.d.ts`
-- ReScript: `./src/TiliaQuery.resi`
+Package exports only `.`, `./indexeddb`, and `./package.json`.
 
-Published documentation:
+## Default construction
 
-- Guide: <https://tiliajs.dev/query/guide>
-- API: <https://tiliajs.dev/query/api>
-- TypeScript contract: <https://github.com/tiliajs/tilia/blob/main/query/src/index.d.ts>
-- ReScript contract: <https://github.com/tiliajs/tilia/blob/main/query/src/TiliaQuery.resi>
+```ts
+import { Store, make } from "@tilia/query";
+import { make as indexedDb } from "@tilia/query/indexeddb";
 
-## Key facts
+const [query, store] = make<T, Q, Store<T>>({
+  id,
+  matches,
+  store: Store.make<T, Q>({
+    find(query, answer) {},       // answer.fresh(values) | answer.fail(message)
+    upsert(value, reply) {},      // saved | conflict | rejected | transient
+    remove(id, reply) {},         // removed | rejected | transient
+    persist: indexedDb({name: "app"}),
+    merge,
+    expiry: {local: 2_592_000_000},
+  }),
+  expiry: {refresh: 30_000, memory: 300_000},
+  onError(query, message) {},
+});
+```
 
-- Create an instance with a configuration object:
-  `make({id, matches, remote, local?, expiry?, now?, key?, sort?, merge?})`.
-- Queries are plain data and pure per-row predicates: `matches(query, value)`
-  decides membership one row at a time and a fetch answers with the full
-  result set — no limits, no pagination, no aggregates. `sort(query)(values)`
-  orders the whole result array. `key` defaults to `sortedStringify`.
-- `merge(change, remote)` mutates the local value in place and returns `true`
-  when it reconciles. `Change` is tagged `clean`, `created`, `updated`, or
-  `removed`; update carries `base` and `edited`. Returning `false` keeps
-  remote truth and records a conflict.
-- Reads: `one(query)` and `array(query)` return a loadable: the strings
-  `"loading"`, `"notFound"` (never for `array` — empty results are loaded),
-  `"notLocal"` (offline and nothing cached: an answer, not a progress state),
-  or the objects `{state: "loaded", data, fresh}` and
-  `{state: "failed", message}`. Fetch errors live at the read site; there is
-  no global error slot.
-- Writes: `upsert(value)` and `remove(id)` are optimistic — they update
-  memory, join and leave in-memory query results through `matches`, write to
-  the local store, and queue an op in a durable, ordered outbox. Pending ops
-  are reconciled with remote deliveries.
-- `remote` is `{online, fetch, push}`. `online` is a tilia `Signal<boolean>`
-  the app owns; flipping to true replays the outbox, flipping to false
-  settles loading queries to `"notLocal"`.
-- `remote.fetch(query, channel)` answers through `channel.set(values)` (full
-  result, periodic refresh) or `channel.live(values)` (self-refreshing
-  source: periodic refresh skips the query). `fail(message)` publishes a
-  failed result without closing the fetch; `end()` closes it and returns the
-  query to periodic refresh; `finally(fn)` registers the teardown, run
-  exactly once when the fetch closes (end, superseded, evicted, disposed).
-  Every callback on a closed fetch is a noop.
-- `remote.push(ops, channel)` receives the ordered batch of pending ops.
-  Confirm per op with `channel.set(value)` (authoritative upsert value) and
-  `channel.removed(id)`; `channel.retry()` keeps unconfirmed ops pending;
-  `channel.fail(message)` removes unconfirmed ops, reverts their optimistic
-  changes to remote truth, and adds contexts to `status.rejected`.
-- `local` is command-only (storage errors are the adaptor's business):
-  `fetch(query, {set, unknown})` materializes a query, `push(ops)` applies
-  value changes in order, `set(tag, key, value|undefined)` and
-  `get(tag, key|undefined, set)` are a string KV for engine bookkeeping
-  (outbox, query registry), `ids(set)` lists every row id for the purge
-  sweep. No dirty flags or tombstones: the values table holds the current
-  optimistic state.
-- Inbound pushes: `receive.changed(values)` / `receive.removed(ids)` are
-  facts about the server. Changed values merge with pending local changes;
-  a server removal against a pending create/update records a conflict.
-  Deliveries do not touch freshness.
-- `status` is reactive: `{pending, rejected}`. Rejections are in-memory
-  contexts, not persisted ops or optimistic overlays. Keep the local version
-  with an ordinary `upsert`, or keep remote truth as shown, then call
-  `dismiss(rejection)`.
-- The engine owns no timers: call `tick()` on an interval ≤
-  `expiry.refresh / 2`. Expiry tiers in ms: `refresh` 30 s (background
-  refetch and `fresh` flag), `memory` 5 min (RAM eviction), `local` 30 days
-  (mark-and-sweep local purge).
-- `dispose()` stops connectivity watching and closes every open fetch.
-- The engine scans linearly by design (no id→query or id→op index); fine at
-  dozens of queries — see TECHNICAL.md.
+`make({id, matches, store, expiry?, now?, key?, sort?, onError?})` returns
+`[TiliaQuery<T,Q>, S]`, where `S` is what the store factory offers. With the
+shipped store, `S` is `Store<T>`.
+
+Engine defaults: refresh 30 s, memory 5 min, `Date.now`,
+`sortedStringify(query)`, identity sort.
+
+Store defaults: shared `Store.online()`, `Store.memory()` Kv, local expiry
+30 days.
+
+Queries and shipped-store values are plain JSON data. `matches(query,value)`
+is a pure per-row predicate; finds return full result sets. No pagination,
+limits, or aggregates. Backend confirmations preserve client ids.
+
+## Reads
+
+`query.one(q)` and `query.array(q)` return:
+
+```ts
+"loading"
+| {state: "loaded"; claim: "partial" | "local" | "fresh"; data: T}
+| {state: "noData"; reason:
+    "offline"
+    | {reason: "failed"; message: string}
+    | {reason: "noMatch"; claim: Claim}}
+```
+
+Claim order is `partial < local < fresh`. Weaker answers never replace
+stronger answers. Only `tick()` weakens `fresh` to `local`.
+
+- non-empty partial = renderable data
+- empty partial online = loading
+- empty partial offline = noData/offline
+- complete empty array = loaded `[]`
+- only `one` maps complete empty to noData/noMatch with its claim
+- failure with no data = noData/failed
+- failure with visible data = keep data and call engine `onError`
+
+`tick()` drives refresh, aging, memory eviction, store retry, and local purge.
+Call at least twice per refresh interval. `dispose()` closes finds, runs
+teardowns, stops watches, then disposes the store.
+
+## Shipped Store
+
+Application API:
+
+```ts
+store.upsert(value)
+store.remove(id)
+store.receive.changed(values)
+store.receive.removed(ids)
+store.status.pending
+store.status.rejected
+store.retry(rejection)
+store.discard(rejection)
+```
+
+Writes update memory/query membership/persistence immediately and enqueue an
+ordered op. Persisted ops replay at boot and reconnect.
+
+`Store.make` sends one op at a time in outbox order:
+
+- upsert `{outcome:"saved", value}` confirms
+- remove `"removed"` confirms
+- `{outcome:"conflict", value}` rebases through `merge`; successful merge
+  stays pending for the next tick, declined merge records conflict
+- `{outcome:"rejected", message}` rejects only that op and continues
+- `"transient"` stops; current and later ops stay pending
+
+`merge(change, remote)` mutates the local object in place and returns boolean.
+Change tags: clean `{value}`, created `{edited}`, updated `{base,edited}`,
+removed `{base}`.
+
+Rejection tags: createConflict, createFailed, updateConflict, updateFailed,
+removeConflict, removeFailed. They are deep JSON snapshots, not persisted ops
+or overlays. Remote/base truth is already visible. `status.rejected` is in
+outbox order regardless of reply order, at most one per id; a write to the id
+clears it. `retry`/`discard` act only on the exact current record. Retry
+reapplies a copy through the normal optimistic path against current truth.
+
+## Persistence
+
+`Kv` is one string keyspace:
+
+```ts
+get(tag, keys | undefined, set)
+keys(tag, set)
+set(tag, key, value | undefined)
+```
+
+The shipped store keeps rows (`Store.rowTag === "row"`), query records, and
+outbox entries under tags in that keyspace. Query records contain key, query,
+ids, and lastSeen. Pending ops and surviving records root rows during
+mark-and-sweep purge. Purge first runs on the first tick, then at most every
+`local / 8`.
+
+`@tilia/query/indexeddb` exports only `make({name, store?, version?,
+onError?}): Kv`. It uses one object store with compound key `[tag,key]`,
+batches writes, and flushes writes before reads. Persistence errors are
+reported to its own `onError`; failed reads answer empty and writes drop.
+
+## Advanced custom channels
+
+Use `Store.custom({remote, persist?, lookup?, merge?, expiry?})` for a
+channel-backed remote, especially live/server-push sources.
+
+Remote read channel:
+
+- `fresh(values)`: complete authoritative snapshot
+- `live(values)`: same, source owns freshness; engine skips refresh
+- `fail(message)`: report without closing
+- `end()`: close and return live query to periodic refresh
+- `finally(fn)`: one teardown slot, run once on close
+
+Remote write channel:
+
+- `set(value)`, `removed(id)`: confirm one op
+- `conflict(value)`: answer one op; an accepted merge keeps it pending,
+  while a declined or missing merge records a conflict and clears it
+- `reject(id,message)`: reject one op
+- `retry()`: terminal; unanswered ops stay pending
+- `fail(message)`: terminal; reject all unanswered ops
+
+First terminal call wins; closed-channel callbacks are noops. Going offline
+does not end a live find. `receive.changed/removed` are inbound facts and do
+not affect query freshness.
+
+`lookup(query,{partial,local})` may claim local only if its own index proves a
+complete answer.
 
 ## Docs
 
-- [README](README.md): API tour with REST remote and Dexie local recipes (TypeScript)
-- [TECHNICAL.md](TECHNICAL.md): the engine model — freshness, live queries, outbox, rejections, local purge, the linear-scan bet
-- [Vision](docs/vision.md): why TiliaQuery exists
-- [tilia machine guide](../tilia/llms.txt): the reactive core this builds on
+- `README.md`: default-first usage and IndexedDB
+- `TECHNICAL.md`: engine/store seam, claims, channels, outbox, rejections,
+  registry, and purge
+- `docs/vision.md`: intent
+- `../tilia/llms.txt`: Tilia reactive core

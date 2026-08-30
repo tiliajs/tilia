@@ -195,16 +195,20 @@ type remote<'query, 'a> = TiliaQueryStore.remote<'query, 'a> = {
   push: (array<op<'a>>, Channel.write<'a>) => unit,
 }
 
-/** Configuration for `make`. */
 /** Configuration for `make`. Everything here is the engine's; what belongs
  to a store is in the value you give `store`. */
 type config<'query, 'a, 'store> = {
   /** Return a unique id for a given value. */
   id: 'a => string,
-  /** Return true if a given value matches a given query. */
+  /**
+   * Return true if a value belongs to a query. Queries must be expressible
+   * as pure predicates over one row, and a find must answer with the complete
+   * result set: limits, pagination and aggregates do not fit this shape.
+   */
   matches: ('query, 'a) => bool,
-  /** Where answers come from and where writes go. `Store.custom` is the one
-   this package ships; any factory of this shape will do. */
+  /** Where answers come from and where writes go. `Store.make` and
+   `Store.custom` are the ones this package ships; any factory of this shape
+   will do. */
   store: store<'query, 'a, 'store>,
   expiry?: expiry,
   /** Return the current time in milliseconds. */
@@ -275,8 +279,9 @@ type t<'query, 'a> = TiliaQueryEngine.t<'query, 'a> = {
 module Store: {
   /** Timing this store owns, in milliseconds. */
   type expiry = TiliaQueryStore.expiry = {
-    /** How long a row nothing references is kept in local storage, since the
-     query that last listed it was seen. Default: 30 days. */
+    /** How long an unheld query record remains in local storage after that
+     query was last seen. Rows no surviving record or pending operation
+     references are removed by the next purge. Default: 30 days. */
     local: float,
   }
 

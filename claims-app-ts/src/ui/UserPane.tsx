@@ -374,6 +374,9 @@ function Resolver({ claims }: { claims: ClaimsFeature }) {
           ))}
         </div>
         <div className="flex justify-end gap-2 border-t border-line px-4 py-3">
+          <Button kind="quiet" onClick={claims.cancelResolution}>
+            Cancel
+          </Button>
           <Button kind="quiet" onClick={claims.discardResolution}>
             Discard
           </Button>

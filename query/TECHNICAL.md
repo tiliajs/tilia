@@ -1,445 +1,459 @@
-# Query storage and synchronization
+# Query engine and store
 
-`TiliaQuery` can coordinate query data across three layers:
+`@tilia/query` is split into two connected halves:
 
-- **Memory** holds the results used by the running application.
-- **Local storage** is optional. When configured, it provides durable data
-  while the network is unavailable.
-- **Remote storage** is the authoritative shared data source.
+- The **engine** owns reactive rows, query membership, read projection,
+  freshness, observation, refresh, and memory eviction.
+- A **store** owns where answers come from, optimistic writes, remote
+  synchronization, persistence, the outbox, rejections, and local retention.
 
-A **query** selects and orders a set of rows. Its result is stored as row ids,
-while each row value is stored separately by id. This separation lets one row
-belong to several queries without duplicating its value in memory.
-
-A query must be a pure predicate over one row. `matches(query, value)` decides
-membership by looking at a single row, and a fetch answers with the query's
-full result set. Limits, pagination and aggregates do not fit this shape: a
-written row joins a result through `matches` alone, and a full-result `set`
-replaces whatever a partial window would try to keep.
-
-The application calls **`tick`** to perform time-based maintenance. A tick may
-refresh open queries, release closed queries from memory, or purge expired
-local data.
-
-## Data flow
-
-### Reading a query
-
-Opening a query starts both the local and remote reads when those sources are
-available. A local result can therefore make data visible before the remote
-request finishes.
-
-For example, opening the Spanish deck can produce this sequence:
+`make` resolves one shared schema and gives it, together with an already-live
+engine binding, to the configured store factory:
 
 ```text
-local result  -> Loaded({data: [cat, dog], fresh: false})
-remote result -> Loaded({data: [cat, dog], fresh: true})
+make(config)
+  -> schema { id, matches, key, sort, now }
+  -> store(schema, binding)
+  <- [source, applicationStore]
+  <- [query, applicationStore]
 ```
 
-The `fresh` field describes whether the remote is known to be current. It does
-not describe where the rows are physically stored.
+This construction prevents the halves from choosing different ids, keys,
+clocks, or membership rules. The engine only knows the store's `Source`; the
+store can only change engine rows through its `Binding`.
 
-When the remote result arrives, it becomes the visible result. If local storage
-is configured, the rows are also upserted there so a later offline read can
-reuse them.
+The package ships one full store with two constructors:
 
-If the app is offline and local storage cannot answer, the query settles as
-`NotLocal`. This is an answer rather than a progress state. While online,
-`unknown` leaves the query `Loading` until the remote responds. A known empty
-answer is `set([])`: `array` returns a loaded empty array and `one` returns
-`NotFound`.
+- `Store.make` describes a conventional backend with `find`, `upsert`, and
+  `remove`. It is the default application-facing option.
+- `Store.custom` describes the same store through remote read/write channels.
+  It exists for push and live sources that need channel lifecycle control.
 
-### Connectivity transitions
+Another store can replace the shipped one by implementing the
+`StoreFactory` contract. It may return any application-facing value beside
+the query object.
 
-The application owns `remote.online` and updates its value as connectivity
-changes. Going offline settles queries still waiting without a local answer as
-`NotLocal`. It does not cancel an in-flight fetch; a remote response that still
-arrives is accepted, and later ticks correct its freshness.
+## Shared schema and result shape
 
-Going online pushes pending outbox operations. Going offline does not end a
-live query because the engine cannot know whether its transport survived; the
-adaptor ends that source through its read channel.
+Rows are normalized by `id`. Query results hold ids and read the canonical
+row object, so one row can belong to several results without creating several
+live copies. `matches(query, row)` updates membership when a row changes.
 
-### Writing a row
+A query must be plain data and describe a full result set:
 
-Every write follows an **optimistic** flow: local state changes before the
-remote confirms the operation.
+- `matches` decides membership from one row.
+- A fresh find answers with every matching row.
+- `sort(query)(rows)` orders that full array.
+- `key(query)` identifies the query and defaults to `sortedStringify`.
 
-The flow is:
+Limits, pagination, and aggregates cannot be maintained from a per-row
+predicate and a replacing full-result delivery, so they are outside this
+model.
 
-1. Update memory and configured local storage.
-2. Append the operation to the outbox.
-3. Send queued operations when the remote is online.
-4. Remove confirmed operations from the outbox.
+The shipped store additionally requires rows and queries to survive a JSON
+round trip. Rejections are snapshots even without durable persistence, and
+rows, records, and outbox entries are JSON in its `Kv`. Values and queries
+must not themselves be `null` or `undefined`, and a backend must preserve a
+client-supplied id.
 
-The **outbox** is an ordered queue that connects optimistic local writes to
-eventual remote confirmation. Its detailed behavior is described below.
+## Engine/store seam
 
-A remote query result is reconciled with pending local changes before display.
-For each row with a pending operation, `merge` receives the local `Change` and
-remote value. A successful merge rebases the pending operation on remote truth;
-a rejected merge clears the operation, shows remote truth, and records a
-conflict. Pending upserts then join matching results and pending removes filter
-rows out, preventing optimistic changes from briefly disappearing.
+The store receives this binding:
 
-## Cache lifecycle
+- `item(id)` returns the canonical live object, if present.
+- `changed(values)` applies remote truth. A row stays in memory only if an
+  in-memory query matches it.
+- `removed(ids)` removes rows and their in-memory memberships.
+- `place(value)` applies an optimistic value and keeps it even when no query
+  currently lists it.
 
-Separate expiry periods control network freshness, memory use, and disk
-retention. Expiring one layer does not imply that another layer must expire.
+The engine receives this source:
 
-- **Refresh expiry — 30 seconds by default.** An open remote result becomes
-  eligible for refresh. A live result is excluded: its source keeps it fresh.
-- **Memory expiry — 5 minutes by default.** A closed query can be removed from
-  memory.
-- **Local expiry — 30 days by default.** An unused persisted query can be
-  removed from local storage.
+- `online` is the connectivity signal.
+- `find(query, channel)` may answer one find several times.
+- `forget(query)` says memory eviction has released the query.
+- `tick()` runs the store's half of the heartbeat.
+- `dispose()` closes the store after the engine has closed its finds.
 
-**Open** means observed. The engine asks Tilia's observer graph which query
-results something is currently watching (`_canopy` over the shared results
-dict). There is no registration API: reading a result inside an observer is
-what keeps a query open.
+The engine calls its own half first in both lifecycles. On `tick`, claim aging
+and memory eviction run before the store's retry and purge work; observed
+finds remain active while that purge runs. On `dispose`, the engine closes
+every find before it asks the source to shut the store down.
 
-An open query updates its last-seen time on every tick. This prevents active
-queries from expiring from memory.
+## Claims and no weakening
 
-A closed query no longer updates its last-seen time. After the refresh period,
-it stops triggering remote refreshes. After the memory period, its in-memory
-entry can be removed.
-
-Last-seen time records observation rather than delivery. A remote response that
-arrives after a query has been closed does not extend that query's retention.
-
-Removing an entry from memory does not remove its local data. Reopening the
-query can still return the persisted result before requesting fresh remote
-data.
-
-### Freshness source
-
-A remote result is marked stale when no replacement arrives within the refresh
-period. The data stays visible; only its freshness changes.
+Every loaded answer has a claim:
 
 ```text
-before expiry -> Loaded({data: [cat, dog], fresh: true})
-after expiry  -> Loaded({data: [cat, dog], fresh: false})
+partial < local < fresh
 ```
 
-While offline, this change happens at the refresh expiry. While online, the
-system waits an additional `expiry.refresh / 8`. This buffer gives an in-flight
-refresh time to finish without briefly changing the result to local.
+- `partial` means the store has these matching rows but cannot certify that
+  no others exist.
+- `local` means the stored result is complete.
+- `fresh` means authoritative as of now. It does not mean that the bytes had
+  to cross a network; a synchronized store may make this claim.
 
-### Remote write-through
+A find can deliver several tiers in any asynchronous order. A weaker answer
+never replaces a stronger one. The engine compares claims before publishing,
+and the shipped store applies the same rule before rewriting its query
+record. A late partial or local read therefore cannot undo a fresh snapshot
+or restore ids that fresh truth removed.
 
-Remote query results are written to local storage with upserts. The
-write-through path inserts or replaces returned rows, but it does not infer
-deletions from missing rows.
-
-Suppose a previous remote result contained `cat` and `dog`, while the next
-result contains only `dog`:
+Only `tick()` weakens an answer. When fresh data ages, the engine changes its
+claim from `fresh` to `local` and keeps the data. Typical progressions are:
 
 ```text
-visible query ids -> [dog]
-local row ids     -> [cat, dog]
+partial -> fresh
+local   -> fresh
+fresh   -> local -> fresh
 ```
 
-The query record no longer references `cat`, but its local row remains until a
-purge proves that no retained query references it.
+An empty partial answer has special projection. It proves only that the
+store currently holds nothing:
 
-### Inbound remote deliveries
+```text
+online  -> "loading"
+offline -> { state: "noData", reason: "offline" }
+```
 
-`receive.changed` and `receive.removed` describe facts pushed by the remote,
-such as websocket deliveries. A changed value is matched against every
-in-memory query: it joins results whose `matches` accepts it and leaves results
-that no longer match. A removed id leaves every result and its local row is
-deleted.
+A complete empty answer is still data for `array`:
 
-A changed delivery reconciles with a pending create, update, or remove through
-`merge`. A successful merge keeps and rebases the pending change; a rejected
-merge clears it, shows remote truth, and records a conflict. A removed delivery
-confirms a pending remove. Against a pending create or update it clears the
-operation, records a conflict, and keeps the server deletion visible.
+```text
+{ state: "loaded", claim: "local" | "fresh", data: [] }
+```
 
-A changed value stays in memory only while an in-memory query matches it, and
-is persisted only while a query record lists it. A value matching nothing is
-dropped. Inbound deliveries do not affect freshness; freshness and refresh
-scheduling belong to each query's read channel.
+`one` alone projects that empty array into:
 
-## Failed fetches
+```text
+{ state: "noData", reason: { reason: "noMatch", claim } }
+```
 
-A remote `fail` replaces the visible result with `Failed`. The error appears
-at the read site, where the value is used; there is no global error slot.
+The claim on `noMatch` matters because an absence ages exactly like a
+non-empty answer.
 
-A failed query is not stuck. On every tick, a failed non-live query re-enters
-the refresh check. Once the refresh window has passed since the failed
-attempt, it is refetched. A successful refetch replaces `Failed` with the new
-result.
+## Find lifecycle
 
-A live query is the exception: the engine never refetches it on its own.
-Recovery is the source's job, described below.
+The first read of a query creates one engine entry and asks the source to
+find it. The shipped store starts its local read first and starts the remote
+read when online:
 
-## Live queries
+1. A registered query record names its row ids. Reading those rows can claim
+   `local`.
+2. An unregistered query normally scans held rows through `matches` and can
+   claim only `partial`.
+3. An optional `lookup` may use an application-owned index. It may claim
+   `local` only when it can certify completeness.
+4. The remote answer is reconciled with pending writes, recorded, persisted,
+   and delivered as `fresh` or `live`.
 
-A remote adaptor can keep a query fresh on its own, for example through a
-server subscription. Such an adaptor answers through `channel.live` instead of
-`channel.set`, and calls it again on every update. The refresh expiry skips a
-live query: no periodic refetch is scheduled while the source keeps
-delivering.
+The engine does not know which of these tiers exists. It sees one source and
+one claim-bearing channel.
 
-The subscription belongs to the adaptor; running its teardown belongs to the
-engine:
+Starting a newer non-live find closes the older one. Closing makes every
+late callback a no-op and runs the registered teardown once. Finds also close
+on `end`, memory eviction, and `dispose`.
 
-- The adaptor registers its teardown with `channel.finally`. The slot holds
-  one function; a later registration replaces the earlier one.
-- The engine runs the teardown exactly once, when the fetch closes. A fetch
-  closes on `end`, when a newer fetch supersedes it, when the query is
-  evicted from memory, or on `dispose`.
-- Registering a teardown on a fetch that is already closed runs it
-  immediately. A source that dies synchronously inside `remote.fetch` is
-  still torn down.
+## Failure retention
 
-`channel.end` says the stream is over. The teardown runs, and the query
-returns to the normal refresh cycle: the next tick past the refresh window
-refetches it. Ending is the adaptor's call — going offline does not end a
-live query, because the engine cannot know whether the transport survived.
+A find failure does not automatically replace useful data:
 
-Every callback on a closed fetch is ignored. Late replies from ended,
-superseded, or evicted fetches cannot corrupt the visible result, and
-adaptors do not need to guard against this themselves.
+- With no data to show, failure becomes
+  `{ state: "noData", reason: { reason: "failed", message } }`.
+- With loaded data, the result and its claim stay visible and
+  `onError(query, message)` receives the failure.
 
-A failure does not close a live fetch. `channel.fail` shows `Failed` at the
-read site, but the source stays connected: a later delivery replaces the
-failure, and `end` hands the query back to periodic refresh.
+The decision uses the projected result. In particular, an empty partial
+answer while online still counts as no data, so a failed first remote read is
+shown at the read site.
+
+A failed non-live query remains eligible for refresh. `fetchedAt` throttles
+attempts, and a hung attempt frees its slot after one refresh interval.
+
+Failure does not close a live find. If it had data, that data remains and
+`onError` runs; otherwise the failure is shown. The source may later recover
+with another `live` delivery, or call `end` to return the query to periodic
+refresh.
+
+## Observation, refresh, and memory
+
+Observation comes from Tilia's dependency graph. Reading a result inside an
+observer puts its key in the result dictionary's live canopy; there is no
+separate retain API.
+
+On each heartbeat the engine:
+
+1. stamps observed queries with the current time;
+2. refreshes eligible observed, online, non-live queries;
+3. lowers expired fresh claims to local;
+4. evicts queries unseen for `expiry.memory`;
+5. calls the store's heartbeat.
+
+The default engine expiry is:
+
+```text
+refresh = 30 seconds
+memory  = 5 minutes
+```
+
+An online fresh result gets an additional `refresh / 8` aging buffer, giving
+an in-flight refresh time to arrive without a brief claim change. Offline,
+there is no buffer.
+
+Eviction closes the find, calls `source.forget(query)`, drops the in-memory
+result and ids, and removes rows no other in-memory query references unless
+an optimistic placement still holds them. It does not delete persisted data.
+
+## Live sources and `Store.custom`
+
+`Store.custom` takes a `Remote` whose `fetch` receives a read channel:
+
+- `fresh(values)` replaces the result with a complete authoritative snapshot.
+- `live(values)` does the same and marks the find self-maintaining.
+- `fail(message)` reports a failure without closing.
+- `end()` closes the find and returns a live query to normal refresh.
+- `finally(fn)` installs the teardown.
+
+The teardown is a single slot: the last registration wins. It runs exactly
+once when the find closes. Registering after closure runs the function
+immediately, and every other late callback is ignored.
+
+While a query is live, engine refresh is skipped. Going offline does not end
+it because the engine cannot know whether its transport survived. The
+adaptor must pause, reconnect, or end its own subscription. On reconnect the
+engine restarts non-live finds; a still-live source remains responsible for
+itself.
+
+Inbound push facts do not go through a query channel:
+
+```text
+store.receive.changed(values)
+store.receive.removed(ids)
+```
+
+Changed rows are reconciled with pending writes, then join or leave every
+matching in-memory query. Removed ids confirm pending removes; against a
+pending create or update they record a conflict and preserve the server
+deletion. These deliveries do not change query freshness.
+
+## One `Kv` keyspace
+
+The shipped store asks persistence for one string keyspace:
+
+```typescript
+type Kv = {
+  get(tag, keys, set): void;
+  keys(tag, set): void;
+  set(tag, key, value): void;
+};
+```
+
+It keeps all durable state in that keyspace under tags:
+
+- `row` — one JSON row per id; this public tag is `Store.rowTag`
+- `query` — query registry records
+- `outbox` — ordered optimistic operations
+
+A `Kv` does not interpret any of them. Omitting `persist` selects
+`Store.memory()`, an in-process keyspace using the identical store path.
+`@tilia/query/indexeddb` supplies a durable implementation with one object
+store and compound key `[tag, key]`.
+
+Persistence is command-only. Its errors cannot be returned through the query
+or store protocols. The IndexedDB keyspace reports open and transaction
+failures to its own `onError`; reads still answer with nothing and writes are
+dropped.
+
+## Query registry
+
+A query record contains:
+
+```text
+key, query, ids, lastSeen
+```
+
+The query itself is retained so `matches` can run for records that are only
+on disk. `lastSeen` is dated by the find that requested an answer, not by a
+late delivery, so a slow reply cannot extend an abandoned query's lifetime.
+
+The running store keeps a write-through registry mirror. During purge,
+persisted records fill only keys absent from that mirror; an older persisted
+copy cannot overwrite newer in-process truth.
+
+For each held query, membership changes update its record immediately.
+Records belonging only to earlier sessions are repaired later by refresh or
+purge rather than scanned on every write.
+
+An optimistic row that no real record lists receives a synthetic
+`__id:<id>` record. This roots the row temporarily. During purge, a known row
+is offered to every real record; matching records adopt it and the synthetic
+record is removed. A row not loaded by the current engine keeps its synthetic
+root until a later pass can inspect it or local expiry removes it.
+
+## Outbox and optimistic placement
+
+`store.upsert(value)`:
+
+1. clears an existing rejection for that id;
+2. computes a `created` or `updated` change from the current base;
+3. places the value in engine memory;
+4. updates held query memberships and records;
+5. writes the row to the keyspace;
+6. enqueues and persists an upsert.
+
+`store.remove(id)` similarly clears a rejection, removes the row and its held
+memberships immediately, deletes the persisted row, and enqueues a remove
+when remote work remains.
+
+The outbox is ordered by a monotonic sequence. Multiple pending edits to one
+id coalesce into its existing position and retain their original base.
+Entries in flight are excluded from concurrent pushes. On boot, persisted
+entries are parsed, sorted by sequence, reflected in `status.pending`, and
+pushed when online.
+
+A remote snapshot receives the pending outbox overlay before display:
+matching upserts replace or join rows, moved rows leave old results, and
+pending removes filter ids out. This prevents optimistic state from
+disappearing while a fetch catches up.
+
+## `Store.make`: sequential outcomes
+
+`Store.make` converts three ordinary backend functions into the custom
+channel protocol:
+
+```text
+find(query, { fresh, fail })
+upsert(value, reply)
+remove(id, reply)
+```
+
+It issues outbox operations one at a time, in order, and waits for one reply
+before calling the next backend function. A second reply for the same call is
+ignored.
+
+Upsert outcomes:
+
+- `saved(value)` maps to channel `set(value)` and confirms the operation.
+- `conflict(value)` maps to `conflict(value)`. The operation is answered but
+  remains pending while merge attempts to rebase it.
+- `rejected(message)` maps to `reject(id, message)`, refusing only that
+  operation; the sequence continues.
+- `transient` maps to `retry()`, stops the sequence, and leaves that operation
+  and everything later pending.
+
+Remove outcomes are deliberately separate:
+
+- `removed` confirms the remove.
+- `rejected(message)` refuses only that remove, then the sequence continues.
+- `transient` stops before any later operation is sent.
+
+The separate removal type prevents a saved row from being used to answer a
+remove. Such a value would match no remove operation and leave it hanging.
+
+## Channel write protocol
+
+The lower-level `Store.custom` write channel sends an ordered batch and
+allows these replies:
+
+- `set(value)` confirms one upsert by `id(value)`.
+- `removed(id)` confirms one remove.
+- `conflict(value)` answers one operation with current remote truth but does
+  not settle that operation.
+- `reject(id, message)` definitively refuses one operation.
+- `retry()` ends the batch and frees every unanswered operation for a later
+  attempt.
+- `fail(message)` ends the batch and definitively refuses every unanswered
+  operation.
+
+The first terminal `retry` or `fail` wins. All later callbacks are ignored.
+Per-operation outcomes received before it stand; if a backend later rolls
+back an acknowledged write, it must send that fact through `receive`.
+
+A conflict is not a rejection by itself. With a successful `merge`, the
+local edit is mutated in place, rebased on the remote row, persisted, and
+left pending for the next heartbeat. It is not immediately pushed again,
+which prevents a permanently conflicting backend from spinning.
+
+If merge declines, the operation leaves the outbox, remote truth is placed,
+and a conflict rejection is recorded. `reject` or `fail` also removes the
+operation, but restores its base (or forgets a rejected create) and records a
+failed rejection carrying the message. An unknown-id remove has no local
+change or base to preserve, so refusing it clears the operation without
+creating a rejection.
+
+## Rejection records
+
+Rejections are contextual history, not queued operations or overlays. Their
+variants preserve the local story:
+
+```text
+createConflict { edited }
+createFailed   { edited, message }
+updateConflict { base, edited }
+updateFailed   { base, edited, message }
+removeConflict { base }
+removeFailed   { base, message }
+```
+
+At the refusal boundary the whole record is deep-copied through JSON.
+Subsequent edits to a live row cannot change the rejection's `base` or
+`edited` snapshots.
+
+`status.rejected` is kept in outbox sequence order regardless of reply order.
+This makes a refused cascade appear cause-first. There is at most one
+rejection per id; a newer one replaces the existing record in its existing
+position. Any new write to that id clears its rejection.
+
+Both resolution methods require the exact record object currently in the
+array:
+
+- `retry(rejection)` removes it and reapplies a copy of its edited upsert or
+  remove through the ordinary optimistic path. The new change is computed
+  against the value that stands now.
+- `discard(rejection)` removes only the context.
+
+A stale reference to a replaced or cleared rejection is a no-op. Rejections
+are not persisted across restarts.
 
 ## Local purge
 
-The local purge is garbage collection for persisted query data. It removes
-rows that are no longer reachable from any retained query.
+The store owns `expiry.local`, defaulting to 30 days. Purge runs on the first
+heartbeat after construction and then at most once per `local / 8`. Engine
+refresh and memory work still run on every heartbeat.
 
-The **query registry** is the source of reachability information. Each
-persisted record contains a query key, the query itself, its latest row ids,
-and the time that query was last seen.
+Purge is mark-and-sweep over the one keyspace:
 
-Storing the query lets `matches` run against records whose query is not in
-memory. This requires queries to be plain data that survives a JSON round
-trip — the same assumption the default `sortedStringify` key already makes.
+1. Load query records absent from the current registry mirror.
+2. Offer known synthetic rows to real query records and remove adopted
+   synthetic roots.
+3. Keep records for queries the engine still holds.
+4. Delete unheld records older than `expiry.local`.
+5. Mark ids listed by surviving records.
+6. Mark ids of pending outbox operations, because boot replay still needs
+   them.
+7. Ask `Kv.keys(Store.rowTag)` for every persisted row id.
+8. Delete each unmarked row.
 
-The running application keeps an in-memory mirror of records it has written.
-During a purge, records from earlier sessions are merged only when the mirror
-does not already contain the key, because the write-through mirror is at least
-as fresh as its persisted copy.
+Remote write-through never infers row deletion merely because a fresh query
+omits an id. It rewrites the query record immediately; purge later deletes
+the row only after no retained record or pending operation reaches it.
 
-Purging requires asynchronous local I/O. To limit that cost, purge runs on the
-first tick after boot and then at most once per `expiry.local / 8`. With the
-default local expiry, the interval is 3.75 days.
+## Complexity
 
-This gate applies only to local purge. Refresh checks, last-seen updates, and
-memory expiry still run on every tick.
+The implementation chooses linear scans over indexes:
 
-The purge uses **mark and sweep**, the same reachability pattern used by a
-garbage collector:
+- a changed row is offered to every in-memory query;
+- held registry records are scanned for membership changes;
+- a remote result reapplies every pending outbox operation;
+- purge walks records and row keys.
 
-1. Load the persisted query registry.
-2. Offer each synthetic `__id:` row to every real record's query. A match
-   adopts the id into that record and deletes the synthetic record — the real
-   query now roots the row. A synthetic row whose value is not in memory is
-   skipped and kept.
-3. Remove closed query records unseen for longer than `expiry.local`.
-4. Mark every row id listed by the surviving records.
-5. Enumerate the rows in local storage.
-6. Remove every unmarked row.
+This is deliberate for a client cache with dozens of active queries and a
+normally short outbox. Hundreds of active queries or a large outbox overlaid
+onto frequent live snapshots would need id-to-query and id-to-operation
+indexes.
 
-Pending operations are additional roots. They survive a restart and replay, so
-their optimistic rows must survive too — even after every query record listing
-them has expired. Their ids come from the in-memory outbox, which mirrors the
-persisted entries, so marking them costs no extra I/O. Rejections are not
-operations, are not persisted, and do not root rows.
+## Runtime output
 
-For example:
-
-```text
-query records before purge -> Spanish: [dog]
-local rows before purge    -> [cat, dog]
-
-marked ids                 -> [dog]
-local rows after purge     -> [dog]
-```
-
-This delayed sweep is what eventually removes rows omitted by later remote
-results.
-
-## Outbox
-
-The outbox keeps writes ordered across disconnection. Every upsert or remove
-receives a sequence number before remote confirmation.
-
-When local storage is configured, each outbox operation is also persisted.
-This makes pending writes durable across application restarts.
-
-`status.pending` is the number of operations currently in the outbox. An
-offline write increases it immediately because no remote request is attempted
-while the connection is offline.
-
-At boot, persisted operations are loaded in sequence order. If the remote is
-online, replay starts after loading. Reconnecting triggers the same replay.
-
-### Batching
-
-A push selects every pending operation that is not already **in flight**. An
-in-flight operation has been sent but has not yet received a confirmation.
-
-The selected operations are sent as one ordered batch. Marking them in flight
-prevents another push from sending the same operations concurrently.
-
-If the remote asks for a retry, the batch returns to the pending state. A later
-push can then send it again.
-
-The write channel accepts individual confirmations until `retry` or `fail`
-settles the batch. The first terminal call wins; every later callback on that
-channel is ignored.
-
-### Definitive failures
-
-A definitive failure removes every unconfirmed operation in the batch from the
-outbox and deletes its persisted entry. A created value is forgotten; an update
-or remove restores its base value. Each local `Change` becomes a contextual
-rejection in `status.rejected`. Rejections are keyed by row id, so a newer
-rejection replaces an older one for the same row. Operations confirmed before
-the failure have already left the outbox and are not rejected.
-
-Remote truth is visible immediately after the revert. The rejection preserves
-the local side of the story: `edited`, `base`, and the remote message where
-applicable. It is not part of the optimistic overlay and is not persisted.
-
-Keeping the local version is an ordinary `upsert`, creating a new operation.
-Keeping remote truth requires no data change. Once the application has
-resolved or intentionally ignored the context, `dismiss(rejection)` removes
-that exact object from `status.rejected`; dismissing an absent object is a
-noop.
-
-### Upsert trace
-
-An **upsert** inserts a missing row or replaces an existing row with the same
-id. The optimistic update changes the in-memory value and local row before
-enqueueing the operation.
-
-The row also joins every matching query currently in memory, and leaves every
-in-memory query the new value no longer matches — moving a card between decks
-updates both results at once. Both changes are persisted in the affected query
-records. Query records that exist only on disk are not scanned; they catch up
-when the query next refreshes.
-
-If no query record lists the row, a synthetic record named `__id:<id>` keeps it
-reachable during local purge. The next purge offers the row to every persisted
-query — including queries that exist only on disk, since records carry their
-query. A match adopts the row and drops the synthetic record. A row no query
-ever adopts keeps its synthetic record, which is never refreshed, so normal
-local expiry eventually removes it.
-
-```text
-before:
-  memory         -> cat.seen = 0
-  local          -> cat.seen = 0
-  outbox         -> []
-
-after offline upsert:
-  memory         -> cat.seen = 1
-  local          -> cat.seen = 1
-  outbox         -> [Upsert(cat.seen = 1)]
-  status.pending -> 1
-```
-
-A remote `set` confirmation is matched to an in-flight upsert by row id. The
-confirmed value is authoritative because the server may have corrected it. It
-is reconciled through `merge` when configured, then written to memory and local
-storage.
-
-After confirmation, the matching operation is deleted from the persisted
-outbox. `status.pending` then decreases.
-
-### Remove trace
-
-A remove deletes the row from memory before remote confirmation. It also
-removes the id from loaded query results and deletes the local row.
-
-```text
-before:
-  Spanish ids    -> [cat, dog]
-  local rows     -> [cat, dog]
-
-after remove:
-  Spanish ids    -> [dog]
-  local rows     -> [dog]
-  outbox         -> [Remove(cat)]
-```
-
-A query record left on disk by an earlier session may still list `cat`.
-Removing the row updates records loaded in the current session, but it does not
-scan every historical query record.
-
-This stale id is safe during purge. The mark phase may mark `cat`, but the
-sweep only examines rows that still exist in local storage. Because the local
-`cat` row is already gone, there is nothing to retain or remove. Refreshing
-that query later rewrites its persisted id list without `cat`.
-
-A remote `removed` confirmation is matched to an in-flight remove by row id.
-The local deletion is already complete, so confirmation only clears the
-outbox operation.
-
-## The linear-scan bet
-
-The engine keeps no index from row ids to queries or operations. Every
-membership question is answered by a scan:
-
-- An upsert offers the value to every in-memory query, and scans every
-  registry record to see whether some record already lists the row.
-- A remove walks every in-memory id list and every registry record to drop
-  the id.
-- A remote delivery rebuilds the optimistic overlay from scratch: every
-  pending outbox operation is re-applied over the delivered rows.
-- A tick visits every in-memory query. A purge marks every id of every
-  record.
-
-This is a bet on scale, and it is deliberate rather than an oversight. The
-intended load is a client cache: dozens of in-memory queries, registry
-records in the same range, and an outbox that drains on reconnect. At that
-scale a scan costs less than an index. There is no structure to update on
-every write, and nothing that can drift from the truth it summarizes.
-
-The bet loses when the counts stop being small — hundreds of active queries,
-or a large outbox overlaid onto frequent deliveries. The fix at that point is
-indexing (ids to queries, ids to operations), not tuning the scans.
-
-## The plain-value bet
-
-The compiled `TiliaQuery.mjs` imports one module: tilia. Like `Tilia.res`,
-the source binds the JavaScript it needs (`Object.keys`, `Object.values`,
-`Object.entries`, `Reflect.deleteProperty`, index access) instead of
-calling the ReScript standard library, so no `@rescript/runtime` helper
-reaches the output. The published package depends on tilia and nothing
-else.
-
-This works because absence is represented directly: a dict or array read
-is typed `nullable` and answers with the raw JavaScript value. The bet is
-that a stored value or query is never `null` or `undefined`, so a
-`nullable` read always means absent, never stored. A row is an object with
-an id and a query is a value `matches` can inspect, so the bet holds by
-construction; it would lose only if an adaptor delivered `undefined` as a
-row, which nothing guards, exactly as nothing guards a row without an id.
-
-At bundle time the single import is rewritten from `tilia/src/Tilia.mjs`
-to the package root `tilia` — the same specifier the app uses — so the app
-and the engine load one tilia instance and share one module-level context.
-
-## Rejection test fixture
-
-Rejection scenarios need a deterministic definitive failure rather than a
-transient retry. Papabase provides that failure through version checking.
-
-Application writes normally omit a version. In a rejection scenario, the test
-adds a forged version that differs from the stored row:
-
-```text
-stored version  -> current
-upsert version  -> 5
-result          -> definitive rejection
-```
-
+The compiled root module imports `tilia` and no ReScript runtime helper.
+Bundle rewriting points the generated Tilia import at the package root so the
+application and query engine share one Tilia instance and reactive context.

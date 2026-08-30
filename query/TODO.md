@@ -1,10 +1,12 @@
 # TODO
 
-- [ ] Rewrite the tilia/query guide.
+- [x] Rewrite the tilia/query guide.
 
       FOCUSSING ON THE STORY, not the technical details which belong in the Reference.
 
       The goal of the guide is to inspire and give a FEELING of how things work. The guide should be a recreative read out of curiosity, not a highly engaging intellectual challenge.
+      → Kept the Alice/Nora journey as Diátaxis explanation, centred on
+      `Store.make`; low-level channels and liveness stay in the reference.
 - [ ] Add TypeScript type guards for loadable states such as `loading` and
       `loaded`, so narrowing preserves the data type:
       ```ts
@@ -13,17 +15,20 @@
       ```
 - [ ] Orchestrate sync and pruning across multiple collections so they do not
       flood the app on boot or all run at the same time.
-- [ ] State the query-language constraint explicitly in the `.resi`: queries
+- [x] State the query-language constraint explicitly in the `.resi`: queries
       are pure predicates over one row — no limits, no pagination, no
       aggregates — because join-on-upsert and full-result `set` semantics
-      both break otherwise.
-- [ ] The api reference and guide are a generation behind: `dismiss` (2d
+      both break otherwise. → Documented on `config.matches` in both public
+      contracts.
+- [x] The api reference and guide are a generation behind: `dismiss` (2d
       replaced it with `retry` and `discard`), the old `loadable`, and now the
       whole of phase 4 — `store:` and the tuple return, `Store.make` /
       `Store.custom`, `Kv` and `persist`, `lookup`. `src/index.d.ts` is
       current as of 5c and is the closest thing to a written surface; the
       guide and `docs/content/query/api/**` are not. Belongs with the doc
-      rewrite, once 4d has settled the packaging.
+      rewrite, once 4d has settled the packaging. → Guide, API, README,
+      technical guide and `llms.txt` now match the final core and IndexedDB
+      contracts.
 - [ ] Restart-with-rejection scenario: the `.resi` promises the rejection
       resurfaces on its own after a restart (op reloads as pending, re-push
       fails again). Test it.
@@ -55,4 +60,4 @@
 
 # BEFORE RELEASE !!! IMPORTANT
 
-- [ ] Fix guide 07 "when the world returns" with the new type for TiliaQuery's `change`.
+- [x] Fix guide 07 "when the world returns" with the new type for TiliaQuery's `change`.

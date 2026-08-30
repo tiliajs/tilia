@@ -5,83 +5,54 @@ kind: type
 module: core
 since: "0.1"
 sort: 280
-summary: Channel handed to remote.push — confirm, retry or fail a batch.
+summary: Answer operations in a Remote.push batch.
 tags: []
 signature.ts: |-
   type WriteChannel<T> = {
     set: (value: T) => void,
     removed: (id: string) => void,
+    conflict: (value: T) => void,
+    reject: (id: string, message: string) => void,
     retry: () => void,
     fail: (message: string) => void
   }
 signature.res: |-
-  type write<'a> = {
+  type Channel.write<'a> = {
     set: 'a => unit,
     removed: string => unit,
+    conflict: 'a => unit,
+    reject: (string, string) => unit,
     retry: unit => unit,
     fail: string => unit,
   }
 label: WriteChannel
 ---
 
-`WriteChannel` is handed to [Remote.push](api.html#remote-type) together with a batch of ops.
+`WriteChannel` answers the ordered operations passed to [Remote.push](api.html#remote-type).
 
-Per-op confirmations — call one per op, matched by the value's id:
+- `set(value)` confirms one upsert with its authoritative value.
+- `removed(id)` confirms one remove.
+- `conflict(value)` supplies the server row. If `merge` accepts it, the
+  operation is rebased and stays pending; otherwise remote truth is placed,
+  the operation leaves the outbox, and a conflict rejection is recorded.
+- `reject(id, message)` definitively refuses one operation.
+- `retry()` ends the push without deciding any unanswered operation; they remain pending.
+- `fail(message)` definitively rejects every unanswered operation. Earlier answers stand.
 
-- `set` — confirms an upsert. Pass the **authoritative** value: echo the input, or pass the server-corrected or conflict-resolved version. Whatever is set replaces the local value and drops the op from the outbox.
-- `removed` — confirms a remove, by id.
+`set` and `conflict` match operations by `id(value)`, so the backend must
+preserve client ids. Per-operation callbacks answer only their matching
+operation; a successfully merged conflict leaves that operation unsettled
+for a later push.
 
-Batch endings:
-
-- Nothing — every op confirmed; the batch is done.
-- `retry` — transient failure (offline, timeout). Every op not yet confirmed stays pending and is pushed again on a later [tick](api.html#tick) or when `remote.online` flips back to true.
-- `fail` — definitive refusal. Every op not yet confirmed becomes a [Rejection](api.html#rejection-type) in [status](api.html#status)`.rejected`.
-
-The first definitive call wins; everything on the channel is a no-op afterward. Ops confirmed before a `fail` have already left the outbox and are not rejected.
-
-See guide chapters [Tunnels](guide.html#tunnels) and [When the world returns](guide.html#when-the-world-returns).
+The first `retry()` or `fail()` closes the push. Every later callback on that
+channel, including a delayed per-operation answer, is ignored.
 
 ```typescript
-// Confirm op by op; report the first server error as definitive.
-const push = async (ops: Op<Card>[], channel: WriteChannel<Card>) => {
-  for (const op of ops) {
-    try {
-      if (op.op === "upsert") channel.set(await api.upsert(op.value));
-      else {
-        await api.remove(op.id);
-        channel.removed(op.id);
-      }
-    } catch (e) {
-      return channel.fail(String(e));
-    }
-  }
-};
+const answer = (value: Card, channel: WriteChannel<Card>) =>
+  value.version > 1 ? channel.conflict(value) : channel.set(value);
 ```
 
 ```rescript
-// Confirm op by op; report the first server error as definitive.
-// After a `fail`, the remaining calls on the channel are noops.
-let push = (ops, channel: TiliaQuery.Channel.write<card>) =>
-  ops->Array.forEach(op =>
-    switch op {
-    | TiliaQuery.Upsert({value}) =>
-      api.upsert(value)
-      ->Promise.thenResolve(result =>
-        switch result {
-        | Ok(card) => channel.set(card)
-        | Error(error) => channel.fail(error)
-        }
-      )
-      ->ignore
-    | TiliaQuery.Remove({id}) =>
-      api.remove(id)
-      ->Promise.thenResolve(result =>
-        switch result {
-        | Ok() => channel.removed(id)
-        | Error(error) => channel.fail(error)
-        }
-      )
-      ->ignore
-    }
-  )
+let answer = (value, channel: TiliaQuery.Channel.write<card>) =>
+  value.version > 1 ? channel.conflict(value) : channel.set(value)
 ```

@@ -5,32 +5,23 @@ kind: function
 module: core
 since: "0.1"
 sort: 130
-summary: Deterministic JSON serialization — the default query key.
+summary: Deterministically serialize plain JSON data.
 tags: []
 signature.ts: "function sortedStringify(value: unknown): string"
 signature.res: "let sortedStringify: 'a => string"
 label: sortedStringify(value)
 ---
 
-`sortedStringify` serializes a value to JSON with sorted keys at every level, so two structurally equal queries produce the same string regardless of key order.
+`sortedStringify` serializes JSON with object keys sorted at every level. It is the default query key used by [make](api.html#make), so structurally equal plain-data queries share an entry regardless of property order.
 
-It is the default `key` in [make](api.html#make): the string identifies a query in memory and in the persisted query registry.
-
-It is meaningful only for plain data — no functions, no cycles. This is the same constraint the local purge puts on queries: persisted records carry their query through a JSON round trip.
-
-See guide chapter [A shape for queries](guide.html#a-shape-for-queries).
+It does not support functions or cycles.
 
 ```typescript
-import { sortedStringify } from "@tilia/query";
-
-sortedStringify({ deck: "es", seen: false }) ===
-  sortedStringify({ seen: false, deck: "es" }); // true
+sortedStringify({ deck: "es", due: true }) ===
+  sortedStringify({ due: true, deck: "es" }); // true
 ```
 
 ```rescript
-open TiliaQuery
-
-let same =
-  sortedStringify({"deck": "es", "seen": false}) ===
-  sortedStringify({"seen": false, "deck": "es"}) // true
+sortedStringify({"deck": "es", "due": true}) ===
+sortedStringify({"due": true, "deck": "es"}) // true
 ```

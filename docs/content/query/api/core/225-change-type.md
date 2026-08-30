@@ -5,7 +5,7 @@ kind: type
 module: core
 since: "0.1"
 sort: 225
-summary: Local context presented when a remote value arrives.
+summary: Describe local context when a remote value arrives.
 tags: []
 signature.ts: |-
   type Change<T> =
@@ -23,34 +23,28 @@ signature.res: |-
 label: Change
 ---
 
-`Change` is the local context passed to [Config](api.html#config-type)`.merge` when a remote value arrives.
+`Change` is passed to the shipped store's `merge` callback with an incoming remote value:
 
-- `Clean` carries the current value when there is no local write.
-- `Created` carries a new local value not yet confirmed remotely.
-- `Updated` carries the `base` value and the latest local `edited` value. Together with the remote value, these are the three inputs to a three-way merge.
-- `Removed` carries the value deleted locally while its remove is pending.
+- `clean` carries the current value when no write is pending.
+- `created` carries the latest local create.
+- `updated` carries the original `base` and latest `edited` value.
+- `removed` carries the value removed locally.
 
-The merge runs inside [`Tilia.batch`](../api.html#batch). Mutate the local value in place and return `true` when the histories reconcile. Return `false` to show remote truth and record the corresponding [Rejection](api.html#rejection-type).
-
-See guide chapter [When the world returns](guide.html#when-the-world-returns).
+The callback runs inside `Tilia.batch`. Mutate the local object in place and return `true` to merge. Return `false` to keep remote truth and record the corresponding conflict.
 
 ```typescript
-import type { Change } from "@tilia/query";
-
 const merge = (change: Change<Card>, remote: Card) => {
   if (change.change === "clean") Object.assign(change.value, remote);
-  return true;
+  return change.change === "clean";
 };
 ```
 
 ```rescript
-open TiliaQuery
-
-let merge = (~change, ~remote) => {
+let merge = (~change, ~remote) =>
   switch change {
-  | Clean({value}) => value.translation = remote.translation
-  | Created(_) | Updated(_) | Removed(_) => ()
+  | Clean({value}) =>
+    value.word = remote.word
+    true
+  | Created(_) | Updated(_) | Removed(_) => false
   }
-  true
-}
 ```

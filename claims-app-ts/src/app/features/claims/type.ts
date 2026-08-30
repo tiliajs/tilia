@@ -36,5 +36,6 @@ export type ClaimsFeature = {
   resolve(rejection: Rejection<Claim>, theirs: Claim): void;
   saveResolution(): void;
   discardResolution(): void;
+  cancelResolution(): void;
   tick(): void;
 };

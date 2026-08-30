@@ -29,6 +29,7 @@ export const claimsBranch = (repo: Repo, user: User): ClaimsFeature => {
     resolve: derived(actions.resolve),
     saveResolution: derived(actions.saveResolution(repo)),
     discardResolution: derived(actions.discardResolution(repo)),
+    cancelResolution: derived(actions.cancelResolution),
     tick: () => {
       if (!active) {
         repo.claims.tick();

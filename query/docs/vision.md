@@ -28,27 +28,31 @@ TiliaQuery provides one shared way to handle this lifecycle.
 - Systems with local writes plus remote persistence.
 - Real-time or inbound updates that should update matching queries in place.
 - Multi-view experiences where shared objects should stay consistent.
-- Fully offline-capable apps with two sync layers:
-  - local database sync for immediate durable updates
-  - remote database sync for slower network-dependent persistence
-- In this model, TiliaQuery owns in-memory liveness:
-  - keep actively viewed data hot in memory
-  - evict memory data after it is no longer viewed
-  - keep local storage as a durable cache and outbox
-  - treat the remote as authoritative when network is available
+- Fully offline-capable apps where the shipped store combines:
+  - a local `Kv` for cached rows, query records, and queued writes
+  - a remote backend for authoritative reads and write outcomes
+- In this model:
+  - the query engine owns reactive in-memory results, freshness, and eviction
+  - the connected store owns persistence, synchronization, and local retention
+  - the application owns the heartbeat and its backend integration
 
 ## How It Works (High Level)
 
-TiliaQuery keeps two connected caches:
+The query engine keeps two connected in-memory indexes:
 - an object cache by id
-- a query-result cache by filter
+- query results as lists of ids
+
+A store factory connects the engine to its source and returns any write or
+status API the application needs. The shipped store is the default:
+`Store.make` accepts ordinary `find`, `upsert`, and `remove` functions and
+adds a write-through cache and outbox. Channel-backed integrations can use
+`Store.custom` when they need live or pushed results.
 
 When data changes, `matches` updates in-memory query membership immediately.
 Observed non-live queries refresh on the application's `tick`; subscription
 sources can declare themselves live and keep their own results fresh.
-Idle queries leave memory after their expiry, while retained local data stays
-available offline.
-Objects still used by active queries stay available.
+Idle queries leave memory after their expiry, while the store may retain
+local data for later offline reads.
 
 ## Product Direction
 

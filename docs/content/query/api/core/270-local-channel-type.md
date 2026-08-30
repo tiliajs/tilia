@@ -5,50 +5,34 @@ kind: type
 module: core
 since: "0.1"
 sort: 270
-summary: Channel handed to local.fetch — set or unknown.
+summary: State what locally persisted rows can prove.
 tags: []
 signature.ts: |-
   type LocalChannel<T> = {
-    set: (values: T[]) => void,
-    unknown: () => void
+    partial: (values: T[]) => void,
+    local: (values: T[]) => void
   }
 signature.res: |-
-  type local<'a> = {
-    set: array<'a> => unit,
-    unknown: unit => unit,
+  type Channel.local<'a> = {
+    partial: array<'a> => unit,
+    local: array<'a> => unit,
   }
 label: LocalChannel
 ---
 
-`LocalChannel` is handed to [Local.fetch](api.html#local-type). It has exactly two answers:
+`LocalChannel` is used by `StoreConfig.lookup`, `StoreChannels.lookup`, and a custom [Source](api.html#source-type).
 
-- `set` — here are the cached results.
-- `unknown` — the local storage cannot answer this query.
+- `partial(values)` returns rows the store holds without claiming they are the complete result. `partial([])` explicitly says it holds nothing.
+- `local(values)` returns the complete result according to local storage.
 
-What the engine does with `unknown` depends on connectivity:
-
-- Online, the query stays `Loading` until the remote responds.
-- Offline, it settles to `NotLocal` — an answer, not progress. See [Loadable](api.html#loadable-type).
-
-Call `set([])` when the store knows the result is empty. Reserve `unknown` for a store that cannot distinguish an empty result from a query it has never cached.
-
-See guide chapter [Reads answer twice](guide.html#reads-answer-twice).
+An empty partial answer remains loading while remote data is possible and becomes an offline absence otherwise. An empty local answer is complete data for `array` and `NoMatch` for `one`.
 
 ```typescript
-// This indexed table can answer the query, including with an empty result.
-fetch: (query: Query, channel: LocalChannel<Card>) => {
-  db.cards
-    .where("deck")
-    .equals(query.deck)
-    .toArray()
-    .then(channel.set);
-}
+const lookup = (query: Query, channel: LocalChannel<Card>) =>
+  channel.partial(cache.filter((card) => card.deck === query.deck));
 ```
 
 ```rescript
-// This indexed table can answer the query, including with an empty result.
-let fetch = (query: query, channel: TiliaQuery.Channel.local<card>) =>
-  db.cards.filter(card => card.deck === query.deck)
-  ->Promise.thenResolve(channel.set)
-  ->ignore
+let lookup = (query, channel: TiliaQuery.Channel.local<card>) =>
+  channel.partial(cache->Array.filter(card => card.deck === query.deck))
 ```

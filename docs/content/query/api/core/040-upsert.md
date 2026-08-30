@@ -5,34 +5,26 @@ kind: function
 module: core
 since: "0.1"
 sort: 40
-summary: Write a value optimistically and queue it for the remote.
+summary: Optimistically write a value through the store handle.
 tags: []
 signature.ts: "upsert: (value: T) => void"
 signature.res: "upsert: 'a => unit"
-label: upsert
+label: store.upsert(value)
 ---
 
-`upsert` writes a value: it is applied locally and persisted, and its op is queued in the outbox for [Remote.push](api.html#remote-type). The write is optimistic — local state changes before the remote confirms.
+`upsert` belongs to the [Store](api.html#store-type) handle returned beside the query engine. It places the value immediately, updates every in-memory query whose `matches` result changed, persists the new optimistic state, and queues an ordered outbox operation.
 
-What happens immediately:
-
-- Memory and the local store receive the new value.
-- The value joins every in-memory query result whose `matches` accepts it, and leaves every result it no longer matches — moving a card between decks updates both queries at once.
-- Both changes reach the affected queries' persisted records. Records that exist only on disk are not scanned; they catch up on the query's next refresh.
-- The op is appended to the outbox and counted in [status](api.html#status)`.pending`.
-
-Edge cases:
-
-- If no persisted query record lists the id after the join, a synthetic record keeps the row alive through the local purge. The next purge offers such a row to every persisted query; a match adopts it.
-- Confirmation replaces the local value with the authoritative one from [WriteChannel](api.html#write-channel-type)`.set` — the server may have corrected it.
-- A definitive push failure reverts the optimistic value to remote truth and adds context to `status.rejected`; resolve or ignore it, then [dismiss](api.html#dismiss) it.
-
-`cards` below is the collection from [make](api.html#make). See guide chapter [Tunnels](guide.html#tunnels).
+Writing an id clears its current rejection. A saved confirmation replaces the
+value with authoritative server data. A conflict is offered to `merge`: an
+accepted merge rebases the write and keeps it pending, while a declined or
+missing merge keeps remote truth and records a conflict
+[Rejection](api.html#rejection-type). A definitive rejection reverts the
+optimistic change and records its message.
 
 ```typescript
-cards.upsert({ id: "cat", deck: "es", english: "cat", translation: "gato" });
+store.upsert({ id: "cat", deck: "es", word: "gato" });
 ```
 
 ```rescript
-cards.upsert({id: "cat", deck: "es", english: "cat", translation: "gato"})
+store.upsert({id: "cat", deck: "es", word: "gato"})
 ```

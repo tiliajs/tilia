@@ -5,31 +5,21 @@ kind: function
 module: core
 since: "0.1"
 sort: 70
-summary: Report ids deleted on the server (inbound push).
+summary: Apply removed ids pushed by the server.
 tags: []
 signature.ts: "receive.removed: (ids: string[]) => void"
 signature.res: "removed: array<string> => unit"
-label: receive.removed
+label: store.receive.removed(ids)
 ---
 
-`receive.removed` is part of [Receive](api.html#receive-type). It reports ids that were deleted on the server. It takes ids, never full values.
+`receive.removed` accepts ids deleted by the server. Each id leaves matching in-memory queries and is deleted from persistence.
 
-For each delivered id:
-
-- The id leaves every in-memory query result, and its local row is deleted.
-- A pending create or update is cleared and becomes a conflict in `status.rejected`; the server deletion remains visible.
-- A pending remove is confirmed and cleared without a rejection.
-
-Like [receive.changed](api.html#receive-changed), deliveries do not touch freshness: the `fresh` flag and refresh scheduling stay owned by the per-query read channel.
-
-See guide chapters [Two devices, one deck](guide.html#two-devices-one-deck) and [When the world returns](guide.html#when-the-world-returns). `cards` is the collection from [make](api.html#make).
+A server removal conflicts with a pending create or update: the operation is cleared and a rejection is recorded. It confirms and clears a pending remove. Deliveries do not change query freshness.
 
 ```typescript
-socket.on("cards-removed", (ids: string[]) => {
-  cards.receive.removed(ids);
-});
+socket.on("cards:removed", (ids: string[]) => store.receive.removed(ids));
 ```
 
 ```rescript
-socket.on("cards-removed", ids => cards.receive.removed(ids))
+socket.on("cards:removed", ids => store.receive.removed(ids))
 ```

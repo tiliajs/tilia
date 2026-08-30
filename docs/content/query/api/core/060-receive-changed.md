@@ -5,34 +5,21 @@ kind: function
 module: core
 since: "0.1"
 sort: 60
-summary: Report values changed on the server (inbound push).
+summary: Apply changed values pushed by the server.
 tags: []
 signature.ts: "receive.changed: (values: T[]) => void"
 signature.res: "changed: array<'a> => unit"
-label: receive.changed
+label: store.receive.changed(values)
 ---
 
-`receive.changed` is part of [Receive](api.html#receive-type). It reports values that changed on the server — an inbound push, typically wired to a websocket or sync feed. Deliveries are facts about the server (past tense), not commands.
+`receive.changed` accepts authoritative facts from a subscription or other server push. Values join and leave matching in-memory queries and replace clean persisted copies.
 
-Each delivered value is matched against every in-memory query, like an optimistic upsert:
-
-- It joins the results it `matches` and leaves the results it no longer matches.
-- With no pending write, `merge` receives `Clean` and the current local value keeps its identity when the merge succeeds.
-- With a pending create, update, or remove, `merge` receives the matching [Change](api.html#change-type). A successful merge rebases the pending operation on the remote value. A rejected merge clears the pending operation, shows remote truth, and records a conflict in `status.rejected`.
-
-Retention and freshness:
-
-- A delivered value is kept in memory only while some in-memory query matches it, and persisted only while some query record lists it. A value matching nothing is dropped.
-- Deliveries do not touch freshness: the `fresh` flag and refresh scheduling stay owned by the per-query read channel (`set` / `live`).
-
-See [receive.removed](api.html#receive-removed), [ReadChannel](api.html#read-channel-type), and guide chapter [Two devices, one deck](guide.html#two-devices-one-deck). `cards` is the collection from [make](api.html#make).
+When a value has a pending local operation, the configured `merge` receives its [Change](api.html#change-type). Returning `true` rebases the pending edit after mutating the local value in place; returning `false` keeps remote truth, clears the operation, and records a conflict. Deliveries do not change query freshness.
 
 ```typescript
-socket.on("cards-changed", (rows: Card[]) => {
-  cards.receive.changed(rows);
-});
+socket.on("cards:changed", (values: Card[]) => store.receive.changed(values));
 ```
 
 ```rescript
-socket.on("cards-changed", rows => cards.receive.changed(rows))
+socket.on("cards:changed", values => store.receive.changed(values))
 ```

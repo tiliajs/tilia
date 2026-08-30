@@ -51,6 +51,24 @@ test("generates both home pages from fragments", async () => {
   assert.doesNotMatch(query, /query XX/);
 });
 
+test("publishes the current query and store surface", async () => {
+  const api = await generated("query/api.html");
+  const guide = await generated("query/guide.html");
+
+  for (const slug of [
+    "claim-type",
+    "store-make",
+    "retry",
+    "discard",
+    "find-channel-type",
+    "indexeddb-make",
+  ]) {
+    assert.match(api, new RegExp(`id="${slug}"`));
+  }
+  assert.doesNotMatch(api, /id="dismiss"/);
+  assert.doesNotMatch(guide, /\b(?:NotFound|NotLocal|dismiss)\b/);
+});
+
 test("marks home navigation from the document config", async () => {
   const tilia = await generated("index.html");
   const query = await generated("query/index.html");

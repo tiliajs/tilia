@@ -5,16 +5,16 @@ kind: type
 module: core
 since: "0.1"
 sort: 230
-summary: Context for an optimistic operation that was reverted.
+summary: Preserve context for a reverted optimistic operation.
 tags: []
 signature.ts: |-
   type Rejection<T> =
-    | { rejection: "createConflict"; edited: T }
-    | { rejection: "createFailed"; edited: T; message: string }
-    | { rejection: "updateConflict"; base: T; edited: T }
-    | { rejection: "updateFailed"; base: T; edited: T; message: string }
-    | { rejection: "removeConflict"; base: T }
-    | { rejection: "removeFailed"; base: T; message: string }
+    | { rejection: "createConflict", edited: T }
+    | { rejection: "createFailed", edited: T, message: string }
+    | { rejection: "updateConflict", base: T, edited: T }
+    | { rejection: "updateFailed", base: T, edited: T, message: string }
+    | { rejection: "removeConflict", base: T }
+    | { rejection: "removeFailed", base: T, message: string }
 signature.res: |-
   @tag("rejection")
   type rejection<'a> =
@@ -27,29 +27,20 @@ signature.res: |-
 label: Rejection
 ---
 
-`Rejection` is the context kept when an optimistic operation was reverted — either a *conflict* (the [merge](api.html#config-type) refused a remote value) or a *failure* (the remote definitively refused the push). Rejections live in [status](api.html#status)`.rejected`.
+`Rejection` records an optimistic create, update, or remove that was reverted. Conflict variants come from a remote value that `merge` could not reconcile, including one supplied through `WriteChannel.conflict`. Failed variants come from `WriteChannel.reject` or `fail` and carry the remote message.
 
-- `edited` is the latest local edit, and `base` is the value it started from — or the removed value, for remove variants.
-- Failed variants carry the remote's `message`.
-- The current remote value is already in memory: remote truth is what the queries show, while the rejection holds the local side of the story.
-- At most one rejection is retained per value id: a newer rejection replaces the older.
+`edited` is the latest local edit. `base` is the value it started from, or the removed value. These fields are JSON-copied snapshots; the current remote value already stands in the store.
 
-Keeping your version is an ordinary write — `upsert` the `edited` value and it wins like any other write. [dismiss](api.html#dismiss) retires the context once a human has seen it.
-
-See guide chapter [When the world returns](guide.html#when-the-world-returns).
+At most one rejection exists per id. A later write clears it. [retry](api.html#retry) queues its work again; [discard](api.html#discard) drops only the record.
 
 ```typescript
-import type { Rejection } from "@tilia/query";
-
-const describe = (r: Rejection<Card>) =>
-  "message" in r ? `refused: ${r.message}` : "two versions of this card";
+const failed = (rejection: Rejection<Card>) => "message" in rejection;
 ```
 
 ```rescript
-let describe = (r: TiliaQuery.rejection<card>) =>
-  switch r {
-  | CreateFailed({message}) | UpdateFailed({message}) | RemoveFailed({message}) =>
-    `refused: ${message}`
-  | CreateConflict(_) | UpdateConflict(_) | RemoveConflict(_) => "two versions of this card"
+let failed = rejection =>
+  switch rejection {
+  | CreateFailed(_) | UpdateFailed(_) | RemoveFailed(_) => true
+  | CreateConflict(_) | UpdateConflict(_) | RemoveConflict(_) => false
   }
 ```

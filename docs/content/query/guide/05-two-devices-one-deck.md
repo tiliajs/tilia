@@ -2,7 +2,7 @@
 title: Two devices, one deck
 slug: two-devices-one-deck
 sort: 5
-refs: [receive-type, receive-changed, receive-removed, read-channel-type, remote-type, dispose]
+refs: [store-make, loadable-type, array, status-type]
 chapter: "05"
 ---
 
@@ -12,56 +12,30 @@ Changing devices is where hand-rolled sync layers usually crack, so it is worth 
 
 By the time Alice's train reaches the station, the laptop's outbox has drained through the gaps between tunnels. Every review she made, every card she reworded, is on the server — not because some export ran, but because that is where mutations were always headed. Closing the laptop loses nothing, because the laptop was never the owner of anything.
 
-The phone, meanwhile, has its own local store, holding whatever it saw last. At the station it gets one bar of signal and a minute of attention: the queries Alice opens answer instantly from the phone's local copy, refresh from the server, and — because remote results are written through — the phone's store now carries the deck as the laptop left it. Then the bus turns into the hills and the signal dies, and none of that matters anymore.
-
-Multi-device support, offline support, and plain cache correctness turn out to be the same discipline. There is one truth, at the meeting point; everything else is a device remembering.
-
-### When the server speaks first
-
-So far the remote only ever answered questions. Real backends also *volunteer* facts — a WebSocket delivery, a sync engine's notification. Those enter through `receive`:
+The phone, meanwhile, has its own store, holding whatever it saw last. At the station it gets one bar of signal and a minute of attention. The query Alice opens answers instantly from the phone's remembered copy, then its ordinary refresh returns the server's complete answer. Because fresh results are written through, the phone now carries the deck as the laptop left it:
 
 ```typescript
-// values that changed
-socket.on("cards.changed", cards.receive.changed);
-// ids that were deleted
-socket.on("cards.removed", cards.receive.removed);
+const result = cards.array({ deck: "spanish" }); // read through the query
+const waiting = store.status.pending;            // sync through the store
 ```
 
 ```rescript
-// values that changed
-Socket.on(socket, "cards.changed", cards.receive.changed) 
-// ids that were deleted
-Socket.on(socket, "cards.removed", cards.receive.removed)
+let result = cards.array({deck: "spanish"}) // read through the query
+let waiting = store.status.pending          // sync through the store
 ```
 
-Deliveries are past tense on purpose: facts about the server, not commands to it. A changed value is offered to every in-memory query through `matches` — it joins the results it now belongs to and leaves the ones it no longer does, the same membership logic mutations use. A removed id leaves every result. A changed value that lands on a row with an unconfirmed local edit goes through the merge machinery, while a server removal against a pending create or update records a conflict and keeps the removal visible. A pending write is never silently clobbered by an incoming fact. [Chapter 7](#when-the-world-returns) owns that story.
+No transfer occurs between the devices. The phone asks the same plain-data question the laptop asked; the shared server is where their histories meet. With the durable persistence in the next chapter, work left pending on the laptop would stay safe there, but the phone could not invent it. It would become available elsewhere only after the laptop reconnected and delivered it. That limitation is not a crack in the model; it is the model telling the truth.
 
-### Queries that stay fresh on their own
+Then the bus turns into the hills and the signal dies. The fresh phone answer becomes local as time passes, but its rows remain. Multi-device support, offline support, and plain cache correctness turn out to be the same discipline: one authoritative meeting point, and devices that remember without pretending to own.
 
-When a source pushes complete results (a server subscription per query), the adaptor answers through `channel.live` instead of `channel.set`, calling it again on every update, and registers its cleanup with `channel.finally`:
-
-```typescript
-fetch: (query, channel) => {
-  const sub = socket.subscribe(deckTopic(query), channel.live);
-  channel.finally(() => sub.close());
-},
-```
-
-```rescript
-fetch: (query, channel) => {
-  let sub = Socket.subscribe(socket, deckTopic(query), channel.live)
-  channel.finally(() => sub->Subscription.close)
-},
-```
-
-`live` tells the engine the source keeps this result fresh, so the periodic refresh skips it. `finally` hands the engine the teardown, and the engine runs it exactly once when the fetch closes — whether it was superseded, retired from memory, or disposed. Late replies on a closed fetch are ignored wholesale.
+Some backends push updates instead of waiting for the next refresh. That lower-level integration belongs to [Store.custom](api.html#store-custom) in the API reference; the lifecycle and the promise to the user remain the same.
 
 ::: story
-Alice buys a terrible coffee, thumbs the phone awake in the bus queue, and the deck is already mid-thought: the queue starts where the laptop stopped, and the card she reworded in the last tunnel reads the new way. The bus climbs; the bars vanish; the deck doesn't flinch.
+Alice buys a terrible coffee, thumbs the phone awake in the bus queue, and the deck is already mid-thought: her review starts where the laptop stopped, and the card she reworded in the last tunnel reads the new way. The bus climbs; the bars vanish; the deck doesn't flinch.
 :::
 
 ::: pro
-Keep your protocol in the past tense too. A message named `cardChanged` carries a fact and can be replayed, reordered, or ignored safely; a message named `changeCard` is a command.
+Do not promise device-to-device magic. “Available on your other devices after sync” is both calmer and more accurate than suggesting that two offline devices somehow share a present.
 :::
 
 The phone now holds everything it needs. It will have to, because where the bus is going there is no third answer coming — for a week.

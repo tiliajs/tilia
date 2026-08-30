@@ -5,17 +5,12 @@ kind: type
 module: core
 since: "0.1"
 sort: 200
-summary: The collection object returned by make.
+summary: Read-only query and lifecycle handle returned by make.
 tags: []
 signature.ts: |-
   type TiliaQuery<T, Q> = {
     one: (query: Q) => Loadable<T>,
     array: (query: Q) => Loadable<T[]>,
-    upsert: (value: T) => void,
-    remove: (id: string) => void,
-    receive: Receive<T>,
-    status: Status<T>,
-    dismiss: (rejection: Rejection<T>) => void,
     tick: () => void,
     dispose: () => void,
     _canopy: () => Canopy
@@ -24,11 +19,6 @@ signature.res: |-
   type t<'query, 'a> = {
     one: 'query => loadable<'a>,
     array: 'query => loadable<array<'a>>,
-    upsert: 'a => unit,
-    remove: string => unit,
-    receive: receive<'a>,
-    status: status<'a>,
-    dismiss: rejection<'a> => unit,
     tick: unit => unit,
     dispose: unit => unit,
     _canopy: unit => canopy,
@@ -36,25 +26,19 @@ signature.res: |-
 label: TiliaQuery
 ---
 
-`TiliaQuery<T, Q>`/`t<'query, 'a>` is the collection object returned by [make](api.html#make): one object per collection, holding everything the application touches.
+`TiliaQuery<T, Q>` / `t<'query, 'a>` is the first item returned by [make](api.html#make). Its application surface is read-only:
 
-- Reads: [one](api.html#one), [array](api.html#array) — reactive readers that return a [Loadable](api.html#loadable-type).
-- Writes: [upsert](api.html#upsert), [remove](api.html#remove) — optimistic, queued in the outbox.
-- Inbound push: [receive.changed](api.html#receive-changed), [receive.removed](api.html#receive-removed).
-- Sync state: [status](api.html#status), with [dismiss](api.html#dismiss) for resolved or ignored rejections.
-- Lifecycle: [tick](api.html#tick), [dispose](api.html#dispose).
-- Tooling: [_canopy](api.html#canopy).
+- [one](api.html#one) and [array](api.html#array) perform reactive reads.
+- [tick](api.html#tick) advances engine and store time.
+- [dispose](api.html#dispose) shuts both halves down.
+- [_canopy](api.html#canopy) exposes debug state.
 
-Feature modules typically wrap this object in domain-specific helpers rather than exposing it raw, so application code keeps reading in the language of the business.
+Writes, inbound server facts, and synchronization status are on the separate [Store](api.html#store-type) handle returned by the shipped store factories.
 
 ```typescript
-import type { TiliaQuery } from "@tilia/query";
-
-const openDeck = (cards: TiliaQuery<Card, Query>, deck: string) =>
-  cards.array({ deck });
+const read = (query: TiliaQuery<Card, Query>) => query.array({ deck: "es" });
 ```
 
 ```rescript
-let openDeck = (cards: TiliaQuery.t<query, card>, deck: string) =>
-  cards.array({deck: deck})
+let read = (query: TiliaQuery.t<query, card>) => query.array({deck: "es"})
 ```

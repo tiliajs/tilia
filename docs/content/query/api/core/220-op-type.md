@@ -5,7 +5,7 @@ kind: type
 module: core
 since: "0.1"
 sort: 220
-summary: An outbox operation — a local change not yet confirmed.
+summary: Describe one unconfirmed outbox operation.
 tags: []
 signature.ts: |-
   type Op<T> =
@@ -19,35 +19,18 @@ signature.res: |-
 label: Op
 ---
 
-`Op` is one outbox operation: a local change the remote has not confirmed yet.
+`Op` is one optimistic write not yet confirmed by the remote. `upsert` carries the full value; `remove` carries only its id.
 
-- `Upsert` carries the full value.
-- `Remove` carries only the id — a remove never requires a full value.
-
-Adaptors handle ops in two places, always as ordered batches:
-
-- [Remote.push](api.html#remote-type) receives every pending op not already in flight, to send to the server.
-- [Local.push](api.html#local-type) receives value changes to apply to the local values table.
-
-Order matters: apply and send ops in the order given.
-
-See guide chapter [Tunnels](guide.html#tunnels).
+[Remote.push](api.html#remote-type) receives operations as an ordered batch. Confirm them through the matching [WriteChannel](api.html#write-channel-type) method.
 
 ```typescript
-import type { Op } from "@tilia/query";
-
-const apply = (ops: Op<Card>[]) =>
-  ops.forEach((op) =>
-    op.op === "upsert" ? console.log("write", op.value.id) : console.log("delete", op.id)
-  );
+const id = (op: Op<Card>) => op.op === "upsert" ? op.value.id : op.id;
 ```
 
 ```rescript
-let apply = (ops: array<TiliaQuery.op<card>>) =>
-  ops->Array.forEach(op =>
-    switch op {
-    | Upsert({value}) => Console.log2("write", value.id)
-    | Remove({id}) => Console.log2("delete", id)
-    }
-  )
+let id = op =>
+  switch op {
+  | Upsert({value}) => value.id
+  | Remove({id}) => id
+  }
 ```

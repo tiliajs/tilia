@@ -2,13 +2,13 @@
 title: Where the network ends
 slug: where-the-network-ends
 sort: 1
-refs: [make, tilia-query-type]
+refs: [make, store-make, tilia-query-type]
 chapter: "01"
 ---
 
 This chapter is for the person deciding whether @tilia/query belongs in their stack. There is no code in it.
 
-@tilia/query is a query-state layer for remote collections, built on tilia reactivity. It exists because every feature that talks to a server ends up reinventing the same lifecycle: load collection data, cache it, refresh it when it goes stale, merge live updates, and — if the app must keep working when the network becomes flaky or unavailable — keep local data safe until it returns. Each hand-rolled copy of that lifecycle is subtly different, and the differences are where the bugs live. @tilia/query makes it one lifecycle, shared by every collection in the application.
+@tilia/query is a query-state layer for remote collections, built on tilia reactivity. It exists because every feature that talks to a server ends up reinventing the same lifecycle: load collection data, remember it, refresh it when it grows old, and keep local changes safe when the network becomes unreliable. Each hand-rolled copy is subtly different, and the differences are where the bugs live. @tilia/query makes it one lifecycle, shared by every collection in the application.
 
 ### Care, written as behavior
 
@@ -17,14 +17,16 @@ Underneath the API sits a conviction: an application should treat its user's tim
 - **Never make the user wait for data the device has already seen.** The cache answers now; the network improves the answer when it can.
 - **Offline is a state, not an error.** A tunnel is not an exceptional condition. Nothing red appears; nothing stops working that could keep working.
 - **A write accepted is a write kept.** An edit made with no signal is applied on the spot, held durably, and delivered — in order — when the world returns. Restarting the app changes nothing.
-- **Freshness is honest.** The app always knows whether what it shows is confirmed current or served from memory of the last visit, and it can say so quietly instead of blocking.
+- **Freshness is honest.** The app knows whether it holds part of an answer, a complete remembered answer, or one confirmed current. It can say so quietly instead of blocking.
 - **Disagreement is data, not damage.** When two people — or two devices — edit the same thing, the resolution has everything on the table: the common ancestor, your version, theirs. What can merge, merges. What cannot becomes a question for a human, with no version silently lost.
 
 The landing page borrows a word for the third rule: *sève* — the sap. Held through winter, flowing again at thaw. Offline support is not a feature bolted onto a cache; it is what emerges naturally when the cache receives true persistence.
 
 ### What it deliberately does not do
 
-@tilia/query owns the lifecycle and nothing else. It does not know your transport (HTTP, WebSocket, a sync engine), your storage (IndexedDB, SQLite, a file), your domain's query language, or even the clock — the app calls `tick()` from whatever scheduler it already has. All of those arrive as small **adapters** you write once per data source. The boundary is strict on purpose: the library can promise one coherent lifecycle precisely because it refuses to absorb the parts that differ between applications.
+@tilia/query owns the lifecycle and nothing else. It does not know your transport, your domain's query language, or even the clock — the app calls `tick()` from whatever scheduler it already has. The default store asks the application only how its backend finds, saves, and removes values. Durable browser storage is an optional IndexedDB keyspace. The boundary is strict on purpose: the library can promise one coherent lifecycle precisely because it refuses to absorb the parts that differ between applications.
+
+Construction makes that boundary visible. `make` returns a pair: a query object for reading and a store for writing, observing sync status, and recovering refused work. They share one cache and one lifecycle, but feature code never has to pretend that a read and a write are the same kind of act.
 
 This is the same philosophy as tilia itself: a narrow library that supports domain-oriented development instead of a framework that replaces it. Feature modules are expected to wrap their query state in domain-specific helpers, so application code keeps reading in the language of the business.
 
@@ -40,4 +42,4 @@ Readers of the [tilia guide](../guide.html) left Alice with a working spaced-rep
 Alice is going to spend a week with her friend Nora, in a village in the Spanish hills where the network is a rumor. Between here and there: a train with tunnels, a bus with curves, a laptop, a phone — and a deck of flashcards that had better not care about any of it.
 :::
 
-Each chapter explains one part of the lifecycle and why it is shaped that way: the shape of a query, the read that answers twice, writes that outlive the connection, changing devices, a week without a signal, and what happens when the server disagrees. If you are deciding for your team, this chapter and the [last](#onward) may be all you need. The chapters between are for whoever will build it. And even a team that never adopts the library can adopt the rules and the care.
+Each chapter explains one part of the lifecycle and why it is shaped that way: the shape of a query, the read that answers in stages, writes that outlive the connection, changing devices, a week without a signal, and what happens when the server disagrees. If you are deciding for your team, this chapter and the [last](#onward) may be all you need. The chapters between are for whoever will build it. And even a team that never adopts the library can adopt the rules and the care.

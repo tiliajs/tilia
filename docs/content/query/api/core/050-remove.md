@@ -5,33 +5,27 @@ kind: function
 module: core
 since: "0.1"
 sort: 50
-summary: Remove a value by id, optimistically.
+summary: Optimistically remove a value through the store handle.
 tags: []
 signature.ts: "remove: (id: string) => void"
 signature.res: "remove: string => unit"
-label: remove
+label: store.remove(id)
 ---
 
-`remove` deletes a value by id, before the remote confirms. A remove never requires a full value — the op carries only the id.
+`remove` belongs to the [Store](api.html#store-type) handle. It removes the id from in-memory queries and persistence immediately, then queues an outbox operation containing only the id.
 
-What happens immediately:
-
-- The id leaves every in-memory query result and the persisted query records.
-- The local row is deleted.
-- The op is queued in the outbox and counted in [status](api.html#status)`.pending`, like any write.
-
-Edge cases:
-
-- The remote's confirmation ([WriteChannel](api.html#write-channel-type)`.removed`) only clears the op — the local deletion is already complete.
-- A pending remove keeps overlaying remote deliveries: the id is filtered out of every result until the op confirms.
-- A stale id left in a query record from an earlier session is harmless: the purge sweep only examines rows that still exist locally, and the next refresh rewrites the record without the id.
-
-`cards` below is the collection from [make](api.html#make). See guide chapter [Tunnels](guide.html#tunnels).
+The optimistic removal continues to overlay incoming query answers until
+confirmed. A conflict is offered to `merge`: an accepted merge updates the
+saved base and keeps the remove pending, while a declined or missing merge
+keeps remote truth and records the removed value as the rejection's `base`.
+A definitive rejection restores and records the base when one is known; an
+unknown-id remove has no value from which to make a rejection. Writing the
+same id clears its current rejection.
 
 ```typescript
-cards.remove("cat");
+store.remove("cat");
 ```
 
 ```rescript
-cards.remove("cat")
+store.remove("cat")
 ```

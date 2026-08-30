@@ -5,83 +5,39 @@ kind: function
 module: core
 since: "0.1"
 sort: 10
-summary: Create the query state for one collection.
+summary: Build a query engine and its application-facing store handle.
 tags: []
-signature.ts: "function make<T, Q>(config: Config<T, Q>): TiliaQuery<T, Q>"
-signature.res: "let make: config<'query, 'a> => t<'query, 'a>"
+signature.ts: "function make<T, Q, S>(config: Config<T, Q, S>): [TiliaQuery<T, Q>, S]"
+signature.res: "let make: config<'query, 'a, 'store> => (t<'query, 'a>, 'store)"
 label: make(config)
 ---
 
-`make` builds a [TiliaQuery](api.html#tilia-query-type) from its [Config](api.html#config-type). This query state represents one collection and coordinates memory, an optional local store, and the authoritative remote.
+`make` resolves the engine [Config](api.html#config-type), creates its [StoreFactory](api.html#store-factory-type), and returns a tuple:
 
-- `id` — extract a value's unique id.
-- `matches` — determine whether a value belongs to a query. It must be a pure predicate over one value. Limits, pagination, and aggregates do not fit this shape.
-- `remote` — the authoritative adaptor. See [Remote](api.html#remote-type).
-- `local` — optional durable cache. See [Local](api.html#local-type). Without it there is no offline persistence and no durable outbox.
-- `expiry` — timing configuration. See [Expiry](api.html#expiry-type). Defaults: 30 s refresh, 5 min memory, 30 days local.
-- `now` — clock in milliseconds. Default: `Date.now`. Inject a fake clock in tests.
-- `key` — query identity as a string. Default: [sortedStringify](api.html#sorted-stringify).
-- `sort` — return the result sorter for a query. [one](api.html#one) returns the first value in this order. Default: delivery order.
-- `merge` — merge a remote value into its local value in place using the local [Change](api.html#change-type). Return `false` to keep remote truth and record a conflict.
+- The read-only [TiliaQuery](api.html#tilia-query-type) engine handle.
+- Whatever application handle the store factory returns. [Store.make](api.html#store-make) and [Store.custom](api.html#store-custom) return a writable [Store](api.html#store-type).
 
-Queries should be plain data that survives a JSON round trip. The default `key` needs it, and so does the local purge: persisted query records store the query itself, so `matches` can run against records whose query is no longer in memory.
-
-The engine owns no timers. Call [tick](api.html#tick) on an interval to drive refresh, expiry, garbage collection, and push retries.
-
-See guide chapter [A shape for queries](guide.html#a-shape-for-queries).
+Values and queries must not be `null` or `undefined`. Queries, and values used
+with the shipped store, must survive a JSON round trip unchanged: query
+records, persisted rows, and rejection snapshots all rely on it, even when
+the keyspace is only in memory. The backend must preserve client-supplied ids.
 
 ```typescript
-import { make } from "@tilia/query";
-import { signal } from "tilia";
+import { make, Store } from "@tilia/query";
 
-type Card = { id: string; deck: string; english: string; translation: string };
-type Query = { deck: string };
-
-const gato: Card = { id: "cat", deck: "es", english: "cat", translation: "gato" };
-const [online] = signal(true);
-
-const cards = make<Card, Query>({
+const [cards, store] = make<Card, Query, Store<Card>>({
   id: (card) => card.id,
-  matches: (query, card) => card.deck === query.deck,
-  remote: {
-    online,
-    fetch: (query, channel) =>
-      channel.set([gato].filter((card) => card.deck === query.deck)),
-    push: (ops, channel) =>
-      ops.forEach((op) =>
-        op.op === "upsert" ? channel.set(op.value) : channel.removed(op.id)
-      ),
-  },
+  matches: (query, card) => query.deck === card.deck,
+  store: Store.make({ find, upsert, remove }),
 });
-
-const timer = setInterval(cards.tick, 10_000);
 ```
 
 ```rescript
 open TiliaQuery
 
-type card = {id: string, deck: string, english: string, translation: string}
-type query = {deck: string}
-
-let gato = {id: "cat", deck: "es", english: "cat", translation: "gato"}
-let (online, _setOnline) = Tilia.signal(true)
-
-let cards = make({
+let (cards, store) = make({
   id: card => card.id,
-  matches: (query, card) => card.deck === query.deck,
-  remote: {
-    online,
-    fetch: (query, channel) =>
-      channel.set([gato]->Array.filter(card => card.deck === query.deck)),
-    push: (ops, channel) =>
-      ops->Array.forEach(op =>
-        switch op {
-        | Upsert({value}) => channel.set(value)
-        | Remove({id}) => channel.removed(id)
-        }
-      ),
-  },
+  matches: (query, card) => query.deck === card.deck,
+  store: Store.make({find, upsert, remove}),
 })
-
-let timer = setInterval(cards.tick, 10_000)
 ```

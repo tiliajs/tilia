@@ -5,19 +5,19 @@ kind: type
 module: core
 since: "0.1"
 sort: 260
-summary: Channel handed to remote.fetch — set, live, fail, end, finally.
+summary: Answer and manage one remote find.
 tags: []
 signature.ts: |-
   type ReadChannel<T> = {
-    set: (values: T[]) => void,
+    fresh: (values: T[]) => void,
     live: (values: T[]) => void,
     fail: (message: string) => void,
     end: () => void,
-    finally: (fn: () => void) => void
+    finally: (teardown: () => void) => void
   }
 signature.res: |-
-  type read<'a> = {
-    set: array<'a> => unit,
+  type Channel.read<'a> = {
+    fresh: array<'a> => unit,
     live: array<'a> => unit,
     fail: string => unit,
     end: unit => unit,
@@ -26,44 +26,28 @@ signature.res: |-
 label: ReadChannel
 ---
 
-`ReadChannel` is handed to [Remote.fetch](api.html#remote-type). Every delivery is the query's **complete** result set — each call replaces the previous results.
+`ReadChannel` is passed to [Remote.fetch](api.html#remote-type). Every value delivery is the complete query result and replaces its previous result.
 
-- `set` — publish results. This is the idiomatic "I am keeping this value fresh" call; invoke it again whenever fresher results arrive. A `set`-only query is refreshed periodically by the engine.
-- `live` — publish results and declare that the adaptor keeps them fresh on its own (e.g. a server subscription). Call it again on every update; `expiry.refresh` skips a live query.
-- `fail` — publish a failed result. It does **not** close the fetch: a live source may recover by delivering again. A failed non-live query re-enters the refresh loop and is retried once per refresh window.
-- `end` — the stream is over. Valid after `set` or `live`; not a substitute for `fail`. It closes the fetch: the registered `finally` runs, and a live query becomes a normal remote result again, re-entering periodic refresh.
-- `finally` — register the fetch's teardown (e.g. unsubscribe a socket). One slot, last write wins.
+- `fresh(values)` publishes an authoritative answer that the engine refreshes periodically.
+- `live(values)` publishes the same `fresh` claim and declares that the source maintains it, so periodic refresh is skipped.
+- `fail(message)` reports a failure without closing the find; a live source may recover.
+- `end()` closes the find and returns a live query to periodic refresh.
+- `finally(teardown)` registers cleanup run once when the find closes by
+  ending, replacement, eviction, or disposal. The last registration wins;
+  registering after the find already closed runs the teardown immediately.
 
-The teardown contract:
-
-- The engine runs the registered `finally` exactly once when the fetch closes: on `end`, when a newer fetch supersedes this one, when the query is evicted from memory, or on [dispose](api.html#dispose).
-- Registering on an already closed fetch runs the function immediately — a source that ends synchronously inside `fetch` is still torn down.
-
-Every callback on a closed fetch is a no-op. The engine suppresses late replies from ended, superseded, or evicted fetches — adaptors do not need to.
-
-See guide chapter [Two devices, one deck](guide.html#two-devices-one-deck).
+Every other callback on a closed find is ignored.
 
 ```typescript
-// A subscription source answering through `live`.
-fetch: (query: Query, channel: ReadChannel<Card>) => {
-  const feed = subscribe(query, {
-    data: (rows: Card[]) => channel.live(rows),
-    error: (e: unknown) => channel.fail(String(e)),
-    closed: () => channel.end(),
-  });
-  channel.finally(() => feed.unsubscribe());
+fetch: (query, channel) => {
+  const feed = subscribe(query, channel.live);
+  channel.finally(() => feed.close());
 }
 ```
 
 ```rescript
-// A subscription source answering through `live`.
-let fetch = (query: query, channel: TiliaQuery.Channel.read<card>) => {
-  let feed = subscribe(
-    query,
-    ~data=rows => channel.live(rows),
-    ~error=message => channel.fail(message),
-    ~closed=() => channel.end(),
-  )
-  channel.finally(() => feed.unsubscribe())
+fetch: (query, channel) => {
+  let feed = subscribe(query, channel.live)
+  channel.finally(() => feed.close())
 }
 ```

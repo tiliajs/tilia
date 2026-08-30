@@ -86,3 +86,8 @@ export const discardResolution = (repo: Repo) => (self: ClaimsFeature) => () => 
   repo.store.discard(self.resolution.rejection);
   self.resolution = null;
 };
+
+// Close the resolver and keep the rejection: the conflict can be resolved later.
+export const cancelResolution = (self: ClaimsFeature) => () => {
+  self.resolution = null;
+};
