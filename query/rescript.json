@@ -4,7 +4,10 @@
     {
       "dir": "src",
       "public": [
-        "TiliaQuery"
+        "TiliaQuery",
+        "TiliaQuerySchema",
+        "TiliaQueryEngine",
+        "TiliaQueryStore"
       ],
       "subdirs": false
     },

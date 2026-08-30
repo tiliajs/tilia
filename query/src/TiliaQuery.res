@@ -1,29 +1,35 @@
+// The assembly. `Query` resolves the schema and the expiry once, builds the
+// engine around the store this package ships, and presents the two halves as
+// one object. Everything public is defined by one half or the other and
+// re-exported here, so a consumer sees a single module and the halves cannot
+// drift apart.
+
 // === PUBLIC TYPES (from .resi file)
 
-type claim =
+type claim = TiliaQuerySchema.claim =
   | @as("partial") Partial
   | @as("local") Local
   | @as("fresh") Fresh
 
 @tag("reason")
-type reason =
+type reason = TiliaQuerySchema.reason =
   | @as("failed") Failed({message: string})
   | @as("offline") Offline
   | @as("noMatch") NoMatch({claim: claim})
 
 @tag("state")
-type loadable<'a> =
+type loadable<'a> = TiliaQuerySchema.loadable<'a> =
   | @as("loading") Loading
   | @as("loaded") Loaded({claim: claim, data: 'a})
   | @as("noData") NoData({reason: reason})
 
 @tag("op")
-type op<'a> =
+type op<'a> = TiliaQueryStore.op<'a> =
   | @as("upsert") Upsert({value: 'a})
   | @as("remove") Remove({id: string})
 
 @tag("rejection")
-type rejection<'a> =
+type rejection<'a> = TiliaQueryStore.rejection<'a> =
   | @as("createConflict") CreateConflict({edited: 'a})
   | @as("createFailed") CreateFailed({edited: 'a, message: string})
   | @as("updateConflict") UpdateConflict({base: 'a, edited: 'a})
@@ -32,53 +38,31 @@ type rejection<'a> =
   | @as("removeFailed") RemoveFailed({base: 'a, message: string})
 
 @tag("change")
-type change<'a> =
+type change<'a> = TiliaQueryStore.change<'a> =
   | @as("clean") Clean({value: 'a})
   | @as("created") Created({edited: 'a})
   | @as("updated") Updated({base: 'a, edited: 'a})
   | @as("removed") Removed({base: 'a})
-module Channel = {
-  type read<'a> = {
-    fresh: array<'a> => unit,
-    live: array<'a> => unit,
-    fail: string => unit,
-    end: unit => unit,
-    finally: (unit => unit) => unit,
-  }
+module Channel = TiliaQuerySchema.Channel
 
-  type local<'a> = {
-    partial: array<'a> => unit,
-    local: array<'a> => unit,
-  }
-
-  type write<'a> = {
-    set: 'a => unit,
-    removed: string => unit,
-    conflict: 'a => unit,
-    reject: (string, string) => unit,
-    retry: unit => unit,
-    fail: string => unit,
-  }
-}
-
-type expiry = {
+type expiry = TiliaQuerySchema.expiry = {
   refresh: float,
   memory: float,
   local: float,
 }
 
-type status<'a> = {
+type status<'a> = TiliaQueryStore.status<'a> = {
   pending: int,
   rejected: array<rejection<'a>>,
 }
 
-type remote<'query, 'a> = {
+type remote<'query, 'a> = TiliaQueryStore.remote<'query, 'a> = {
   online: Tilia.signal<bool>,
   fetch: ('query, Channel.read<'a>) => unit,
   push: (array<op<'a>>, Channel.write<'a>) => unit,
 }
 
-type local<'query, 'a> = {
+type local<'query, 'a> = TiliaQueryStore.local<'query, 'a> = {
   fetch: ('query, Channel.local<'a>) => unit,
   push: array<op<'a>> => unit,
   set: (~tag: string, ~key: string, option<string>) => unit,
@@ -99,12 +83,12 @@ type config<'query, 'a> = {
   onError?: (~query: 'query, ~message: string) => unit,
 }
 
-type receive<'a> = {
+type receive<'a> = TiliaQueryStore.receive<'a> = {
   changed: array<'a> => unit,
   removed: array<string> => unit,
 }
 
-type canopy = {
+type canopy = TiliaQueryEngine.canopy = {
   live: array<string>,
   idle: array<string>,
 }
@@ -123,311 +107,9 @@ type t<'query, 'a> = {
   _canopy: unit => canopy,
 }
 
-// === JS bindings
-
-// Like `Tilia.res`, these bindings keep the compiled output free of
-// `@rescript/runtime` imports. The bet: a value or a query is never `null`
-// or `undefined`, so a `nullable` read from a dict or an array slot means
-// absent, never stored.
-
-module Dict = {
-  let make: unit => dict<'a> = %raw(`() => ({})`)
-  @get_index external get: (dict<'a>, string) => nullable<'a> = ""
-  @set_index external set: (dict<'a>, string, 'a) => unit = ""
-  @val external keys: dict<'a> => array<string> = "Object.keys"
-  @val external values: dict<'a> => array<'a> = "Object.values"
-  @val external entries: dict<'a> => array<(string, 'a)> = "Object.entries"
-  external remove: (dict<'a>, string) => bool = "Reflect.deleteProperty"
-  let delete = (d, k) => d->remove(k)->ignore
-  let forEach = (d, fn) => d->values->Array.forEach(fn)
-  let forEachWithKey = (d, fn) => d->entries->Array.forEach(((k, v)) => fn(v, k))
-}
-
-module Arr = {
-  @get_index external at: (array<'a>, int) => nullable<'a> = ""
-  @send external reduce: (array<'a>, ('b, 'a) => 'b, 'b) => 'b = "reduce"
-}
-
-// === Mutations (outbox)
-
-/** A queued write, ordered by `seq` and guarded from duplicate pushes by `flight`. */
-type outboxOp<'a> = {
-  seq: float,
-  mutable op: op<'a>,
-  mutable change: option<change<'a>>,
-  mutable flight: bool,
-}
-
-/** The persisted form drops the transient `flight` flag. */
-let encodeOp: outboxOp<'a> => string = %raw(`
-function encodeOp(entry) {
-  return JSON.stringify({seq: entry.seq, op: entry.op, change: entry.change});
-}`)
-
-/** Returns Undefined on malformed kv data: the entry is skipped, not fatal. */
-let parseOp: string => nullable<outboxOp<'a>> = %raw(`
-function parseOp(value) {
-  try {
-    const r = JSON.parse(value);
-    if (
-      r &&
-      typeof r.seq === "number" &&
-      r.op &&
-      (r.op.op === "upsert" || r.op.op === "remove") &&
-      (r.change ? typeof r.change.change === "string" : r.op.op === "remove")
-    ) {
-      return {seq: r.seq, op: r.op, change: r.change, flight: false};
-    }
-  } catch (_) {}
-  return undefined;
-}`)
-
-/**
- * Deep copy through the store contract: values are already required to
- * survive a JSON round trip, so nothing new is asked of them here.
- */
-let snapshot: 'a => 'a = %raw(`
-function snapshot(value) {
-  return JSON.parse(JSON.stringify(value));
-}`)
-
-// === Query records (registry)
-
-/** Durable query result used to find rows still reachable during local purge. */
-type queryRecord<'query> = {
-  key: string,
-  // The query itself, so matches can run on disk-only records. Undefined on synthetics.
-  query: nullable<'query>,
-  mutable ids: array<string>,
-  mutable lastSeen: float,
-}
-
-@scope("JSON") @val external encodeRecord: queryRecord<'query> => string = "stringify"
-
-/** Returns Undefined on malformed kv data: the entry is skipped, not fatal. */
-let parseRecord: string => nullable<queryRecord<'query>> = %raw(`
-function parseRecord(value) {
-  try {
-    const r = JSON.parse(value);
-    if (r && typeof r.key === "string" && Array.isArray(r.ids) && typeof r.lastSeen === "number") {
-      return r;
-    }
-  } catch (_) {}
-  return undefined;
-}`)
-
-// === Read
-
-type entryState = Pristine | LoadedPartial | LoadedLocal | LoadedRemote | LiveRemote
-
-/** `Partial < Local < Fresh`: a weaker answer cannot replace a stronger one. */
-let rank = claim =>
-  switch claim {
-  | Partial => 0
-  | Local => 1
-  | Fresh => 2
-  }
-
-/**
- * An empty `Partial` is not a result: it says the store holds nothing, which
- * is not the same as the answer being empty. A remote answer may still be
- * coming, unless there is no network to bring it.
- */
-let project = (online, result) =>
-  switch result {
-  | Loaded({claim: Partial, data}) if data->Array.length === 0 =>
-    online ? Loading : NoData({reason: Offline})
-  | result => result
-  }
-
-/** Runtime state for one in-memory query. */
-type entry<'query> = {
-  key: string,
-  query: 'query,
-  mutable lastSeen: float,
-  mutable refreshedAt: float,
-  /** Latest remote fetch attempt, used to throttle refreshes. */
-  mutable fetchedAt: float,
-  mutable state: entryState,
-  /**
-   * Closes the entry's latest fetch: late callbacks become noops and the
-   * registered cleanup runs once. Idempotent.
-   */
-  mutable close: unit => unit,
-}
-
-/** Keys of the queries whose result is currently observed ("open"). */
-let observedKeys = results => Tilia._canopy(results).live
-
-/** Missing key means the entry was never created: treat as still loading. */
-let getResult = (results, entry: entry<'query>) =>
-  switch results->Dict.get(entry.key) {
-  | Value(result) => result
-  | Null | Undefined => Loading
-  }
-
-let makeFetch = (remote, local, loaded, results, now, reportError) =>
-  entry => {
-    // A live entry keeps its source until it ends, is superseded or expires.
-    if entry.state !== LiveRemote {
-      // Close the superseded fetch: its late callbacks become noops.
-      entry.close()
-      // One flag per fetch: every callback below is a noop once it is false.
-      let active = ref(true)
-      let cleanup = ref(() => ())
-      let close = () =>
-        if active.contents {
-          active := false
-          let clean = cleanup.contents
-          cleanup := (() => ())
-          clean()
-        }
-      entry.close = close
-
-      if entry.state == Pristine {
-        // Local only materializes a query: a refresh would discard its answer.
-        switch local {
-        | None =>
-          if active.contents && !remote.online.value {
-            // No local storage and no network: nothing can answer this query.
-            results->Dict.set(entry.key, NoData({reason: Offline}))
-          }
-        | Some(local) =>
-          local.fetch(
-            entry.query,
-            {
-              partial: values => {
-                if active.contents && entry.state == Pristine {
-                  entry.state = LoadedPartial
-                  loaded(entry, values, Partial)
-                }
-              },
-              local: values => {
-                if active.contents && entry.state == Pristine {
-                  entry.state = LoadedLocal
-                  loaded(entry, values, Local)
-                }
-              },
-            },
-          )
-        }
-      }
-
-      if remote.online.value {
-        entry.fetchedAt = now()
-        remote.fetch(
-          entry.query,
-          {
-            fresh: values => {
-              if active.contents {
-                entry.state = LoadedRemote
-                loaded(entry, values, Fresh)
-              }
-            },
-            live: values => {
-              if active.contents {
-                entry.state = LiveRemote
-                loaded(entry, values, Fresh)
-              }
-            },
-            fail: message => {
-              if active.contents {
-                // Shown only when there is nothing else to show. The
-                // discriminator is what `array` answers, not which find
-                // failed: some data beats an error in place of a list, and a
-                // list blinking data to error to data is worse than either.
-                switch project(remote.online.value, getResult(results, entry)) {
-                | Loaded(_) => reportError(entry.query, message)
-                | Loading
-                | NoData(_) =>
-                  results->Dict.set(entry.key, NoData({reason: Failed({message: message})}))
-                }
-              }
-            },
-            end: () => {
-              if active.contents {
-                // Only a live entry is demoted: `end` on a fetch that never
-                // delivered must not stamp LoadedRemote on a Loading result.
-                if entry.state === LiveRemote {
-                  entry.state = LoadedRemote
-                }
-
-                // Free the refresh slot, like going offline does.
-                entry.fetchedAt = 0.0
-
-                // Teardown runs last: a throwing cleanup must not block the
-                // return to periodic refresh.
-                close()
-              }
-            },
-            finally: fn => {
-              if active.contents {
-                // Single slot, last write wins.
-                cleanup := fn
-              } else {
-                // The fetch is already closed: run the teardown right away.
-                fn()
-              }
-            },
-          },
-        )
-      }
-    }
-  }
-
-let makeGetEntry = (fetch, entries, results, key, now) =>
-  query => {
-    let k = key(query)
-    switch entries->Dict.get(k) {
-    | Value(entry) => entry
-    | Null | Undefined =>
-      let entry = {
-        lastSeen: now(),
-        refreshedAt: 0.0,
-        fetchedAt: 0.0,
-        key: k,
-        state: Pristine,
-        query,
-        close: () => (),
-      }
-      results->Dict.set(k, Loading)
-      entries->Dict.set(k, entry)
-      fetch(entry)
-      entry
-    }
-  }
-
-let makeOne = (getEntry, results, online: Tilia.signal<bool>) =>
-  query =>
-    switch project(online.value, getResult(results, getEntry(query))) {
-    | Loaded({claim, data}) =>
-      switch data->Arr.at(0) {
-      // An absence ages like any other answer, so it carries its claim.
-      | Null | Undefined => NoData({reason: NoMatch({claim: claim})})
-      | Value(value) => Loaded({claim, data: value})
-      }
-    | Loading => Loading
-    | NoData({reason}) => NoData({reason: reason})
-    }
-
-let makeArray = (getEntry, results, online: Tilia.signal<bool>) =>
-  query => project(online.value, getResult(results, getEntry(query)))
-
 // === make (factory)
 
-let sortedStringify: 'a => string = %raw(`
-function sortedStringify(value) {
-  return JSON.stringify(value, function(_key, value) {
-    if (value && typeof value === "object" && !Array.isArray(value)) {
-      const sorted = {};
-      for (const key of Object.keys(value).sort()) {
-        sorted[key] = value[key];
-      }
-      return sorted;
-    }
-    return value;
-  });
-}`)
+let sortedStringify = TiliaQuerySchema.sortedStringify
 
 let _expiry = {
   // 30 seconds
@@ -444,11 +126,6 @@ let _no_sort = _query => array => array
 let make = (
   {id, matches, remote, ?local, ?expiry, ?now, ?key, ?sort, ?merge, ?onError}: config<'query, 'a>,
 ) => {
-  let reportError = (query, message) =>
-    switch onError {
-    | Some(onError) => onError(~query, ~message)
-    | None => ()
-    }
   let expiry = switch expiry {
   | Some(expiry) => expiry
   | None => _expiry
@@ -465,860 +142,43 @@ let make = (
   | Some(sort) => sort
   | None => _no_sort
   }
-  let itemById: dict<'a> = Dict.make()->Tilia.tilia
-  let idsByKey: dict<array<string>> = Dict.make()->Tilia.tilia
-
-  let entries: dict<entry<'query>> = Dict.make()
-  let results: dict<loadable<array<'a>>> = Dict.make()->Tilia.tilia
-
-  // The write-through registry wins over older persisted records during purge.
-  let queryTag = "query"
-  let syntheticPrefix = "__id:"
-  let registry: dict<queryRecord<'query>> = Dict.make()
-  let persistRecord = (record: queryRecord<'query>) =>
-    switch local {
-    | None => ()
-    | Some(local) => local.set(~tag=queryTag, ~key=record.key, Some(encodeRecord(record)))
-    }
-  // A late delivery must not extend the retention of an unobserved query.
-  let recordSeen = (entry: entry<'query>, ids) =>
-    switch local {
-    | None => ()
-    | Some(_) =>
-      let record = switch registry->Dict.get(entry.key) {
-      | Value(record) => record
-      | Null | Undefined =>
-        let record = {key: entry.key, query: Value(entry.query), ids: [], lastSeen: 0.0}
-        registry->Dict.set(entry.key, record)
-        record
-      }
-      record.lastSeen = Math.max(record.lastSeen, entry.lastSeen)
-      record.ids = ids
-      persistRecord(record)
-    }
-
-  // Track queued writes in order and persist them for restart recovery.
-  let (pending_, setPending) = Tilia.signal(0)
-  let status: status<'a> = Tilia.tilia({pending: Tilia.lift(pending_), rejected: []})
-  let outboxTag = "outbox"
-  let outbox: array<outboxOp<'a>> = []
-  let nextSeq = ref(0.0)
-  let syncPending = () => setPending(outbox->Array.length)
-
-  let opId = (op: op<'a>) =>
-    switch op {
-    | Upsert({value}) => id(value)
-    | Remove({id}) => id
-    }
-
-  let rejectionId = rejection =>
-    switch rejection {
-    | CreateConflict({edited: record})
-    | CreateFailed({edited: record})
-    | UpdateConflict({edited: record})
-    | UpdateFailed({edited: record})
-    | RemoveConflict({base: record})
-    | RemoveFailed({base: record}) =>
-      id(record)
-    }
-
-  // The operation each rejection stands for, so the list can be ordered by
-  // it rather than by the order replies happen to arrive in. Private: the
-  // seq is bookkeeping, not something an app should read off a rejection.
-  let rejectionSeq: dict<float> = Dict.make()
-  let seqOf = rejection =>
-    switch rejectionSeq->Dict.get(rejectionId(rejection)) {
-    | Value(seq) => seq
-    | Null | Undefined => 0.0
-    }
-
-  let addRejection = (~seq, rejection) => {
-    let rid = rejectionId(rejection)
-    // The single boundary where a live change becomes a historical record:
-    // copy it here, so no later branch can hand out a value still in play.
-    let rejection = snapshot(rejection)
-    switch status.rejected->Array.findIndex(value => rejectionId(value) === rid) {
-    | -1 =>
-      rejectionSeq->Dict.set(rid, seq)
-      switch status.rejected->Array.findIndex(value => seqOf(value) > seq) {
-      | -1 => status.rejected->Array.push(rejection)
-      | i => status.rejected->Array.splice(~start=i, ~remove=0, ~insert=[rejection])
-      }
-    // A replacement keeps the place its id already holds: the list orders the
-    // work that was refused, and that work queued once.
-    | i => status.rejected->Array.set(i, rejection)
-    }
-  }
-
-  let dropRejection = rid =>
-    switch status.rejected->Array.findIndex(value => rejectionId(value) === rid) {
-    | -1 => false
-    | i =>
-      status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
-      rejectionSeq->Dict.delete(rid)
-      true
-    }
-
-  let persistOp = (entry: outboxOp<'a>) =>
-    switch local {
-    | Some(local) =>
-      local.set(~tag=outboxTag, ~key=Float.toString(entry.seq), Some(encodeOp(entry)))
+  // Resolved once, here, and read by both halves from now on. The store is a
+  // factory, not a built store, so the two cannot disagree about it.
+  let schema: TiliaQuerySchema.schema<'query, 'a> = {id, matches, key, sort, now}
+  let onError = (~query, ~message) =>
+    switch onError {
+    | Some(onError) => onError(~query, ~message)
     | None => ()
     }
 
-  let confirmed = (entry: outboxOp<'a>) => {
-    let i = outbox->Array.indexOf(entry)
-    if i >= 0 {
-      outbox->Array.splice(~start=i, ~remove=1, ~insert=[])
-    }
-    switch local {
-    | Some(local) => local.set(~tag=outboxTag, ~key=Float.toString(entry.seq), None)
-    | None => ()
-    }
-    syncPending()
-  }
-
-  let pending = rid => outbox->Array.find(entry => opId(entry.op) === rid)
-
-  let applyPending = (entry: entry<'query>, values) => {
-    let apply = (values, op) =>
-      switch op {
-      | Upsert({value}) =>
-        let vid = id(value)
-        if !matches(entry.query, value) {
-          // A pending move keeps the row out of queries it left.
-          values->Array.filter(v => id(v) !== vid)
-        } else if values->Array.some(v => id(v) === vid) {
-          values->Array.map(v => id(v) === vid ? value : v)
-        } else {
-          values->Array.concat([value])
-        }
-      | Remove({id: rid}) => values->Array.filter(v => id(v) !== rid)
-      }
-    outbox->Arr.reduce((values, {op}) => apply(values, op), values)
-  }
-
-  let join = value => {
-    let vid = id(value)
-    let joined = ref(false)
-    entries->Dict.forEach(entry =>
-      if matches(entry.query, value) {
-        joined := true
-        switch idsByKey->Dict.get(entry.key) {
-        | Value(ids) if !(ids->Array.includes(vid)) =>
-          // Do not mutate in place: the value may be shared.
-          idsByKey->Dict.set(entry.key, ids->Array.concat([vid]))
-        | _ => ()
-        }
-        switch registry->Dict.get(entry.key) {
-        | Value(record) if !(record.ids->Array.includes(vid)) =>
-          // Do not mutate in place: the value may be shared.
-          record.ids = record.ids->Array.concat([vid])
-          persistRecord(record)
-        | _ => ()
-        }
-      } else {
-        switch idsByKey->Dict.get(entry.key) {
-        | Value(ids) if ids->Array.includes(vid) =>
-          idsByKey->Dict.set(entry.key, ids->Array.filter(i => i !== vid))
-        | _ => ()
-        }
-        switch registry->Dict.get(entry.key) {
-        | Value(record) if record.ids->Array.includes(vid) =>
-          record.ids = record.ids->Array.filter(i => i !== vid)
-          persistRecord(record)
-        | _ => ()
-        }
-      }
-    )
-    joined.contents
-  }
-
-  let forget = rid => {
-    itemById->Dict.delete(rid)
-    idsByKey->Dict.forEachWithKey((ids, key) =>
-      if ids->Array.includes(rid) {
-        idsByKey->Dict.set(key, ids->Array.filter(i => i !== rid))
-      }
-    )
-    registry->Dict.forEach(record =>
-      if record.ids->Array.includes(rid) {
-        record.ids = record.ids->Array.filter(i => i !== rid)
-        persistRecord(record)
-      }
-    )
-    switch local {
-    | Some(local) => local.push([Remove({id: rid})])
-    | None => ()
-    }
-  }
-
-  let place = value => {
-    itemById->Dict.set(id(value), value)
-    let joined = join(value)
-    switch local {
-    | Some(local) => local.push([Upsert({value: value})])
-    | None => ()
-    }
-    joined
-  }
-
-  let conflict = change =>
-    switch change {
-    | Created({edited}) => CreateConflict({edited: edited})
-    | Updated({base, edited}) => UpdateConflict({base, edited})
-    | Removed({base}) => RemoveConflict({base: base})
-    | Clean(_) => throw(Invalid_argument("clean values cannot conflict"))
-    }
-
-  let failed = (change, message) =>
-    switch change {
-    | Created({edited}) => CreateFailed({edited, message})
-    | Updated({base, edited}) => UpdateFailed({base, edited, message})
-    | Removed({base}) => RemoveFailed({base, message})
-    | Clean(_) => throw(Invalid_argument("clean values cannot fail"))
-    }
-
-  let merged = (change, remoteValue) =>
-    switch merge {
-    | None => false
-    | Some(merge) =>
-      let accepted = ref(false)
-      Tilia.batch(() => accepted := merge(~change, ~remote=remoteValue))
-      accepted.contents
-    }
-
-  let reconcile = remoteValue => {
-    let rid = id(remoteValue)
-    switch pending(rid) {
-    | Some(entry) =>
-      switch entry.change {
-      | None =>
-        confirmed(entry)
-        remoteValue
-      | Some(change) =>
-        if merged(change, remoteValue) {
-          let (next, value) = switch change {
-          | Created({edited})
-          | Updated({edited}) => (Updated({base: remoteValue, edited}), edited)
-          | Removed({base}) => (Removed({base: base}), base)
-          | Clean({value}) => (Clean({value: value}), value)
-          }
-          entry.change = Some(next)
-          switch next {
-          | Updated({edited}) => entry.op = Upsert({value: edited})
-          | _ => ()
-          }
-          persistOp(entry)
-          value
-        } else {
-          confirmed(entry)
-          addRejection(~seq=entry.seq, conflict(change))
-          remoteValue
-        }
-      }
-    | None =>
-      switch itemById->Dict.get(rid) {
-      | Value(current) if merged(Clean({value: current}), remoteValue) => current
-      | _ => remoteValue
-      }
-    }
-  }
-
-  let loaded = (entry, values, claim) => {
-    // Only `tick` lowers a claim. A find that reopens answers local storage
-    // first, and that must not pull a fresh result back down.
-    let weaker = switch getResult(results, entry) {
-    | Loaded({claim: current}) => rank(claim) < rank(current)
-    | _ => false
-    }
-    if weaker {
-      ()
-    } else {
-      let remote = claim === Fresh
-      let values = remote ? applyPending(entry, values->Array.map(reconcile)) : values
-      if remote {
-        entry.refreshedAt = now()
-        switch local {
-        | Some(local) => local.push(values->Array.map(value => Upsert({value: value})))
-        | None => ()
-        }
-      }
-      values->Array.forEach(value => {
-        itemById->Dict.set(id(value), value)
-      })
-      let ids = values->Array.map(id)
-
-      // A partial answer never records a query result: it was not one.
-      if claim !== Partial {
-        recordSeen(entry, ids)
-      }
-      idsByKey->Dict.set(entry.key, ids)
-      // Rebuild when the id list or any listed item changes.
-      let build = () => {
-        let values = []
-        switch idsByKey->Dict.get(entry.key) {
-        | Value(ids) =>
-          ids->Array.forEach(id =>
-            switch itemById->Dict.get(id) {
-            | Value(value) => values->Array.push(value)
-            | Null | Undefined => ()
-            }
-          )
-        | Null | Undefined => ()
-        }
-        // Observe sorting so edits to sort keys update the list.
-        sort(entry.query)(values)
-      }
-      results->Dict.set(entry.key, Loaded({claim, data: Tilia.computed(build)}))
-    }
-  }
-
-  // One push carries every pending op not already in flight, in order.
-  let pushPending = () =>
-    if remote.online.value {
-      let batch = outbox->Array.filter(entry => !entry.flight)
-      if batch->Array.length > 0 {
-        batch->Array.forEach(entry => entry.flight = true)
-        let settled = ref(false)
-        // `set`, `removed`, `conflict` and `reject` answer one operation.
-        // `retry` and `fail` apply to every operation in the push that has
-        // not been answered. Answering is not settling: `conflict` leaves the
-        // operation pending so the rebased value still has to reach the
-        // server.
-        let answered: array<outboxOp<'a>> = []
-        let waiting = entry => outbox->Array.includes(entry) && !(answered->Array.includes(entry))
-        let findUpsert = vid =>
-          batch->Array.find(entry =>
-            waiting(entry) &&
-            switch entry.op {
-            | Upsert({value}) => id(value) === vid
-            | Remove(_) => false
-            }
-          )
-        let findRemove = rid =>
-          batch->Array.find(entry =>
-            waiting(entry) &&
-            switch entry.op {
-            | Remove({id}) => id === rid
-            | Upsert(_) => false
-            }
-          )
-        let findAny = rid => batch->Array.find(entry => waiting(entry) && opId(entry.op) === rid)
-
-        // Put the local value back where the server says it never moved, and
-        // keep the refused work rather than losing it.
-        let revert = (entry: outboxOp<'a>, message) => {
-          let change = entry.change
-          confirmed(entry)
-          switch change {
-          | Some(Created({edited})) => forget(id(edited))
-          | Some(Updated({base}))
-          | Some(Removed({base})) =>
-            place(base)->ignore
-          | Some(Clean(_))
-          | None => ()
-          }
-          switch change {
-          | Some(change) => addRejection(~seq=entry.seq, failed(change, message))
-          | None => ()
-          }
-        }
-
-        remote.push(
-          batch->Array.map(entry => entry.op),
-          {
-            set: value => {
-              if !settled.contents {
-                switch findUpsert(id(value)) {
-                | Some(entry) =>
-                  answered->Array.push(entry)
-                  confirmed(entry)
-                  place(value)->ignore
-                | None => ()
-                }
-              }
-            },
-            removed: rid => {
-              if !settled.contents {
-                switch findRemove(rid) {
-                | Some(entry) =>
-                  answered->Array.push(entry)
-                  confirmed(entry)
-                | None => ()
-                }
-              }
-            },
-            conflict: value => {
-              if !settled.contents {
-                switch findAny(id(value)) {
-                | Some(entry) =>
-                  answered->Array.push(entry)
-                  switch entry.change {
-                  | None =>
-                    // Nothing local to rebase: the server value stands.
-                    confirmed(entry)
-                    place(value)->ignore
-                  | Some(change) =>
-                    if merged(change, value) {
-                      let (next, edited) = switch change {
-                      | Created({edited})
-                      | Updated({edited}) => (Updated({base: value, edited}), edited)
-                      | Removed({base}) => (Removed({base: base}), base)
-                      | Clean({value}) => (Clean({value: value}), value)
-                      }
-                      entry.change = Some(next)
-                      switch next {
-                      | Updated({edited}) => entry.op = Upsert({value: edited})
-                      | _ => ()
-                      }
-                      persistOp(entry)
-
-                      // Still pending: the heartbeat pushes the rebased value.
-                      // Retrying here would let a server that keeps
-                      // conflicting spin the outbox.
-                      entry.flight = false
-                      place(edited)->ignore
-                    } else {
-                      confirmed(entry)
-                      addRejection(~seq=entry.seq, conflict(change))
-                      place(value)->ignore
-                    }
-                  }
-                | None => ()
-                }
-              }
-            },
-            reject: (rid, message) => {
-              if !settled.contents {
-                switch findAny(rid) {
-                | Some(entry) =>
-                  answered->Array.push(entry)
-                  Tilia.batch(() => revert(entry, message))
-                | None => ()
-                }
-              }
-            },
-            retry: () => {
-              if !settled.contents {
-                settled := true
-                batch->Array.forEach(entry =>
-                  if waiting(entry) {
-                    entry.flight = false
-                  }
-                )
-              }
-            },
-            fail: message => {
-              if !settled.contents {
-                settled := true
-                // Write order: a cascade is refused cause-first, so working
-                // down `status.rejected` retries the cause before the
-                // consequence.
-                Tilia.batch(() =>
-                  batch->Array.forEach(entry =>
-                    if waiting(entry) {
-                      revert(entry, message)
-                    }
-                  )
-                )
-              }
-            },
-          },
-        )
-      }
-    }
-
-  let enqueue = (change, op: op<'a>) => {
-    let entry = switch pending(opId(op)) {
-    | Some(current) =>
-      let entry = {seq: current.seq, op, change, flight: false}
-      let i = outbox->Array.indexOf(current)
-      outbox->Array.splice(~start=i, ~remove=1, ~insert=[entry])
-      entry
-    | None =>
-      let seq = Math.max(now(), nextSeq.contents)
-      nextSeq := seq +. 1.0
-      let entry = {seq, op, change, flight: false}
-      outbox->Array.push(entry)
-      entry
-    }
-    persistOp(entry)
-    syncPending()
-    pushPending()
-  }
-
-  // Join or un-join optimistic upserts on every in-memory query.
-  let upsert = value => {
-    let vid = id(value)
-    // A new write on an id speaks for it: whatever was refused is history.
-    dropRejection(vid)->ignore
-    let change = switch pending(vid) {
-    | Some({change: Some(Created(_))}) => Created({edited: value})
-    | Some({change: Some(Updated({base}))})
-    | Some({change: Some(Removed({base}))}) =>
-      Updated({base, edited: value})
-    | Some({change: Some(Clean({value: base}))}) => Updated({base, edited: value})
-    | Some({change: None}) => Created({edited: value})
-    | None =>
-      switch itemById->Dict.get(vid) {
-      | Value(base) => Updated({base, edited: value})
-      | Null | Undefined => Created({edited: value})
-      }
-    }
-    itemById->Dict.set(vid, value)
-    join(value)->ignore
-    switch local {
-    | Some(local) =>
-      let listed = ref(false)
-      registry->Dict.forEach(record =>
-        if record.ids->Array.includes(vid) {
-          listed := true
-        }
-      )
-      if !listed.contents {
-        // A synthetic record keeps an otherwise unreferenced row reachable.
-        let record = {key: syntheticPrefix ++ vid, query: Undefined, ids: [vid], lastSeen: now()}
-        registry->Dict.set(record.key, record)
-        persistRecord(record)
-      }
-      local.push([Upsert({value: value})])
-    | None => ()
-    }
-    enqueue(Some(change), Upsert({value: value}))
-  }
-
-  // Remove optimistically from memory, loaded query records, and local storage.
-  let remove = rid => {
-    dropRejection(rid)->ignore
-    switch pending(rid) {
-    | Some(entry) =>
-      switch entry.change {
-      | Some(Created(_)) if !entry.flight =>
-        confirmed(entry)
-        forget(rid)
-      | Some(Created(_))
-      | None =>
-        forget(rid)
-        enqueue(None, Remove({id: rid}))
-      | Some(Updated({base}))
-      | Some(Clean({value: base})) =>
-        forget(rid)
-        enqueue(Some(Removed({base: base})), Remove({id: rid}))
-      | Some(Removed(_)) => ()
-      }
-    | None =>
-      let change = switch itemById->Dict.get(rid) {
-      | Value(base) => Some(Removed({base: base}))
-      | Null | Undefined => None
-      }
-      forget(rid)
-      enqueue(change, Remove({id: rid}))
-    }
-  }
-
-  // Server truth for one row, joined like an upsert. The row stays in RAM
-  // only while some in-memory query matches it, and is persisted only while
-  // some query record lists it. Freshness is untouched: fresh / refresh
-  // scheduling stay owned by the per-query read channel.
-  let receiveChanged = values =>
-    values->Array.forEach(value => {
-      let value = reconcile(value)
-      let vid = id(value)
-      switch pending(vid) {
-      | Some({op: Remove(_)}) => forget(vid)
-      | _ =>
-        itemById->Dict.set(vid, value)
-        if !join(value) {
-          itemById->Dict.delete(vid)
-        }
-        switch local {
-        | Some(local) =>
-          let listed = ref(false)
-          registry->Dict.forEach(record =>
-            if record.ids->Array.includes(vid) {
-              listed := true
-            }
-          )
-          if listed.contents {
-            local.push([Upsert({value: value})])
-          }
-        | None => ()
-        }
-      }
-    })
-
-  let receiveRemoved = ids =>
-    Tilia.batch(() =>
-      ids->Array.forEach(rid => {
-        switch pending(rid) {
-        | Some(entry) =>
-          let change = entry.change
-          confirmed(entry)
-          switch change {
-          | Some(Created({edited})) =>
-            addRejection(~seq=entry.seq, CreateConflict({edited: edited}))
-          | Some(Updated({base, edited})) =>
-            addRejection(~seq=entry.seq, UpdateConflict({base, edited}))
-          | Some(Removed(_))
-          | Some(Clean(_))
-          | None => ()
-          }
-        | None => ()
-        }
-        forget(rid)
-      })
-    )
-
-  // Boot: reload the persisted outbox, oldest first, and replay if online.
-  switch local {
-  | None => ()
-  | Some(local) =>
-    local.get(~tag=outboxTag, ~set=values => {
-      values->Array.forEach(value =>
-        switch parseOp(value) {
-        | Value(entry) =>
-          outbox->Array.push(entry)
-          nextSeq := Math.max(nextSeq.contents, entry.seq +. 1.0)
-        | Null | Undefined => ()
-        }
-      )
-      outbox->Array.sort((a, b) => a.seq -. b.seq)
-      syncPending()
-      pushPending()
-    })
-  }
-
-  let fetch = makeFetch(remote, local, loaded, results, now, reportError)
-  let getEntry = makeGetEntry(entry => fetch(entry), entries, results, key, now)
-
-  let clearOnline = Tilia.watch(
-    () => remote.online.value,
-    online => {
-      if online {
-        // Reconnect every query that does not still have a live source.
-        entries->Dict.forEach(entry => fetch(entry))
-        pushPending()
-      } else {
-        entries->Dict.forEach(entry => {
-          // Going offline frees the refresh slot for the next reconnect.
-          entry.fetchedAt = 0.0
-          switch getResult(results, entry) {
-          | Loading => results->Dict.set(entry.key, NoData({reason: Offline}))
-          | _ => ()
-          }
-        })
-      }
-    },
-  )
-
-  // Both act on the exact record they were handed. A stale callback holding
-  // a superseded rejection must not speak for the one that replaced it.
-  let take = rejection =>
-    switch status.rejected->Array.indexOf(rejection) {
-    | -1 => false
-    | i =>
-      status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
-      rejectionSeq->Dict.delete(rejectionId(rejection))
-      true
-    }
-
-  let discard = rejection => take(rejection)->ignore
-
-  // The refused work goes back through the ordinary write path, so its change
-  // is computed against the value that stands now, not the one it started
-  // from. Copied on the way out: the record an app may still hold is history.
-  let retry = rejection =>
-    if take(rejection) {
-      switch rejection {
-      | CreateConflict({edited})
-      | CreateFailed({edited})
-      | UpdateConflict({edited})
-      | UpdateFailed({edited}) =>
-        upsert(snapshot(edited))
-      | RemoveConflict({base})
-      | RemoveFailed({base}) =>
-        remove(id(base))
-      }
-    }
-
-  let lastPurgeAt = ref(Float.Constants.negativeInfinity)
-  let purgeLocal = t =>
-    switch local {
-    | None => ()
-    | Some(local) =>
-      local.get(~tag=queryTag, ~set=values => {
-        // Merge only persisted queries absent from the write-through mirror.
-        values->Array.forEach(value =>
-          switch parseRecord(value) {
-          | Value(record) =>
-            switch registry->Dict.get(record.key) {
-            | Value(_) => ()
-            | Null | Undefined => registry->Dict.set(record.key, record)
-            }
-          | Null | Undefined => ()
-          }
-        )
-        // Adopt homeless rows: a matching real query replaces the synthetic root.
-        registry
-        ->Dict.keys
-        ->Array.filter(rkey => rkey->String.startsWith(syntheticPrefix))
-        ->Array.forEach(rkey => {
-          let rid = rkey->String.slice(~start=syntheticPrefix->String.length)
-          switch itemById->Dict.get(rid) {
-          | Null | Undefined => () // Value unknown (earlier session): keep the synthetic root.
-          | Value(value) =>
-            let adopted = ref(false)
-            registry->Dict.forEach(
-              record =>
-                switch record.query {
-                | Value(query) if matches(query, value) =>
-                  if !(record.ids->Array.includes(rid)) {
-                    record.ids = record.ids->Array.concat([rid])
-                    persistRecord(record)
-                  }
-                  adopted := true
-                | _ => ()
-                },
-            )
-            if adopted.contents {
-              registry->Dict.delete(rkey)
-              local.set(~tag=queryTag, ~key=rkey, None)
-            }
-          }
-        })
-        // Retain records for queries still in memory.
-        registry->Dict.forEach(record =>
-          switch entries->Dict.get(record.key) {
-          | Value(_) => ()
-          | Null | Undefined =>
-            if t > record.lastSeen + expiry.local {
-              registry->Dict.delete(record.key)
-              local.set(~tag=queryTag, ~key=record.key, None)
-            }
-          }
-        )
-        // Mark and sweep: a row stays only while some record lists it.
-        local.ids(~set=allIds => {
-          let marked = Set.make()
-          registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
-          // Pending ops root their rows because they replay after restart.
-          outbox->Array.forEach(entry => marked->Set.add(opId(entry.op)))
-          let removes = []
-          allIds->Array.forEach(
-            id =>
-              if !(marked->Set.has(id)) {
-                removes->Array.push(Remove({id: id}))
-              },
-          )
-          if removes->Array.length > 0 {
-            local.push(removes)
-          }
-        })
-      })
-    }
-
-  let tick = () => {
-    let t = now()
-    // Online refreshes get a buffer to avoid a brief local-freshness flip.
-    let buffer = remote.online.value ? expiry.refresh / 8.0 : 0.0
-    let freshLimit = t - expiry.refresh - buffer
-    let live = observedKeys(results)
-    let online = remote.online.value
-    // Stamp live entries before expiry so only unobserved entries can drop.
-    let dropped = []
-    entries->Dict.forEach(entry => {
-      if live->Set.has(entry.key) {
-        entry.lastSeen = t
-        // Persist observation without deliveries at most once per refresh window.
-        switch registry->Dict.get(entry.key) {
-        | Value(record) if t > record.lastSeen + expiry.refresh =>
-          record.lastSeen = t
-          persistRecord(record)
-        | _ => ()
-        }
-      }
-      if t > entry.lastSeen + expiry.memory {
-        dropped->Array.push(entry)
-      } else {
-        // Anything not fresh re-enters the refresh loop, whatever state
-        // produced it: a local or partial answer, a stale remote one, or a
-        // failure with nothing behind it. A live source owns its own recovery
-        // instead (a later delivery or `end`), and an entry still waiting for
-        // its first answer already has a find open.
-        let stale = switch (entry.state, getResult(results, entry)) {
-        | (LiveRemote, _) => false
-        | (Pristine, Loading) => false
-        | _ => true
-        }
-        if (
-          stale &&
-          online &&
-          entry.refreshedAt < t - expiry.refresh &&
-          // A hung refresh frees its slot after one refresh window.
-          entry.fetchedAt < t - expiry.refresh &&
-          t < entry.lastSeen + expiry.refresh
-        ) {
-          fetch(entry)
-        }
-        if entry.state === LoadedRemote {
-          switch getResult(results, entry) {
-          | Loaded({data, claim: Fresh}) =>
-            if entry.refreshedAt < freshLimit {
-              results->Dict.set(entry.key, Loaded({data, claim: Local}))
-            }
-          | _ => ()
-          }
-        }
-      }
-    })
-    if dropped->Array.length > 0 {
-      // Keep items referenced by another query or unattached optimistic upserts.
-      let orphans = Set.make()
-      dropped->Array.forEach(entry => {
-        // Stop a still-open source (e.g. a live subscription) before eviction.
-        entry.close()
-        let key = entry.key
-        switch idsByKey->Dict.get(key) {
-        | Value(ids) => ids->Array.forEach(id => orphans->Set.add(id))
-        | Null | Undefined => ()
-        }
-        entries->Dict.delete(key)
-        results->Dict.delete(key)
-        idsByKey->Dict.delete(key)
-      })
-      idsByKey->Dict.forEach(ids => ids->Array.forEach(id => orphans->Set.delete(id)->ignore))
-      orphans->Set.forEach(id => itemById->Dict.delete(id))
-    }
-    // Retry transient push failures. `channel.retry()` only frees the ops; the
-    // heartbeat is what decides to try again, so an app that is online and
-    // idle still drains its outbox. Ops already in flight are skipped, so the
-    // rate is bounded by the tick rate.
-    pushPending()
-    if t > lastPurgeAt.contents + expiry.local / 8.0 {
-      lastPurgeAt := t
-      purgeLocal(t)
-    }
-  }
+  let (engine, store) = TiliaQueryEngine.make({
+    schema,
+    expiry,
+    onError,
+    connect: binding => TiliaQueryStore.connect({schema, expiry, remote, ?local, ?merge}, binding),
+  })
 
   {
-    one: makeOne(getEntry, results, remote.online),
-    array: makeArray(getEntry, results, remote.online),
-    upsert,
-    remove,
-    receive: {changed: receiveChanged, removed: receiveRemoved},
-    status,
-    retry,
-    discard,
-    tick,
+    one: engine.one,
+    array: engine.array,
+    upsert: store.upsert,
+    remove: store.remove,
+    receive: store.receive,
+    status: store.status,
+    retry: store.retry,
+    discard: store.discard,
+    // The engine's half runs first: eviction tells the store what it no
+    // longer has to maintain before the store sweeps.
+    tick: () => {
+      engine.tick()
+      store.tick()
+    },
+    // Dispose the engine first, so no find is in flight against a store that
+    // has stopped. Neither half writes anything on the way out.
     dispose: () => {
-      clearOnline()
-      // Stop every still-open source. Cached values are left to normal expiry.
-      entries->Dict.forEach(entry => entry.close())
+      engine.dispose()
+      store.dispose()
     },
-    _canopy: () => {
-      let {live, idle}: Tilia.canopy = Tilia._canopy(results)
-      {live: live->Set.toArray, idle: idle->Set.toArray}
-    },
+    _canopy: engine._canopy,
   }
 }

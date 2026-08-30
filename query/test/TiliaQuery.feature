@@ -615,6 +615,27 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 1    |
 
+  # Rule 17. A store may use the binding while its own constructor is still
+  # running: `connect` hands it one that already works and takes its source
+  # back in the same breath, so there is no moment at which either half
+  # exists unconnected. This store replays its outbox into the engine during
+  # construction and then answers finds by reading those same rows back —
+  # under a two-phase design, where the binding arrives afterwards, it would
+  # have had nothing to place and nothing to find. The store this package
+  # ships cannot make the point: its replay comes back from the kv a
+  # microtask later.
+
+  Scenario: a store can use the binding during construction
+    When the store replays its outbox during construction
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+      | dog.es | spanish | dog     | perro       | 0    |
+    And I open the "Spanish" deck
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 0    |
+      | cat.es | cat     | gato        | 9    |
+
   Scenario: remove a card while online
     When I open the "Spanish" deck
     And time passes

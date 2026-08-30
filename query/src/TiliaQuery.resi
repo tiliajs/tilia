@@ -7,7 +7,7 @@
  * A query climbs `Partial -> Fresh -> Local -> Fresh`. Only `tick` lowers a
  * claim, as data ages.
  */
-type claim =
+type claim = TiliaQuerySchema.claim =
   | @as("partial") Partial
   | @as("local") Local
   | @as("fresh") Fresh
@@ -20,7 +20,7 @@ type claim =
  * exist. It carries its claim because an absence ages like any other answer.
  */
 @tag("reason")
-type reason =
+type reason = TiliaQuerySchema.reason =
   | @as("failed") Failed({message: string})
   | @as("offline") Offline
   | @as("noMatch") NoMatch({claim: claim})
@@ -37,7 +37,7 @@ type reason =
  * Only `one` projects it into `NoMatch`.
  */
 @tag("state")
-type loadable<'a> =
+type loadable<'a> = TiliaQuerySchema.loadable<'a> =
   | @as("loading") Loading
   | @as("loaded") Loaded({claim: claim, data: 'a})
   | @as("noData") NoData({reason: reason})
@@ -47,7 +47,7 @@ type loadable<'a> =
  * Removes carry only the id — a remove never requires a full value.
  */
 @tag("op")
-type op<'a> =
+type op<'a> = TiliaQueryStore.op<'a> =
   | @as("upsert") Upsert({value: 'a})
   | @as("remove") Remove({id: string})
 
@@ -62,7 +62,7 @@ type op<'a> =
  * the row moves on, the record does not.
  */
 @tag("rejection")
-type rejection<'a> =
+type rejection<'a> = TiliaQueryStore.rejection<'a> =
   | @as("createConflict") CreateConflict({edited: 'a})
   | @as("createFailed") CreateFailed({edited: 'a, message: string})
   | @as("updateConflict") UpdateConflict({base: 'a, edited: 'a})
@@ -75,91 +75,20 @@ type rejection<'a> =
  * current value; the other variants name their payloads like `rejection`.
  */
 @tag("change")
-type change<'a> =
+type change<'a> = TiliaQueryStore.change<'a> =
   | @as("clean") Clean({value: 'a})
   | @as("created") Created({edited: 'a})
   | @as("updated") Updated({base: 'a, edited: 'a})
   | @as("removed") Removed({base: 'a})
 
-module Channel: {
-  /**
-   * Read channel handed to `remote.fetch`.
-   *
-   * `fresh` publishes a complete result set, replacing the previous one.
-   * `live` does the same and declares that the adaptor keeps the result
-   * fresh, so periodic refresh is skipped. Both claim `Fresh`: `live` adds
-   * maintenance, not strength.
-   *
-   * `fail` publishes a failed result without closing the fetch, allowing a
-   * live source to recover. `end` closes the fetch and returns a live query
-   * to periodic refresh.
-   *
-   * `finally` registers the fetch's teardown (e.g. unsubscribe a socket).
-   * The last registered teardown runs once when the fetch closes. Callbacks
-   * on a closed fetch are ignored.
-   */
-  type read<'a> = {
-    fresh: array<'a> => unit,
-    live: array<'a> => unit,
-    fail: string => unit,
-    end: unit => unit,
-    finally: (unit => unit) => unit,
-  }
+/**
+ * The vocabulary a store answers in: `read` is what a remote may say,
+ * `local` what storage may say, `find` the whole of it, and `write` how a
+ * push is answered. Defined, and documented, in `TiliaQuerySchema`.
+ */
+module Channel = TiliaQuerySchema.Channel
 
-  /**
-   * Local fetch channel, handed to `local.fetch`.
-   *
-   * `local` publishes a complete result set: everything the query matches,
-   * as far as storage knows. `partial` publishes rows it holds without
-   * claiming they are all of them — `partial([])` is how a store says it
-   * holds nothing.
-   */
-  type local<'a> = {
-    partial: array<'a> => unit,
-    local: array<'a> => unit,
-  }
-
-  /**
-   * Write channel, handed to `remote.push` together with a batch of ops.
-   *
-   * `set`, `removed`, `conflict` and `reject` answer one operation. `retry`
-   * and `fail` apply to every operation in the push that has not been
-   * answered. Answering is not settling: `conflict` leaves its operation
-   * pending.
-   *
-   * Confirm each upsert with its authoritative value through `set`, and each
-   * remove by id through `removed`.
-   *
-   * `conflict` hands back the server's row for one operation and keeps it
-   * pending, so the local change rebases onto it through `merge` and the
-   * heartbeat pushes it again. A rejecting `merge` reverts instead and
-   * records the conflict.
-   *
-   * `reject` refuses one operation: it reverts that write and records it.
-   * Order does not imply dependency, so reverting unrelated writes would
-   * record rejections that are false.
-   *
-   * `retry` keeps unanswered ops pending, for a failure that says nothing
-   * about the writes themselves. `fail` rejects every operation in the
-   * current push that has not yet received an outcome; earlier outcomes
-   * remain unchanged, so a server that acknowledged an operation and then
-   * rolled it back has to say so through `receive`.
-   *
-   * `set(value)` and `conflict(value)` find their operation by `id(value)`:
-   * a server that assigns its own id leaves that operation pending forever.
-   */
-  type write<'a> = {
-    set: 'a => unit,
-    removed: string => unit,
-    conflict: 'a => unit,
-    reject: (string, string) => unit,
-    retry: unit => unit,
-    fail: string => unit,
-  }
-}
-
-/** Timing configuration in milliseconds. */
-type expiry = {
+type expiry = TiliaQuerySchema.expiry = {
   /** Refresh interval for observed non-live queries. Default: 30 s. */
   refresh: float,
   /**
@@ -175,7 +104,7 @@ type expiry = {
  * Reactive write state. Read failures are returned through
  * `loadable.NoData({Failed})`.
  */
-type status<'a> = {
+type status<'a> = TiliaQueryStore.status<'a> = {
   /** Number of ops waiting in the outbox. */
   pending: int,
   /**
@@ -189,7 +118,7 @@ type status<'a> = {
 }
 
 /** Remote adaptor: the authoritative store behind the network. */
-type remote<'query, 'a> = {
+type remote<'query, 'a> = TiliaQueryStore.remote<'query, 'a> = {
   /**
    * App-owned connectivity signal. Update `online.value` as connectivity
    * changes; pending ops are pushed only while online.
@@ -212,7 +141,7 @@ type remote<'query, 'a> = {
  * for engine bookkeeping (`set`, `get`). Persistence is command-only;
  * local storage errors are handled by the adaptor.
  */
-type local<'query, 'a> = {
+type local<'query, 'a> = TiliaQueryStore.local<'query, 'a> = {
   /** Fetch cached results through the local channel. */
   fetch: ('query, Channel.local<'a>) => unit,
   /** Apply value changes to the values table in order. */
@@ -265,7 +194,7 @@ type config<'query, 'a> = {
  * join and leave matching queries. Remote values are merged with pending
  * changes and win on conflict. Deliveries do not affect query freshness.
  */
-type receive<'a> = {
+type receive<'a> = TiliaQueryStore.receive<'a> = {
   /** These values changed on the server; they replace local clean copies. */
   changed: array<'a> => unit,
   /** These ids were deleted on the server. Ids, never full values. */
@@ -273,7 +202,7 @@ type receive<'a> = {
 }
 
 /** Debug view: which query keys are observed (live) vs cached (idle). */
-type canopy = {
+type canopy = TiliaQueryEngine.canopy = {
   live: array<string>,
   idle: array<string>,
 }

@@ -1,10 +1,10 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 56/56 green, phases 0 through 2 done. 3a next.**
+**Where things stand: 57/57 green, phases 0 through 3 done. 4a next.**
 Nothing is committed — Anna owns the history.
 
-The decisions are in `TILIA-QUERY-SPLIT.md` and the shape they imply is
-`query/src/croquis/TiliaQuerySplit.res` (a sketch that compiles, not code).
+The decisions are in `TILIA-QUERY-SPLIT.md`, which was the whole spec phase 3
+was built from.
 The ledger is `query/test/TiliaQuery.feature`; the complete scenario batch is
 in `TILIA-QUERY-SCENARIOS.md`, one per decided rule, each tagged with the
 phase that makes it pass.
@@ -32,6 +32,12 @@ every step.
   feature file reads top to bottom as one story.
 - Steps live in `test/TiliaQuerySteps.res`, the world in `test/MakeWorld.res`.
   `vitest-bdd` binds `X.feature` to `XSteps.res`.
+- Four files since 3d, and the dependency order is a line:
+  `TiliaQuerySchema.res` (what both halves speak) → `TiliaQueryEngine.res`
+  (A, plus `binding` and `source`) → `TiliaQueryStore.res` (B+C) →
+  `TiliaQuery.res` (the assembly, and every public type re-exported). If a
+  change needs the engine to know a store word, or the store to reach a row
+  except through the binding, it is in the wrong file.
 
 ## The harness, as it now stands
 
@@ -52,6 +58,11 @@ Test controls added during phase 2, all driven from steps:
 - `numericVersion` in the steps — table cells are strings and `version` is a
   number on the server; anything crossing that line needs converting.
 - `onError` recorder — failures the read site was never told about.
+- `SyncStore` (3d) — a store whose replay is synchronous: it puts its rows
+  into the engine inside its own constructor and answers finds by reading
+  them back through `binding.item`. `makeSync` assembles it into a
+  `TiliaQuery.t` whose write side is stubbed, so every read step works
+  against it unchanged.
 - `I retry the rejection for {string}` keeps the record it was handed, so
   `the retried rejection should still show english {string}` can ask what the
   application is still holding after the row moved on. The only harness work
@@ -136,23 +147,34 @@ Test controls added during phase 2, all driven from steps:
   - The `.resi` now states the JSON round trip on `make`, beside the
       plain-object rule, and says it holds with or without a `local`
       adaptor. `rejection` and `retry` name the copy that rests on it.
-- [ ] **3 · The split, behaviour-neutral.** No shipped scenario changes here;
-      if one needs editing, behaviour moved by accident. The one addition is
-      rule 17's, at 3d, which states what the new construction allows.
-  - [ ] 3a `Schema.t` resolved once, threaded through
-  - [ ] 3b store-side touches of engine state routed through
-        `item`/`changed`/`removed`/`place` — still one file
-  - [ ] 3c engine's find path routed through `{online, find, forget}` — still
-        one file
-  - [ ] 3d files split: `TiliaQueryEngine.res`, `TiliaQueryStore.res`,
-        `TiliaQuery.res` as the assembly; `source.forget` on eviction only.
-        Also the harness demand from phase 1 and rule 17's scenario: a fake
-        store that replays an outbox entry synchronously inside its own
-        constructor, calling `binding.place` while it is still being built.
-        It lands here because `binding` and internal `connect` first exist
-        here, and it is the only test that tells this construction apart from
-        a two-phase design that attaches the binding afterwards — the built-in
-        store cannot, its replay is asynchronous.
+- [x] **3 · The split, behaviour-neutral. 57/57.** No shipped scenario
+      changed, and none needed editing. The one addition is rule 17's, at 3d,
+      which states what the new construction allows.
+  - [x] 3a `Schema.t` resolved once, threaded through. `{id, matches, key,
+        sort, now}`, resolved from `config` in one place and read by both
+        halves from then on. Neither half defaults anything itself.
+  - [x] 3b store-side touches of engine rows routed through
+        `item`/`changed`/`removed`/`place` — still one file. `join` split in
+        two: the engine walks its entries and `idsByKey`, the store walks its
+        registry, both with `matches` from the schema. `place` keeps a row
+        whether or not a query lists it (an optimistic write stands on its
+        own); `changed` is remote truth and keeps one only while some query
+        matches. The store's `listed` walk folded into its half of the join.
+  - [x] 3c engine's find path routed through `{online, find, forget}` — still
+        one file. One find, both tiers: the engine no longer knows there are
+        two, so it asks on every refresh and the store answers from local
+        storage first. `loaded` lost `reconcile`, `applyPending`, the local
+        push and `recordSeen` — the store does all four before it hands the
+        values over. `held` (find → forget) replaces the store's two reads of
+        `entries`. The online watch and `tick` each split in half.
+  - [x] 3d files split: `TiliaQuerySchema.res`, `TiliaQueryEngine.res`,
+        `TiliaQueryStore.res`, `TiliaQuery.res` as the assembly.
+        `source.forget` on eviction only. Rule 17 landed with a `SyncStore`
+        double in the harness: it places its rows into the engine inside its
+        own constructor and answers finds by reading them back through
+        `binding.item`, so a binding that arrived afterwards would leave it
+        with nothing to place and nothing to find. Mutation-checked — drop
+        the constructor `place` and only that scenario fails.
 - [ ] **4 · The new surface.**
   - [ ] 4a `connect: binding => (source, 'store)`; `Store.make`/`Store.custom`;
         `Query.make` with `store:`
@@ -166,6 +188,64 @@ Test controls added during phase 2, all driven from steps:
   - [ ] 5c `claims-app-ts` migrated, after the refactor ships
 
 ### Opus Autonomous Decisions
+
+Taken while landing phase 3 alone. Each is cheap to undo.
+
+**A fourth file, `TiliaQuerySchema.res`.** The plan named three. The read
+model, the channel vocabulary and the schema belong to neither half, and the
+low-level `Dict`/`Arr` bindings belong to neither either; leaving them in the
+engine would have made the store depend on the engine for the word `claim`.
+The name is the design's own (`Schema.t` is resolved once by `Query.make`).
+Dependencies are a line: Schema → Engine → Store → Query.
+
+**The public types are re-exported with their equalities, and the three new
+modules are public.** A `.resi` that declares `type loadable<'a> = ...` afresh
+makes it nominally distinct from the half that defines it, so nothing built
+from `TiliaQueryEngine.t` can be handed to a step expecting `TiliaQuery.t` —
+which is exactly what rule 17's harness does. Each public type now reads
+`= TiliaQuerySchema.claim = | ...`, and `Channel` is a module alias, so its
+documentation moved into `TiliaQuerySchema.res` where it is now defined.
+There is no ReScript consumer of this package outside it, so widening
+`public` costs nothing today; 4a makes `Store` and `Query` public vocabulary
+anyway.
+
+**The registry is dated by the find, not by the heartbeat.** `tick` used to
+re-date an observed query's record from inside the engine's loop
+(`TiliaQuery.res:1042`); after the split the engine cannot reach the
+registry. So `find` dates the record it is asked for, and `store.tick`
+re-dates every *held* record once per refresh window — which also covers a
+live query, found once, whose record would otherwise age out while it is on
+screen. Two bounded differences, neither with a scenario: a query in memory
+but no longer observed now keeps its record current for up to the memory
+window (5 minutes) longer than the canopy-gated version did, and both are
+measured against a 30-day expiry.
+
+**`recordSeen` obeys the same no-weakening rule as the result.** The store
+answers finds from local storage on every refresh now, so a local answer
+lands after a fresh one and would re-record the ids storage still holds —
+including a row the remote had dropped. *A card deleted on the remote is
+swept from local at the next purge* caught it. The store tracks the strongest
+claim recorded per held query and refuses a weaker one, cleared by `forget`:
+the same lattice, the same words, one dict.
+
+**The `weaker` guard moved from `loaded` into the find's callbacks.** It used
+to run inside `loaded`, after the callback had already stamped `entry.state`.
+With local answers arriving on refreshes that would demote the state of an
+entry whose result was refused, so the check now gates both together.
+
+**The engine still stamps `fetchedAt` only when online.** It no longer knows
+whether the store asked a remote at all, but it does know whether one could
+have been reached, and that is what the refresh slot is for. Keeping the
+condition kept every refresh-timing scenario unchanged.
+
+**Rule 17's double answers finds through `binding.item`.** Placing rows in the
+constructor and answering from a private array would have exercised the
+binding without depending on it. Answering out of the engine is also the
+shape the design has in mind for a store that materializes its own rows —
+one live object per id, handed across — so the double is a small `@lapa/db`,
+not a contrivance.
+
+### Earlier autonomous decisions
 
 Taken while landing 2d alone. Each is cheap to undo.
 
@@ -270,7 +350,8 @@ keyspace can back several stores, so closing belongs to whoever created it.
 `enqueue`, `upsert`, `remove`, `receiveChanged`, `receiveRemoved`, boot
 replay, `purgeLocal`, `retry`, `discard`, local expiry.
 
-**Straddlers — the actual work of phase 3.**
+**Straddlers — the actual work of phase 3.** All seven landed; kept as the
+record of the analysis, and of where each one ended up.
 
 - `loaded` (`:641`) reconciles, applies pending and pushes to local (B), then
   writes `itemById`, `recordSeen`, `idsByKey` and `results` (A). It splits
@@ -303,6 +384,22 @@ replay, `purgeLocal`, `retry`, `discard`, local expiry.
 - **`receiveRemoved`'s seq is covered.** *A rejection from an inbound remove
   keeps its place in the order* orders both of its rejection sites against a
   remote refusal; `~seq=0.0` at either one reorders the list.
+- **`claims-app-ts`'s suite has been red since 2a**: 21 failed, 5 passed,
+  identical before and after the split (checked against `c6d6a7b` in a
+  worktree). Its adaptor still speaks the pre-phase-2 channel — `channel.set`
+  for a local answer (`adapters.ts:149`, now `partial`/`local`) and for a
+  remote one (`:86`, now `fresh`) — so nothing it does reaches the engine.
+  Expected: 5c migrates it. Recorded because a red suite that was always red
+  says nothing, and the next person to run it should not have to find that
+  out. `tests/app1` is also red, on a missing steps file, unrelated.
+- **`claims-app-ts` loses an edit on every conflict.**
+  `claims-app-ts/src/app/adapters.ts:109` maps the server's `conflict`
+  outcome onto `channel.set`, which was right while `set` still called
+  `reconcile`. Since 2c that confirms the op away and places remote truth:
+  no merge, no rejection, the local edit is gone. One line —
+  `channel.conflict(outcome.claim)` — and the app's own three-way merge is
+  reached again. Belongs to 5c, but it is data loss against the shipped app,
+  not a migration chore.
 - **The api reference and guide still say `dismiss`.** Five pages plus guide
   07; carried in `query/TODO.md`, for the doc rewrite once 4a has settled the
   surface. Not done here: 2d is behaviour, and the `.resi` is rewritten again
@@ -322,6 +419,10 @@ replay, `purgeLocal`, `retry`, `discard`, local expiry.
 - `TODO.md` also wants the query-language constraint stated in the `.resi`:
   queries are pure predicates over one row, no limits, no pagination, no
   aggregates. It belongs to 4a, when the `.resi` is rewritten anyway.
+- **`query/src/croquis/TiliaQuerySplit.res` does not exist** — only
+  `.gitkeep` was ever committed. `TILIA-QUERY-SPLIT.md` was the whole spec for
+  phase 3, and it was enough. The line about it at the top of this file is
+  wrong.
 - How `dist/index.d.ts` is produced is unchecked. The read model and the
   constructors both change the TypeScript surface, and `claims-app-ts` is a TS
   consumer.

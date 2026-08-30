@@ -99,6 +99,10 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     cards.contents = MakeWorld.make(dexme, live, push, rules, merge, onError, papabase, () => now_.value, online_);
     return settled();
   });
+  step("the store replays its outbox during construction", table => {
+    cards.contents.dispose();
+    cards.contents = MakeWorld.makeSync(VitestBdd.toRecords(table), () => now_.value, online_);
+  });
   step("deck {string} is in local db", deck => {
     let app = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
     let close = Tilia.observe(() => {

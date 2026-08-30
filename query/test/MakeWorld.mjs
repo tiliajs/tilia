@@ -2,7 +2,9 @@
 
 import * as TiliaQuery from "../src/TiliaQuery.mjs";
 import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
+import * as Stdlib_Array from "@rescript/runtime/lib/es6/Stdlib_Array.js";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
+import * as TiliaQueryEngine from "../src/TiliaQueryEngine.mjs";
 
 function make() {
   let queue = [];
@@ -469,6 +471,65 @@ let Push = {
   wrap: wrap$2
 };
 
+function connect(rows, online_, binding) {
+  rows.forEach(row => binding.place(row));
+  let ids = rows.map(id);
+  let find = (query, channel) => channel.local(Stdlib_Array.filterMap(ids, rid => binding.item(rid)).filter(card => matches(query, card)));
+  return [
+    {
+      online: online_,
+      find: find,
+      forget: param => {}
+    },
+    undefined
+  ];
+}
+
+let SyncStore = {
+  connect: connect
+};
+
+function makeSync(rows, now, online_) {
+  let schema_sort = _query => (array => array.toSorted(sortBySeen));
+  let schema = {
+    id: id,
+    matches: matches,
+    key: TiliaQuery.sortedStringify,
+    sort: schema_sort,
+    now: now
+  };
+  let match = TiliaQueryEngine.make({
+    schema: schema,
+    expiry: {
+      refresh: 30000.0,
+      memory: 300000.0,
+      local: 2592000000.0
+    },
+    onError: (param, param$1) => {},
+    connect: binding => connect(rows, online_, binding)
+  });
+  let engine = match[0];
+  return {
+    one: engine.one,
+    array: engine.array,
+    upsert: param => {},
+    remove: param => {},
+    receive: {
+      changed: param => {},
+      removed: param => {}
+    },
+    status: {
+      pending: 0,
+      rejected: []
+    },
+    retry: param => {},
+    discard: param => {},
+    tick: engine.tick,
+    dispose: engine.dispose,
+    _canopy: engine._canopy
+  };
+}
+
 function make$9(dexme, live, push, rules, mergeOpt, onError, papabase, now, online_) {
   let merge = mergeOpt !== undefined ? mergeOpt : ({
       accepted: true,
@@ -518,6 +579,8 @@ export {
   Merge,
   sortBySeen,
   Push,
+  SyncStore,
+  makeSync,
   make$9 as make,
 }
 /* TiliaQuery Not a pure module */

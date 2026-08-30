@@ -115,6 +115,13 @@ given("an {string} training app", ({step}, status: string) => {
     settled()
   })
 
+  // Rule 17: the app comes back on a store whose replay is synchronous, so
+  // the rows are in the engine before anything can ask for them.
+  step("the store replays its outbox during construction", (table: array<array<string>>) => {
+    cards.contents.dispose()
+    cards := makeSync(toRecords(table), () => now_.value, online_)
+  })
+
   step("deck {string} is in local db", (deck: string) => {
     let app = make(~dexme, papabase, () => now_.value, online_)
     let close = Tilia.observe(() => app.array(query(deck))->ignore)

@@ -514,6 +514,64 @@ module Push = {
   }
 }
 
+/**
+ * A store whose replay is synchronous: it puts the rows it holds into the
+ * engine inside its own constructor, through the binding it was just handed,
+ * and answers finds by reading those same objects back out. Nothing about it
+ * works unless the binding is usable while `connect` is still running — which
+ * is the whole of what it is here to prove. The store this package ships
+ * cannot prove it: its replay comes back from the kv on a later microtask.
+ *
+ * It is also the shape of a store that keeps ids and lets the engine own the
+ * objects, which is why answering out of `binding.item` is not a contrivance.
+ */
+module SyncStore = {
+  let connect = (rows: array<card>, online_, binding: TiliaQueryEngine.binding<card>) => {
+    // Construction time. There is no later.
+    rows->Array.forEach(row => binding.place(row))
+    let ids = rows->Array.map(id)
+    let find = (query, channel: TiliaQuerySchema.Channel.find<card>) =>
+      channel.local(
+        ids
+        ->Array.filterMap(rid => binding.item(rid))
+        ->Array.filter(card => matches(query, card)),
+      )
+    ({TiliaQueryEngine.online: online_, find, forget: _ => ()}, ())
+  }
+}
+
+// The same app, built on `SyncStore` instead of the store this package
+// ships. Only the read side is real: the write side is not what rule 17 is
+// about, and a store that answers out of the engine has nothing to queue.
+let makeSync = (rows: array<card>, now, online_): TiliaQuery.t<query, card> => {
+  let schema: TiliaQuerySchema.schema<query, card> = {
+    id,
+    matches,
+    key: TiliaQuery.sortedStringify,
+    sort: _query => array => array->Array.toSorted(sortBySeen),
+    now,
+  }
+  let (engine, _) = TiliaQueryEngine.make({
+    schema,
+    expiry: {refresh: 30_000.0, memory: 300_000.0, local: 2_592_000_000.0},
+    onError: (~query as _, ~message as _) => (),
+    connect: binding => SyncStore.connect(rows, online_, binding),
+  })
+  {
+    one: engine.one,
+    array: engine.array,
+    upsert: _ => (),
+    remove: _ => (),
+    receive: {changed: _ => (), removed: _ => ()},
+    status: {pending: 0, rejected: []},
+    retry: _ => (),
+    discard: _ => (),
+    tick: engine.tick,
+    dispose: engine.dispose,
+    _canopy: engine._canopy,
+  }
+}
+
 // Convention: signals end with an underscore (now_, online_).
 // The engine's default expiry applies (refresh 30s, memory 5min, local
 // 30 days): scenarios advance the clock with real durations.
