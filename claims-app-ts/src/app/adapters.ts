@@ -1,7 +1,7 @@
-import type { Local as QueryLocal, Op, Remote } from "@tilia/query";
+import { Store, type Kv, type Remote } from "@tilia/query";
 import { watch, type Signal } from "tilia";
 import type { Server } from "../server/server";
-import { clone, match, type Claim, type ClaimQuery } from "./claim";
+import type { Claim, ClaimQuery } from "./claim";
 
 export type AdaptorCall = {
   seq: number;
@@ -82,8 +82,8 @@ export function makeRemote(
       }
       server.fetch(user, query, (rows) => {
         if (network.online.value) {
-          record(log, "remote", "set", rows, "fetch", true);
-          channel.set(rows);
+          record(log, "remote", "fresh", rows, "fetch", true);
+          channel.fresh(rows);
         }
       });
     },
@@ -93,30 +93,43 @@ export function makeRemote(
         const op = ops[index];
         if (!op) return;
         if (op.op === "remove") {
-          server.remove(user, op.id, (outcome) => {
+          const id = op.id;
+          server.remove(user, id, (outcome) => {
             if (outcome.kind === "removed") {
               record(log, "remote", "removed", outcome.id, "push", true);
               channel.removed(outcome.id);
               next(index + 1);
             } else if (outcome.kind === "rejected") {
-              record(log, "remote", "fail", outcome.message, "push", true);
-              channel.fail(outcome.message);
+              // This remove and no other: order does not imply dependency.
+              record(log, "remote", "reject", outcome.message, "push", true);
+              channel.reject(id, outcome.message);
+              next(index + 1);
             }
           });
           return;
         }
-        server.upsert(user, op.value, (outcome) => {
+        const value = op.value;
+        server.upsert(user, value, (outcome) => {
           switch (outcome.kind) {
             case "saved":
-            case "conflict":
               record(log, "remote", "set", outcome.claim, "push", true);
               channel.set(outcome.claim);
               next(index + 1);
               break;
-            case "rejected":
-              record(log, "remote", "fail", outcome.message, "push", true);
-              channel.fail(outcome.message);
+            // The write was not refused, it was out of date: hand back what
+            // the server holds and the write rebases onto it.
+            case "conflict":
+              record(log, "remote", "conflict", outcome.claim, "push", true);
+              channel.conflict(outcome.claim);
+              next(index + 1);
               break;
+            case "rejected":
+              record(log, "remote", "reject", outcome.message, "push", true);
+              channel.reject(value.id, outcome.message);
+              next(index + 1);
+              break;
+            // The row is gone on the server: this push says nothing about
+            // the write, so it goes again later.
             case "removed":
               record(log, "remote", "retry", undefined, "push", true);
               channel.retry();
@@ -129,61 +142,54 @@ export function makeRemote(
   };
 }
 
-export type Local = QueryLocal<Claim, ClaimQuery> & {
-  rows: Map<string, Claim>;
+export type Local = Kv & {
   entries: Map<string, Map<string, string>>;
+  /** The row the keyspace holds, decoded. Whoever writes the keyspace knows
+   * how the store keeps its rows — that is why `Store.rowTag` is public. */
+  row(id: string): Claim | undefined;
 };
 
 // In-memory stand-in for IndexedDB. It outlives the app instance, so an app
-// reload demonstrates value, query-record, and outbox recovery.
+// reload demonstrates row, query-record and outbox recovery. One table: the
+// store keeps everything it needs as entries under a tag.
 export function makeLocal(log: AdaptorLog): Local {
-  const rows = new Map<string, Claim>();
   const entries = new Map<string, Map<string, string>>();
+  const tagged = (tag: string) => {
+    let found = entries.get(tag);
+    if (!found) {
+      found = new Map();
+      entries.set(tag, found);
+    }
+    return found;
+  };
   return {
-    rows,
     entries,
-    fetch(query, channel) {
-      record(log, "local", "fetch", query);
-      const found = [...rows.values()].filter((claim) => match(query, claim)).map(clone);
-      record(log, "local", "set", found, "fetch", true);
-      channel.set(found);
-    },
-    push(ops: Op<Claim>[]) {
-      record(log, "local", "push", ops, `${ops.length} ops`);
-      for (const op of ops) {
-        if (op.op === "upsert") rows.set(op.value.id, clone(op.value));
-        else rows.delete(op.id);
-      }
+    row(id) {
+      const value = tagged(Store.rowTag).get(id);
+      return value === undefined ? undefined : (JSON.parse(value) as Claim);
     },
     set(tag, key, value) {
       record(log, "local", "set", value === undefined ? undefined : decode(value), `${tag}:${key}`);
-      let tagged = entries.get(tag);
-      if (!tagged) {
-        tagged = new Map();
-        entries.set(tag, tagged);
-      }
-      if (value === undefined) tagged.delete(key);
-      else tagged.set(key, value);
+      if (value === undefined) tagged(tag).delete(key);
+      else tagged(tag).set(key, value);
     },
-    get(tag, key, set) {
-      record(log, "local", "get", { tag, key: key ?? null }, `${tag}:${key ?? "*"}`);
-      const tagged = entries.get(tag);
-      if (key === undefined) {
-        const values = tagged ? [...tagged.values()] : [];
-        record(log, "local", "set", values.map(decode), "get", true);
-        set(values);
-      } else {
-        const value = tagged?.get(key);
-        const values = value === undefined ? [] : [value];
-        record(log, "local", "set", values.map(decode), "get", true);
-        set(values);
-      }
-    },
-    ids(set) {
-      record(log, "local", "ids", undefined, `${rows.size} rows`);
-      const values = [...rows.keys()];
-      record(log, "local", "set", values, "ids", true);
+    get(tag, keys, set) {
+      record(log, "local", "get", { tag, keys: keys ?? null }, `${tag}:${keys?.join(",") ?? "*"}`);
+      const found = tagged(tag);
+      const values =
+        keys === undefined
+          ? [...found.values()]
+          : keys.flatMap((key) => {
+              const value = found.get(key);
+              return value === undefined ? [] : [value];
+            });
+      record(log, "local", "set", values.map(decode), "get", true);
       set(values);
+    },
+    keys(tag, set) {
+      const found = [...tagged(tag).keys()];
+      record(log, "local", "keys", found, `${tag}: ${found.length}`);
+      set(found);
     },
   };
 }

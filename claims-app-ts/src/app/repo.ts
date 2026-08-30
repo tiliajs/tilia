@@ -1,8 +1,11 @@
-import { make, type Change, type Local, type Remote, type TiliaQuery } from "@tilia/query";
+import { Store, make, type Change, type Kv, type Remote, type TiliaQuery } from "@tilia/query";
 import { fields, match, type Claim, type ClaimQuery } from "./claim";
 
 export type Repo = {
   claims: TiliaQuery<Claim, ClaimQuery>;
+  // What the store offers beside the query object: writes, sync state, and
+  // what to do about a refused one.
+  store: Store<Claim>;
 };
 
 const merge = (change: Change<Claim>, remote: Claim): boolean => {
@@ -43,23 +46,27 @@ const merge = (change: Change<Claim>, remote: Claim): boolean => {
 
 export function makeRepo(
   remote: Remote<Claim, ClaimQuery>,
-  local: Local<Claim, ClaimQuery>,
+  persist: Kv,
   refresh: number = 30_000,
   memory: number = 120_000,
   now: () => number = Date.now
 ): Repo {
-  return {
-    claims: make({
-      id: (claim) => claim.id,
+  const [claims, store] = make({
+    id: (claim) => claim.id,
+    // A changed claim enters and leaves query lists in place: writes never
+    // trigger a find.
+    matches: match,
+    sort: () => (claims) => [...claims].sort((a, b) => a.id.localeCompare(b.id)),
+    expiry: { refresh, memory },
+    now,
+    // The server pushes: it subscribes when live, so this one is described
+    // by its channels rather than by what it does when asked.
+    store: Store.custom({
       remote,
-      local,
-      expiry: { refresh, memory, local: 30 * 24 * 60 * 60 * 1000 },
-      now,
-      // A changed claim enters and leaves query lists in place: writes never
-      // trigger a fetch.
-      matches: match,
-      sort: () => (claims) => [...claims].sort((a, b) => a.id.localeCompare(b.id)),
+      persist,
       merge,
+      expiry: { local: 30 * 24 * 60 * 60 * 1000 },
     }),
-  };
+  });
+  return { claims, store };
 }

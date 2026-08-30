@@ -191,7 +191,7 @@ Given(
       const p = pane(name);
       const rejected = p.app.claims.rejected[0];
       if (!rejected) throw new Error("Expected a rejected change");
-      const theirs = p.local.rows.get(id);
+      const theirs = p.local.row(id);
       if (!theirs) throw new Error(`Expected current claim "${id}"`);
       p.app.claims.resolve(rejected, theirs);
     });

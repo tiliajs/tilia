@@ -139,6 +139,8 @@ module Store = {
 
   module Kv = TiliaQueryStore.Kv
 
+  let memory = TiliaQueryStore.Kv.make
+
   let rowTag = TiliaQueryStore.rowTag
 
   type channels<'query, 'a> = {

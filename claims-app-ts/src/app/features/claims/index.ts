@@ -13,8 +13,8 @@ export const claimsBranch = (repo: Repo, user: User): ClaimsFeature => {
       active = true;
       return list(repo, user)(self);
     }),
-    pending: computed(() => repo.claims.status.pending),
-    rejected: computed(() => repo.claims.status.rejected),
+    pending: computed(() => repo.store.status.pending),
+    rejected: computed(() => repo.store.status.rejected),
     editing: null,
     resolution: null,
     filter: derived(actions.filter),
@@ -25,7 +25,7 @@ export const claimsBranch = (repo: Repo, user: User): ClaimsFeature => {
     commit: derived(actions.commit(repo)),
     cancel: derived(actions.cancel),
     remove: actions.remove(repo),
-    dismiss: actions.dismiss(repo),
+    discard: actions.discard(repo),
     resolve: derived(actions.resolve),
     saveResolution: derived(actions.saveResolution(repo)),
     discardResolution: derived(actions.discardResolution(repo)),

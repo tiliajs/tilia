@@ -93,7 +93,7 @@ function pane(server: Server, user: User, now: () => number): Pane {
     createApp({
       user,
       remote: makeRemote(server, user.id, network, log),
-      local,
+      persist: local,
       refresh: 30_000,
       memory: 120_000,
       now,

@@ -122,27 +122,31 @@ Feature: Field claims adjusting
     Then "Ana" sees claims "CLM-1042"
     And the office has answered 1 read
 
+  # The keyspace is asked and answers; the office is asked and answers; and
+  # the writes that follow are entries going in — a row, a query record, an
+  # outbox op — and one going out again once the office has taken it.
+
   Scenario: A client shows local and remote adaptor calls together
     When "Ana" opens the "new" claims
     And "Ana" takes claim "CLM-1041"
     Then "Ana" adaptor calls include
       | tag    | call  | direction | value |
-      | local  | fetch | call      | some  |
+      | local  | get   | call      | some  |
       | local  | set   | reply     | some  |
-      | local  | push  | call      | some  |
       | local  | set   | call      | some  |
       | local  | set   | call      | none  |
       | remote | fetch | call      | some  |
-      | remote | set   | reply     | some  |
+      | remote | fresh | reply     | some  |
       | remote | push  | call      | some  |
+      | remote | set   | reply     | some  |
 
   Scenario: Offline does not call the remote adaptor
     When "Ana" goes offline
     And "Ana" opens the "new" claims
     Then the office has answered 0 reads
     And "Ana" adaptor calls include
-      | tag   | call  |
-      | local | fetch |
+      | tag   | call |
+      | local | get  |
     And "Ana" adaptor calls exclude
       | tag    | call  |
       | remote | fetch |

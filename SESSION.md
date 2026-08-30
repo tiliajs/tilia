@@ -1,7 +1,7 @@
 # Session — splitting `@tilia/query`
 
-**Where things stand: 60/60 green, phases 0 through 4c done, 5a done on
-paper. 4d is what is left of phase 4.**
+**Where things stand: 60/60 in `query` and 26/26 in `claims-app-ts`, phases
+0 through 4c done, 5a on paper, 5c done. 4d is what is left of phase 4.**
 Committed through 4a's first half, on `main`, at Anna's word — the ledger
 below is what each commit did.
 
@@ -230,7 +230,20 @@ Test controls added during phase 2, all driven from steps:
         that stays on `Store.custom` by decision — and `claims-app-ts`
         happens to have both because `live` is a test flag.
   - [ ] 5b guide and API reference
-  - [ ] 5c `claims-app-ts` migrated, after the refactor ships
+  - [x] 5c **`claims-app-ts` migrated. 26/26**, from 5/26. Its adaptor spoke
+        the pre-phase-2 vocabulary throughout: `channel.set` for a local
+        answer and for a remote one, a server `conflict` mapped onto
+        `channel.set` (the data loss reported earlier), `fail` where `reject`
+        was meant, `dismiss`, and the old `loadable`. `makeLocal` became a
+        `Kv` — five members down to three, and the rows table went with it.
+        Two scenarios changed, both of which document the adaptor protocol
+        rather than the product: the call vocabulary is now `local get/set/
+        keys` and `remote fetch/fresh/push/set`. The conflict fix is covered
+        by *Concurrent edits to the same field conflict*, mutation-checked by
+        putting `channel.set` back.
+        It stayed on `Store.custom`, not `Store.make`: the server subscribes
+        when live, and a backend that pushes uses the channels. That is 5a's
+        finding, now confirmed against the code.
 
 ### Opus Autonomous Decisions
 
@@ -455,22 +468,14 @@ record of the analysis, and of where each one ended up.
 - **`receiveRemoved`'s seq is covered.** *A rejection from an inbound remove
   keeps its place in the order* orders both of its rejection sites against a
   remote refusal; `~seq=0.0` at either one reorders the list.
-- **`claims-app-ts`'s suite has been red since 2a**: 21 failed, 5 passed,
-  identical before and after the split (checked against `c6d6a7b` in a
-  worktree). Its adaptor still speaks the pre-phase-2 channel — `channel.set`
-  for a local answer (`adapters.ts:149`, now `partial`/`local`) and for a
-  remote one (`:86`, now `fresh`) — so nothing it does reaches the engine.
-  Expected: 5c migrates it. Recorded because a red suite that was always red
-  says nothing, and the next person to run it should not have to find that
-  out. `tests/app1` is also red, on a missing steps file, unrelated.
-- **`claims-app-ts` loses an edit on every conflict.**
-  `claims-app-ts/src/app/adapters.ts:109` maps the server's `conflict`
-  outcome onto `channel.set`, which was right while `set` still called
-  `reconcile`. Since 2c that confirms the op away and places remote truth:
-  no merge, no rejection, the local edit is gone. One line —
-  `channel.conflict(outcome.claim)` — and the app's own three-way merge is
-  reached again. Belongs to 5c, but it is data loss against the shipped app,
-  not a migration chore.
+- **`tests/app1` is red**, on a missing steps file for `Counter.feature`.
+  Pre-existing and nothing to do with `query`; it was red before this session
+  started.
+- **The claims app never retries a rejection.** Its one affordance is
+  Discard, plus the conflict resolver. `retry` has no button, so the half of
+  2d that puts refused work back in the outbox has no user in this app. A
+  product gap, not a defect — worth a look when the guide is rewritten,
+  because the guide will want to show it.
 - **The api reference and guide still say `dismiss`.** Five pages plus guide
   07; carried in `query/TODO.md`, for the doc rewrite once 4a has settled the
   surface. Not done here: 2d is behaviour, and the `.resi` is rewritten again
@@ -494,9 +499,14 @@ record of the analysis, and of where each one ended up.
   `.gitkeep` was ever committed. `TILIA-QUERY-SPLIT.md` was the whole spec for
   phase 3, and it was enough. The line about it at the top of this file is
   wrong.
-- **`src/index.d.ts` is hand-written and stale since 2a.** `esbuild.js`
-  copies it to `dist/index.d.ts`; nothing generates it. It still describes
-  `notFound`, `notLocal`, `fresh: boolean` and `dismiss`, and now also
-  predates `store:` and the tuple return. It is the contract `claims-app-ts`
-  compiles against, so it is part of 5c, not of the doc rewrite — and worth
-  doing once, after 4d, rather than at every step.
+- **`src/index.d.ts` is hand-written and now current.** `esbuild.js` copies
+  it to `dist/index.d.ts`; nothing generates it, so it has to be edited with
+  the `.resi`. It was stale from 2a until 5c. `claims-app-ts` compiling
+  against it under `--strict` is what checks it, and that is the only check
+  there is.
+- **A ReScript module alias emits `undefined`.** `module Kv =
+  TiliaQueryStore.Kv` inside `Store` compiles to `Kv: undefined` — the type
+  crosses, the values do not. Anything a consumer must call has to be
+  re-exported as a value, which is what `Store.memory` is (and what the
+  split doc called it all along). `Outcome` and `Removal` are types only, so
+  their `undefined` is harmless.

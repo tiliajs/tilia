@@ -315,6 +315,11 @@ module Store: {
    */
   module Kv = TiliaQueryStore.Kv
 
+  /** A keyspace that forgets when the process does. What `persist` defaults
+   to, and the only one this package ships — IndexedDB lives behind
+   `@tilia/query/indexeddb`. */
+  let memory: unit => Kv.t
+
   /**
    * The tag rows are kept under: one entry per row, keyed by its id, holding
    * the value as JSON. Documented because whoever writes the keyspace is who

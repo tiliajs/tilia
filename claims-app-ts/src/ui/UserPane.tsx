@@ -133,15 +133,15 @@ export const UserPane = leaf(function UserPane({ pane }: { pane: Pane }) {
             <Button
               kind="quiet"
               onClick={() => {
-                const theirs = pane.local.rows.get(rejection.edited.id);
+                const theirs = pane.local.row(rejection.edited.id);
                 if (theirs) claims.resolve(rejection, theirs);
               }}
             >
               Resolve
             </Button>
           ) : (
-            <Button kind="quiet" onClick={() => claims.dismiss(rejection)}>
-              Dismiss
+            <Button kind="quiet" onClick={() => claims.discard(rejection)}>
+              Discard
             </Button>
           )}
         </div>
@@ -456,14 +456,14 @@ const List = leaf(function List({ claims }: { claims: ClaimsFeature }) {
       </div>
     );
   }
-  if (list === "notFound") {
+  if (list.state === "noData") {
+    if (list.reason === "offline") {
+      return <div className="p-6 text-center text-[13px] text-muted">No saved claims are available offline.</div>;
+    }
+    if (list.reason.reason === "failed") {
+      return <div className="p-6 text-center text-[13px] text-warn-fg">Could not load claims: {list.reason.message}</div>;
+    }
     return <div className="p-6 text-center text-[13px] text-muted">No claims in this view.</div>;
-  }
-  if (list === "notLocal") {
-    return <div className="p-6 text-center text-[13px] text-muted">No saved claims are available offline.</div>;
-  }
-  if (list.state === "failed") {
-    return <div className="p-6 text-center text-[13px] text-warn-fg">Could not load claims: {list.message}</div>;
   }
   if (list.data.length === 0) {
     return <div className="p-6 text-center text-[13px] text-muted">No claims in this view.</div>;

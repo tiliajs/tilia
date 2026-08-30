@@ -23,11 +23,11 @@ export const create = (self: ClaimsFeature) => () => {
 };
 
 export const take = (repo: Repo, user: User) => (claim: Claim) => {
-  repo.claims.upsert({ ...clone(claim), status: "assigned", adjuster: user.name });
+  repo.store.upsert({ ...clone(claim), status: "assigned", adjuster: user.name });
 };
 
 export const close = (repo: Repo) => (claim: Claim) => {
-  repo.claims.upsert({ ...clone(claim), status: "closed" });
+  repo.store.upsert({ ...clone(claim), status: "closed" });
 };
 
 export const edit = (self: ClaimsFeature) => (claim: Claim) => {
@@ -36,7 +36,7 @@ export const edit = (self: ClaimsFeature) => (claim: Claim) => {
 
 export const commit = (repo: Repo) => (self: ClaimsFeature) => () => {
   if (self.editing === null) return;
-  repo.claims.upsert(clone(self.editing));
+  repo.store.upsert(clone(self.editing));
   self.editing = null;
 };
 
@@ -45,11 +45,11 @@ export const cancel = (self: ClaimsFeature) => () => {
 };
 
 export const remove = (repo: Repo) => (claim: Claim) => {
-  repo.claims.remove(claim.id);
+  repo.store.remove(claim.id);
 };
 
-export const dismiss = (repo: Repo) => (rejection: Rejection<Claim>) => {
-  repo.claims.dismiss(rejection);
+export const discard = (repo: Repo) => (rejection: Rejection<Claim>) => {
+  repo.store.discard(rejection);
 };
 
 export const resolve = (self: ClaimsFeature) => (rejection: Rejection<Claim>, theirs: Claim) => {
@@ -76,13 +76,13 @@ export const resolve = (self: ClaimsFeature) => (rejection: Rejection<Claim>, th
 
 export const saveResolution = (repo: Repo) => (self: ClaimsFeature) => () => {
   if (!self.resolution) return;
-  repo.claims.dismiss(self.resolution.rejection);
-  repo.claims.upsert(clone(self.resolution.draft));
+  repo.store.discard(self.resolution.rejection);
+  repo.store.upsert(clone(self.resolution.draft));
   self.resolution = null;
 };
 
 export const discardResolution = (repo: Repo) => (self: ClaimsFeature) => () => {
   if (!self.resolution) return;
-  repo.claims.dismiss(self.resolution.rejection);
+  repo.store.discard(self.resolution.rejection);
   self.resolution = null;
 };

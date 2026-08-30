@@ -4,6 +4,8 @@ import * as TiliaQueryStore from "./TiliaQueryStore.mjs";
 import * as TiliaQueryEngine from "./TiliaQueryEngine.mjs";
 import * as TiliaQuerySchema from "./TiliaQuerySchema.mjs";
 
+let memory = TiliaQueryStore.Kv.make;
+
 function custom(param) {
   let expiry = param.expiry;
   let merge = param.merge;
@@ -89,6 +91,7 @@ let Channel;
 
 let Store = {
   Kv: undefined,
+  memory: memory,
   rowTag: TiliaQueryStore.rowTag,
   Outcome: undefined,
   Removal: undefined,

@@ -32,7 +32,7 @@ export type ClaimsFeature = {
   commit(): void;
   cancel(): void;
   remove(claim: Claim): void;
-  dismiss(rejection: Rejection<Claim>): void;
+  discard(rejection: Rejection<Claim>): void;
   resolve(rejection: Rejection<Claim>, theirs: Claim): void;
   saveResolution(): void;
   discardResolution(): void;

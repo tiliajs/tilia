@@ -17,10 +17,13 @@
       are pure predicates over one row — no limits, no pagination, no
       aggregates — because join-on-upsert and full-result `set` semantics
       both break otherwise.
-- [ ] The api reference and guide still document `dismiss`, which 2d replaced
-      with `retry` and `discard` (`docs/content/query/api/core/090-dismiss.md`,
-      `040-upsert.md`, `080-status.md`, `230-rejection-type.md`, and guide 07).
-      Belongs with the doc rewrite, once the new surface is settled.
+- [ ] The api reference and guide are a generation behind: `dismiss` (2d
+      replaced it with `retry` and `discard`), the old `loadable`, and now the
+      whole of phase 4 — `store:` and the tuple return, `Store.make` /
+      `Store.custom`, `Kv` and `persist`, `lookup`. `src/index.d.ts` is
+      current as of 5c and is the closest thing to a written surface; the
+      guide and `docs/content/query/api/**` are not. Belongs with the doc
+      rewrite, once 4d has settled the packaging.
 - [ ] Restart-with-rejection scenario: the `.resi` promises the rejection
       resurfaces on its own after a restart (op reloads as pending, re-push
       fails again). Test it.

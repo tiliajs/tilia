@@ -1,4 +1,4 @@
-import type { Local, Remote } from "@tilia/query";
+import type { Kv, Remote } from "@tilia/query";
 import type { Claim, ClaimQuery } from "./claim";
 import { claimsBranch } from "./features/claims";
 import type { ClaimsFeature } from "./features/claims/type";
@@ -16,14 +16,14 @@ export type App = {
 export type Deps = {
   user: User;
   remote: Remote<Claim, ClaimQuery>;
-  local: Local<Claim, ClaimQuery>;
+  persist: Kv;
   refresh: number;
   memory: number;
   now?: () => number;
 };
 
-export function createApp({ user, remote, local, refresh, memory, now }: Deps): App {
-  const repo = makeRepo(remote, local, refresh, memory, now);
+export function createApp({ user, remote, persist, refresh, memory, now }: Deps): App {
+  const repo = makeRepo(remote, persist, refresh, memory, now);
   const claims = claimsBranch(repo, user);
   return {
     user,
