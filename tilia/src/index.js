@@ -9,6 +9,7 @@ export {
   batch,
   carve,
   computed,
+  cow,
   derived,
   lift,
   make,

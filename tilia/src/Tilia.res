@@ -202,6 +202,8 @@ type rec meta<'a> = {
   proxied: dict<meta<'a>>,
   /** Per-key clear callbacks for installed computed values. */
   computes: dict<bool => unit>,
+  /** Shallow copy of [target] at the first app write. Null until then; absent if not cow. */
+  mutable snapshot: nullable<'a>,
   /** The Proxy wrapping [target]. */
   mutable proxy: 'a,
 }
@@ -216,6 +218,8 @@ type node<'c> = {
   proxied: dict<meta<'c>>,
   /** See [meta.computes]. */
   computes: dict<bool => unit>,
+  /** See [meta.snapshot]. Absent on a plain node, so the slot is not paid. */
+  mutable snapshot: nullable<'c>,
 }
 
 type signal<'a> = {mutable value: 'a}
@@ -234,6 +238,13 @@ type deriver<'p> = {
    */
   derived: 'a. ('p => 'a) => 'a,
 }
+type cow = {
+  tilia: 'a. 'a => 'a,
+  diff: 'a. 'a => (array<string>, unit => 'a),
+  reset: 'a. 'a => unit,
+  set: 'a 'b. ('a, string, 'b) => unit,
+  delete: 'a. ('a, string) => unit,
+}
 type tilia = {
   tilia: 'a. 'a => 'a,
   carve: 'a. (deriver<'a> => 'a) => 'a,
@@ -244,6 +255,7 @@ type tilia = {
   derived: 'a. (unit => 'a) => signal<'a>,
   source: 'a 'ignored. ('a, ('a, 'a => unit) => 'ignored) => 'a,
   store: 'a. (('a => unit) => 'a) => 'a,
+  cow: cow,
   /** internal */
   _observe: (unit => unit) => observer,
 }
@@ -461,6 +473,95 @@ let getValue = (compile, set, value) => {
   get(value)
 }
 
+module Cow = {
+  // Taken on the first Assign, then left alone. `diff` compares live to this.
+  let copy: 'a => 'a = %raw(`function (target) {
+    return Array.isArray(target) ? target.slice() : Object.assign({}, target);
+  }`)
+
+  let changed: ('a, 'a) => array<string> = %raw(`function (live, orig) {
+    const named = [];
+    for (const k of new Set([...Object.keys(live), ...Object.keys(orig)])) {
+      if (Object.hasOwn(live, k) !== Object.hasOwn(orig, k) || live[k] !== orig[k]) {
+        named.push(k);
+      }
+    }
+    if (Array.isArray(live) && live.length !== orig.length && !named.includes("length")) {
+      named.push("length");
+    }
+    return named;
+  }`)
+
+  // No `snapshot` key until the node is copy-on-write.
+  let makeNode: (
+    root,
+    dict<watchers>,
+    dict<meta<'a>>,
+    dict<bool => unit>,
+  ) => node<'a> = %raw(`function (root, observed, proxied, computes) {
+    return { root, observed, proxied, computes };
+  }`)
+
+  let enable = (node: node<'c>) => node.snapshot = Null
+
+  external asNode: meta<'a> => node<'a> = "%identity"
+
+  external connector: (
+    'a => 'a,
+    'b => (array<string>, unit => 'b),
+    'c => unit,
+    ('d, string, 'e) => unit,
+    ('f, string) => unit,
+  ) => cow = "cowConnector"
+
+  %%raw(`
+  function cowConnector(tilia, diff, reset, set, remove) {
+    return { tilia, diff, reset, set, delete: remove };
+  }
+  `)
+
+  let make = (wrap, write, remove) => {
+    let forget = (m: meta<'a>) =>
+      switch m.snapshot {
+      | Undefined => ()
+      | _ => m.snapshot = Null
+      }
+    connector(
+      wrap,
+      proxy =>
+        switch _meta(proxy) {
+        | Value(m) =>
+          switch m.snapshot {
+          | Value(orig) => (changed(m.target, orig), () => copy(orig))
+          | _ => ([], () => copy(m.target))
+          }
+        | _ => ([], () => copy(proxy))
+        },
+      proxy =>
+        switch _meta(proxy) {
+        | Value(m) => forget(m)
+        | _ => ()
+        },
+      (proxy, key, value) =>
+        switch _meta(proxy) {
+        | Value(m) => {
+            forget(m)
+            ignore(write(asNode(m), Typeof.array(m.target), m.target, key, value))
+          }
+        | _ => ignore(Reflect.set(proxy, key, value))
+        },
+      (proxy, key) =>
+        switch _meta(proxy) {
+        | Value(m) => {
+            forget(m)
+            ignore(remove(asNode(m), m.target, key))
+          }
+        | _ => ignore(Reflect.deleteProperty(proxy, key))
+        },
+    )
+  }
+}
+
 type observerRef = {mutable o: nullable<observer>}
 type lastValue<'a> = {mutable v: 'a}
 
@@ -557,7 +658,7 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
     | Value(w) if Set.size(w.observers) > 0 =>
       // We have active observers on this key.
       // Rebuild and if the key changed, it will notify.
-      ignore(set(node, isArray, true, target, key, rebuild()))
+      ignore(setCow(node, isArray, true, target, key, rebuild()))
     | Value(w) => {
         // No active listeners.
         w.state = Changed
@@ -597,6 +698,7 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
     | _e => {
         _clear(o)
         node.root.observer = previous
+
         // A blown computed must never run again: replace its rebuild with a
         // stub rethrowing the original error and keep the compiled marker in
         // the slot so every read surfaces the error (writing the key clears
@@ -642,6 +744,39 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
   rebuild()
 }
 
+and setCow = (
+  node: node<'c>,
+  isArray: bool,
+  fromComputed: bool,
+  target: 'a,
+  key: string,
+  value: 'b,
+) => {
+  let taken: nullable<'a> = if fromComputed {
+    Undefined
+  } else {
+    switch node.snapshot {
+    | Null => Value(Cow.copy(target))
+    | _ => Undefined
+    }
+  }
+  switch set(node, isArray, fromComputed, target, key, value) {
+  | false => false
+  | true =>
+    switch taken {
+    | Value(orig) => node.snapshot = Value(orig)
+    | _ =>
+      if fromComputed {
+        switch node.snapshot {
+        | Value(orig) => ignore(Reflect.set(orig, key, value))
+        | _ => ()
+        }
+      }
+    }
+    true
+  }
+}
+
 let deleteProperty = (node: node<'c>, target: 'a, key: string) => {
   let res = Reflect.deleteProperty(target, key)
   Dict.delete(node.proxied, key)
@@ -656,7 +791,29 @@ let deleteProperty = (node: node<'c>, target: 'a, key: string) => {
   res
 }
 
-let rec get = (node: node<'c>, meta: meta<'a>, isArray: bool, target: 'a, key: string): 'b => {
+let deleteCow = (node: node<'c>, target: 'a, key: string) => {
+  let taken: nullable<'a> = switch node.snapshot {
+  | Null => Value(Cow.copy(target))
+  | _ => Undefined
+  }
+  let res = deleteProperty(node, target, key)
+  switch taken {
+  | Value(orig) =>
+    if res {
+      node.snapshot = Value(orig)
+    }
+  | _ => ()
+  }
+  res
+}
+
+let rec get = (
+  node: node<'c>,
+  meta: meta<'a>,
+  isArray: bool,
+  target: 'a,
+  key: string,
+): 'b => {
   if key === metaKey {
     // We use this to avoid argument removal by compilation (it is not included
     // in JS compiled code).
@@ -690,7 +847,7 @@ let rec get = (node: node<'c>, meta: meta<'a>, isArray: bool, target: 'a, key: s
             let v = getValue(compile, setter, value)
             ignore(Reflect.set(target, key, v))
             if Typeof.proxiable(v) {
-              let m = proxify(node.root, v)
+              let m = proxify(node.root, false, v)
               Dict.set(node.proxied, key, m)
               m.proxy
             } else {
@@ -709,26 +866,93 @@ let rec get = (node: node<'c>, meta: meta<'a>, isArray: bool, target: 'a, key: s
   }
 }
 
-and proxify = (root: root, target: 'a): meta<'a> => {
+and getCow = (
+  node: node<'c>,
+  meta: meta<'a>,
+  isArray: bool,
+  target: 'a,
+  key: string,
+): 'b => {
+  if key === metaKey {
+    ignore(meta)
+    %raw(`meta`)
+  } else if key === dynamicKey {
+    %raw(`undefined`)
+  } else {
+    let value = Reflect.get(target, key)
+    let own = Object.hasOwn(target, key)
+    if value === undefined || own {
+      switch node.root.observer {
+      | Value(o) =>
+        if isArray && key == "length" {
+          let w = observeKey(node.observed, indexKey, node.computes)
+          Array.push(o.observing, w)
+        } else {
+          let w = observeKey(node.observed, key, node.computes)
+          Array.push(o.observing, w)
+        }
+      | _ => ()
+      }
+
+      if Typeof.proxiable(value) && !Object.readonly(target, key) {
+        switch Dict.get(node.proxied, key) {
+        | Value(m) => m.proxy
+        | _ => {
+            let compile = callback => compile(node, isArray, target, key, callback)
+            let setter = v => ignore(setCow(node, isArray, true, target, key, v))
+            let v = getValue(compile, setter, value)
+            ignore(Reflect.set(target, key, v))
+            if v !== value {
+              switch node.snapshot {
+              | Value(orig) => ignore(Reflect.set(orig, key, v))
+              | _ => ()
+              }
+            }
+            if Typeof.proxiable(v) {
+              let m = proxify(node.root, true, v)
+              Dict.set(node.proxied, key, m)
+              m.proxy
+            } else {
+              v
+            }
+          }
+        }
+      } else {
+        value
+      }
+    } else {
+      value
+    }
+  }
+}
+
+and proxify = (root: root, cow: bool, target: 'a): meta<'a> => {
   switch _meta(target) {
   | Value(m) if m.root === root => m
-  | Value(m) => proxify(root, m.target)
+  | Value(m) => proxify(root, cow, m.target)
   | _ =>
-    let node: node<'b> = {
-      root,
-      observed: Dict.make(),
-      proxied: Dict.make(),
-      computes: Dict.make(),
+    let node = Cow.makeNode(root, Dict.make(), Dict.make(), Dict.make())
+    if cow {
+      Cow.enable(node)
     }
     let meta: meta<'a> = %raw(`(node.target = target, node)`)
     let isArray = Typeof.array(target)
     let proxy = Proxy.make(
       target,
-      {
-        "set": set(node, isArray, false, ...),
-        "deleteProperty": deleteProperty(node, ...),
-        "get": get(node, meta, isArray, ...),
-        "ownKeys": ownKeys(node.root, node.observed, node.computes, ...),
+      if cow {
+        {
+          "set": setCow(node, isArray, false, ...),
+          "deleteProperty": deleteCow(node, ...),
+          "get": getCow(node, meta, isArray, ...),
+          "ownKeys": ownKeys(node.root, node.observed, node.computes, ...),
+        }
+      } else {
+        {
+          "set": set(node, isArray, false, ...),
+          "deleteProperty": deleteProperty(node, ...),
+          "get": get(node, meta, isArray, ...),
+          "ownKeys": ownKeys(node.root, node.observed, node.computes, ...),
+        }
       },
     )
     meta.proxy = proxy
@@ -743,8 +967,20 @@ let makeTilia = (root: root) =>
     if !Typeof.proxiable(value) {
       raise("tilia: value is not an object or array")
     }
-    proxify(root, value).proxy
+    proxify(root, false, value).proxy
   }
+
+let makeCow = (root: root) =>
+  Cow.make((value: 'a) => {
+    if !Typeof.proxiable(value) {
+      raise("tilia: value is not an object or array")
+    }
+    proxify(root, true, value).proxy
+  }, (node, isArray, target, key, value) => set(node, isArray, false, target, key, value), (
+    node,
+    target,
+    key,
+  ) => deleteProperty(node, target, key))
 
 let makeDerived = p =>
   fn => {
@@ -772,7 +1008,7 @@ let makeCarve = (root: root) =>
     if !Typeof.proxiable(value) {
       raise("tilia: value is not an object or array")
     }
-    let value = proxify(root, value).proxy
+    let value = proxify(root, false, value).proxy
     p := value
     value
   }
@@ -936,13 +1172,19 @@ external connector: (
   ('t, ('t, 't => 'u) => 'v) => 't,
   // store
   ('w => unit) => 'w,
+  // cow
+  cow,
   // internal
   // _observe
   (unit => unit) => observer,
 ) => tilia = "connector"
 
 %%raw(`
-function connector(tilia, carve, observe, watch, batch, signal, derived, source, store, _observe) {
+function connector(
+  tilia, carve, observe, watch, batch,
+  signal, derived, source, store, cow,
+  _observe
+) {
   return {
     tilia,
     carve,
@@ -954,6 +1196,7 @@ function connector(tilia, carve, observe, watch, batch, signal, derived, source,
     derived,
     source,
     store,
+    cow,
     // internal
     _observe,
   };
@@ -989,6 +1232,7 @@ let make = (~gc=defaultGc): tilia => {
     makeDerived(tilia),
     makeSource(tilia),
     makeStore(tilia),
+    makeCow(root),
     // Internal
     _observe,
   )
@@ -1043,6 +1287,7 @@ let signal = _ctx.signal
 let derived = _ctx.derived
 let source = _ctx.source
 let store = _ctx.store
+let cow = _ctx.cow
 // internal
 let _observe = _ctx._observe
 // Opaque type for library developers

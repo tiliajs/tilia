@@ -21,7 +21,11 @@ module AnyObject = {
   type descriptor<'a> = {writable: bool, value: 'a}
   external get: ('a, string) => 'b = "Reflect.get"
   external set: ('a, string, 'b) => bool = "Reflect.set"
+  external has: ('a, string) => bool = "Reflect.has"
+  external ownKeys: 'a => array<string> = "Reflect.ownKeys"
   external deleteProperty: ('a, string) => unit = "Reflect.deleteProperty"
+  external got: ('a, string) => Nullable.t<'b> = "Reflect.get"
+  external stringify: 'a => string = "JSON.stringify"
   external getOwnPropertyDescriptor: ('a, string) => nullable<descriptor<'b>> =
     "Object.getOwnPropertyDescriptor"
   external defineProperty: ('a, string, descriptor<'b>) => unit = "Object.defineProperty"
@@ -53,6 +57,8 @@ type tester = {mutable called: bool}
 type error = {mutable message: option<string>}
 
 let apply = fn => fn()
+
+@set external setLength: (array<'a>, int) => unit = "length"
 
 let person = () => {
   name: "John",
@@ -2056,5 +2062,114 @@ describe("Tilia", () => {
     expect(() => read(p, "twice")).toThrow(~message="boom")
     expect(() => read(p, "boom")).toThrow(~message="boom")
     expect(m.count).toBe(1)
+  })
+  // === cow: copy-on-write ===
+
+  it("Should name a changed field and hand back the original", () => {
+    let p = cow.tilia(person())
+    p.name = "Mary"
+    Array.push(p.passions, "watercolor")
+
+    let (keys, original) = cow.diff(p)
+    expect(keys).toEqual(["name"])
+    let orig = original()
+    expect(orig.name).toBe("John")
+
+    // A snapshot: later writes cannot reach what was built.
+    p.name = "Zoe"
+    expect(orig.name).toBe("John")
+
+    p.name = "John"
+    let (keys, _) = cow.diff(p)
+    expect(keys).toEqual([])
+
+    let (keys, original) = cow.diff(p.passions)
+    expect(keys).toEqual(["1", "length"])
+    expect(original()).toEqual(["fruits"])
+  })
+
+  it("Should journal a nested object on its own", () => {
+    let p = cow.tilia(person())
+    p.name = "Mary"
+    p.address.city = "Kindness"
+
+    let (keys, _) = cow.diff(p)
+    expect(keys).toEqual(["name"])
+    let (nested, original) = cow.diff(p.address)
+    expect(nested).toEqual(["city"])
+    expect(original().city).toBe("Truth")
+
+    cow.reset(p)
+    let (keys, original) = cow.diff(p)
+    expect(keys).toEqual([])
+    expect(original().name).toBe("Mary")
+    let (nested, _) = cow.diff(p.address)
+    expect(nested).toEqual(["city"])
+  })
+
+  it("Should not name a computed rebuild but name a hand write", () => {
+    let p = cow.tilia({
+      name: "John",
+      username: "john",
+    })
+    p.username = computed(() => p.name->String.toLowerCase)
+    observe(() => ignore(p.username))
+    expect(p.username).toBe("john")
+
+    p.name = "Mary"
+    expect(p.username).toBe("mary")
+    let (keys, _) = cow.diff(p)
+    expect(keys).toEqual(["name"])
+
+    p.username = "zoe"
+    let (keys, _) = cow.diff(p)
+    expect(keys).toEqual(["name", "username"])
+  })
+
+  it("Should drop the original on a truth write", () => {
+    let p = cow.tilia(person())
+    p.name = "Mary"
+    p.phone = Value("1")
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    expect(p.name).toBe("Mary")
+    _ready(o, true)
+    m.called = false
+
+    cow.set(p, "name", "Zoe")
+    expect(m.called).toBe(true)
+    let (keys, original) = cow.diff(p)
+    expect(keys).toEqual([])
+    expect(original().name).toBe("Zoe")
+
+    p.name = "Ann"
+    let (keys, original) = cow.diff(p)
+    expect(keys).toEqual(["name"])
+    expect(original().name).toBe("Zoe")
+
+    cow.delete(p, "name")
+    let (keys, _) = cow.diff(p)
+    expect(keys).toEqual([])
+  })
+
+  it("Should write without a copy on a plain proxy", () => {
+    let q = cow.tilia(tilia(person()))
+    q.name = "Ann"
+    let (keys, _) = cow.diff(q)
+    expect(keys).toEqual([])
+
+    cow.set(q, "name", "Mary")
+    expect(q.name).toBe("Mary")
+    let (keys, _) = cow.diff(q)
+    expect(keys).toEqual([])
+    cow.reset(q)
+    cow.delete(q, "name")
+    expect(AnyObject.has(q, "name")).toBe(false)
+
+    let raw = TestObject.make()
+    AnyObject.setReadonly(raw, "id", "1")
+    let rows = cow.tilia(raw)
+    cow.set(rows, "id", "2")
+    expect(TestObject.get(rows, "id")).toBe("1")
   })
 })

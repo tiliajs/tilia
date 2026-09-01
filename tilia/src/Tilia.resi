@@ -13,6 +13,46 @@ type deriver<'p> = {
   derived: 'a. ('p => 'a) => 'a,
 }
 
+type cow = {
+  /** 
+   * Transform a regular object or array into a tilia proxy. On the first
+   * write, a shallow copy is set aside. Children reached through the object
+   * are copy-on-write too. Cow is chosen at wrap time.
+   */
+  tilia: 'a. 'a => 'a,
+  /** 
+   * Return the keys that differ from the copy, and a thunk that clones it.
+   * 
+   * The clone is an ordinary object, a snapshot, not a view — call it before
+   * `reset`. Nested objects are shared with the live tree; ask that child
+   * its own `diff`. A child edited in place is not named on the parent.
+   * 
+   * On a plain object, there is no copy: the keys are empty.
+   */
+  diff: 'a. 'a => (array<string>, unit => 'a),
+  /** 
+   * Drop the copy. The object becomes its own original.
+   * 
+   * `reset` is per object: a child keeps its own copy. On a plain object,
+   * this is a no-op.
+   */
+  reset: 'a. 'a => unit,
+  /** 
+   * Drop the copy and write. Observers still run, a new copy is not taken.
+   * 
+   * Use this when a received record is merged in place. On a plain object,
+   * this is a normal write.
+   */
+  set: 'a 'b. ('a, string, 'b) => unit,
+  /** 
+   * Drop the copy and delete. Observers still run, a new copy is not taken.
+   * 
+   * Use this when a received record no longer has the field. On a plain
+   * object, this is a normal delete.
+   */
+  delete: 'a. ('a, string) => unit,
+}
+
 type tilia = {
   /** 
    * Transform a regular object or array into a tilia proxy value.
@@ -99,6 +139,11 @@ type tilia = {
   * @param f The setup function, receives a setter and returns the current value.
   */
   store: 'a. (('a => unit) => 'a) => 'a,
+  /**
+   * Copy-on-write: a shallow copy on first write, so a caller can tell which
+   * fields it moved and read the object as it was.
+   */
+  cow: cow,
   /** 
    * Internal: Register an observer callback.
    */
@@ -249,6 +294,20 @@ let source: ('a, ('a, 'a => unit) => 'ignored) => 'a
  * @param f The setup function, receives a setter and returns the current value.
  */
 let store: (('a => unit) => 'a) => 'a
+
+/**
+ * Copy-on-write: a shallow copy on first write, so a caller can tell which
+ * fields it moved and read the object as it was.
+ *
+ * ```rescript
+ * let form = cow.tilia(row)
+ * form.name = "Mary"
+ * let (changed, original) = cow.diff(form) // (["name"], row as it was)
+ * cow.set(form, "name", remote.name) // merge: observers run, copy dropped
+ * cow.reset(form)
+ * ```
+ */
+let cow: cow
 
 /** ---------- Internal types and functions for library developers ---------- */
 /** 

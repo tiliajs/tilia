@@ -38,6 +38,10 @@ Published documentation:
 - `signal` is a standalone reactive value. Write through its returned setter.
 - `make` creates an isolated reactive context; top-level functions use the
   default context.
+- `cow` is the same proxy with a shallow copy taken on first write, so a
+  caller can ask which fields it changed and read the object as it was.
+  `cow.set` drops the copy and writes. `cow.delete` does the same for
+  removal. On a plain object, both are normal writes.
 
 ## Choosing the API
 
@@ -55,6 +59,11 @@ Published documentation:
   updates.
 - Use `readonly(data)` to keep immutable or foreign data unproxied.
 - Use `batch(fn)` to group writes made outside a tilia callback.
+- Use `cow.tilia(object)` when you need to know later which fields were
+  changed, then `cow.diff(object)` to read them and `cow.reset(object)` to
+  start again. Use `cow.set(object, key, value)` when a received record is
+  merged in place, and `cow.delete(object, key)` when it no longer has the
+  field: observers still run, the copy is dropped.
 
 ## Critical rules
 
@@ -70,6 +79,15 @@ Published documentation:
   normally unnecessary inside them.
 - `readonly(data)` returns a holder whose `data` field is non-writable and not
   tracked or proxied.
+- `cow.diff` and `cow.reset` answer for one object: a child edited in place is
+  not named on its parent, and `original.child` is the live child. Walk the
+  children and ask each one.
+- `cow.diff` returns `[keys, original]` where `original` is a function: call
+  it to clone the copy taken on first write. It is an ordinary object, and it
+  is a snapshot — call it before `cow.reset`.
+- `cow.set` drops the copy and writes: observers run, a new copy is not
+  taken. On a plain object, it is a normal write.
+- `cow.delete` drops the copy and deletes the same way.
 
 ## Minimal TypeScript
 

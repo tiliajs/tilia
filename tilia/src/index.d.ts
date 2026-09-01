@@ -25,6 +25,45 @@ export type Deriver<U> = {
   derived: <T>(fn: (p: U) => T) => T;
 };
 
+/** Copy-on-write: a shallow copy on first write, so a caller can tell which fields it moved. */
+export type Cow = {
+  /**
+   * Transform a regular object or array into a reactive tilia proxy. On the
+   * first write, a shallow copy is set aside. Children reached through the
+   * object are copy-on-write too. Cow is chosen at wrap time.
+   */
+  tilia: <T>(branch: T) => T;
+  /**
+   * Return the keys that differ from the copy, and a thunk that clones it.
+   *
+   * The clone is an ordinary object, a snapshot, not a view — call it before
+   * `reset`. Nested objects are shared with the live tree; ask that child its
+   * own `diff`. A child edited in place is not named on the parent.
+   *
+   * On a plain object, there is no copy: the keys are empty.
+   */
+  diff: <T>(branch: T) => [string[], () => T];
+  /**
+   * Drop the copy: the object becomes its own original. Per object, so a
+   * child keeps its own copy. On a plain object, this is a no-op.
+   */
+  reset: <T>(branch: T) => void;
+  /**
+   * Drop the copy and write. Observers still run, a new copy is not taken.
+   *
+   * Use this when a received record is merged in place. On a plain object,
+   * this is a normal write.
+   */
+  set: <T>(branch: T, key: string, value: unknown) => void;
+  /**
+   * Drop the copy and delete. Observers still run, a new copy is not taken.
+   *
+   * Use this when a received record no longer has the field. On a plain
+   * object, this is a normal delete.
+   */
+  delete: <T>(branch: T, key: string) => void;
+};
+
 /** A tilia context: an isolated reactive scope with its own tracking and scheduling. */
 export type Tilia = {
   /**
@@ -92,6 +131,11 @@ export type Tilia = {
    * Like `source`, but the initial value is produced by the setup itself.
    */
   store: <T>(fn: (set: Setter<T>) => T) => T;
+  /**
+   * Copy-on-write helpers: a shallow copy on first write, so a caller can
+   * tell which fields it moved and read the object as it was.
+   */
+  cow: Cow;
   /** @internal Register a raw observer (library authors; see `_observe`). */
   _observe(callback: () => void): Observer;
 };
@@ -175,6 +219,20 @@ export function source<T>(
  * Like `source`, but the initial value is produced by the setup itself.
  */
 export function store<T>(fn: (set: Setter<T>) => T): T;
+
+/**
+ * Copy-on-write: a shallow copy on first write, so a caller can tell which
+ * fields it moved and read the object as it was.
+ *
+ * ```ts
+ * const form = cow.tilia(row);
+ * form.name = "Mary";
+ * const [changed, original] = cow.diff(form); // [["name"], row as it was]
+ * cow.set(form, "name", remote.name); // merge: observers run, copy dropped
+ * cow.reset(form);
+ * ```
+ */
+export const cow: Cow;
 /**
  * Wrap a value in a {@link Readonly} holder. The wrapped data is not proxied
  * nor tracked: use this to insert immutable or foreign objects (class
