@@ -6,19 +6,6 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
-    },
-    "./indexeddb": {
-      "types": "./dist/indexeddb.d.ts",
-      "import": "./dist/indexeddb.mjs",
-      "require": "./dist/indexeddb.cjs"
-    },
-    "./package.json": "./package.json"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/tiliajs/tilia.git"

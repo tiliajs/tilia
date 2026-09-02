@@ -1,0 +1,5 @@
+{
+  "main": "../dist/indexeddb.cjs",
+  "module": "../dist/indexeddb.mjs",
+  "types": "../dist/indexeddb.d.ts"
+}

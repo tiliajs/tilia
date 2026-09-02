@@ -10,6 +10,9 @@
 
 # TypeScript target: include build result from esbuild
 !dist/*
+# The `@tilia/query/indexeddb` subpath: main, module and types, without an
+# exports map, which an in-source ReScript build cannot be described by
+!indexeddb/package.json
 
 # Include AI/coding-assistant docs
 !llms.txt
