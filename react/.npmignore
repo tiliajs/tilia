@@ -10,5 +10,8 @@
 # TypeScript target: include build result from esbuild
 !dist/*
 
+# Include AI/coding-assistant docs
+!llms.txt
+
 # Not the build: the monorepo test run emits a parallel .res.mjs world
 src/*.res.mjs
