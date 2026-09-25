@@ -44,7 +44,7 @@ module Network = {
 // ================ Domain
 
 // The domain: language training cards, queried by deck. Table cells arrive
-// as strings from vitest-bdd's `toRecords`, so `seen` stays a string end to
+// as strings from @epure/vitest's `toRecords`, so `seen` stays a string end to
 // end. `version` is owned by the remote (Papabase); values written by the
 // app never carry one.
 type card = {

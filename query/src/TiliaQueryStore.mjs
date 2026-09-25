@@ -202,6 +202,10 @@ function connect(param, binding) {
     let row = parseRow(value);
     if (row == null) {
       return;
+    }
+    let live = binding.item(id(row));
+    if (live !== undefined) {
+      return Primitive_option.some(Primitive_option.valFromOption(live));
     } else {
       return Primitive_option.some(row);
     }

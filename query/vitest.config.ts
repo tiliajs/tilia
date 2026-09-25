@@ -1,7 +1,7 @@
-import { vitestBdd } from "vitest-bdd";
+import { epureVitest } from "@epure/vitest";
 
 export default {
-  plugins: [vitestBdd()],
+  plugins: [epureVitest()],
   test: {
     include: ["test/**/*.feature"],
   },

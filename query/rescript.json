@@ -32,6 +32,6 @@
     "tilia"
   ],
   "dev-dependencies": [
-    "vitest-bdd"
+    "@epure/vitest"
   ]
 }

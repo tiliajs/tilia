@@ -1,13 +1,13 @@
-open VitestBdd
+open EpureVitest
 
 type entry = {key: string, value: string}
 type keyRow = {key: string}
 
 // Step definitions for IndexedDb.feature. The keyspace answers through a
-// callback, so a read step returns the promise of its answer and vitest-bdd
+// callback, so a read step returns the promise of its answer and @epure/vitest
 // waits for it: no counting of ticks, and a read that never answers fails by
 // timing out rather than by passing.
-given("a keyspace", ({step}, _) => {
+given("a keyspace", ({step}) => {
   let control = ref(None)
   let errors: ref<array<JsError.t>> = ref([])
 

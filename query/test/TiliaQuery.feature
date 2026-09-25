@@ -123,6 +123,27 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
 
+  # The engine holds one live object per row, and `item` hands it out so a
+  # store can merge in place. A local answer reads JSON copies back from the
+  # keyspace: a row still live must answer as the live object, never as its
+  # copy, or a kept reference is orphaned while the list moves on.
+
+  Scenario: a local answer keeps the live object
+    When I open one card from the "Spanish" deck filtered by seen "0"
+    And I open the "Spanish" deck
+    And time passes
+    And I keep the visible card
+    And I close the deck
+    And 6 minutes pass
+    And tick is called
+    And I go "offline"
+    And I open the "Spanish" deck
+    Then I should see "local" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    And the kept card should be the listed object
+
   Scenario: an empty partial waits while the remote may still answer
     When the local store holds nothing
     And I open the "Spanish" deck

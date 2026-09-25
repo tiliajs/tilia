@@ -1,4 +1,4 @@
-open VitestBdd
+open EpureVitest
 open MakeWorld
 
 type queryRecord = {ids: array<string>}
@@ -27,7 +27,7 @@ type mergeRecord = {
 // simulated remote (Papabase behind a Network), local store (Dexme) and the
 // app — then each step drives or observes it the way a real app would.
 //
-// Timing: vitest-bdd awaits every step, and the clock/tick steps end on a
+// Timing: @epure/vitest awaits every step, and the clock/tick steps end on a
 // macrotask (`settled`), so every pending local (Dexme) answer lands
 // between two steps. Remote responses are held by the Network and only
 // arrive when a `time passes` step flushes it.
@@ -37,7 +37,7 @@ let numericVersion = (card: card) =>
   | None => card
   }
 
-given("an {string} training app", ({step}, status: string) => {
+given1("an {string} training app", ({step}, status: string) => {
   let (online_, setOnline) = Tilia.signal(status === "online")
   let (now_, setNow) = Tilia.signal(0.0)
   let network = Network.make()
@@ -289,6 +289,28 @@ given("an {string} training app", ({step}, status: string) => {
     expect(single.contents).toMatchObject(
       TiliaQuery.NoData({reason: TiliaQuery.NoMatch({claim: claimOf(claim)})}),
     )
+  })
+
+  // A reference an app holds on to, checked by identity: the row must stay
+  // the same object across answers, whatever tier delivered them.
+  let kept: ref<option<card>> = ref(None)
+
+  step("I keep the visible card", () =>
+    switch single.contents {
+    | TiliaQuery.Loaded({data}) => kept := Some(data)
+    | _ => throw(Invalid_argument("no visible card to keep"))
+    }
+  )
+
+  step("the kept card should be the listed object", () => {
+    let card = switch kept.contents {
+    | Some(card) => card
+    | None => throw(Invalid_argument("no card was kept"))
+    }
+    switch view.contents {
+    | TiliaQuery.Loaded({data}) => expect(data->Array.some(row => row === card)).toBe(true)
+    | _ => throw(Invalid_argument("the deck is not loaded"))
+    }
   })
 
   // The rows the keyspace holds, read the way an inspection would: the store

@@ -4,8 +4,8 @@ import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Vitest from "vitest";
 import * as MakeWorld from "./MakeWorld.mjs";
 import * as TiliaQuery from "../src/TiliaQuery.mjs";
-import * as VitestBdd from "vitest-bdd";
 import * as Stdlib_Dict from "@rescript/runtime/lib/es6/Stdlib_Dict.js";
+import * as Vitest$1 from "@epure/vitest";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as Primitive_object from "@rescript/runtime/lib/es6/Primitive_object.js";
 import * as Primitive_option from "@rescript/runtime/lib/es6/Primitive_option.js";
@@ -20,7 +20,7 @@ function numericVersion(card) {
   return newrecord;
 }
 
-VitestBdd.Given("an {string} training app", (param, status) => {
+Vitest$1.Given("an {string} training app", (param, status) => {
   let step = param.step;
   let match = Tilia.signal(status === "online");
   let setOnline = match[1];
@@ -64,16 +64,16 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     contents: () => {}
   };
   step("a set of language cards on a remote", table => {
-    VitestBdd.toRecords(table).forEach(card => {
+    Vitest$1.toRecords(table).forEach(card => {
       papabase.upsert(card);
     });
   });
   step("the remote is updated with", table => {
-    VitestBdd.toRecords(table).forEach(card => {
+    Vitest$1.toRecords(table).forEach(card => {
       papabase.upsert(card);
     });
   });
-  step("the subscription changes", table => store.contents.receive.changed(VitestBdd.toRecords(table)));
+  step("the subscription changes", table => store.contents.receive.changed(Vitest$1.toRecords(table)));
   step("the subscription removes {string}", id => store.contents.receive.removed([id]));
   step("the remote removes {string}", id => {
     papabase.remove(id);
@@ -110,7 +110,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("the store replays its outbox during construction", table => {
     cards.contents.dispose();
-    cards.contents = MakeWorld.makeSync(VitestBdd.toRecords(table), () => now_.value, online_);
+    cards.contents = MakeWorld.makeSync(Vitest$1.toRecords(table), () => now_.value, online_);
   });
   step("deck {string} is in local db", deck => {
     let match = MakeWorld.make(dexme, undefined, undefined, undefined, undefined, undefined, undefined, papabase, () => now_.value, online_);
@@ -135,7 +135,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     rules.transientFrom = undefined;
   });
   step("the remote conflicts {string} with", (id, table) => {
-    let row = numericVersion(VitestBdd.toRecords(table)[0]);
+    let row = numericVersion(Vitest$1.toRecords(table)[0]);
     papabase._put(row);
     rules.conflicts[id] = row;
   });
@@ -222,7 +222,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     }
   }));
   step("I should see {string} loaded with data", (claim, table) => {
-    let expected = VitestBdd.toRecords(table);
+    let expected = Vitest$1.toRecords(table);
     Vitest.expect(view.contents).toMatchObject({
       state: "loaded",
       claim: claimOf(claim),
@@ -235,7 +235,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
     data: []
   }));
   step("I should see the {string} card", (claim, table) => {
-    let expected = VitestBdd.toRecords(table)[0];
+    let expected = Vitest$1.toRecords(table)[0];
     Vitest.expect(single.contents).toMatchObject({
       state: "loaded",
       claim: claimOf(claim),
@@ -249,6 +249,57 @@ VitestBdd.Given("an {string} training app", (param, status) => {
       claim: claimOf(claim)
     }
   }));
+  let kept = {
+    contents: undefined
+  };
+  step("I keep the visible card", () => {
+    let match = single.contents;
+    if (typeof match !== "object") {
+      throw {
+        RE_EXN_ID: "Invalid_argument",
+        _1: "no visible card to keep",
+        Error: new Error()
+      };
+    }
+    if (match.state === "loaded") {
+      kept.contents = match.data;
+      return;
+    }
+    throw {
+      RE_EXN_ID: "Invalid_argument",
+      _1: "no visible card to keep",
+      Error: new Error()
+    };
+  });
+  step("the kept card should be the listed object", () => {
+    let card = kept.contents;
+    let card$1;
+    if (card !== undefined) {
+      card$1 = card;
+    } else {
+      throw {
+        RE_EXN_ID: "Invalid_argument",
+        _1: "no card was kept",
+        Error: new Error()
+      };
+    }
+    let match = view.contents;
+    if (typeof match !== "object") {
+      throw {
+        RE_EXN_ID: "Invalid_argument",
+        _1: "the deck is not loaded",
+        Error: new Error()
+      };
+    }
+    if (match.state === "loaded") {
+      return Vitest.expect(match.data.some(row => row === card$1)).toBe(true);
+    }
+    throw {
+      RE_EXN_ID: "Invalid_argument",
+      _1: "the deck is not loaded",
+      Error: new Error()
+    };
+  });
   let rowPrefix = MakeWorld.DexmeKv.prefix(TiliaQuery.Store.rowTag);
   let storedRows = () => dexme.entries._select(entry => entry.key.startsWith(rowPrefix)).map(entry => JSON.parse(entry.value));
   step("the local store holds nothing", () => Vitest.expect(storedRows().length).toBe(0));
@@ -284,7 +335,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   });
   step("onError should have received nothing", () => Vitest.expect(errors.contents.length).toBe(0));
   step("I upsert", table => {
-    VitestBdd.toRecords(table).forEach(card => store.contents.upsert(card));
+    Vitest$1.toRecords(table).forEach(card => store.contents.upsert(card));
   });
   step("I remove {string}", id => store.contents.remove(id));
   step("status should have {number} pending", count => Vitest.expect(store.contents.status.pending).toBe(count | 0));
@@ -362,7 +413,7 @@ VitestBdd.Given("an {string} training app", (param, status) => {
           };
       }
     });
-    Vitest.expect(actual).toEqual(VitestBdd.toRecords(table));
+    Vitest.expect(actual).toEqual(Vitest$1.toRecords(table));
   });
   let retried = {
     contents: undefined
@@ -440,24 +491,24 @@ VitestBdd.Given("an {string} training app", (param, status) => {
           };
       }
     });
-    Vitest.expect(actual).toEqual(VitestBdd.toRecords(table));
+    Vitest.expect(actual).toEqual(Vitest$1.toRecords(table));
   });
   step("remote should not have {string}", id => Vitest.expect(papabase._select(c => c.id === id).length).toBe(0));
   step("remote should have", table => {
-    VitestBdd.toRecords(table).map(numericVersion).forEach(card => {
+    Vitest$1.toRecords(table).map(numericVersion).forEach(card => {
       let found = Stdlib_Option.getOrThrow(papabase._select(c => c.id === card.id)[0], `remote has no card "` + card.id + `"`);
       Vitest.expect(found).toMatchObject(card);
     });
   });
   step("local should not have {string}", id => Vitest.expect(storedRows().filter(c => c.id === id).length).toBe(0));
   step("local should have", table => {
-    VitestBdd.toRecords(table).forEach(card => {
+    Vitest$1.toRecords(table).forEach(card => {
       let found = Stdlib_Option.getOrThrow(storedRows().find(c => c.id === card.id), `local has no card "` + card.id + `"`);
       Vitest.expect(found).toMatchObject(card);
     });
   });
   let expectLocal = (deck, table) => {
-    let ids = VitestBdd.toRecords(table).map(row => row.id);
+    let ids = Vitest$1.toRecords(table).map(row => row.id);
     let key = MakeWorld.DexmeKv.kvKey("query", TiliaQuery.sortedStringify(query(undefined, deck)));
     let entry = Stdlib_Option.getOrThrow(dexme.entries._select(entry => entry.key === key)[0], `local has no query for "` + deck + `"`);
     Vitest.expect(JSON.parse(entry.value).ids).toEqual(ids);
@@ -475,10 +526,10 @@ VitestBdd.Given("an {string} training app", (param, status) => {
   step("the live source ends during fetch", () => {
     live.endsInFetch = true;
   });
-  step("the live source delivers", table => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").live(VitestBdd.toRecords(table)));
+  step("the live source delivers", table => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").live(Vitest$1.toRecords(table)));
   step("the live source fails with {string}", message => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").fail(message));
   step("the live source ends", () => Stdlib_Option.getOrThrow(live.channel, "no fetch happened yet").end());
-  step("the superseded fetch delivers", table => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").fresh(VitestBdd.toRecords(table)));
+  step("the superseded fetch delivers", table => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").fresh(Vitest$1.toRecords(table)));
   step("the superseded fetch fails with {string}", message => Stdlib_Option.getOrThrow(live.superseded, "no fetch was superseded yet").fail(message));
   step("the source teardown should have run {number} time(s)", count => Vitest.expect(live.cleanups).toBe(count | 0));
   step("the remote fetch should have run {number} time(s)", count => Vitest.expect(live.fetches).toBe(count | 0));

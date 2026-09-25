@@ -383,10 +383,16 @@ let connect = (
   let rowTag = rowTag
   let putRow = value => persist.set(~tag=rowTag, ~key=id(value), Some(encodeRow(value)))
   let dropRow = rid => persist.set(~tag=rowTag, ~key=rid, None)
+  // A row still live in the engine answers as the live object, never as its
+  // JSON copy: a kept reference must survive a local answer.
   let decodeRows = values =>
     values->Array.filterMap(value =>
       switch parseRow(value) {
-      | Value(row) => Some(row)
+      | Value(row) =>
+        switch binding.item(id(row)) {
+        | Some(live) => Some(live)
+        | None => Some(row)
+        }
       | Null | Undefined => None
       }
     )
