@@ -60,7 +60,7 @@
       "clean-package"
     ],
     "replace": {
-      "dependencies.tilia": "^6.0.0-beta"
+      "dependencies.tilia": "^6.0.0"
     }
   }
 }

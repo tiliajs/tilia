@@ -25,12 +25,7 @@ given("counter is initialized", ({step}, _) => {
 
   step("counter should notify observers on change", () => {
     let values: array<float> = []
-    Counter.observeCounter(
-      counter,
-      value => {
-        values->Array.push(value)
-      },
-    )
+    Counter.observeCounter(counter, value => values->Array.push(value))->ignore
 
     counter.value = 10.0
     counter.value = 20.0
