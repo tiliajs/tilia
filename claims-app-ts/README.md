@@ -12,7 +12,7 @@ writes and reads so the query and synchronization decisions stay visible.
 ```sh
 pnpm install
 pnpm dev        # open the printed URL
-pnpm test       # business scenarios (Gherkin + vitest-bdd)
+pnpm test       # business scenarios (Gherkin + @epure/vitest)
 ```
 
 ## Storage and transport
@@ -151,7 +151,7 @@ src/
   ui/                      React components using @tilia/react
 test/
   claims.feature           business scenarios
-  claims.feature.ts        vitest-bdd step definitions
+  claims.feature.ts        @epure/vitest step definitions
 ```
 
 `src/app/repo.ts` is the important boundary:

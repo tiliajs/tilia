@@ -3,12 +3,12 @@
 import * as Todo from "../../src/domain/Todo.mjs";
 import * as TodoList from "../../src/view/TodoList.mjs";
 import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
-import * as VitestBdd from "vitest-bdd";
+import * as Vitest from "@epure/vitest";
 import * as JsxRuntime from "react/jsx-runtime";
 import * as React from "@testing-library/react";
 import UserEvent from "@testing-library/user-event";
 
-VitestBdd.Given("I render the TodoList component", (param, param$1) => {
+Vitest.Given("I render the TodoList component", param => {
   let step = param.step;
   let host = document.createElement("div");
   document.body.appendChild(host);

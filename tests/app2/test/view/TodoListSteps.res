@@ -1,10 +1,10 @@
 open Test
-// Alias Todo to avoid conflict with VitestBdd.Todo
+// Alias Todo to avoid conflict with EpureVitest.Todo
 module TodoDomain = Todo
 open TodoList
-open VitestBdd
+open EpureVitest
 
-given("I render the TodoList component", ({step}, _) => {
+given("I render the TodoList component", ({step}) => {
   // 1. Create a detached container for strict isolation
   let host = createElement("div")
   appendChild(host)

@@ -1,6 +1,6 @@
-open VitestBdd
+open EpureVitest
 
-given("counter is initialized", ({step}, _) => {
+given("counter is initialized", ({step}) => {
   let counter = Counter.make()
 
   step("I increment the counter", () => {

@@ -63,6 +63,9 @@ Vitest$1.Given("an {string} training app", (param, status) => {
   let closeDeck = {
     contents: () => {}
   };
+  let opened = {
+    contents: "deck"
+  };
   step("a set of language cards on a remote", table => {
     Vitest$1.toRecords(table).forEach(card => {
       papabase.upsert(card);
@@ -157,24 +160,30 @@ Vitest$1.Given("an {string} training app", (param, status) => {
   });
   step("the remote push should have been attempted {number} time(s)", count => Vitest.expect(push.attempts).toBe(count | 0));
   let openDeck = query => {
+    opened.contents = "deck";
     closeDeck.contents = Tilia.observe(() => {
       view.contents = cards.contents.array(query);
-      let match = view.contents;
-      if (typeof match !== "object") {
-        console.log("not loaded");
-        return;
-      }
-      if (match.state === "loaded") {
-        console.log(match.data);
-        return;
-      }
-      console.log("not loaded");
     });
   };
   let openOne = query => {
+    opened.contents = "one";
     closeDeck.contents = Tilia.observe(() => {
       single.contents = cards.contents.one(query);
     });
+  };
+  let noData = reason => {
+    let match = opened.contents;
+    if (match === "one") {
+      return Vitest.expect(single.contents).toMatchObject({
+        state: "noData",
+        reason: reason
+      });
+    } else {
+      return Vitest.expect(view.contents).toMatchObject({
+        state: "noData",
+        reason: reason
+      });
+    }
   };
   step("I open the {string} deck", deck => {
     openDeck(query(undefined, deck));
@@ -193,7 +202,14 @@ Vitest$1.Given("an {string} training app", (param, status) => {
     return settled();
   });
   step("I close the deck", () => closeDeck.contents());
-  step("I should see loading", () => Vitest.expect(view.contents).toMatchObject("loading"));
+  step("I should see loading", () => {
+    let match = opened.contents;
+    if (match === "one") {
+      return Vitest.expect(single.contents).toMatchObject("loading");
+    } else {
+      return Vitest.expect(view.contents).toMatchObject("loading");
+    }
+  });
   let claimOf = name => {
     switch (name) {
       case "fresh" :
@@ -210,16 +226,10 @@ Vitest$1.Given("an {string} training app", (param, status) => {
         };
     }
   };
-  step("I should see no data because offline", () => Vitest.expect(view.contents).toMatchObject({
-    state: "noData",
-    reason: "offline"
-  }));
-  step("I should see no data because failed with {string}", message => Vitest.expect(view.contents).toMatchObject({
-    state: "noData",
-    reason: {
-      reason: "failed",
-      message: message
-    }
+  step("I should see no data because offline", () => noData("offline"));
+  step("I should see no data because failed with {string}", message => noData({
+    reason: "failed",
+    message: message
   }));
   step("I should see {string} loaded with data", (claim, table) => {
     let expected = Vitest$1.toRecords(table);
@@ -242,12 +252,9 @@ Vitest$1.Given("an {string} training app", (param, status) => {
       data: expected
     });
   });
-  step("I should see no data because no {string} match", claim => Vitest.expect(single.contents).toMatchObject({
-    state: "noData",
-    reason: {
-      reason: "noMatch",
-      claim: claimOf(claim)
-    }
+  step("I should see no data because no {string} match", claim => noData({
+    reason: "noMatch",
+    claim: claimOf(claim)
   }));
   let kept = {
     contents: undefined

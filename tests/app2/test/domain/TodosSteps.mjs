@@ -2,9 +2,9 @@
 
 import * as Todo from "../../src/domain/Todo.mjs";
 import * as Vitest from "vitest";
-import * as VitestBdd from "vitest-bdd";
+import * as Vitest$1 from "@epure/vitest";
 
-VitestBdd.Given("I have no todos", (param, param$1) => {
+Vitest$1.Given("I have no todos", param => {
   let step = param.step;
   let todos = Todo.make();
   step("I add a todo with id {string} and title {string}", (id, title) => todos.add(Todo.makeTodo(id, title)));

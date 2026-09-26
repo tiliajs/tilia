@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import {vitestBdd} from "vitest-bdd";
+import { epureVitest } from "@epure/vitest";
 import {defineConfig} from "vitest/config";
 import {existsSync} from "fs";
 import {join, dirname} from "path";
@@ -41,7 +41,7 @@ function stepsResolver(path: string): string | null {
 }
 
 export default defineConfig({
-  plugins: [react(), vitestBdd({stepsResolver, concurrent: false})],
+  plugins: [react(), epureVitest({stepsResolver, concurrent: false})],
   test: {
     globals: true,
     environment: "jsdom",

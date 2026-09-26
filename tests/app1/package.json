@@ -18,6 +18,7 @@
     "tilia": "workspace:^"
   },
   "devDependencies": {
+    "@epure/vitest": "2.0.0",
     "@rescript/react": "0.14.0",
     "@rescript/runtime": "^12.0.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -30,7 +31,6 @@
     "jsdom": "^26.0.0",
     "rescript": "^12.2.0",
     "typescript": "~5.8.3",
-    "vitest": "^3",
-    "vitest-bdd": "1.1.0-beta.20260714T204711"
+    "vitest": "^3"
   }
 }

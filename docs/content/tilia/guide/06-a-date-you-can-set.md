@@ -13,33 +13,33 @@ This chapter adds no scenario. It answers a question two chapters old: in [chapt
 Between the scenarios and the code sits one small file Adèle wrote: the *steps* file. It is where the drawing's words meet the build — each Given, When, and Then is bound to a few lines of code. Here is its heart:
 
 ```typescript
-import { Given, type Context } from "@epure/vitest";
+import { Given, type Handle } from "@epure/vitest";
 import { signal } from "tilia";
 import { makeDeck } from "../src/features/deck";
 import { memoryRepo } from "./memoryRepo";
 
-Given("a deck of cards", ({ When, Then }: Context, table: string[][]) => {
+Given("a deck of cards", ({ step }: Handle, table: string[][]) => {
   const [today, setToday] = signal("2026-07-15");
   const deck = makeDeck(memoryRepo(toCards(table)), today);
 
-  When("midnight comes", () => {
+  step("midnight comes", () => {
     setToday(addDays(today.value, 1));
   });
 
-  When("Alice passes {string}", (front: string) => {
+  step("Alice passes {string}", (front: string) => {
     deck.review(byFront(deck, front).id, "Pass");
   });
 
-  Then("the queue is {string}", (expected: string) => {
+  step("the queue is {string}", (expected: string) => {
     expect(deck.queue.map((c) => c.front).join(", ")).toBe(expected);
   });
 });
 ```
 
 ```rescript
-open VitestBdd
+open EpureVitest
 
-given("a deck of cards", ({step}, table) => {
+given1("a deck of cards", ({step}, table) => {
   let (today, setToday) = Tilia.signal("2026-07-15")
   let deck = Deck.make(MemoryRepo.make(toCards(table)), today)
 

@@ -1,8 +1,8 @@
-import { vitestBdd } from "vitest-bdd";
+import { epureVitest } from "@epure/vitest";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [vitestBdd()],
+  plugins: [epureVitest()],
   test: {
     include: ["test/*_test.mjs", "test/**/*_test.mjs"],
   },

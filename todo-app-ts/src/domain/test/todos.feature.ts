@@ -1,7 +1,7 @@
 import { makeTodos } from "src/domain/feature/todos/todos";
 import { readyMemoryStore } from "src/service/repo/memory";
 import { expect } from "vitest";
-import { Given } from "vitest-bdd";
+import { Given } from "@epure/vitest";
 
 /*
 // await isTrue(() => todos.list.length > 0);
@@ -25,7 +25,7 @@ async function isTrue(fn: () => boolean) {
 }
 */
 
-Given("I have todos", async function ({ When, Then }, table: string[][]) {
+Given("I have todos", async function ({ step }, table: string[][]) {
   const data = todosFromTable(table);
   const todos = makeTodos(readyMemoryStore("main", data), data);
   function todo(title: string) {
@@ -36,7 +36,7 @@ Given("I have todos", async function ({ When, Then }, table: string[][]) {
     return todo;
   }
 
-  When("I create {string}", async (title: string) => {
+  step("I create {string}", async (title: string) => {
     await todos.save({
       id: "",
       title,
@@ -46,46 +46,46 @@ Given("I have todos", async function ({ When, Then }, table: string[][]) {
     });
   });
 
-  When("I toggle {string}", (title: string) => {
+  step("I toggle {string}", (title: string) => {
     todos.toggle(todo(title).id);
   });
 
-  When("I remove {string}", (title: string) => {
+  step("I remove {string}", (title: string) => {
     todos.remove(todo(title).id);
   });
 
-  When("I edit {string}", (title: string) => {
+  step("I edit {string}", (title: string) => {
     todos.edit(todo(title).id);
   });
 
-  When("I set title to {string}", (title: string) => {
+  step("I set title to {string}", (title: string) => {
     todos.setTitle(title);
   });
 
-  When("I save", async () => {
+  step("I save", async () => {
     await todos.save(todos.selected);
   });
 
-  Then("{string} should be selected", (title: string) => {
+  step("{string} should be selected", (title: string) => {
     expect(todos.selected).to.equal(todo(title));
   });
 
-  Then("I should see {string} in the list", (title: string) => {
+  step("I should see {string} in the list", (title: string) => {
     const todo = todos.list.find((t) => t.title === title);
     expect(todo).to.not.be.undefined;
   });
 
-  Then("I should not see {string} in the list", (title: string) => {
+  step("I should not see {string} in the list", (title: string) => {
     const todo = todos.list.find((t) => t.title === title);
     expect(todo).to.be.undefined;
   });
 
-  Then("{string} should be done", (title: string) => {
+  step("{string} should be done", (title: string) => {
     const todo = todos.list.find((t) => t.title === title);
     expect(todo?.completed).to.be.true;
   });
 
-  Then("{string} should be not done", (title: string) => {
+  step("{string} should be not done", (title: string) => {
     const todo = todos.list.find((t) => t.title === title);
     expect(todo?.completed).to.be.false;
   });

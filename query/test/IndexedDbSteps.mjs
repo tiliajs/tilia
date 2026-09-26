@@ -7,7 +7,7 @@ import * as FakeIndexedDb from "./FakeIndexedDb.mjs";
 import * as Stdlib_Option from "@rescript/runtime/lib/es6/Stdlib_Option.js";
 import * as TiliaQueryIndexedDb from "../src/TiliaQueryIndexedDb.mjs";
 
-Vitest$1.Given("a keyspace", (param, param$1) => {
+Vitest$1.Given("a keyspace", param => {
   let step = param.step;
   let control = {
     contents: undefined

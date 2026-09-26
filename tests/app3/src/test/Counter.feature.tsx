@@ -2,11 +2,11 @@ import "@testing-library/react/dont-cleanup-after-each";
 import { render, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect } from "vitest";
-import { Given } from "vitest-bdd";
+import { Given } from "@epure/vitest";
 import { Counter, CounterLeaf } from "../view/Counter";
 import { make } from "../domain/counter";
 
-Given("I render the {string} component", async function ({ When, Then }, comp: string) {
+Given("I render the {string} component", async function ({ step }, comp: string) {
   const counter = make();
   const Component = comp === "Counter" ? Counter : CounterLeaf;
   const { container } = render(<Component counter={counter} />);
@@ -17,20 +17,20 @@ Given("I render the {string} component", async function ({ When, Then }, comp: s
 
   const user = userEvent.setup();
 
-  When("I click the increment button", async () => {
+  step("I click the increment button", async () => {
     await user.click(withinScreen.getByRole("button", { name: "Increment" }));
   });
 
-  When("I click the decrement button", async () => {
+  step("I click the decrement button", async () => {
     await user.click(withinScreen.getByRole("button", { name: "Decrement" }));
   });
 
-  When("I set counter to {number}", async (value: number) => {
+  step("I set counter to {number}", async (value: number) => {
     // Direct mutation
     counter.value = value;
   });
 
-  Then("I should see value {string}", async (expected: string) => {
+  step("I should see value {string}", async (expected: string) => {
     await waitFor(() => {
       expect(
         withinScreen.getByRole("status", { name: "Value" }).textContent,
@@ -38,7 +38,7 @@ Given("I render the {string} component", async function ({ When, Then }, comp: s
     });
   });
 
-  Then("I should see double {string}", async (expected: string) => {
+  step("I should see double {string}", async (expected: string) => {
     await waitFor(() => {
       expect(
         withinScreen.getByRole("status", { name: "Double" }).textContent,

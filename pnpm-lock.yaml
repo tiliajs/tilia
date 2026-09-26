@@ -47,6 +47,9 @@ importers:
         specifier: workspace:^
         version: link:../tilia
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@fontsource/ibm-plex-mono':
         specifier: ^5.2.5
         version: 5.2.7
@@ -77,9 +80,6 @@ importers:
       vitest:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(yaml@2.9.0)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
   docs:
     dependencies:
@@ -136,8 +136,8 @@ importers:
         version: link:../tilia
     devDependencies:
       '@epure/vitest':
-        specifier: 1.1.0-beta.20260911T150518
-        version: 1.1.0-beta.20260911T150518(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
+        specifier: 2.0.0
+        version: 2.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@rescript/runtime':
         specifier: ^12.0.0
         version: 12.2.0
@@ -163,6 +163,9 @@ importers:
         specifier: workspace:^
         version: link:../tilia
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@rescript/react':
         specifier: ^0.14.0
         version: 0.14.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -214,9 +217,6 @@ importers:
       vitest:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(yaml@2.9.0)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
   tests/app1:
     dependencies:
@@ -233,6 +233,9 @@ importers:
         specifier: workspace:^
         version: link:../../tilia
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@rescript/react':
         specifier: 0.14.0
         version: 0.14.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -272,9 +275,6 @@ importers:
       vitest:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(yaml@2.9.0)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
   tests/app2:
     dependencies:
@@ -291,6 +291,9 @@ importers:
         specifier: workspace:^
         version: link:../../tilia
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@rescript/react':
         specifier: 0.14.0
         version: 0.14.0(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -333,9 +336,6 @@ importers:
       vitest:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(yaml@2.9.0)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
   tests/app3:
     dependencies:
@@ -352,6 +352,9 @@ importers:
         specifier: workspace:^
         version: link:../../tilia
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.9.1
@@ -382,9 +385,6 @@ importers:
       vitest:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(yaml@2.9.0)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
   tests/app4:
     dependencies:
@@ -398,6 +398,9 @@ importers:
 
   tilia:
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@rescript/runtime':
         specifier: ^12.0.0
         version: 12.0.1
@@ -416,9 +419,6 @@ importers:
       vitest:
         specifier: ^1.0.0
         version: 1.6.1(@types/node@25.0.3)(jsdom@26.1.0)(lightningcss@1.30.2)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
   todo-app-ts:
     dependencies:
@@ -444,6 +444,9 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
     devDependencies:
+      '@epure/vitest':
+        specifier: 2.0.0
+        version: 2.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
       '@eslint/js':
         specifier: ^9.29.0
         version: 9.39.2
@@ -489,9 +492,6 @@ importers:
       vitest:
         specifier: ^3
         version: 3.2.4(@types/debug@4.1.12)(@types/node@25.0.3)(@vitest/ui@3.2.4)(jiti@2.6.1)(jsdom@26.1.0)(lightningcss@1.30.2)(yaml@2.9.0)
-      vitest-bdd:
-        specifier: 1.1.0-beta.20260714T204711
-        version: 1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))
 
 packages:
 
@@ -626,8 +626,8 @@ packages:
     resolution: {integrity: sha512-vZjgnE/tIbv73o9XlflYt7Jfq+3nF/ne2V4atXSuZgBnuKJOWQNNgBQg9TooUR1bx+bYJ1LrFNf8N+HjzjafHg==}
     engines: {node: '>=22'}
 
-  '@epure/vitest@1.1.0-beta.20260911T150518':
-    resolution: {integrity: sha512-OBPwAleEM/ieDT5d+WWWbm4mwTYH4uQQrqIUOOm9HsajWZbb5dfzfWR/sY17KnIOT7ulYkgD5UG7miPHKo+i1g==}
+  '@epure/vitest@2.0.0':
+    resolution: {integrity: sha512-qOEGIPxKEPscQh1muYPIqLOB0lHxLv+80GzH8D4WGwyIDCFdCGNMwtRKQglfOMFu6RVaTceKcjC2Rkde0uYInA==}
     engines: {node: '>=18.0.0'}
     peerDependencies:
       vite: '*'
@@ -3356,12 +3356,6 @@ packages:
       yaml:
         optional: true
 
-  vitest-bdd@1.1.0-beta.20260714T204711:
-    resolution: {integrity: sha512-cEfzsTfB4iL7OWKw1ACtyhfRJAORsluQxZbymfkuXAozP/j61B8ERwulBUzIFiu6o4s/RrQHCHy/0rzbHCb1Fg==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      vite: '*'
-
   vitest@1.6.1:
     resolution: {integrity: sha512-Ljb1cnSJSivGN0LqXd/zmDbWEM0RNNg2t1QW/XUhYl/qPqyu7CsqeWtqQXHVaJsecLPuDoak2oJcZN2QoRIOag==}
     engines: {node: ^18.0.0 || >=20.0.0}
@@ -3660,7 +3654,15 @@ snapshots:
     transitivePeerDependencies:
       - rescript
 
-  '@epure/vitest@1.1.0-beta.20260911T150518(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))':
+  '@epure/vitest@2.0.0(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))':
+    dependencies:
+      '@cucumber/gherkin': 32.2.0
+      '@cucumber/messages': 27.2.0
+      source-map: 0.7.6
+      vite: 6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)
+      yaml: 2.9.0
+
+  '@epure/vitest@2.0.0(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0))':
     dependencies:
       '@cucumber/gherkin': 32.2.0
       '@cucumber/messages': 27.2.0
@@ -6209,20 +6211,6 @@ snapshots:
       jiti: 2.6.1
       lightningcss: 1.30.2
       yaml: 2.9.0
-
-  vitest-bdd@1.1.0-beta.20260714T204711(vite@6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)):
-    dependencies:
-      '@cucumber/gherkin': 32.2.0
-      '@cucumber/messages': 27.2.0
-      source-map: 0.7.6
-      vite: 6.4.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)
-
-  vitest-bdd@1.1.0-beta.20260714T204711(vite@7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)):
-    dependencies:
-      '@cucumber/gherkin': 32.2.0
-      '@cucumber/messages': 27.2.0
-      source-map: 0.7.6
-      vite: 7.3.1(@types/node@25.0.3)(jiti@2.6.1)(lightningcss@1.30.2)(yaml@2.9.0)
 
   vitest@1.6.1(@types/node@25.0.3)(jsdom@26.1.0)(lightningcss@1.30.2):
     dependencies:

@@ -4,12 +4,12 @@ import * as Tilia from "tilia/src/Tilia.mjs";
 import * as Clouds from "./Clouds.mjs";
 import * as CloudLeaf from "./CloudLeaf.mjs";
 import * as Pervasives from "@rescript/runtime/lib/es6/Pervasives.js";
-import * as VitestBdd from "vitest-bdd";
+import * as Vitest from "@epure/vitest";
 import * as JsxRuntime from "react/jsx-runtime";
 import * as React from "@testing-library/react";
 import UserEvent from "@testing-library/user-event";
 
-VitestBdd.Given("I render the {string} component", (param, compName) => {
+Vitest.Given("I render the {string} component", (param, compName) => {
   let step = param.step;
   let host = document.createElement("div");
   document.body.appendChild(host);

@@ -21,7 +21,7 @@
     "tilia"
   ],
   "dev-dependencies": [
-    "vitest-bdd"
+    "@epure/vitest"
   ],
   "jsx": {
     "version": 4

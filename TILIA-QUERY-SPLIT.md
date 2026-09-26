@@ -454,10 +454,9 @@ with "boom"` becomes `no data because failed with "boom"`.
 
 ## Next actions
 
-The sequenced plan and its progress live in `SESSION.md`; the scenarios that
-land with each phase, one per rule above, are in `TILIA-QUERY-SCENARIOS.md`.
-Kept here so this file stays the ledger of *what* and those stay the record of
-*when*.
+The plan ran to completion. Every rule above is pinned by a scenario in
+`query/test/TiliaQuery.feature`, which is the record of behaviour; this file
+stays the ledger of *what* was decided and why.
 
 One demand the plan makes on the test harness, because the scenario that
 depends on it cannot fail without: a store that **replays its outbox

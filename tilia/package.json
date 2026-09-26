@@ -24,7 +24,7 @@
     "pretest": "pnpm res:build",
     "test": "vitest run"
   },
-  "description": "🍃 State management library, domain-driven.",
+  "description": "\ud83c\udf43 State management library, domain-driven.",
   "keywords": [
     "state management",
     "domain-driven",
@@ -39,13 +39,13 @@
   "author": "Gaspard Anna Bucher <g.a.bucher@midasum.com>",
   "license": "MIT",
   "devDependencies": {
+    "@epure/vitest": "2.0.0",
     "@rescript/runtime": "^12.0.0",
     "clean-package": "^2.2.0",
     "esbuild": "^0.25.5",
     "esbuild-node-externals": "^1.18.0",
     "rescript": "^12.2.0",
-    "vitest": "^1.0.0",
-    "vitest-bdd": "1.1.0-beta.20260714T204711"
+    "vitest": "^1.0.0"
   },
   "clean-package": {
     "remove": [

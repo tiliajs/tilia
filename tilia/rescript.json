@@ -20,6 +20,6 @@
   "suffix": ".mjs",
   "dependencies": [],
   "dev-dependencies": [
-    "vitest-bdd"
+    "@epure/vitest"
   ]
 }

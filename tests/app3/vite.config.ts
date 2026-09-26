@@ -1,5 +1,5 @@
 import react from "@vitejs/plugin-react";
-import { vitestBdd } from "vitest-bdd";
+import { epureVitest } from "@epure/vitest";
 import { defineConfig } from "vitest/config";
 import { existsSync } from "fs";
 import { join, dirname } from "path";
@@ -48,7 +48,7 @@ function resolveFeatureTsx() {
 }
 
 export default defineConfig({
-  plugins: [react(), resolveFeatureTsx(), vitestBdd({ stepsResolver, concurrent: false })],
+  plugins: [react(), resolveFeatureTsx(), epureVitest({ stepsResolver, concurrent: false })],
   test: {
     globals: true,
     environment: "jsdom",

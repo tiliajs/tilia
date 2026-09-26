@@ -1,10 +1,10 @@
-open VitestBdd
+open EpureVitest
 open Test
 // Import components
 open Clouds
 open Tilia
 
-given("I render the {string} component", ({step}, compName) => {
+given1("I render the {string} component", ({step}, compName) => {
   let host = createElement("div")
   appendChild(host)
 

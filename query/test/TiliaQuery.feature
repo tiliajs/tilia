@@ -28,6 +28,17 @@ Feature: Language training app
       | id     | english | translation | seen |
       | dog.es | dog     | perro       | 1    |
 
+
+  Scenario: one card from a narrowed query
+    Given the remote is updated with
+      | id     | deck    | english | translation | seen |
+      | dog.es | spanish | dog     | perro       | 1    |
+    When I open one card from the "Spanish" deck filtered by seen "1"
+    And time passes
+    Then I should see the "fresh" card
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 1    |
+
   # Rule 4. An empty list is data. Only `one` projects it into "no match",
   # and the absence carries its claim because it ages like any other answer.
 
@@ -88,6 +99,37 @@ Feature: Language training app
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
 
+
+  Scenario: a partial answer climbs to fresh when the remote answers
+    When deck "Spanish" is in local db
+    And I restart the app
+    And the query registry is empty
+    And I go "offline"
+    And I open the "Spanish" deck
+    Then I should see "partial" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+    When I go "online"
+    And time passes
+    Then I should see "fresh" loaded with data
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+      | dog.es | dog     | perro       | 0    |
+
+  Scenario: a partial answer that loses its last row is still not an answer
+    When deck "Spanish" is in local db
+    And I restart the app
+    And the query registry is empty
+    And I go "offline"
+    And I open the "Spanish" deck
+    And I remove "cat.es"
+    Then I should see "partial" loaded with data
+      | id     | english | translation | seen |
+      | dog.es | dog     | perro       | 0    |
+    When I remove "dog.es"
+    Then I should see no data because offline
+
   # Rule 15. A keyspace with an index of its own can do what a scan cannot:
   # find the rows of a query it has no record of, and certify that they are
   # all of them. Whoever writes the keyspace writes this, because only they
@@ -147,6 +189,14 @@ Feature: Language training app
   Scenario: an empty partial waits while the remote may still answer
     When the local store holds nothing
     And I open the "Spanish" deck
+    Then I should see loading
+    When I go "offline"
+    Then I should see no data because offline
+
+
+  Scenario: one card over an empty partial is not a miss
+    When the local store holds nothing
+    And I open one card from the "Spanish" deck
     Then I should see loading
     When I go "offline"
     Then I should see no data because offline
@@ -971,6 +1021,39 @@ Feature: Language training app
       | id     | english | translation | seen |
       | cat.es | cat     | gato        | 0    |
       | dog.es | dog     | perro       | 0    |
+
+
+  Scenario: a failed refresh leaves an empty result standing
+    When I open the "Klingon" deck
+    And time passes
+    Then I should see "fresh" loaded with no rows
+    When the remote is failing with "boom"
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then I should see "local" loaded with no rows
+    And onError should have received "boom" for "Klingon"
+
+  Scenario: a failed refresh leaves one card standing
+    When I open one card from the "Spanish" deck
+    And time passes
+    Then I should see the "fresh" card
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+    When the remote is failing with "boom"
+    And 35 seconds pass
+    And tick is called
+    And time passes
+    Then I should see the "local" card
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+    And onError should have received "boom" for "Spanish"
+
+  Scenario: a failed find for one card with nothing to show surfaces
+    When the remote is failing with "boom"
+    And I open one card from the "Spanish" deck
+    And time passes
+    Then I should see no data because failed with "boom"
 
   # Live queries: the adaptor answers through `channel.live` and keeps the
   # result fresh itself. It registers its teardown with `channel.finally`

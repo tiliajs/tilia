@@ -1,9 +1,9 @@
 import react from "@vitejs/plugin-react";
-import { vitestBdd } from "vitest-bdd";
+import { epureVitest } from "@epure/vitest";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
-  plugins: [react(), vitestBdd({ concurrent: false })],
+  plugins: [react(), epureVitest({ concurrent: false })],
   test: {
     globals: true,
     environment: "jsdom",

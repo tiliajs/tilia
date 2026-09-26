@@ -18,7 +18,7 @@ None of these required @tilia/query. They required *deciding* that a spinner in 
 
 ### Kept honest
 
-Behavior like "a mutation made offline survives a restart" is exactly the kind of claim that rots in prose. In the épure toolset it doesn't stay prose — the engine's behavior is pinned by an executable specification, scenarios first, in the shape [vitest-bdd](https://vitest-bdd.dev) runs:
+Behavior like "a mutation made offline survives a restart" is exactly the kind of claim that rots in prose. In the épure toolset it doesn't stay prose — the engine's behavior is pinned by an executable specification, scenarios first, in the shape [@epure/vitest](https://epurejs.dev) runs:
 
 ```gherkin
 Scenario: A mutation made offline survives a restart

@@ -70,6 +70,8 @@ given1("an {string} training app", ({step}, status: string) => {
   let view: ref<TiliaQuery.loadable<array<card>>> = ref(TiliaQuery.Loading)
   let single: ref<TiliaQuery.loadable<card>> = ref(TiliaQuery.Loading)
   let closeDeck: ref<unit => unit> = ref(() => ())
+  // Which binding the "I should see" steps read: the deck list or the one card.
+  let opened = ref(#deck)
 
   step("a set of language cards on a remote", (table: array<array<string>>) =>
     toRecords(table)->Array.forEach(card => papabase.upsert(card)->ignore)
@@ -203,20 +205,21 @@ given1("an {string} training app", ({step}, status: string) => {
   // Observe like a UI binding would: the callback re-runs whenever the
   // query result changes, keeping `view` in sync.
   let openDeck = query => {
-    closeDeck :=
-      Tilia.observe(() => {
-        view := cards.contents.array(query)
-        switch view.contents {
-        | TiliaQuery.Loaded({data}) => Console.log(data)
-        | _ => Console.log("not loaded")
-        }
-      })
+    opened := #deck
+    closeDeck := Tilia.observe(() => view := cards.contents.array(query))
   }
 
   // The same binding over `one`, which selects the first row of a query.
   let openOne = query => {
+    opened := #one
     closeDeck := Tilia.observe(() => single := cards.contents.one(query))
   }
+
+  let noData = (reason: TiliaQuery.reason) =>
+    switch opened.contents {
+    | #deck => expect(view.contents).toMatchObject(TiliaQuery.NoData({reason: reason}))
+    | #one => expect(single.contents).toMatchObject(TiliaQuery.NoData({reason: reason}))
+    }
 
   // Opening ends when storage has answered. The store reads its keyspace to
   // find out what it holds for a query — a record, then the rows it lists —
@@ -247,9 +250,12 @@ given1("an {string} training app", ({step}, status: string) => {
   // Stop observing, like a UI unmount: the query is no longer "seen".
   step("I close the deck", () => closeDeck.contents())
 
-  step("I should see loading", () => {
-    expect(view.contents).toMatchObject(TiliaQuery.Loading)
-  })
+  step("I should see loading", () =>
+    switch opened.contents {
+    | #deck => expect(view.contents).toMatchObject(TiliaQuery.Loading)
+    | #one => expect(single.contents).toMatchObject(TiliaQuery.Loading)
+    }
+  )
 
   let claimOf = (name: string) =>
     switch name {
@@ -259,15 +265,11 @@ given1("an {string} training app", ({step}, status: string) => {
     | other => throw(Invalid_argument(`unknown claim "${other}"`))
     }
 
-  step("I should see no data because offline", () => {
-    expect(view.contents).toMatchObject(TiliaQuery.NoData({reason: TiliaQuery.Offline}))
-  })
+  step("I should see no data because offline", () => noData(TiliaQuery.Offline))
 
-  step("I should see no data because failed with {string}", (message: string) => {
-    expect(view.contents).toMatchObject(
-      TiliaQuery.NoData({reason: TiliaQuery.Failed({message: message})}),
-    )
-  })
+  step("I should see no data because failed with {string}", (message: string) =>
+    noData(TiliaQuery.Failed({message: message}))
+  )
 
   step("I should see {string} loaded with data", (claim: string, table: array<array<string>>) => {
     let expected: array<card> = toRecords(table)
@@ -285,11 +287,9 @@ given1("an {string} training app", ({step}, status: string) => {
     )
   })
 
-  step("I should see no data because no {string} match", (claim: string) => {
-    expect(single.contents).toMatchObject(
-      TiliaQuery.NoData({reason: TiliaQuery.NoMatch({claim: claimOf(claim)})}),
-    )
-  })
+  step("I should see no data because no {string} match", (claim: string) =>
+    noData(TiliaQuery.NoMatch({claim: claimOf(claim)}))
+  )
 
   // A reference an app holds on to, checked by identity: the row must stay
   // the same object across answers, whatever tier delivered them.

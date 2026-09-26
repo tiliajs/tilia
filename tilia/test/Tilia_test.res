@@ -1,4 +1,4 @@
-open VitestBdd
+open EpureVitest
 open Tilia
 
 let observe = fn => observe(fn)->ignore

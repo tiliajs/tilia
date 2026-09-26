@@ -457,3 +457,19 @@ indexes.
 The compiled root module imports `tilia` and no ReScript runtime helper.
 Bundle rewriting points the generated Tilia import at the package root so the
 application and query engine share one Tilia instance and reactive context.
+
+## Hand-written type declarations
+
+`src/index.d.ts` and `src/indexeddb.d.ts` are written by hand. Nothing
+generates them: `esbuild.js` copies each next to its bundle in `dist/`. A
+change to a `.resi` that touches the public surface has to be mirrored there.
+
+The only check is `claims-app-ts` compiling against the copy under `strict`.
+
+## Module aliases emit `undefined`
+
+A ReScript module alias inside a module carries the type across and not the
+values. `module Kv = TiliaQueryStore.Kv` in `Store` compiles to `Kv:
+undefined`. Anything a consumer must call is therefore re-exported as a
+value, which is what `Store.memory` is. `Outcome` and `Removal` are types
+only, so their `undefined` is harmless.

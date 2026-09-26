@@ -1,7 +1,7 @@
 module TodoDomain = Todo
-open VitestBdd
+open EpureVitest
 
-given("I have no todos", ({step}, _) => {
+given("I have no todos", ({step}) => {
   let todos = TodoDomain.make()
 
   step("I add a todo with id {string} and title {string}", (id, title) => {
