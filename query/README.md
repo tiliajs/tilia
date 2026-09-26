@@ -355,6 +355,15 @@ unchanged. Use plain data: no functions, cycles, class identity,
 Debug hook: `query._canopy()` lists observed (`live`) and cached (`idle`)
 query keys.
 
+## Changelog
+
+- 2026-09-26 **0.1.0**
+  - First release: query engine with reactive results, freshness, and query
+    lifetime.
+  - `Store.make` with write-through cache, ordered outbox, conflict handling,
+    and local retention.
+  - `@tilia/query/indexeddb` for an IndexedDB-backed `Kv`.
+
 ## License
 
 MIT

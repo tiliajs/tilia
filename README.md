@@ -19,12 +19,14 @@ Machine-oriented guides:
 
 ### Changelog
 
-- 2026-07-12 **6.0.0** (beta)
+For @tilia/query, see its [changelog](./query/README.md#changelog).
+
+- 2026-09-26 **6.0.0**
   - `watch` and `observe` now return a function to stop observing.
-  - remove `changing`.
-- 2026-05-06
+  - remove `changing` (use `@tilia/query` for data sync).
   - Add `_canopy` for library developers to inspect which keys have observers.
   - Fix observer cleanup through computed, source and store dependencies.
+  - @tilia/react: ship `llms.txt` in the package.
 - 2026-04-18 **5.2.0**
   - Improved `changing` API to support sourced data.
   - Renamed change tracking to `changing` with simplified API: `{ changes, mute }` where `changes` returns `{ upsert, remove }`.
