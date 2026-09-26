@@ -55,7 +55,7 @@ REGISTRY=${REGISTRY%/}
 
 PUBLISH_ARGS=()
 case "$REGISTRY" in
-"" | *registry.npmjs.org*) ;;
+"" | *registry.npmjs.org*) NPMJS=true ;;
 *)
   NPMRC=$(mktemp)
   trap 'rm -f "$NPMRC"' EXIT
@@ -67,6 +67,13 @@ case "$REGISTRY" in
   echo "Publishing to $REGISTRY"
   ;;
 esac
+
+# A stable release to npmjs ends with a GitHub release. Check for gh before
+# anything is published.
+if [[ -z $1 && -n $NPMJS ]] && ! command -v gh &>/dev/null; then
+  echo "gh is not installed. Please install it first."
+  exit 1
+fi
 
 # Update version if publishing beta (--beta argument)
 if [[ $1 == "--beta" ]]; then
@@ -120,6 +127,12 @@ cd ..
 
 # Reset git repo
 git reset --hard HEAD
+
+if [[ -z $1 && -n $NPMJS ]]; then
+  git push origin "v$VERSION"
+  gh release create "v$VERSION" --verify-tag --title "tilia $VERSION" \
+    --notes "tilia and @tilia/react $VERSION. See the [changelog](https://github.com/tiliajs/tilia/blob/v$VERSION/README.md#changelog)."
+fi
 
 if [[ $1 == "--beta" ]]; then
   echo "Beta versions published successfully!"

@@ -55,7 +55,7 @@ REGISTRY=${REGISTRY%/}
 
 PUBLISH_ARGS=()
 case "$REGISTRY" in
-"" | *registry.npmjs.org*) ;;
+"" | *registry.npmjs.org*) NPMJS=true ;;
 *)
   NPMRC=$(mktemp)
   printf '//%s/:_authToken="local"\n' "${REGISTRY#*://}" >"$NPMRC"
@@ -66,6 +66,13 @@ case "$REGISTRY" in
   echo "Publishing to $REGISTRY"
   ;;
 esac
+
+# A stable release to npmjs ends with a GitHub release. Check for gh before
+# anything is published.
+if [[ -z $1 && -n $NPMJS ]] && ! command -v gh &>/dev/null; then
+  echo "gh is not installed. Please install it first."
+  exit 1
+fi
 
 pnpm i
 pnpm test
@@ -88,5 +95,10 @@ elif [[ $1 == "--canary" ]]; then
 else
   pnpm publish --access public --no-git-checks "${PUBLISH_ARGS[@]}"
   git tag "query-v$VERSION"
+  if [[ -n $NPMJS ]]; then
+    git push origin "query-v$VERSION"
+    gh release create "query-v$VERSION" --verify-tag --title "@tilia/query $VERSION" \
+      --notes "See the [changelog](https://github.com/tiliajs/tilia/blob/query-v$VERSION/query/README.md#changelog)."
+  fi
   echo "Published successfully!"
 fi
