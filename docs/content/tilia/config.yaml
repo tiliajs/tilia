@@ -184,11 +184,75 @@ var:
     </html>
   homeMain:
     file: home/index.html
-  coreIndex:
-    dir: api/core
+  objectsIndex:
+    dir: api/objects
     each: '        <a href="#{{slug}}">{{label}}</a>'
-  coreEntries:
-    dir: api/core
+  objectsEntries:
+    dir: api/objects
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">Core</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  effectsIndex:
+    dir: api/effects
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  effectsEntries:
+    dir: api/effects
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">Core</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  insertedIndex:
+    dir: api/inserted
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  insertedEntries:
+    dir: api/inserted
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">Core</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  signalsIndex:
+    dir: api/signals
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  signalsEntries:
+    dir: api/signals
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">Core</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  typesIndex:
+    dir: api/types
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  typesEntries:
+    dir: api/types
     transform: apiMd
     each: |-
       <article class="entry" id="{{slug}}">
@@ -211,11 +275,23 @@ var:
 
     <div class="wrap api-layout">
       <nav class="api-index" aria-label="API index">
-    <p class="k idx-group">Core</p>
-        {{coreIndex}}
+        <p class="k idx-group">Reactive objects</p>
+        {{objectsIndex}}
+        <p class="k idx-group">Effects</p>
+        {{effectsIndex}}
+        <p class="k idx-group">Inserted values</p>
+        {{insertedIndex}}
+        <p class="k idx-group">Signals</p>
+        {{signalsIndex}}
+        <p class="k idx-group">Types</p>
+        {{typesIndex}}
       </nav>
       <div class="api-entries">
-    {{coreEntries}}
+        {{objectsEntries}}
+        {{effectsEntries}}
+        {{insertedEntries}}
+        {{signalsEntries}}
+        {{typesEntries}}
       </div>
     </div>
   toc:

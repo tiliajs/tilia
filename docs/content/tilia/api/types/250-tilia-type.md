@@ -1,0 +1,68 @@
+---
+name: Tilia
+slug: tilia-type
+kind: type
+module: core
+since: "2.0"
+sort: 250
+summary: Context object type containing one complete Tilia API surface.
+tags: []
+signature.ts: |-
+  type Tilia = {
+    tilia: <T>(branch: T) => T,
+    carve: <T>(fn: (deriver: Deriver<T>) => T) => T,
+    observe: (fn: () => void) => () => void,
+    watch: <T>(fn: () => T, effect: (v: T) => void) => () => void,
+    batch: (fn: () => void) => void,
+    signal: <T>(value: T) => [Signal<T>, Setter<T>],
+    derived: <T>(fn: () => T) => Signal<T>,
+    source: <T>(
+      initialValue: T,
+      fn: (previous: T, set: Setter<T>) => unknown
+    ) => T,
+    store: <T>(fn: (set: Setter<T>) => T) => T,
+    _observe: (callback: () => void) => Observer
+  }
+signature.res: |-
+  type tilia = {
+    tilia: 'a. 'a => 'a,
+    carve: 'a. (deriver<'a> => 'a) => 'a,
+    observe: (unit => unit) => unit => unit,
+    watch: 'a. (unit => 'a, 'a => unit) => unit => unit,
+    batch: (unit => unit) => unit,
+    signal: 'a. 'a => (signal<'a>, setter<'a>),
+    derived: 'a. (unit => 'a) => signal<'a>,
+    source: 'a 'ignored. ('a, ('a, 'a => unit) => 'ignored) => 'a,
+    store: 'a. (('a => unit) => 'a) => 'a,
+    _observe: (unit => unit) => observer,
+  }
+label: Tilia
+---
+
+The `Tilia`/`tilia` type is the context object returned by [make](api.html#make).
+
+It packages a full API set bound to one reactive root context. Proxies and observers from different contexts are isolated.
+
+Use this type when passing a context explicitly (for example, to [react make](react/api.html#react-make)).
+
+```typescript
+import { make } from "tilia";
+import type { Tilia } from "tilia";
+import { make as react } from "@tilia/react";
+
+// The context, passed explicitly. A plugin builds its own reactive world and
+// hands it to whoever must share it — here the React bindings, so components
+// track the plugin's objects and not the host's.
+const ctx: Tilia = make();
+const { leaf, useComputed } = react(ctx);
+```
+
+```rescript
+open Tilia
+
+// The context, passed explicitly. A plugin builds its own reactive world and
+// hands it to whoever must share it — here the React bindings, so components
+// track the plugin's objects and not the host's.
+let ctx: tilia = make()
+let {leaf, useComputed} = TiliaReact.make(ctx)
+```

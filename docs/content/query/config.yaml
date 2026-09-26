@@ -41,11 +41,91 @@ var:
     </html>
   homeMain:
     file: home/index.html
-  coreIndex:
-    dir: api/core
+  constructorsIndex:
+    dir: api/constructors
     each: '        <a href="#{{slug}}">{{label}}</a>'
-  coreEntries:
-    dir: api/core
+  constructorsEntries:
+    dir: api/constructors
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">@tilia/query</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  queryIndex:
+    dir: api/query
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  queryEntries:
+    dir: api/query
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">@tilia/query</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  storeIndex:
+    dir: api/store
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  storeEntries:
+    dir: api/store
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">@tilia/query</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  helpersIndex:
+    dir: api/helpers
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  helpersEntries:
+    dir: api/helpers
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">@tilia/query</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  typesIndex:
+    dir: api/types
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  typesEntries:
+    dir: api/types
+    transform: apiMd
+    each: |-
+      <article class="entry" id="{{slug}}">
+        <header class="entry-head">
+          <h2><a href="#{{slug}}">{{label}}</a></h2>
+          <p class="tags"><span class="{{module}}">@tilia/query</span>{{tagSpans}}<span>Since {{since}}</span></p>
+        </header>
+        <p class="summary">{{summary}}</p>
+        <div class="sig-wrap" data-pair>{{toggleButton}}{{signatureTs}}{{signatureRes}}</div>
+        <div class="prose">{{body}}</div>
+      </article>
+  authoringIndex:
+    dir: api/authoring
+    each: '        <a href="#{{slug}}">{{label}}</a>'
+  authoringEntries:
+    dir: api/authoring
     transform: apiMd
     each: |-
       <article class="entry" id="{{slug}}">
@@ -68,11 +148,26 @@ var:
 
     <div class="wrap api-layout">
       <nav class="api-index" aria-label="API index">
-        <p class="k idx-group">Public API</p>
-        {{coreIndex}}
+        <p class="k idx-group">Constructors</p>
+        {{constructorsIndex}}
+        <p class="k idx-group">Query</p>
+        {{queryIndex}}
+        <p class="k idx-group">Store</p>
+        {{storeIndex}}
+        <p class="k idx-group">Helpers</p>
+        {{helpersIndex}}
+        <p class="k idx-group">Types</p>
+        {{typesIndex}}
+        <p class="k idx-group">Store authoring</p>
+        {{authoringIndex}}
       </nav>
       <div class="api-entries">
-        {{coreEntries}}
+        {{constructorsEntries}}
+        {{queryEntries}}
+        {{storeEntries}}
+        {{helpersEntries}}
+        {{typesEntries}}
+        {{authoringEntries}}
       </div>
     </div>
   toc:
