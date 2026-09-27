@@ -28,3 +28,8 @@ overrides:
   picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
   rollup@>=4.0.0 <4.59.0: '>=4.59.0'
   smol-toml@<1.6.1: '>=1.6.1'
+
+minimumReleaseAgeExclude:
+  - "@epure/*"
+  - "@tilia/*"
+  - tilia
