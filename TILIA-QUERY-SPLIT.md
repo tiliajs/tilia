@@ -12,11 +12,11 @@ reactive results, freshness, memory expiry, canopy.
 query registry, local expiry, remote sync.
 
 The boundary is **A | B+C**. B+C wraps the remote before A sees it, so
-`reconcile` and `applyPending` stay out of the engine. `@lapa/db` replaces B+C
+`reconcile` and `applyPending` stay out of the engine. `@radif/db` replaces B+C
 whole — never just `Kv`, which would leave two outboxes pushing to two places.
 
 **Store** names the role, not the implementation. The one shipped here is a
-write-through cache with an outbox; `@lapa/db` is a database; `Query` cannot
+write-through cache with an outbox; `@radif/db` is a database; `Query` cannot
 tell and must not.
 
 ## Read model
@@ -65,7 +65,7 @@ certified-empty query stays `Loaded({data: []})` — an empty list is data.
 
 Four members, three claims. Origin-neutral: `fresh` means "the authoritative
 answer to this query as of now", not "from the network" — a synchronized
-`@lapa/db` answers locally and is entitled to say it.
+`@radif/db` answers locally and is entitled to say it.
 
 | member | claim | means |
 | --- | --- | --- |
@@ -151,7 +151,7 @@ had rows to keep.
 
 Two requirements of **`Store`'s protocol**, not of `Schema` and not of the
 engine. Another store persists differently and reconciles ids differently;
-`@lapa/db` is not bound by either.
+`@radif/db` is not bound by either.
 
 - `'a` and `'query` **survive a JSON round trip unchanged**. `Kv.t` stores
   strings, nothing here encodes them, and a registry record persists the query
@@ -171,7 +171,7 @@ trouble with a union in a *value* — so the union goes there.
 Query.make({id, matches, store: Store.make({find, upsert, remove, persist: IndexedDb.make("students")})})
 Query.make({id, matches, store: Store.make({find, upsert, remove})})   // persist defaults to memory
 Query.make({id, matches, store: Store.custom({remote})})               // channels
-Query.make({id, matches, store: Lapa.store(~db, ~collection="students")})
+Query.make({id, matches, store: Radif.store(~db, ~collection="students")})
 ```
 
 The fields split on the seam with nothing left over. `id`, `matches`, `key`,
@@ -223,7 +223,7 @@ are the store's. The `expiry` record stops mixing two halves.
 - `lookup?` is an optimization for persistence with an index, and may answer
   `Local` only when it can certify the snapshot. A scan never can. It took its
   name from the old `find?`, which yielded the word to the store trio.
-- `Kv.t` and `lookup` have nothing to do with `@lapa/db`.
+- `Kv.t` and `lookup` have nothing to do with `@radif/db`.
 
 ## Interface between the halves
 
@@ -266,13 +266,13 @@ type binding<'a> = {item: string => option<'a>, changed, removed, place}
 - One live object per id: the store must never retain a second **canonical**
   copy. Transient ones are fine and unavoidable — a remote value in flight, a
   row decoded from persistence, a rejection snapshot. This is the real
-  `@lapa/db` constraint: a store that materializes its own rows must hand those
+  `@radif/db` constraint: a store that materializes its own rows must hand those
   very objects across, because interop is promised at the level of object
   identity, not record shape.
 - With `item` in hand the store merges in place itself, so `merge` means
   only *accepted or conflicted*. It is no longer also the identity mechanism.
 - Not `view` (it mutates; view means the materialized results), not `access`
-  (`@lapa/db` uses it for permissions).
+  (`@radif/db` uses it for permissions).
 - **Dispose engine first**, then store, so no find is in flight against a
   stopped store. `dispose` writes nothing on either side.
 - `store.dispose()` does not close `persist`. `Kv.t` has no lifecycle, and one

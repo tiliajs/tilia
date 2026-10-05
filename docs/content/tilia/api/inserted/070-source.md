@@ -49,6 +49,42 @@ let app = tilia({
 setDeckId("french") // setup re-runs, cards reload
 ```
 
+**Reading sibling fields**
+
+Inside [carve](api.html#carve), wrap the setup with `derived` to receive the object itself. The setup then tracks sibling fields like any other dependency:
+
+```typescript
+import { carve, source } from "tilia";
+
+const loader = (deck: Deck) => (_previous: Card[], set: (cards: Card[]) => void) => {
+  const id = deck.deckId; // synchronous read: tracked
+  fetchCards(id).then(set);
+};
+
+const deck = carve<Deck>(({ derived }) => ({
+  deckId: "spanish",
+  cards: source([], derived(loader)),
+}));
+
+deck.deckId = "french"; // setup re-runs, cards reload
+```
+
+```rescript
+open Tilia
+
+let loader = deck => (_previous, set) => {
+  let id = deck.deckId // synchronous read: tracked
+  fetchCards(id)->Promise.thenResolve(set)->ignore
+}
+
+let deck = carve(({derived}) => {
+  deckId: "spanish",
+  cards: source([], derived(loader)),
+})
+
+deck.deckId = "french" // setup re-runs, cards reload
+```
+
 **Loading sentinel**
 
 When an empty result is valid, use a stable, empty `tilia` value to distinguish the initial loading state without changing the value's type. Compare by identity:

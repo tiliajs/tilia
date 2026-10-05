@@ -532,7 +532,9 @@ function proxify(root, _target) {
           };
         };
         let v = get(value);
-        Reflect.set(extra, extra$1, v);
+        if (v !== value) {
+          Reflect.set(extra, extra$1, v);
+        }
         if (!proxiable(v)) {
           return v;
         }

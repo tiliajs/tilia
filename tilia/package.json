@@ -24,7 +24,7 @@
     "pretest": "pnpm res:build",
     "test": "vitest run"
   },
-  "description": "\ud83c\udf43 State management library, domain-driven.",
+  "description": "🍃 State management library, domain-driven.",
   "keywords": [
     "state management",
     "domain-driven",

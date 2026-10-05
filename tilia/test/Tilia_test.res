@@ -2057,4 +2057,21 @@ describe("Tilia", () => {
     expect(() => read(p, "boom")).toThrow(~message="boom")
     expect(m.count).toBe(1)
   })
+  // A read hands back what the target answered. A target with a setter, or
+  // one that is itself a proxy, would see a write nobody made.
+  it("Should not write to the target on read", () => {
+    let m: counter = {count: 0}
+    let target: {..} = %raw(`m => {
+      const child = {name: "Ada"}
+      return new Proxy({child}, {
+        set: (o, k, v) => {
+          m.count = m.count + 1
+          return Reflect.set(o, k, v)
+        },
+      })
+    }`)(m)
+    let p = tilia(target)
+    expect(p["child"]["name"]).toBe("Ada")
+    expect(m.count).toBe(0)
+  })
 })

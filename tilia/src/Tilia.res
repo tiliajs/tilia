@@ -688,7 +688,9 @@ let rec get = (node: node<'c>, meta: meta<'a>, isArray: bool, target: 'a, key: s
             let compile = callback => compile(node, isArray, target, key, callback)
             let setter = v => ignore(set(node, isArray, true, target, key, v))
             let v = getValue(compile, setter, value)
-            ignore(Reflect.set(target, key, v))
+            if v !== value {
+              ignore(Reflect.set(target, key, v))
+            }
             if Typeof.proxiable(v) {
               let m = proxify(node.root, v)
               Dict.set(node.proxied, key, m)

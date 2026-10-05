@@ -21,6 +21,8 @@ Machine-oriented guides:
 
 For @tilia/query, see its [changelog](./query/README.md#changelog).
 
+- 2026-10-05 **6.0.1**
+  - Fix a read saved to target : only write if value differs (in case target is a proxy).
 - 2026-09-26 **6.0.0**
   - `watch` and `observe` now return a function to stop observing.
   - remove `changing` (use `@tilia/query` for data sync).
