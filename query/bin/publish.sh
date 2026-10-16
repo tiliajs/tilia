@@ -97,7 +97,7 @@ else
   git tag "query-v$VERSION"
   if [[ -n $NPMJS ]]; then
     git push origin "query-v$VERSION"
-    gh release create "query-v$VERSION" --verify-tag --title "@tilia/query $VERSION" \
+    gh release create "query-v$VERSION" --repo tiliajs/tilia --verify-tag --title "@tilia/query $VERSION" \
       --notes "See the [changelog](https://github.com/tiliajs/tilia/blob/query-v$VERSION/query/README.md#changelog)."
   fi
   echo "Published successfully!"

@@ -357,6 +357,10 @@ query keys.
 
 ## Changelog
 
+- 2026-10-16 **0.1.1**
+  - A rejected write stays in the keyspace until `retry` or `discard` settles
+    it, so `status.rejected` comes back after a restart.
+
 - 2026-09-26 **0.1.0**
   - First release: query engine with reactive results, freshness, and query
     lifetime.

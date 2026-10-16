@@ -130,7 +130,7 @@ git reset --hard HEAD
 
 if [[ -z $1 && -n $NPMJS ]]; then
   git push origin "v$VERSION"
-  gh release create "v$VERSION" --verify-tag --title "tilia $VERSION" \
+  gh release create "v$VERSION" --repo tiliajs/tilia --verify-tag --title "tilia $VERSION" \
     --notes "tilia and @tilia/react $VERSION. See the [changelog](https://github.com/tiliajs/tilia/blob/v$VERSION/README.md#changelog)."
 fi
 
