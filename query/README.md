@@ -234,7 +234,7 @@ const persist = indexedDb({
 ```
 
 It uses one object store with compound key `[tag, key]`. Rows, query records,
-and outbox entries share that keyspace under separate tags. Writes are
+outbox entries, and rejections share that keyspace under separate tags. Writes are
 batched into transactions, and reads flush queued writes first.
 
 If `persist` is omitted, the same store runs over `Store.memory()`. That

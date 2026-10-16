@@ -117,8 +117,8 @@ Change tags: clean `{value}`, created `{edited}`, updated `{base,edited}`,
 removed `{base}`.
 
 Rejection tags: createConflict, createFailed, updateConflict, updateFailed,
-removeConflict, removeFailed. They are deep JSON snapshots, not persisted ops
-or overlays. Remote/base truth is already visible. `status.rejected` is in
+removeConflict, removeFailed. They are deep JSON snapshots, not ops or
+overlays, persisted until retry/discard and restored at boot. Remote/base truth is already visible. `status.rejected` is in
 outbox order regardless of reply order, at most one per id; a write to the id
 clears it. `retry`/`discard` act only on the exact current record. Retry
 reapplies a copy through the normal optimistic path against current truth.
@@ -133,10 +133,10 @@ keys(tag, set)
 set(tag, key, value | undefined)
 ```
 
-The shipped store keeps rows (`Store.rowTag === "row"`), query records, and
-outbox entries under tags in that keyspace. Query records contain key, query,
-ids, and lastSeen. Pending ops and surviving records root rows during
-mark-and-sweep purge. Purge first runs on the first tick, then at most every
+The shipped store keeps rows (`Store.rowTag === "row"`), query records,
+outbox entries, and rejections under tags in that keyspace. Query records
+contain key, query, ids, and lastSeen. Pending ops, rejections, and surviving
+records root rows during mark-and-sweep purge. Purge first runs on the first tick, then at most every
 `local / 8`.
 
 `@tilia/query/indexeddb` exports only `make({name, store?, version?,

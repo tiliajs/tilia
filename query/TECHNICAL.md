@@ -253,6 +253,7 @@ It keeps all durable state in that keyspace under tags:
 - `row` — one JSON row per id; this public tag is `Store.rowTag`
 - `query` — query registry records
 - `outbox` — ordered optimistic operations
+- `rejection` — one record per id, with the sequence of the write it refused
 
 A `Kv` does not interpret any of them. Omitting `persist` selects
 `Store.memory()`, an in-process keyspace using the identical store path.
@@ -412,8 +413,12 @@ array:
   against the value that stands now.
 - `discard(rejection)` removes only the context.
 
-A stale reference to a replaced or cleared rejection is a no-op. Rejections
-are not persisted across restarts.
+A stale reference to a replaced or cleared rejection is a no-op.
+
+Each rejection is persisted under the `rejection` tag, keyed by id, with the
+sequence of the write it refused. A replacement or a clear rewrites or
+deletes that entry, so only `retry`, `discard` or a new write removes it. Boot
+reads the entries back into `status.rejected` in sequence order.
 
 ## Local purge
 
@@ -431,8 +436,9 @@ Purge is mark-and-sweep over the one keyspace:
 5. Mark ids listed by surviving records.
 6. Mark ids of pending outbox operations, because boot replay still needs
    them.
-7. Ask `Kv.keys(Store.rowTag)` for every persisted row id.
-8. Delete each unmarked row.
+7. Mark ids of rejections, because they wait on a decision.
+8. Ask `Kv.keys(Store.rowTag)` for every persisted row id.
+9. Delete each unmarked row.
 
 Remote write-through never infers row deletion merely because a fresh query
 omits an id. It rewrites the query record immediately; purge later deletes

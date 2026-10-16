@@ -171,7 +171,8 @@ type status<'a> = TiliaQueryStore.status<'a> = {
    * outbox order whatever order the replies arrived in: a cascade is refused
    * cause-first, so working down the list retries the cause before the
    * consequence. At most one rejection per id, and writing to an id clears
-   * the one it had.
+   * the one it had. Each is kept in the keyspace until `retry` or `discard`
+   * settles it, so a restart brings the list back as it was.
    */
   rejected: array<rejection<'a>>,
 }
@@ -314,9 +315,9 @@ module Store: {
 
   /**
    * A string keyspace, and the whole of what this store asks of
-   * persistence. Rows, query records and the outbox are all entries under a
-   * tag; what they mean is the store's business. Defined, and documented, in
-   * `TiliaQueryStore`.
+   * persistence. Rows, query records, the outbox and rejections are entries
+   * under a tag; what they mean is the store's business. Defined, and
+   * documented, in `TiliaQueryStore`.
    */
   module Kv = TiliaQueryStore.Kv
 

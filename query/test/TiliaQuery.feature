@@ -915,6 +915,85 @@ Feature: Language training app
       | cat.es | spanish | CAT     | gato        | 4    |
     Then the retried rejection should still show english "cat"
 
+  # A rejection holds work the person has not decided about yet. It outlives
+  # the process like the outbox does, until `retry` or `discard` settles it.
+
+  Scenario: rejections survive a restart in their order
+    When I open the "Spanish" deck
+    And time passes
+    And I go "offline"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 1    |
+      | dog.es | spanish | dog     | perro       | 1    |
+    And the remote rejects "dog.es" with "second"
+    And the remote rejects "cat.es" with "first"
+    And the remote replies out of order
+    And I go "online"
+    And time passes
+    And I restart the app
+    Then status rejections should be in order
+      | id     |
+      | cat.es |
+      | dog.es |
+    And status should have rejection
+      | kind          | id     | base | edited | message |
+      | update failed | cat.es | 0    | 1      | first   |
+      | update failed | dog.es | 0    | 1      | second  |
+
+  Scenario: a settled rejection stays settled after a restart
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And the remote rejects "dog.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+      | dog.es | spanish | dog     | perro       | 7    |
+    And time passes
+    Then status should have 2 rejected
+    When the remote stops rejecting "cat.es"
+    And I retry the rejection for "cat.es"
+    And I discard the rejection for "dog.es"
+    And time passes
+    And I restart the app
+    Then status should have 0 rejected
+
+  Scenario: a restored rejection can still be retried
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And time passes
+    And I restart the app
+    And the remote stops rejecting "cat.es"
+    And I retry the rejection for "cat.es"
+    And time passes
+    Then status should have 0 rejected
+    And status should have 0 pending
+    And remote should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 9    |
+
+  Scenario: the local purge spares rows a rejection names
+    When I open the "Spanish" deck
+    And time passes
+    And the remote rejects "cat.es" with "forbidden"
+    And I upsert
+      | id     | deck    | english | translation | seen |
+      | cat.es | spanish | cat     | gato        | 9    |
+    And time passes
+    And I close the deck
+    And 50 days pass
+    And tick is called
+    Then status should have 1 rejected
+    And local should have
+      | id     | english | translation | seen |
+      | cat.es | cat     | gato        | 0    |
+    And local should not have "dog.es"
+
   Scenario: the local purge spares rows with pending writes
     When deck "Spanish" is in local db
     And I go "offline"

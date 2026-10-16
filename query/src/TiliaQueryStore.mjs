@@ -71,6 +71,16 @@ let snapshot = (function snapshot(value) {
   return JSON.parse(JSON.stringify(value));
 });
 
+let parseRejection = (function parseRejection(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.seq === "number" && r.rejection && typeof r.rejection.rejection === "string") {
+      return r;
+    }
+  } catch (_) {}
+  return undefined;
+});
+
 let parseRow = (function parseRow(value) {
   try {
     const r = JSON.parse(value);
@@ -322,6 +332,7 @@ function connect(param, binding) {
     }
   };
   let rejectionSeq = TiliaQuerySchema.Dict.make();
+  let rejectionTag = "rejection";
   let seqOf = rejection => {
     let seq = rejectionSeq[rejectionId(rejection)];
     if (seq == null) {
@@ -334,27 +345,35 @@ function connect(param, binding) {
       return seq;
     }
   };
+  let insertRejection = (seq, rejection) => {
+    rejectionSeq[rejectionId(rejection)] = seq;
+    let i = status.rejected.findIndex(value => seqOf(value) > seq);
+    if (i !== -1) {
+      status.rejected.splice(i, 0, rejection);
+    } else {
+      status.rejected.push(rejection);
+    }
+  };
   let addRejection = (seq, rejection) => {
     let rid = rejectionId(rejection);
     let rejection$1 = snapshot(rejection);
     let i = status.rejected.findIndex(value => rejectionId(value) === rid);
     if (i !== -1) {
       status.rejected[i] = rejection$1;
-      return;
-    }
-    rejectionSeq[rid] = seq;
-    let i$1 = status.rejected.findIndex(value => seqOf(value) > seq);
-    if (i$1 !== -1) {
-      status.rejected.splice(i$1, 0, rejection$1);
     } else {
-      status.rejected.push(rejection$1);
+      insertRejection(seq, rejection$1);
     }
+    persist.set(rejectionTag, rid, JSON.stringify({
+      seq: seqOf(rejection$1),
+      rejection: rejection$1
+    }));
   };
   let dropRejection = rid => {
     let i = status.rejected.findIndex(value => rejectionId(value) === rid);
     if (i !== -1) {
       status.rejected.splice(i, 1);
       TiliaQuerySchema.Dict.$$delete(rejectionSeq, rid);
+      persist.set(rejectionTag, rid, undefined);
       return true;
     } else {
       return false;
@@ -976,6 +995,16 @@ function connect(param, binding) {
     setPending(outbox.length);
     pushPending();
   });
+  persist.get(rejectionTag, undefined, values => {
+    values.forEach(value => {
+      let match = parseRejection(value);
+      if (match == null) {
+        return;
+      } else {
+        return insertRejection(match.seq, match.rejection);
+      }
+    });
+  });
   let findQuery = (query, channel) => {
     let k = key(query);
     let t = now();
@@ -1055,11 +1084,8 @@ function connect(param, binding) {
     }
   });
   let take = rejection => {
-    let i = status.rejected.indexOf(rejection);
-    if (i !== -1) {
-      status.rejected.splice(i, 1);
-      TiliaQuerySchema.Dict.$$delete(rejectionSeq, rejectionId(rejection));
-      return true;
+    if (status.rejected.includes(rejection)) {
+      return dropRejection(rejectionId(rejection));
     } else {
       return false;
     }
@@ -1163,6 +1189,9 @@ function connect(param, binding) {
               outbox.forEach(entry => {
                 marked.add(opId(entry.op));
               });
+              status.rejected.forEach(rejection => {
+                marked.add(rejectionId(rejection));
+              });
               allIds.forEach(id => {
                 if (!marked.has(id)) {
                   return dropRow(id);
@@ -1194,6 +1223,7 @@ export {
   encodeOp,
   parseOp,
   snapshot,
+  parseRejection,
   parseRow,
   parseRecord,
   Outcome,

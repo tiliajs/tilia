@@ -218,8 +218,8 @@ export type Remote<T, Q> = {
 
 /**
  * A string keyspace, and the whole of what the shipped store asks of
- * persistence. Rows, query records and the outbox are all entries under a
- * tag; what they mean is the store's business.
+ * persistence. Rows, query records, the outbox and rejections are entries
+ * under a tag; what they mean is the store's business.
  *
  * Every reply comes back through `set` — synchronously or later. Errors
  * belong to whoever implements it: a keyspace that cannot answer answers
@@ -337,7 +337,8 @@ export type Status<T> = {
    * outbox order whatever order the replies arrived in: a cascade is refused
    * cause-first, so working down the list retries the cause before the
    * consequence. At most one rejection per id, and writing to an id clears
-   * the one it had.
+   * the one it had. Each is kept in the keyspace until `retry` or `discard`
+   * settles it, so a restart brings the list back as it was.
    */
   rejected: Rejection<T>[];
 };

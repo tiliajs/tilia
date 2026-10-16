@@ -51,8 +51,8 @@ type remote<'query, 'a> = {
 
 /**
  * A string keyspace, and the whole of what this store asks of persistence.
- * Rows, query records and the outbox are all entries under a tag: what they
- * mean is the store's business, and a keyspace never has to know.
+ * Rows, query records, the outbox and rejections are entries under a tag:
+ * what they mean is the store's business, and a keyspace never has to know.
  *
  * Every reply comes back through `set` — synchronously or later, like
  * everything else here. Errors belong to whoever implements it: a keyspace
@@ -162,6 +162,24 @@ function parseOp(value) {
 let snapshot: 'a => 'a = %raw(`
 function snapshot(value) {
   return JSON.parse(JSON.stringify(value));
+}`)
+
+/** A rejection kept with the seq of the write it refused, so boot can put
+ it back in its place. */
+type rejectionEntry<'a> = {seq: float, rejection: rejection<'a>}
+
+@scope("JSON") @val external encodeRejection: rejectionEntry<'a> => string = "stringify"
+
+/** Returns Undefined on malformed kv data: the entry is skipped, not fatal. */
+let parseRejection: string => nullable<rejectionEntry<'a>> = %raw(`
+function parseRejection(value) {
+  try {
+    const r = JSON.parse(value);
+    if (r && typeof r.seq === "number" && r.rejection && typeof r.rejection.rejection === "string") {
+      return r;
+    }
+  } catch (_) {}
+  return undefined;
 }`)
 
 // === Query records (registry)
@@ -503,11 +521,20 @@ let connect = (
   // it rather than by the order replies happen to arrive in. Private: the
   // seq is bookkeeping, not something an app should read off a rejection.
   let rejectionSeq: dict<float> = Dict.make()
+  let rejectionTag = "rejection"
   let seqOf = rejection =>
     switch rejectionSeq->Dict.get(rejectionId(rejection)) {
     | Value(seq) => seq
     | Null | Undefined => 0.0
     }
+
+  let insertRejection = (~seq, rejection) => {
+    rejectionSeq->Dict.set(rejectionId(rejection), seq)
+    switch status.rejected->Array.findIndex(value => seqOf(value) > seq) {
+    | -1 => status.rejected->Array.push(rejection)
+    | i => status.rejected->Array.splice(~start=i, ~remove=0, ~insert=[rejection])
+    }
+  }
 
   let addRejection = (~seq, rejection) => {
     let rid = rejectionId(rejection)
@@ -515,16 +542,16 @@ let connect = (
     // copy it here, so no later branch can hand out a value still in play.
     let rejection = snapshot(rejection)
     switch status.rejected->Array.findIndex(value => rejectionId(value) === rid) {
-    | -1 =>
-      rejectionSeq->Dict.set(rid, seq)
-      switch status.rejected->Array.findIndex(value => seqOf(value) > seq) {
-      | -1 => status.rejected->Array.push(rejection)
-      | i => status.rejected->Array.splice(~start=i, ~remove=0, ~insert=[rejection])
-      }
+    | -1 => insertRejection(~seq, rejection)
     // A replacement keeps the place its id already holds: the list orders the
     // work that was refused, and that work queued once.
     | i => status.rejected->Array.set(i, rejection)
     }
+    persist.set(
+      ~tag=rejectionTag,
+      ~key=rid,
+      Some(encodeRejection({seq: seqOf(rejection), rejection})),
+    )
   }
 
   let dropRejection = rid =>
@@ -533,6 +560,7 @@ let connect = (
     | i =>
       status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
       rejectionSeq->Dict.delete(rid)
+      persist.set(~tag=rejectionTag, ~key=rid, None)
       true
     }
 
@@ -940,6 +968,16 @@ let connect = (
     pushPending()
   })
 
+  // Boot: the rejections, back in the order of the writes they refused.
+  persist.get(~tag=rejectionTag, ~set=values =>
+    values->Array.forEach(value =>
+      switch parseRejection(value) {
+      | Value({seq, rejection}) => insertRejection(~seq, rejection)
+      | Null | Undefined => ()
+      }
+    )
+  )
+
   // B+C · one find, both tiers, in the order the engine assumes: what is
   // already held answers first, and the remote answers over it. The store
   // owns which tiers exist; the engine only reads the claims.
@@ -1056,13 +1094,7 @@ let connect = (
   // Both act on the exact record they were handed. A stale callback holding
   // a superseded rejection must not speak for the one that replaced it.
   let take = rejection =>
-    switch status.rejected->Array.indexOf(rejection) {
-    | -1 => false
-    | i =>
-      status.rejected->Array.splice(~start=i, ~remove=1, ~insert=[])
-      rejectionSeq->Dict.delete(rejectionId(rejection))
-      true
-    }
+    status.rejected->Array.includes(rejection) && dropRejection(rejectionId(rejection))
 
   let discard = rejection => take(rejection)->ignore
 
@@ -1148,6 +1180,8 @@ let connect = (
         registry->Dict.forEach(record => record.ids->Array.forEach(id => marked->Set.add(id)))
         // Pending ops root their rows because they replay after restart.
         outbox->Array.forEach(entry => marked->Set.add(opId(entry.op)))
+        // So do rejections: they wait on a decision that may outlive any query.
+        status.rejected->Array.forEach(rejection => marked->Set.add(rejectionId(rejection)))
         allIds->Array.forEach(
           id =>
             if !(marked->Set.has(id)) {
