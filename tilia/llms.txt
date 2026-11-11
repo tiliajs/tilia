@@ -45,6 +45,8 @@ Published documentation:
 - Use `carve(({derived}) => object)` when fields or methods need the complete
   object as `self`. Keep the factory declarative; move domain logic into
   focused functions and bind them with `derived`.
+- Bind a method with `derived` only when it reads the carved object. A
+  function that only calls setters is a plain function field.
 - Use `computed(fn)` for a pull-based cached field.
 - Use `observe(fn)` for one tracked effect.
 - Use `watch(capture, effect)` when reads and side effects should be separate.
@@ -58,6 +60,15 @@ Published documentation:
 
 ## Critical rules
 
+- Do not replace an object to change one of its fields.
+  `app.state = {...app.state, x: 1}` wakes every reader of `app.state`.
+  Write the field (`app.state.x = 1`), or keep the value in a `signal` and
+  `lift` it. A ReScript record then needs no `mutable` field.
+- A write of the value a key already holds (`===`) does not notify. A new
+  object with identical content notifies.
+- Data that arrives whole (socket, fetch): assign the field when every reader
+  must update; use `readonly` when the data is only replaced and read; write
+  the changed fields when parts change on their own.
 - Insert `computed`, `source`, and `store` directly into a reactive object.
   Reading an orphan computed value raises.
 - `source` tracks only synchronous reads made by `setup(previous, set)`. Read

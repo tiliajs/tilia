@@ -64,7 +64,9 @@ observe(() => {
 pass(card) // ✨ "gato" comes back in 6 day(s)
 ```
 
-This is the mechanism all of tilia rests on. While the callback runs, tilia records which properties are read on which reactive objects — those exact properties, and no more, become its dependencies. You never wrote a subscription, an event name, or an unsubscribe: you declared what the reaction needs by simply using it, and tilia drew the wiring from that. Writing a value equal to the current one notifies no one; when a reaction should end, `observe` returns a function that stops it.
+This is the mechanism all of tilia rests on. While the callback runs, tilia records which properties are read on which reactive objects — those exact properties, and no more, become its dependencies. You never wrote a subscription, an event name, or an unsubscribe: you declared what the reaction needs by simply using it, and tilia drew the wiring from that. Writing the value the property already holds notifies no one; when a reaction should end, `observe` returns a function that stops it.
+
+A write wakes only the readers of the property it writes. `pass` writes `card.interval`, so an observer that reads only `card.front` stays asleep. "The value it already holds" means the same number, the same string, or the same object. A new object is never the same, even with identical content. So `app.settings = { ...app.settings, textSize: 120 }` wakes every reader of `app.settings`, and the reader of `theme` runs for nothing. To change one field, write that field: `app.settings.textSize = 120`.
 
 ### A forest, not a tree
 
