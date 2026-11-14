@@ -218,6 +218,10 @@ export function _done(observer: Observer): void;
  * @internal Stop recording and subscribe the observer to the recorded reads.
  * If `notifyIfChanged` is true, notify immediately when a read value already
  * changed during recording.
+ *
+ * When `_ready` adds an observer to a derived key that was pruned, the
+ * derived value rebuilds at once. The observer is notified only if the value
+ * changed.
  */
 export function _ready(observer: Observer, notifyIfChanged?: boolean): void;
 /** @internal Dispose of an observer that was not notified (notification disposes automatically). */

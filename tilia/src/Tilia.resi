@@ -265,6 +265,10 @@ let _done: observer => unit
  * Internal: Stop observing and mark an observer as ready to respond. 
  * 
  * If `bool` is true, notify if changed.
+ *
+ * When `_ready` adds an observer to a derived key that was pruned, the
+ * derived value rebuilds at once. The observer is notified only if the value
+ * changed.
  */
 let _ready: (observer, bool) => unit
 

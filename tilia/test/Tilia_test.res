@@ -1980,6 +1980,68 @@ describe("Tilia", () => {
     expect(calls.contents).toBe(1)
   })
 
+  // A parent redraws the only leaf that reads a computed: React clears the
+  // old observer before the new one is ready.
+  it("Should notify a new observer of a computed after the old observer is cleared", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({label: computed(() => "computed: " ++ query.value)})
+
+    let m1 = {called: false}
+    let o1 = _observe(() => m1.called = true)
+    expect(p.label).toBe("computed: initial value")
+    _ready(o1, true)
+
+    let m2 = {called: false}
+    let o2 = _observe(() => m2.called = true)
+    expect(p.label).toBe("computed: initial value")
+    _clear(o1)
+    _ready(o2, true)
+    // Unchanged value: no extra render
+    expect(m2.called).toBe(false)
+
+    query.value = "changed value"
+    expect(m2.called).toBe(true)
+    expect(p.label).toBe("computed: changed value")
+  })
+
+  // React strict mode
+  it("Should notify after ready, clear, ready on a computed", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({label: computed(() => "computed: " ++ query.value)})
+
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    expect(p.label).toBe("computed: initial value")
+    _ready(o, true)
+    _clear(o)
+    _ready(o, true)
+    expect(m.called).toBe(false)
+
+    query.value = "changed value"
+    expect(m.called).toBe(true)
+    expect(p.label).toBe("computed: changed value")
+  })
+
+  it("Should notify a new observer when a pruned computed changed before ready", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({label: computed(() => "computed: " ++ query.value)})
+
+    let o1 = _observe(() => ())
+    expect(p.label).toBe("computed: initial value")
+    _ready(o1, true)
+
+    let m2 = {called: false}
+    let o2 = _observe(() => m2.called = true)
+    expect(p.label).toBe("computed: initial value")
+    _clear(o1)
+    // The computed is cold: this change does not rebuild it
+    query.value = "changed value"
+    _ready(o2, true)
+    // o2 rendered the old value
+    expect(m2.called).toBe(true)
+    expect(p.label).toBe("computed: changed value")
+  })
+
   // === _canopy developer helper ===
 
   it("Should list keys without observers in _canopy idle set", () => {

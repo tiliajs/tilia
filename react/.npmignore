@@ -4,6 +4,7 @@
 # ReScript target: include ReScript source files and compiled js
 !src/*.res
 !src/*.resi
+!src/*.mjs
 # Include ReScript configuration
 !rescript.json
 

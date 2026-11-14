@@ -21,6 +21,8 @@ Machine-oriented guides:
 
 For @tilia/query, see its [changelog](./query/README.md#changelog).
 
+- 2026-11-14 **6.0.2**
+  - Fix a derived value that stopped notifying after a redraw: `_ready` rebuilds a pruned derived value and notifies only if the value changed.
 - 2026-10-05 **6.0.1**
   - Fix a read saved to target : only write if value differs (in case target is a proxy).
 - 2026-09-26 **6.0.0**

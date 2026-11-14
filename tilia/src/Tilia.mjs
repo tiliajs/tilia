@@ -135,11 +135,11 @@ function unwatch(observer, prune) {
     if (!prune) {
       return;
     }
-    let clear = watchers.computes.get(watchers.key);
-    if (clear == null) {
+    let c = watchers.computes.get(watchers.key);
+    if (c == null) {
       return;
     } else {
-      return clear(true);
+      return c.clear(true);
     }
   });
   let o = root.observer;
@@ -165,7 +165,13 @@ function _ready(observer, notifyIfChanged) {
     switch (match) {
       case "Pristine" :
         w.observers.add(observer);
-        return false;
+        let c = w.computes.get(w.key);
+        if (c == null) {
+          c === null;
+        } else {
+          c.warm();
+        }
+        return w.state !== "Pristine";
       case "Changed" :
       case "Cleared" :
         break;
@@ -242,12 +248,12 @@ function set(node, isArray, _fromComputed, target, _key, _value) {
       node.proxied.delete(key$1);
     }
     if (!fromComputed) {
-      let clear = node.computes.get(key$1);
-      if (clear == null) {
-        clear === null;
+      let c = node.computes.get(key$1);
+      if (c == null) {
+        c === null;
       } else {
         node.computes.delete(key$1);
-        clear(false);
+        c.clear(false);
       }
     }
     let match = dynamic(value);
@@ -404,13 +410,26 @@ function compile(node, isArray, target, key, callback) {
     }
     _clear(o);
     ((o.observing.length = 0));
-    if (reset) {
-      node.proxied.delete(key);
-      Reflect.set(target, key, compiled);
+    if (!reset) {
+      return;
+    }
+    let v = Reflect.get(target, key);
+    if (v !== compiled) {
+      lastValue.v = v;
+    }
+    node.proxied.delete(key);
+    Reflect.set(target, key, compiled);
+  };
+  let warm = () => {
+    if (Reflect.get(target, key) === compiled && compute.rebuild === rebuild) {
+      set(node, isArray, true, target, key, rebuild());
       return;
     }
   };
-  node.computes.set(key, clear);
+  node.computes.set(key, {
+    clear: clear,
+    warm: warm
+  });
   return rebuild();
 }
 
@@ -443,12 +462,12 @@ function proxify(root, _target) {
       deleteProperty: (extra, extra$1) => {
         let res = Reflect.deleteProperty(extra, extra$1);
         node_proxied.delete(extra$1);
-        let clear = node_computes.get(extra$1);
-        if (clear == null) {
-          clear === null;
+        let c = node_computes.get(extra$1);
+        if (c == null) {
+          c === null;
         } else {
           node_computes.delete(extra$1);
-          clear(false);
+          c.clear(false);
         }
         notify(root, node_observed, extra$1);
         return res;

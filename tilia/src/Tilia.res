@@ -124,6 +124,15 @@ module Dict = {
 type dict<'a> = Dict.t<'a>
 type error
 
+// Controls of an installed computed value, kept per key.
+type handle = {
+  // Tear down the compute; `true` also resets the value so the next read
+  // rebuilds it.
+  clear: bool => unit,
+  // Rebuild a pruned compute; notify if the value changed.
+  warm: unit => unit,
+}
+
 type state =
   | Pristine // Hasn't changed since value read.
   | Changed // Value changed and has been notified.
@@ -154,10 +163,10 @@ and watchers = {
   observed: observed,
   // Set of observers to notify on change.
   observers: observers,
-  // Per-key clear callbacks for installed computed values.
-  // Stored here so _clear can trigger back-propagation without
-  // creating a closure per computed.
-  computes: dict<bool => unit>,
+  // Per-key handles of installed computed values.
+  // Stored here so _clear can trigger back-propagation and _ready can warm
+  // a pruned compute without creating a closure per computed.
+  computes: dict<handle>,
 }
 and gc = {
   mutable active: Set.t<watchers>,
@@ -200,8 +209,8 @@ type rec meta<'a> = {
   observed: dict<watchers>,
   /** Cached child branch meta (nested proxies keyed by property name). */
   proxied: dict<meta<'a>>,
-  /** Per-key clear callbacks for installed computed values. */
-  computes: dict<bool => unit>,
+  /** Per-key handles of installed computed values. */
+  computes: dict<handle>,
   /** The Proxy wrapping [target]. */
   mutable proxy: 'a,
 }
@@ -215,7 +224,7 @@ type node<'c> = {
   /** See [meta.proxied]. */
   proxied: dict<meta<'c>>,
   /** See [meta.computes]. */
-  computes: dict<bool => unit>,
+  computes: dict<handle>,
 }
 
 type signal<'a> = {mutable value: 'a}
@@ -318,7 +327,7 @@ let unwatch = (observer: observer, prune: bool) => {
       // Prune cold computed dependencies on disposal.
       if prune {
         switch Dict.get(watchers.computes, watchers.key) {
-        | Value(clear) => clear(true)
+        | Value(c) => c.clear(true)
         | _ => ()
         }
       }
@@ -343,7 +352,12 @@ let _ready = (observer: observer, notifyIfChanged: bool) => {
       switch w.state {
       | Pristine => {
           ignore(Set.add(w.observers, observer))
-          false
+          switch Dict.get(w.computes, w.key) {
+          | Value(c) => c.warm()
+          | _ => ()
+          }
+          // The warm value changed: the observer is notified.
+          w.state !== Pristine
         }
       | Changed | Cleared if notifyIfChanged => {
           unwatch(observer, false)
@@ -376,7 +390,7 @@ let _ready = (observer: observer, notifyIfChanged: bool) => {
 let ownKeys = (
   root: root,
   observed: dict<watchers>,
-  computes: dict<bool => unit>,
+  computes: dict<handle>,
   target: 'a,
 ): 'b => {
   let keys = Reflect.ownKeys(target)
@@ -501,9 +515,9 @@ let rec set = (
       if !fromComputed {
         // Not a computed rebuild: clear any existing compute on this key
         switch Dict.get(node.computes, key) {
-        | Value(clear) => {
+        | Value(c) => {
             Dict.delete(node.computes, key)
-            clear(false)
+            c.clear(false)
           }
         | _ => ()
         }
@@ -631,6 +645,10 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
         ignore(%raw(`o.observing.length = 0`))
         if reset {
           // Keep lastValue, but force the next read to rebuild.
+          let v = Reflect.get(target, key)
+          if v !== compiled {
+            lastValue.v = v
+          }
           ignore(Dict.delete(node.proxied, key))
           ignore(Reflect.set(target, key, compiled))
         }
@@ -638,7 +656,12 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
     | _ => ()
     }
   }
-  Dict.set(node.computes, key, clear)
+  let warm = () =>
+    // A blown compute keeps its error for the next read.
+    if Reflect.get(target, key) === compiled && compute.rebuild === rebuild {
+      ignore(set(node, isArray, true, target, key, rebuild()))
+    }
+  Dict.set(node.computes, key, {clear, warm})
   rebuild()
 }
 
@@ -646,9 +669,9 @@ let deleteProperty = (node: node<'c>, target: 'a, key: string) => {
   let res = Reflect.deleteProperty(target, key)
   Dict.delete(node.proxied, key)
   switch Dict.get(node.computes, key) {
-  | Value(clear) => {
+  | Value(c) => {
       Dict.delete(node.computes, key)
-      clear(false)
+      c.clear(false)
     }
   | _ => ()
   }
