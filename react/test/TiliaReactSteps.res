@@ -41,3 +41,41 @@ given1("I render the {string} component", ({step}, compName) => {
     })
   })
 })
+
+given("I render the finder in strict mode", ({step}) => {
+  let host = createElement("div")
+  appendChild(host)
+  setActEnvironment(false)
+  let app = Finder.make()
+  let root = createRoot(host)
+  root->renderRoot(
+    <React.StrictMode>
+      <Finder.Page app />
+    </React.StrictMode>,
+  )
+  let shown = []
+
+  step("I open the finder and type {string} at once", async text => {
+    // The page and its effects are in place.
+    await wait(20)
+    press(host->querySelector("button"))
+    // Microtasks only: a timer would let React run the deferred effects.
+    let count = ref(0)
+    while Nullable.isNullable(host->find("input")) && count.contents < 100 {
+      count := count.contents + 1
+      await microtask()
+    }
+    let input = host->querySelector("input")
+    for i in 0 to String.length(text) - 1 {
+      typeIn(input, value(input) ++ String.charAt(text, i))
+      shown->Array.push(value(input))
+      await tick()
+    }
+  })
+
+  step("the input should have shown {string}", async expected => {
+    root->unmount
+    setActEnvironment(true)
+    Test.expect(shown->Array.join(", "))->toBe(expected)
+  })
+})

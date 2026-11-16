@@ -403,28 +403,46 @@ function compile(node, isArray, target, key, callback) {
     return v;
   };
   compute.rebuild = rebuild;
+  let pruned = {
+    contents: undefined
+  };
   let clear = reset => {
     let o = observer.o;
     if (o == null) {
       return;
     }
     _clear(o);
-    ((o.observing.length = 0));
-    if (!reset) {
+    if (reset) {
+      let v = Reflect.get(target, key);
+      if (v !== compiled) {
+        lastValue.v = v;
+      }
+      pruned.contents = node.proxied.get(key);
+      node.proxied.delete(key);
+      Reflect.set(target, key, compiled);
       return;
     }
-    let v = Reflect.get(target, key);
-    if (v !== compiled) {
-      lastValue.v = v;
-    }
-    node.proxied.delete(key);
-    Reflect.set(target, key, compiled);
+    ((o.observing.length = 0));
   };
   let warm = () => {
-    if (Reflect.get(target, key) === compiled && compute.rebuild === rebuild) {
-      set(node, isArray, true, target, key, rebuild());
+    if (Reflect.get(target, key) !== compiled || compute.rebuild !== rebuild) {
       return;
     }
+    let proxied = pruned.contents;
+    pruned.contents = undefined;
+    let o = observer.o;
+    if (o == null) {
+      o === null;
+    } else if (o.observing.length !== 0 && o.observing.every(w => w.state === "Pristine")) {
+      Reflect.set(target, key, lastValue.v);
+      if (proxied == null) {
+        proxied === null;
+      } else if (proxied.target === lastValue.v) {
+        node.proxied.set(key, proxied);
+      }
+      return _ready(o, false);
+    }
+    set(node, isArray, true, target, key, rebuild());
   };
   node.computes.set(key, {
     clear: clear,

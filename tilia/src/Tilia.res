@@ -638,19 +638,24 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
   }
   compute.rebuild = rebuild
 
+  // Proxy of the pruned value, put back by warm with the value.
+  let pruned = ref(Nullable.undefined)
   let clear = reset => {
     switch observer.o {
     | Value(o) => {
         _clear(o)
-        ignore(%raw(`o.observing.length = 0`))
         if reset {
-          // Keep lastValue, but force the next read to rebuild.
+          // Keep lastValue and the dependencies, but force the next read to
+          // rebuild.
           let v = Reflect.get(target, key)
           if v !== compiled {
             lastValue.v = v
           }
+          pruned := Dict.get(node.proxied, key)
           ignore(Dict.delete(node.proxied, key))
           ignore(Reflect.set(target, key, compiled))
+        } else {
+          ignore(%raw(`o.observing.length = 0`))
         }
       }
     | _ => ()
@@ -659,7 +664,22 @@ and compile = (node: node<'c>, isArray: bool, target: 'a, key: string, callback:
   let warm = () =>
     // A blown compute keeps its error for the next read.
     if Reflect.get(target, key) === compiled && compute.rebuild === rebuild {
-      ignore(set(node, isArray, true, target, key, rebuild()))
+      let proxied = pruned.contents
+      pruned := Nullable.undefined
+      switch observer.o {
+      // No dependency changed since the prune: the last value is still valid.
+      | Value(o)
+        if Array.length(o.observing) > 0 &&
+          Array.every(o.observing, w => w.state === Pristine) => {
+          ignore(Reflect.set(target, key, lastValue.v))
+          switch proxied {
+          | Value(m) if m.target === lastValue.v => Dict.set(node.proxied, key, m)
+          | _ => ()
+          }
+          _ready(o, false)
+        }
+      | _ => ignore(set(node, isArray, true, target, key, rebuild()))
+      }
     }
   Dict.set(node.computes, key, {clear, warm})
   rebuild()

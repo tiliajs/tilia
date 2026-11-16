@@ -49,6 +49,8 @@ type person = {
   mutable notes: TestObject.t,
 }
 type domino = {label: string}
+type listing = {items: array<string>}
+type heading = {first: array<string>}
 type tester = {mutable called: bool}
 type error = {mutable message: option<string>}
 
@@ -2040,6 +2042,97 @@ describe("Tilia", () => {
     // o2 rendered the old value
     expect(m2.called).toBe(true)
     expect(p.label).toBe("computed: changed value")
+  })
+
+  // A rebuild returns a new array: warm must keep the value instead.
+  it("Should keep a computed array after ready, clear, ready", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({items: computed(() => [query.value])})
+
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    let items = p.items
+    _ready(o, true)
+    _clear(o)
+    _ready(o, true)
+    expect(m.called).toBe(false)
+    expect(p.items === items).toBe(true)
+
+    query.value = "changed value"
+    expect(m.called).toBe(true)
+    expect(p.items).toEqual(["changed value"])
+  })
+
+  it("Should keep a computed array for a new observer after the old observer is cleared", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({items: computed(() => [query.value])})
+
+    let o1 = _observe(() => ())
+    expect(p.items).toEqual(["initial value"])
+    _ready(o1, true)
+
+    let m2 = {called: false}
+    let o2 = _observe(() => m2.called = true)
+    let items = p.items
+    _clear(o1)
+    _ready(o2, true)
+    expect(m2.called).toBe(false)
+    expect(p.items === items).toBe(true)
+
+    query.value = "changed value"
+    expect(m2.called).toBe(true)
+    expect(p.items).toEqual(["changed value"])
+  })
+
+  it("Should notify a new observer when a pruned computed array changed before ready", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({items: computed(() => [query.value])})
+
+    let o1 = _observe(() => ())
+    expect(p.items).toEqual(["initial value"])
+    _ready(o1, true)
+
+    let m2 = {called: false}
+    let o2 = _observe(() => m2.called = true)
+    expect(p.items).toEqual(["initial value"])
+    _clear(o1)
+    query.value = "changed value"
+    _ready(o2, true)
+    expect(m2.called).toBe(true)
+    expect(p.items).toEqual(["changed value"])
+  })
+
+  it("Should rebuild a pruned computed array on read after a change", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({items: computed(() => [query.value])})
+
+    let o = _observe(() => ())
+    expect(p.items).toEqual(["initial value"])
+    _ready(o, true)
+    _clear(o)
+    query.value = "changed value"
+    expect(p.items).toEqual(["changed value"])
+  })
+
+  it("Should keep a nested computed array after ready, clear, ready", () => {
+    let query = tilia({value: "initial value"})
+    let p = tilia({
+      items: computed(() => [query.value]),
+    })
+    let q = tilia({first: computed(() => p.items)})
+
+    let m = {called: false}
+    let o = _observe(() => m.called = true)
+    let first = q.first
+    _ready(o, true)
+    _clear(o)
+    _ready(o, true)
+    expect(m.called).toBe(false)
+    expect(q.first === first).toBe(true)
+
+    query.value = "changed value"
+    expect(m.called).toBe(true)
+    expect(q.first).toEqual(["changed value"])
   })
 
   // === _canopy developer helper ===

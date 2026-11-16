@@ -38,3 +38,21 @@ type userEventModule
 // Document globals
 @val @scope("document") external createElement: string => element = "createElement"
 @val @scope(("document", "body")) external appendChild: element => unit = "appendChild"
+
+// Render and type outside act, as a browser does.
+type root
+@module("react-dom/client") external createRoot: element => root = "createRoot"
+@send external renderRoot: (root, React.element) => unit = "render"
+@send external unmount: root => unit = "unmount"
+@send external querySelector: (element, string) => element = "querySelector"
+@send external find: (element, string) => Nullable.t<element> = "querySelector"
+@get external value: element => string = "value"
+let setActEnvironment: bool => unit = %raw(`v => { globalThis.IS_REACT_ACT_ENVIRONMENT = v }`)
+let press: element => unit = %raw(`el => el.dispatchEvent(new MouseEvent("click", { bubbles: true }))`)
+let typeIn: (element, string) => unit = %raw(`function (el, text) {
+  Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, text)
+  el.dispatchEvent(new Event("input", { bubbles: true }))
+}`)
+let microtask: unit => promise<unit> = %raw(`() => Promise.resolve()`)
+let tick: unit => promise<unit> = %raw(`() => new Promise(r => setTimeout(r, 0))`)
+let wait: int => promise<unit> = %raw(`ms => new Promise(r => setTimeout(r, ms))`)
